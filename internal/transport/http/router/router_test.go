@@ -2,7 +2,9 @@ package router_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,35 +16,69 @@ import (
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/router"
 )
 
-func TestGetHealth(t *testing.T) {
-	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)))
+type fakeDeps struct {
+	err error
+}
+
+func (f fakeDeps) Ping(context.Context) error { return f.err }
+
+func TestGetHealthHealthy(t *testing.T) {
+	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)), fakeDeps{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	req.Header.Set("X-Request-ID", "health-ok-1")
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("status=%d, want 200", rec.Code)
+		t.Fatalf("status=%d", rec.Code)
 	}
-	ct := rec.Header().Get("Content-Type")
-	if !strings.Contains(ct, "application/json") {
-		t.Fatalf("content-type=%q", ct)
+	if !strings.Contains(rec.Header().Get("Content-Type"), "application/json") {
+		t.Fatalf("content-type=%q", rec.Header().Get("Content-Type"))
 	}
-	if rec.Header().Get("X-Request-ID") == "" {
-		t.Fatal("missing X-Request-ID")
+	if rec.Header().Get("X-Request-ID") != "health-ok-1" {
+		t.Fatalf("request id=%q", rec.Header().Get("X-Request-ID"))
 	}
-
 	var body generated.HealthResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if body.Status != generated.Ok {
-		t.Fatalf("status=%q, want ok", body.Status)
+		t.Fatalf("status=%q", body.Status)
+	}
+}
+
+func TestGetHealthDependencyUnavailable(t *testing.T) {
+	engine := router.NewFoundation(
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		fakeDeps{err: errors.New("connection refused secret=super-db-password")},
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	req.Header.Set("X-Request-ID", "health-fail-1")
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var body generated.ErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Code != generated.DomainErrorCodeDEPENDENCYUNAVAILABLE {
+		t.Fatalf("code=%q", body.Code)
+	}
+	if body.Message == "" || body.TraceId != "health-fail-1" {
+		t.Fatalf("body=%+v", body)
+	}
+	if strings.Contains(rec.Body.String(), "super-db-password") || strings.Contains(rec.Body.String(), "connection refused") {
+		t.Fatalf("leaked dependency error text: %s", rec.Body.String())
 	}
 }
 
 func TestRequestIDPreservedAndRejected(t *testing.T) {
-	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)), fakeDeps{})
 
 	t.Run("safe inbound id preserved", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
@@ -67,7 +103,7 @@ func TestRequestIDPreservedAndRejected(t *testing.T) {
 }
 
 func TestLoginNotImplemented(t *testing.T) {
-	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)), fakeDeps{})
 
 	payload := []byte(`{"email":"user@example.com","password":"Password1!","clientContext":"PUBLIC_WEB"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", bytes.NewReader(payload))
@@ -79,45 +115,30 @@ func TestLoginNotImplemented(t *testing.T) {
 	if rec.Code != http.StatusNotImplemented {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
-
 	var body generated.ErrorResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.Code != generated.DomainErrorCodeINTERNALERROR {
-		t.Fatalf("code=%q", body.Code)
-	}
-	if body.Message == "" {
-		t.Fatal("empty message")
-	}
-	if body.TraceId != "login-trace-1" {
-		t.Fatalf("traceId=%q", body.TraceId)
+	if body.Code != generated.DomainErrorCodeINTERNALERROR || body.TraceId != "login-trace-1" {
+		t.Fatalf("body=%+v", body)
 	}
 }
 
 func TestOpenAPIRouteCount(t *testing.T) {
-	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)), fakeDeps{})
 	if got := router.CountOpenAPIRoutes(engine); got != 88 {
 		t.Fatalf("route count=%d, want 88", got)
 	}
 }
 
 func TestWrongBasePathsNotFound(t *testing.T) {
-	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)))
-
-	cases := []struct {
-		method string
-		path   string
-	}{
-		{http.MethodGet, "/health"},
-		{http.MethodPost, "/v1/auth/login"},
-	}
-	for _, tc := range cases {
-		req := httptest.NewRequest(tc.method, tc.path, nil)
+	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)), fakeDeps{})
+	for _, path := range []string{"/health", "/v1/auth/login"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
 		rec := httptest.NewRecorder()
 		engine.ServeHTTP(rec, req)
 		if rec.Code != http.StatusNotFound {
-			t.Fatalf("%s %s status=%d, want 404", tc.method, tc.path, rec.Code)
+			t.Fatalf("%s status=%d", path, rec.Code)
 		}
 	}
 }

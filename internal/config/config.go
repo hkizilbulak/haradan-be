@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -15,6 +16,13 @@ type Config struct {
 	HTTPWriteTimeout    time.Duration
 	HTTPIdleTimeout     time.Duration
 	HTTPShutdownTimeout time.Duration
+
+	DatabaseURL       string
+	DBMaxConns        int32
+	DBMinConns        int32
+	DBMaxConnLifetime time.Duration
+	DBMaxConnIdleTime time.Duration
+	DBHealthTimeout   time.Duration
 }
 
 // Load reads configuration from the process environment.
@@ -47,6 +55,38 @@ func Load() (Config, error) {
 	if cfg.HTTPShutdownTimeout, err = durationEnv("HTTP_SHUTDOWN_TIMEOUT", 10*time.Second); err != nil {
 		return Config{}, err
 	}
+
+	cfg.DatabaseURL = strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if cfg.DatabaseURL == "" {
+		return Config{}, fmt.Errorf("DATABASE_URL must not be empty")
+	}
+
+	if cfg.DBMaxConns, err = int32Env("DB_MAX_CONNS", 10); err != nil {
+		return Config{}, err
+	}
+	if cfg.DBMinConns, err = int32Env("DB_MIN_CONNS", 2); err != nil {
+		return Config{}, err
+	}
+	if cfg.DBMaxConns < 1 {
+		return Config{}, fmt.Errorf("DB_MAX_CONNS must be at least 1")
+	}
+	if cfg.DBMinConns < 0 {
+		return Config{}, fmt.Errorf("DB_MIN_CONNS must not be negative")
+	}
+	if cfg.DBMinConns > cfg.DBMaxConns {
+		return Config{}, fmt.Errorf("DB_MIN_CONNS must not be greater than DB_MAX_CONNS")
+	}
+
+	if cfg.DBMaxConnLifetime, err = durationEnv("DB_MAX_CONN_LIFETIME", 30*time.Minute); err != nil {
+		return Config{}, err
+	}
+	if cfg.DBMaxConnIdleTime, err = durationEnv("DB_MAX_CONN_IDLE_TIME", 5*time.Minute); err != nil {
+		return Config{}, err
+	}
+	if cfg.DBHealthTimeout, err = durationEnv("DB_HEALTH_TIMEOUT", 2*time.Second); err != nil {
+		return Config{}, err
+	}
+
 	return cfg, nil
 }
 
@@ -70,4 +110,16 @@ func durationEnv(key string, fallback time.Duration) (time.Duration, error) {
 		return 0, fmt.Errorf("%s must be greater than zero", key)
 	}
 	return d, nil
+}
+
+func int32Env(key string, fallback int32) (int32, error) {
+	raw, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return fallback, nil
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("%s is not a valid integer", key)
+	}
+	return int32(n), nil
 }

@@ -27,9 +27,9 @@ func New(server generated.ServerInterface, logger *slog.Logger) *gin.Engine {
 	return r
 }
 
-// NewFoundation constructs a complete foundation router with the default server.
-func NewFoundation(logger *slog.Logger) *gin.Engine {
-	return New(handler.NewServer(logger), logger)
+// NewFoundation constructs a router with the foundation server and dependency checker.
+func NewFoundation(logger *slog.Logger, deps handler.DependencyChecker) *gin.Engine {
+	return New(handler.NewServer(logger, deps), logger)
 }
 
 func requestLogger(logger *slog.Logger) gin.HandlerFunc {

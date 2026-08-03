@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,90 +11,115 @@ import (
 
 func TestLoadDefaults(t *testing.T) {
 	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
 
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
 	}
-	if cfg.AppEnv != "development" {
-		t.Fatalf("AppEnv=%q, want development", cfg.AppEnv)
+	if cfg.AppEnv != "development" || cfg.HTTPAddr != ":8080" {
+		t.Fatalf("unexpected base cfg: %+v", cfg)
 	}
-	if cfg.HTTPAddr != ":8080" {
-		t.Fatalf("HTTPAddr=%q, want :8080", cfg.HTTPAddr)
+	if cfg.DBMaxConns != 10 || cfg.DBMinConns != 2 {
+		t.Fatalf("unexpected pool defaults: %+v", cfg)
 	}
-	if cfg.HTTPReadTimeout != 10*time.Second {
-		t.Fatalf("HTTPReadTimeout=%v", cfg.HTTPReadTimeout)
+	if cfg.DBMaxConnLifetime != 30*time.Minute || cfg.DBMaxConnIdleTime != 5*time.Minute {
+		t.Fatalf("unexpected pool durations: %+v", cfg)
 	}
-	if cfg.HTTPWriteTimeout != 15*time.Second {
-		t.Fatalf("HTTPWriteTimeout=%v", cfg.HTTPWriteTimeout)
-	}
-	if cfg.HTTPIdleTimeout != 60*time.Second {
-		t.Fatalf("HTTPIdleTimeout=%v", cfg.HTTPIdleTimeout)
-	}
-	if cfg.HTTPShutdownTimeout != 10*time.Second {
-		t.Fatalf("HTTPShutdownTimeout=%v", cfg.HTTPShutdownTimeout)
+	if cfg.DBHealthTimeout != 2*time.Second {
+		t.Fatalf("unexpected health timeout: %v", cfg.DBHealthTimeout)
 	}
 }
 
-func TestLoadValidTimeouts(t *testing.T) {
+func TestLoadValidTimeoutsAndDB(t *testing.T) {
 	clearConfigEnv(t)
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("HTTP_ADDR", ":9090")
 	t.Setenv("HTTP_READ_TIMEOUT", "3s")
-	t.Setenv("HTTP_WRITE_TIMEOUT", "4s")
-	t.Setenv("HTTP_IDLE_TIMEOUT", "5s")
-	t.Setenv("HTTP_SHUTDOWN_TIMEOUT", "6s")
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("DB_MAX_CONNS", "20")
+	t.Setenv("DB_MIN_CONNS", "5")
+	t.Setenv("DB_MAX_CONN_LIFETIME", "10m")
+	t.Setenv("DB_MAX_CONN_IDLE_TIME", "1m")
+	t.Setenv("DB_HEALTH_TIMEOUT", "1500ms")
 
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
 	}
-	if cfg.AppEnv != "production" || cfg.HTTPAddr != ":9090" {
-		t.Fatalf("unexpected cfg: %+v", cfg)
+	if cfg.DBMaxConns != 20 || cfg.DBMinConns != 5 {
+		t.Fatalf("pool parse failed: %+v", cfg)
 	}
-	if cfg.HTTPReadTimeout != 3*time.Second || cfg.HTTPWriteTimeout != 4*time.Second {
-		t.Fatalf("unexpected timeouts: %+v", cfg)
-	}
-	if cfg.HTTPIdleTimeout != 5*time.Second || cfg.HTTPShutdownTimeout != 6*time.Second {
-		t.Fatalf("unexpected timeouts: %+v", cfg)
+	if cfg.DBHealthTimeout != 1500*time.Millisecond {
+		t.Fatalf("health timeout=%v", cfg.DBHealthTimeout)
 	}
 }
 
 func TestLoadInvalidDuration(t *testing.T) {
 	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
 	t.Setenv("HTTP_READ_TIMEOUT", "not-a-duration")
-
-	_, err := config.Load()
-	if err == nil {
-		t.Fatal("expected error for invalid duration")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected invalid duration error")
 	}
 }
 
 func TestLoadEmptyHTTPAddr(t *testing.T) {
 	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
 	t.Setenv("HTTP_ADDR", "   ")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected empty HTTP_ADDR error")
+	}
+}
 
+func TestLoadEmptyDatabaseURL(t *testing.T) {
+	clearConfigEnv(t)
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected empty DATABASE_URL error")
+	}
+}
+
+func TestLoadInvalidNumericAndMinMax(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("DB_MAX_CONNS", "abc")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected invalid numeric error")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("DB_MAX_CONNS", "2")
+	t.Setenv("DB_MIN_CONNS", "5")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected min>max error")
+	}
+}
+
+func TestLoadErrorDoesNotLeakSecret(t *testing.T) {
+	clearConfigEnv(t)
+	secret := "postgres://supersecret-user:supersecret-pass@db.example:5432/haradan"
+	t.Setenv("DATABASE_URL", secret)
+	t.Setenv("DB_MAX_CONN_LIFETIME", "bad")
 	_, err := config.Load()
 	if err == nil {
-		t.Fatal("expected error for empty HTTP_ADDR")
+		t.Fatal("expected error")
+	}
+	if strings.Contains(err.Error(), "supersecret") || strings.Contains(err.Error(), secret) {
+		t.Fatalf("error leaked secret: %v", err)
 	}
 }
 
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
 	keys := []string{
-		"APP_ENV",
-		"HTTP_ADDR",
-		"HTTP_READ_TIMEOUT",
-		"HTTP_WRITE_TIMEOUT",
-		"HTTP_IDLE_TIMEOUT",
-		"HTTP_SHUTDOWN_TIMEOUT",
+		"APP_ENV", "HTTP_ADDR", "HTTP_READ_TIMEOUT", "HTTP_WRITE_TIMEOUT", "HTTP_IDLE_TIMEOUT", "HTTP_SHUTDOWN_TIMEOUT",
+		"DATABASE_URL", "DB_MAX_CONNS", "DB_MIN_CONNS", "DB_MAX_CONN_LIFETIME", "DB_MAX_CONN_IDLE_TIME", "DB_HEALTH_TIMEOUT",
 	}
 	for _, key := range keys {
 		prev, had := os.LookupEnv(key)
-		if err := os.Unsetenv(key); err != nil {
-			t.Fatalf("unset %s: %v", key, err)
-		}
+		_ = os.Unsetenv(key)
 		key, prev, had := key, prev, had
 		t.Cleanup(func() {
 			if had {

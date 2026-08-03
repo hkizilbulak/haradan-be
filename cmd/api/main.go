@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/hkizilbulak/haradan-be/internal/config"
+	"github.com/hkizilbulak/haradan-be/internal/platform/database"
 	applogger "github.com/hkizilbulak/haradan-be/internal/platform/logger"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/router"
@@ -29,7 +30,21 @@ func run() error {
 	}
 
 	log := applogger.New(cfg.AppEnv)
-	srvHandler := handler.NewServer(log)
+
+	db, err := database.Open(context.Background(), database.Config{
+		DatabaseURL:     cfg.DatabaseURL,
+		MaxConns:        cfg.DBMaxConns,
+		MinConns:        cfg.DBMinConns,
+		MaxConnLifetime: cfg.DBMaxConnLifetime,
+		MaxConnIdleTime: cfg.DBMaxConnIdleTime,
+		HealthTimeout:   cfg.DBHealthTimeout,
+	})
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	defer db.Close()
+
+	srvHandler := handler.NewServer(log, db)
 	engine := router.New(srvHandler, log)
 
 	httpServer := &http.Server{
