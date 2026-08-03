@@ -1,0 +1,6388 @@
+---
+openapi: 3.0.3
+info:
+  title: Haradan API
+  version: 0.1.0
+  description: |-
+    Phase-one Haradan HTTP API contract.
+
+    Source of truth: docs/13 (data model) and docs/14 (use-cases).
+    All paths under /api. Versioned business routes use /v1.
+    BO operations require canonical role=admin AND session clientContext=ADMIN_BO.
+    Client-supplied role/owner/actor values are not trusted.
+    Access tokens are short-lived; refresh tokens are rotated and never stored as plaintext.
+    Worker/internal use-cases are not exposed as HTTP operations.
+servers:
+- url: "/api"
+  description: API base
+tags:
+- name: System
+  description: Health
+- name: Auth
+  description: Registration, login, tokens
+- name: Account
+  description: Authenticated self-service profile/sessions
+- name: Geo
+  description: Provinces and districts
+- name: Catalog
+  description: Public category metadata
+- name: Horse
+  description: Public horse selection/detail
+- name: AdvertsPublic
+  description: Public published advert search/detail
+- name: AdvertsOwner
+  description: Owner advert lifecycle
+- name: Favorites
+  description: User favorites
+- name: Media
+  description: User media upload and advert attachments
+- name: BannersPublic
+  description: Public active banners
+- name: AdminUsers
+  description: BO user administration
+- name: AdminCatalog
+  description: BO category and property administration
+- name: AdminModeration
+  description: BO advert moderation
+- name: AdminMedia
+  description: BO media upload
+- name: AdminBanners
+  description: BO banner management
+- name: AdminTjk
+  description: BO TJK sync administration
+paths:
+  "/health":
+    get:
+      operationId: GetHealth
+      summary: GetHealth
+      description: 'Exposure PUBLIC. Actor: Anonymous. No secrets'
+      tags:
+      - System
+      x-function-id: SYS-01
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HealthResponse"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+        '503':
+          description: DEPENDENCY_UNAVAILABLE
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+      x-error-codes:
+        '500':
+        - INTERNAL_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
+  "/v1/admin/adverts/moderation":
+    get:
+      operationId: ListAdvertModerationQueue
+      summary: ListAdvertModerationQueue
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminModeration
+      x-function-id: ADVERT-ADMIN-01
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ModerationQueueResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      - name: status
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/AdvertStatus"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/adverts/{advertId}":
+    get:
+      operationId: GetAdvertModerationDetail
+      summary: GetAdvertModerationDetail
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminModeration
+      x-function-id: ADVERT-ADMIN-02
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ModerationAdvertDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/adverts/{advertId}/approve":
+    post:
+      operationId: ApproveAdvert
+      summary: ApproveAdvert
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminModeration
+      x-function-id: ADVERT-ADMIN-03
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ModerationAdvertDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ExpectedVersionRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - STALE_VERSION
+        - PROCESSING_NOT_READY
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/adverts/{advertId}/reject":
+    post:
+      operationId: RejectAdvert
+      summary: RejectAdvert
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. reason required Requires
+        role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminModeration
+      x-function-id: ADVERT-ADMIN-05
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ModerationAdvertDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ModerationReasonRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/adverts/{advertId}/request-changes":
+    post:
+      operationId: RequestAdvertChanges
+      summary: RequestAdvertChanges
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. reason required Requires
+        role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminModeration
+      x-function-id: ADVERT-ADMIN-04
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ModerationAdvertDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ModerationReasonRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/adverts/{advertId}/suspend":
+    post:
+      operationId: SuspendAdvert
+      summary: SuspendAdvert
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. reason required Requires
+        role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminModeration
+      x-function-id: ADVERT-ADMIN-06
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ModerationAdvertDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ModerationReasonRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/banners":
+    get:
+      operationId: ListBannersAdmin
+      summary: ListBannersAdmin
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminBanners
+      x-function-id: BANNER-ADMIN-01
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminBannerListResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      - name: placement
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/BannerPlacement"
+      - name: status
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/BannerStatus"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+    post:
+      operationId: CreateBanner
+      summary: CreateBanner
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Always INACTIVE v1; no
+        status in request Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminBanners
+      x-function-id: BANNER-ADMIN-03
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminBannerDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/CreateBannerRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/banners/reorder":
+    put:
+      operationId: ReorderBanners
+      summary: ReorderBanners
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminBanners
+      x-function-id: BANNER-ADMIN-06
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SuccessMessageResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ReorderBannersRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '409':
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/banners/{bannerId}":
+    get:
+      operationId: GetBannerAdminDetail
+      summary: GetBannerAdminDetail
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminBanners
+      x-function-id: BANNER-ADMIN-02
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminBannerDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/BannerIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+    patch:
+      operationId: UpdateBanner
+      summary: UpdateBanner
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. expectedVersion Requires
+        role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminBanners
+      x-function-id: BANNER-ADMIN-04
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminBannerDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/BannerIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/UpdateBannerRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - STALE_VERSION
+        - PROCESSING_NOT_READY
+        - INVALID_STATE
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/banners/{bannerId}/status":
+    post:
+      operationId: SetBannerStatus
+      summary: SetBannerStatus
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. ACTIVE requires READY
+        Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminBanners
+      x-function-id: BANNER-ADMIN-05
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminBannerDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/BannerIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/SetBannerStatusRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - PROCESSING_NOT_READY
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/categories":
+    get:
+      operationId: ListCategoriesAdmin
+      summary: ListCategoriesAdmin
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-01
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminCategoryListResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      - name: isActive
+        in: query
+        required: false
+        schema:
+          type: boolean
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '500':
+        - INTERNAL_ERROR
+    post:
+      operationId: CreateCategory
+      summary: CreateCategory
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-03
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminCategoryDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/CreateCategoryRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '409':
+        - CONFLICT
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/categories/reorder":
+    put:
+      operationId: ReorderCategories
+      summary: ReorderCategories
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-07
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SuccessMessageResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ReorderCategoriesRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '409':
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/categories/{categoryId}":
+    get:
+      operationId: GetCategoryAdminDetail
+      summary: GetCategoryAdminDetail
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-02
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminCategoryDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/CategoryIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+    patch:
+      operationId: UpdateCategory
+      summary: UpdateCategory
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. expectedVersion Requires
+        role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-04
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminCategoryDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/CategoryIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/UpdateCategoryRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - STALE_VERSION
+        - CONFLICT
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/categories/{categoryId}/active":
+    post:
+      operationId: SetCategoryActive
+      summary: SetCategoryActive
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-06
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminCategoryDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/CategoryIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/SetActiveRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/categories/{categoryId}/properties":
+    get:
+      operationId: ListCategoryPropertiesAdmin
+      summary: ListCategoryPropertiesAdmin
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-08
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminCategoryPropertyListResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/CategoryIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+    post:
+      operationId: CreateCategoryProperty
+      summary: CreateCategoryProperty
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-09
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminCategoryPropertyResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/CategoryIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/CreateCategoryPropertyRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - CONFLICT
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/categories/{categoryId}/properties/reorder":
+    put:
+      operationId: ReorderCategoryProperties
+      summary: ReorderCategoryProperties
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-12
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SuccessMessageResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/CategoryIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ReorderCategoryPropertiesRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/categories/{categoryId}/properties/{propertyId}":
+    patch:
+      operationId: UpdateCategoryProperty
+      summary: UpdateCategoryProperty
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-10
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminCategoryPropertyResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/CategoryIdPath"
+      - "$ref": "#/components/parameters/PropertyIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/UpdateCategoryPropertyRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - STALE_VERSION
+        - INVALID_STATE
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/categories/{categoryId}/properties/{propertyId}/active":
+    post:
+      operationId: SetCategoryPropertyActive
+      summary: SetCategoryPropertyActive
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-11
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminCategoryPropertyResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/CategoryIdPath"
+      - "$ref": "#/components/parameters/PropertyIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/SetActiveRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/categories/{categoryId}/reparent":
+    post:
+      operationId: ReparentCategory
+      summary: ReparentCategory
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-05
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminCategoryDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/CategoryIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ReparentCategoryRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/media/assets/{assetId}":
+    get:
+      operationId: GetAdminMediaProcessingStatus
+      summary: GetAdminMediaProcessingStatus
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminMedia
+      x-function-id: MEDIA-ADMIN-03
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MediaProcessingStatusResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AssetIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/media/assets/{assetId}/confirm":
+    post:
+      operationId: ConfirmAdminMediaUpload
+      summary: ConfirmAdminMediaUpload
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminMedia
+      x-function-id: MEDIA-ADMIN-02
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '202':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MediaProcessingStatusResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AssetIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        '500':
+        - INTERNAL_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
+  "/v1/admin/media/uploads":
+    post:
+      operationId: InitiateAdminMediaUpload
+      summary: InitiateAdminMediaUpload
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminMedia
+      x-function-id: MEDIA-ADMIN-01
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/InitiateMediaUploadResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/InitiateMediaUploadRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '422':
+        - VALIDATION_ERROR
+        '429':
+        - RATE_LIMITED
+        '500':
+        - INTERNAL_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
+  "/v1/admin/tjk/item-errors/{errorId}/ignore":
+    post:
+      operationId: IgnoreTJKSyncItemError
+      summary: IgnoreTJKSyncItemError
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminTjk
+      x-function-id: TJK-ADMIN-07
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TJKSyncItemErrorResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/ErrorIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/tjk/item-errors/{errorId}/resolve":
+    post:
+      operationId: ResolveTJKSyncItemError
+      summary: ResolveTJKSyncItemError
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminTjk
+      x-function-id: TJK-ADMIN-06
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TJKSyncItemErrorResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/ErrorIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/tjk/sync-runs":
+    post:
+      operationId: TriggerTJKSync
+      summary: TriggerTJKSync
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. scope HORSES; queued
+        Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminTjk
+      x-function-id: TJK-ADMIN-01
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '202':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TJKSyncRunResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TriggerTJKSyncRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '409':
+        - CONFLICT
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+    get:
+      operationId: ListTJKSyncRuns
+      summary: ListTJKSyncRuns
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminTjk
+      x-function-id: TJK-ADMIN-03
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TJKSyncRunListResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      - name: status
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/TJKSyncRunStatus"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/tjk/sync-runs/{runId}":
+    get:
+      operationId: GetTJKSyncRun
+      summary: GetTJKSyncRun
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. No raw payload Requires
+        role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminTjk
+      x-function-id: TJK-ADMIN-04
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TJKSyncRunResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/RunIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/tjk/sync-runs/{runId}/cancel":
+    post:
+      operationId: CancelTJKSync
+      summary: CancelTJKSync
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Cooperative Requires
+        role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminTjk
+      x-function-id: TJK-ADMIN-02
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TJKSyncRunResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/RunIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ExpectedVersionRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - STALE_VERSION
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/tjk/sync-runs/{runId}/item-errors":
+    get:
+      operationId: ListTJKSyncItemErrors
+      summary: ListTJKSyncItemErrors
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminTjk
+      x-function-id: TJK-ADMIN-05
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TJKSyncItemErrorListResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/RunIdPath"
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      - name: status
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/TJKSyncItemErrorStatus"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/users":
+    get:
+      operationId: ListUsers
+      summary: ListUsers
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminUsers
+      x-function-id: ADMIN-USER-01
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminUserListResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      - name: status
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/UserStatus"
+      - name: role
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/UserRole"
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/users/{userId}":
+    get:
+      operationId: GetUserAdminDetail
+      summary: GetUserAdminDetail
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. No password Requires
+        role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminUsers
+      x-function-id: ADMIN-USER-02
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminUserDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/UserIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/users/{userId}/role":
+    post:
+      operationId: ChangeUserRole
+      summary: ChangeUserRole
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. expectedCurrentRole CAS
+        Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminUsers
+      x-function-id: ADMIN-USER-04
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminUserDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/UserIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ChangeUserRoleRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - CONFLICT
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/users/{userId}/security-events":
+    get:
+      operationId: ListUserSecurityEvents
+      summary: ListUserSecurityEvents
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminUsers
+      x-function-id: ADMIN-USER-05
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SecurityEventListResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/UserIdPath"
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      - name: eventType
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/SecurityEventType"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/users/{userId}/status":
+    post:
+      operationId: ChangeUserStatus
+      summary: ChangeUserStatus
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. expectedCurrentStatus
+        CAS Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminUsers
+      x-function-id: ADMIN-USER-03
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminUserDetailResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/UserIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ChangeUserStatusRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - CONFLICT
+        - INVALID_STATE
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/adverts":
+    get:
+      operationId: SearchPublishedAdverts
+      summary: SearchPublishedAdverts
+      description: 'Exposure PUBLIC. Actor: Anonymous or ACTIVE. Optional auth favorite
+        Optional BearerAuth for favorite enrichment.'
+      tags:
+      - AdvertsPublic
+      x-function-id: ADVERT-PUBLIC-01
+      x-exposure: PUBLIC
+      x-actor: Anonymous or ACTIVE
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PublishedAdvertSearchResponse"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - {}
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      - name: categoryId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: provinceId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: districtId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: horseId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: hasPhoto
+        in: query
+        required: false
+        schema:
+          type: boolean
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - newest
+        description: Whitelist only
+      - name: propertyFilters
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Encoded leaf-category property filters; unsupported→422
+      x-error-codes:
+        '422':
+        - VALIDATION_ERROR
+        - QUERY_TOO_COMPLEX
+        '500':
+        - INTERNAL_ERROR
+  "/v1/adverts/{advertId}":
+    get:
+      operationId: GetPublishedAdvertDetail
+      summary: GetPublishedAdvertDetail
+      description: 'Exposure PUBLIC. Actor: Anonymous or ACTIVE. Optional auth favorite
+        Optional BearerAuth for favorite enrichment.'
+      tags:
+      - AdvertsPublic
+      x-function-id: ADVERT-PUBLIC-02
+      x-exposure: PUBLIC
+      x-actor: Anonymous or ACTIVE
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PublishedAdvertDetailResponse"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - {}
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      x-error-codes:
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+  "/v1/auth/email/confirm":
+    post:
+      operationId: ConfirmEmailChange
+      summary: ConfirmEmailChange
+      description: 'Exposure PUBLIC. Actor: Anonymous. Token consume + email update'
+      tags:
+      - Auth
+      x-function-id: AUTH-14
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericAuthMessageResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TokenRequest"
+      x-error-codes:
+        '400':
+        - TOKEN_INVALID
+        - TOKEN_EXPIRED
+        '409':
+        - TOKEN_ALREADY_USED
+        - CONFLICT
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/auth/login":
+    post:
+      operationId: Login
+      summary: Login
+      description: 'Exposure PUBLIC. Actor: Anonymous. clientContext server-validated'
+      tags:
+      - Auth
+      x-function-id: AUTH-04
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AuthTokenResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/LoginRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        - EMAIL_NOT_VERIFIED
+        '422':
+        - VALIDATION_ERROR
+        '429':
+        - RATE_LIMITED
+        '500':
+        - INTERNAL_ERROR
+  "/v1/auth/logout":
+    post:
+      operationId: LogoutCurrentSession
+      summary: LogoutCurrentSession
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user. Idempotent'
+      tags:
+      - Auth
+      x-function-id: AUTH-06
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericAuthMessageResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '500':
+        - INTERNAL_ERROR
+  "/v1/auth/logout-all":
+    post:
+      operationId: LogoutAllSessions
+      summary: LogoutAllSessions
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user.'
+      tags:
+      - Auth
+      x-function-id: AUTH-07
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericAuthMessageResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '500':
+        - INTERNAL_ERROR
+  "/v1/auth/password/forgot":
+    post:
+      operationId: RequestPasswordReset
+      summary: RequestPasswordReset
+      description: 'Exposure PUBLIC. Actor: Anonymous. Enumeration-safe'
+      tags:
+      - Auth
+      x-function-id: AUTH-10
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericAuthMessageResponse"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/EmailRequest"
+      x-error-codes:
+        '422':
+        - VALIDATION_ERROR
+        '429':
+        - RATE_LIMITED
+        '500':
+        - INTERNAL_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
+  "/v1/auth/password/reset":
+    post:
+      operationId: ResetPassword
+      summary: ResetPassword
+      description: 'Exposure PUBLIC. Actor: Anonymous. Revokes all sessions'
+      tags:
+      - Auth
+      x-function-id: AUTH-11
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericAuthMessageResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ResetPasswordRequest"
+      x-error-codes:
+        '400':
+        - TOKEN_INVALID
+        - TOKEN_EXPIRED
+        '409':
+        - TOKEN_ALREADY_USED
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/auth/refresh":
+    post:
+      operationId: RefreshSession
+      summary: RefreshSession
+      description: 'Exposure PUBLIC. Actor: Refresh bearer. Rotation; replay→401'
+      tags:
+      - Auth
+      x-function-id: AUTH-05
+      x-exposure: PUBLIC
+      x-actor: Refresh bearer
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AuthTokenResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RefreshSessionRequest"
+      x-error-codes:
+        '401':
+        - TOKEN_INVALID
+        - SESSION_REVOKED
+        - REFRESH_REPLAY_DETECTED
+        - UNAUTHENTICATED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '500':
+        - INTERNAL_ERROR
+  "/v1/auth/register":
+    post:
+      operationId: RegisterUser
+      summary: RegisterUser
+      description: 'Exposure PUBLIC. Actor: Anonymous. Generic success; role not in
+        input'
+      tags:
+      - Auth
+      x-function-id: AUTH-01
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericAuthMessageResponse"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RegisterUserRequest"
+      x-error-codes:
+        '422':
+        - VALIDATION_ERROR
+        '429':
+        - RATE_LIMITED
+        '500':
+        - INTERNAL_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
+  "/v1/auth/resend-verification":
+    post:
+      operationId: ResendRegistrationEmailVerification
+      summary: ResendRegistrationEmailVerification
+      description: 'Exposure PUBLIC. Actor: Anonymous. Enumeration-safe'
+      tags:
+      - Auth
+      x-function-id: AUTH-03
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericAuthMessageResponse"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/EmailRequest"
+      x-error-codes:
+        '422':
+        - VALIDATION_ERROR
+        '429':
+        - RATE_LIMITED
+        '500':
+        - INTERNAL_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
+  "/v1/auth/verify-email":
+    post:
+      operationId: VerifyRegistrationEmail
+      summary: VerifyRegistrationEmail
+      description: 'Exposure PUBLIC. Actor: Anonymous. Token errors enumeration-safe'
+      tags:
+      - Auth
+      x-function-id: AUTH-02
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericAuthMessageResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TokenRequest"
+      x-error-codes:
+        '400':
+        - TOKEN_INVALID
+        - TOKEN_EXPIRED
+        '409':
+        - TOKEN_ALREADY_USED
+        '500':
+        - INTERNAL_ERROR
+  "/v1/banners":
+    get:
+      operationId: ListActiveBannersByPlacement
+      summary: ListActiveBannersByPlacement
+      description: 'Exposure PUBLIC. Actor: Anonymous. placement required'
+      tags:
+      - BannersPublic
+      x-function-id: BANNER-PUBLIC-01
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ActiveBannerListResponse"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      parameters:
+      - name: placement
+        in: query
+        required: true
+        schema:
+          "$ref": "#/components/schemas/BannerPlacement"
+      x-error-codes:
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/categories":
+    get:
+      operationId: GetPublicCategoryTree
+      summary: GetPublicCategoryTree
+      description: 'Exposure PUBLIC. Actor: Anonymous.'
+      tags:
+      - Catalog
+      x-function-id: CATALOG-01
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/CategoryTreeResponse"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      x-error-codes:
+        '500':
+        - INTERNAL_ERROR
+  "/v1/categories/{categoryId}/form":
+    get:
+      operationId: GetCategoryFormDefinition
+      summary: GetCategoryFormDefinition
+      description: 'Exposure PUBLIC. Actor: Anonymous.'
+      tags:
+      - Catalog
+      x-function-id: CATALOG-02
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/CategoryFormDefinitionResponse"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      parameters:
+      - "$ref": "#/components/parameters/CategoryIdPath"
+      x-error-codes:
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        '500':
+        - INTERNAL_ERROR
+  "/v1/districts/search":
+    get:
+      operationId: SearchDistricts
+      summary: SearchDistricts
+      description: 'Exposure PUBLIC. Actor: Anonymous. optional provinceId'
+      tags:
+      - Geo
+      x-function-id: GEO-04
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/DistrictListResponse"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: provinceId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - "$ref": "#/components/parameters/Limit"
+      x-error-codes:
+        '404':
+        - NOT_FOUND
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/horses":
+    get:
+      operationId: SearchHorsesForSelection
+      summary: SearchHorsesForSelection
+      description: 'Exposure PUBLIC. Actor: Anonymous. prefix/tjkNumber'
+      tags:
+      - Horse
+      x-function-id: HORSE-01
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HorseSelectionListResponse"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: tjkNumber
+        in: query
+        required: false
+        schema:
+          type: string
+      - "$ref": "#/components/parameters/Limit"
+      x-error-codes:
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/horses/{horseId}":
+    get:
+      operationId: GetHorsePublicDetail
+      summary: GetHorsePublicDetail
+      description: 'Exposure PUBLIC. Actor: Anonymous. No raw payload'
+      tags:
+      - Horse
+      x-function-id: HORSE-02
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HorsePublicDetailResponse"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      parameters:
+      - "$ref": "#/components/parameters/HorseIdPath"
+      x-error-codes:
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me":
+    get:
+      operationId: GetMyProfile
+      summary: GetMyProfile
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user.'
+      tags:
+      - Account
+      x-function-id: ACCOUNT-01
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MyProfileResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '500':
+        - INTERNAL_ERROR
+    patch:
+      operationId: UpdateMyProfile
+      summary: UpdateMyProfile
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user. No email/role/status'
+      tags:
+      - Account
+      x-function-id: ACCOUNT-02
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MyProfileResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/UpdateMyProfileRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/adverts":
+    post:
+      operationId: CreateAdvertDraft
+      summary: CreateAdvertDraft
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. Partial OK'
+      tags:
+      - AdvertsOwner
+      x-function-id: ADVERT-OWNER-01
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/OwnerAdvertResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/CreateAdvertDraftRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+    get:
+      operationId: ListMyAdverts
+      summary: ListMyAdverts
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. Soft-deleted excluded by
+        default'
+      tags:
+      - AdvertsOwner
+      x-function-id: ADVERT-OWNER-02
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/OwnerAdvertListResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      - name: status
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/AdvertStatus"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/adverts/{advertId}":
+    get:
+      operationId: GetMyAdvert
+      summary: GetMyAdvert
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner.'
+      tags:
+      - AdvertsOwner
+      x-function-id: ADVERT-OWNER-03
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/OwnerAdvertResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - OWNERSHIP_REQUIRED
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+    patch:
+      operationId: UpdateAdvertDraftDetails
+      summary: UpdateAdvertDraftDetails
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. expectedVersion'
+      tags:
+      - AdvertsOwner
+      x-function-id: ADVERT-OWNER-04
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/OwnerAdvertResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/UpdateAdvertDraftDetailsRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - OWNERSHIP_REQUIRED
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+    delete:
+      operationId: SoftDeleteAdvertDraft
+      summary: SoftDeleteAdvertDraft
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. expectedVersion query'
+      tags:
+      - AdvertsOwner
+      x-function-id: ADVERT-OWNER-09
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/OwnerAdvertResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      - "$ref": "#/components/parameters/ExpectedVersionQuery"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - OWNERSHIP_REQUIRED
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - STALE_VERSION
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/adverts/{advertId}/archive":
+    post:
+      operationId: ArchiveAdvert
+      summary: ArchiveAdvert
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. PUBLISHED→ARCHIVED'
+      tags:
+      - AdvertsOwner
+      x-function-id: ADVERT-OWNER-11
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/OwnerAdvertResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ExpectedVersionRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - STALE_VERSION
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/adverts/{advertId}/category":
+    put:
+      operationId: ChangeAdvertDraftCategory
+      summary: ChangeAdvertDraftCategory
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. DRAFT only; clears properties'
+      tags:
+      - AdvertsOwner
+      x-function-id: ADVERT-OWNER-05
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/OwnerAdvertResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ChangeAdvertDraftCategoryRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/adverts/{advertId}/media":
+    post:
+      operationId: AttachMediaToAdvert
+      summary: AttachMediaToAdvert
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. expectedMediaVersion'
+      tags:
+      - Media
+      x-function-id: MEDIA-04
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdvertMediaCollectionResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/AttachMediaToAdvertRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - OWNERSHIP_REQUIRED
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - STALE_VERSION
+        - INVALID_STATE
+        - CONFLICT
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/adverts/{advertId}/media/cover":
+    put:
+      operationId: SetAdvertCover
+      summary: SetAdvertCover
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner.'
+      tags:
+      - Media
+      x-function-id: MEDIA-07
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdvertMediaCollectionResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/SetAdvertCoverRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - STALE_VERSION
+        - INVALID_STATE
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/adverts/{advertId}/media/order":
+    put:
+      operationId: ReorderAdvertMedia
+      summary: ReorderAdvertMedia
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner.'
+      tags:
+      - Media
+      x-function-id: MEDIA-06
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdvertMediaCollectionResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ReorderAdvertMediaRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/adverts/{advertId}/media/{assetId}":
+    delete:
+      operationId: DetachMediaFromAdvert
+      summary: DetachMediaFromAdvert
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. expectedMediaVersion query'
+      tags:
+      - Media
+      x-function-id: MEDIA-05
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdvertMediaCollectionResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      - "$ref": "#/components/parameters/AssetIdPath"
+      - "$ref": "#/components/parameters/ExpectedMediaVersionQuery"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - STALE_VERSION
+        - INVALID_STATE
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/adverts/{advertId}/properties":
+    put:
+      operationId: ReplaceAdvertDynamicProperties
+      summary: ReplaceAdvertDynamicProperties
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. expectedVersion'
+      tags:
+      - AdvertsOwner
+      x-function-id: ADVERT-OWNER-06
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/OwnerAdvertResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ReplaceAdvertDynamicPropertiesRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/adverts/{advertId}/resubmit":
+    post:
+      operationId: ResubmitAdvertForReview
+      summary: ResubmitAdvertForReview
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. CHANGES_REQUESTED→PENDING_REVIEW'
+      tags:
+      - AdvertsOwner
+      x-function-id: ADVERT-OWNER-08
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/OwnerAdvertResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ExpectedVersionRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - EMAIL_NOT_VERIFIED
+        - OWNERSHIP_REQUIRED
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - PROCESSING_NOT_READY
+        - INVALID_STATE
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/adverts/{advertId}/sold":
+    post:
+      operationId: MarkAdvertSold
+      summary: MarkAdvertSold
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. PUBLISHED→SOLD'
+      tags:
+      - AdvertsOwner
+      x-function-id: ADVERT-OWNER-10
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/OwnerAdvertResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ExpectedVersionRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - OWNERSHIP_REQUIRED
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - STALE_VERSION
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/adverts/{advertId}/submit":
+    post:
+      operationId: SubmitAdvertForReview
+      summary: SubmitAdvertForReview
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. DRAFT→PENDING_REVIEW'
+      tags:
+      - AdvertsOwner
+      x-function-id: ADVERT-OWNER-07
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/OwnerAdvertResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ExpectedVersionRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - EMAIL_NOT_VERIFIED
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - PROCESSING_NOT_READY
+        - INVALID_STATE
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/email/change-request":
+    post:
+      operationId: RequestEmailChange
+      summary: RequestEmailChange
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user.'
+      tags:
+      - Account
+      x-function-id: AUTH-13
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericAuthMessageResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RequestEmailChangeRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - EMAIL_NOT_VERIFIED
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '409':
+        - CONFLICT
+        '422':
+        - VALIDATION_ERROR
+        '429':
+        - RATE_LIMITED
+        '500':
+        - INTERNAL_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
+  "/v1/me/favorites":
+    get:
+      operationId: ListMyFavorites
+      summary: ListMyFavorites
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user. Placeholder for non-public'
+      tags:
+      - Favorites
+      x-function-id: FAVORITE-03
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/FavoriteListResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/favorites/{advertId}":
+    put:
+      operationId: AddFavorite
+      summary: AddFavorite
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user. Idempotent'
+      tags:
+      - Favorites
+      x-function-id: FAVORITE-01
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/FavoriteMutationResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        '500':
+        - INTERNAL_ERROR
+    delete:
+      operationId: RemoveFavorite
+      summary: RemoveFavorite
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user. Idempotent'
+      tags:
+      - Favorites
+      x-function-id: FAVORITE-02
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/FavoriteMutationResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/password":
+    post:
+      operationId: ChangePassword
+      summary: ChangePassword
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user.'
+      tags:
+      - Account
+      x-function-id: AUTH-12
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericAuthMessageResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ChangePasswordRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/sessions":
+    get:
+      operationId: ListMySessions
+      summary: ListMySessions
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user. No hashes'
+      tags:
+      - Account
+      x-function-id: AUTH-08
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SessionListResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/sessions/{sessionId}":
+    delete:
+      operationId: RevokeMySession
+      summary: RevokeMySession
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user. Idempotent'
+      tags:
+      - Account
+      x-function-id: AUTH-09
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/GenericAuthMessageResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/SessionIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - OWNERSHIP_REQUIRED
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+  "/v1/media/assets/{assetId}":
+    get:
+      operationId: GetMediaProcessingStatus
+      summary: GetMediaProcessingStatus
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. No object keys'
+      tags:
+      - Media
+      x-function-id: MEDIA-03
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MediaProcessingStatusResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AssetIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - OWNERSHIP_REQUIRED
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+  "/v1/media/assets/{assetId}/confirm":
+    post:
+      operationId: ConfirmMediaUpload
+      summary: ConfirmMediaUpload
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. Idempotent; durable validate
+        enqueued'
+      tags:
+      - Media
+      x-function-id: MEDIA-02
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE owner
+      responses:
+        '202':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MediaProcessingStatusResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AssetIdPath"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - OWNERSHIP_REQUIRED
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - CONFLICT
+        '500':
+        - INTERNAL_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
+  "/v1/media/uploads":
+    post:
+      operationId: InitiateMediaUpload
+      summary: InitiateMediaUpload
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user. No permanent credentials'
+      tags:
+      - Media
+      x-function-id: MEDIA-01
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/InitiateMediaUploadResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/InitiateMediaUploadRequest"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '422':
+        - VALIDATION_ERROR
+        '429':
+        - RATE_LIMITED
+        '500':
+        - INTERNAL_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
+  "/v1/provinces":
+    get:
+      operationId: ListActiveProvinces
+      summary: ListActiveProvinces
+      description: 'Exposure PUBLIC. Actor: Anonymous.'
+      tags:
+      - Geo
+      x-function-id: GEO-01
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ProvinceListResponse"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      x-error-codes:
+        '500':
+        - INTERNAL_ERROR
+  "/v1/provinces/search":
+    get:
+      operationId: SearchProvinces
+      summary: SearchProvinces
+      description: 'Exposure PUBLIC. Actor: Anonymous. q prefix'
+      tags:
+      - Geo
+      x-function-id: GEO-02
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ProvinceListResponse"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - "$ref": "#/components/parameters/Limit"
+      x-error-codes:
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/provinces/{provinceId}/districts":
+    get:
+      operationId: ListDistrictsByProvince
+      summary: ListDistrictsByProvince
+      description: 'Exposure PUBLIC. Actor: Anonymous.'
+      tags:
+      - Geo
+      x-function-id: GEO-03
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/DistrictListResponse"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      parameters:
+      - "$ref": "#/components/parameters/ProvinceIdPath"
+      x-error-codes:
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived access token. Session/refresh validated server-side.
+        Role/owner/actor from client are not trusted.
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+      description: Opaque cursor
+    ProvinceIdPath:
+      name: provinceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CategoryIdPath:
+      name: categoryId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    HorseIdPath:
+      name: horseId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AdvertIdPath:
+      name: advertId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SessionIdPath:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AssetIdPath:
+      name: assetId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    UserIdPath:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PropertyIdPath:
+      name: propertyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BannerIdPath:
+      name: bannerId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RunIdPath:
+      name: runId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ErrorIdPath:
+      name: errorId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ExpectedVersionQuery:
+      name: expectedVersion
+      in: query
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ExpectedMediaVersionQuery:
+      name: expectedMediaVersion
+      in: query
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  schemas:
+    AdvertStatus:
+      type: string
+      enum:
+      - DRAFT
+      - PENDING_REVIEW
+      - CHANGES_REQUESTED
+      - PUBLISHED
+      - REJECTED
+      - SUSPENDED
+      - SOLD
+      - ARCHIVED
+    UserRole:
+      type: string
+      enum:
+      - user
+      - admin
+    UserStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - DISABLED
+      - CLOSED
+    ClientContext:
+      type: string
+      enum:
+      - PUBLIC_WEB
+      - MOBILE
+      - ADMIN_BO
+    BannerPlacement:
+      type: string
+      enum:
+      - HOMEPAGE
+      - LISTING_DETAIL
+      - SEARCH
+    BannerStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - INACTIVE
+    JobStatus:
+      type: string
+      enum:
+      - QUEUED
+      - LEASED
+      - SUCCEEDED
+      - FAILED
+      - CANCELLED
+      - DEAD
+    TJKSyncMode:
+      type: string
+      enum:
+      - FULL
+      - INCREMENTAL
+      - RECONCILIATION
+    TJKSyncRunStatus:
+      type: string
+      enum:
+      - QUEUED
+      - RUNNING
+      - SUCCEEDED
+      - PARTIAL_SUCCESS
+      - FAILED
+      - CANCELLED
+    TJKSyncItemErrorStatus:
+      type: string
+      enum:
+      - OPEN
+      - RESOLVED
+      - IGNORED
+    TJKSyncScope:
+      type: string
+      enum:
+      - HORSES
+    MediaAssetLifecycle:
+      type: string
+      enum:
+      - UPLOAD_PENDING
+      - UPLOADED
+      - VALIDATING
+      - MASTER_READY
+      - VALIDATION_FAILED
+      - CLEANUP_CANDIDATE
+      - DELETING
+      - PHYSICALLY_DELETED
+    MediaVariantLifecycle:
+      type: string
+      enum:
+      - PENDING
+      - PROCESSING
+      - READY
+      - FAILED
+      - DELETING
+      - PHYSICALLY_DELETED
+    PropertyDataType:
+      type: string
+      enum:
+      - STRING
+      - TEXT
+      - INTEGER
+      - DECIMAL
+      - BOOLEAN
+      - SINGLE_SELECT
+      - YEAR
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      required:
+      - key
+      - value
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+    FieldValidationError:
+      type: object
+      additionalProperties: false
+      required:
+      - field
+      - message
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+    ErrorResponse:
+      type: object
+      required:
+      - code
+      - message
+      - traceId
+      additionalProperties: false
+      properties:
+        code:
+          "$ref": "#/components/schemas/DomainErrorCode"
+        message:
+          type: string
+        traceId:
+          type: string
+          minLength: 1
+        details:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ErrorDetail"
+        fieldErrors:
+          type: array
+          items:
+            "$ref": "#/components/schemas/FieldValidationError"
+    CursorPageMeta:
+      type: object
+      additionalProperties: false
+      required:
+      - hasMore
+      properties:
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    SuccessMessageResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - message
+      properties:
+        message:
+          type: string
+    GenericAuthMessageResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - message
+      properties:
+        message:
+          type: string
+    VersionedResource:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - version
+      properties:
+        id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+    Money:
+      type: object
+      additionalProperties: false
+      required:
+      - amountMinor
+      - currency
+      properties:
+        amountMinor:
+          type: integer
+          minimum: 0
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+      description: Price pair; if advert has no price, parent price property is null
+        (not half-pair).
+    MediaProcessingState:
+      type: object
+      additionalProperties: false
+      required:
+      - assetId
+      - lifecycleStatus
+      - variants
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        lifecycleStatus:
+          "$ref": "#/components/schemas/MediaAssetLifecycle"
+        failureCode:
+          type: string
+          nullable: true
+        failureMessage:
+          type: string
+          nullable: true
+        variants:
+          type: array
+          items:
+            "$ref": "#/components/schemas/MediaVariantStatusItem"
+    MediaVariantStatusItem:
+      type: object
+      additionalProperties: false
+      required:
+      - transformProfile
+      - lifecycleStatus
+      properties:
+        transformProfile:
+          type: string
+          minLength: 1
+        lifecycleStatus:
+          "$ref": "#/components/schemas/MediaVariantLifecycle"
+        usage:
+          type: string
+          nullable: true
+        publicUrl:
+          type: string
+          nullable: true
+          description: Only when READY; never object keys
+    RegisterUserRequest:
+      type: object
+      required:
+      - email
+      - password
+      - firstName
+      - lastName
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+          nullable: true
+      additionalProperties: false
+    TokenRequest:
+      type: object
+      required:
+      - token
+      properties:
+        token:
+          type: string
+      additionalProperties: false
+    EmailRequest:
+      type: object
+      required:
+      - email
+      properties:
+        email:
+          type: string
+          format: email
+      additionalProperties: false
+    LoginRequest:
+      type: object
+      required:
+      - email
+      - password
+      - clientContext
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        clientContext:
+          "$ref": "#/components/schemas/ClientContext"
+      additionalProperties: false
+    RefreshSessionRequest:
+      type: object
+      required:
+      - refreshToken
+      - clientContext
+      properties:
+        refreshToken:
+          type: string
+        clientContext:
+          "$ref": "#/components/schemas/ClientContext"
+      additionalProperties: false
+    ResetPasswordRequest:
+      type: object
+      required:
+      - token
+      - newPassword
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+          minLength: 8
+      additionalProperties: false
+    ChangePasswordRequest:
+      type: object
+      required:
+      - currentPassword
+      - newPassword
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+          minLength: 8
+      additionalProperties: false
+    RequestEmailChangeRequest:
+      type: object
+      required:
+      - newEmail
+      properties:
+        newEmail:
+          type: string
+          format: email
+      additionalProperties: false
+    AuthTokenResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - accessToken
+      - refreshToken
+      - tokenType
+      - expiresIn
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          enum:
+          - Bearer
+        expiresIn:
+          type: integer
+        clientContext:
+          "$ref": "#/components/schemas/ClientContext"
+    MyProfileResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - email
+      - emailVerified
+      - firstName
+      - lastName
+      - role
+      - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        emailVerified:
+          type: boolean
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        role:
+          "$ref": "#/components/schemas/UserRole"
+        status:
+          "$ref": "#/components/schemas/UserStatus"
+    UpdateMyProfileRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+          nullable: true
+      additionalProperties: false
+    SessionListItem:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - clientContext
+      - createdAt
+      - lastUsedAt
+      - isCurrent
+      properties:
+        id:
+          type: string
+          format: uuid
+        clientContext:
+          "$ref": "#/components/schemas/ClientContext"
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        isCurrent:
+          type: boolean
+    SessionListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/SessionListItem"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    Province:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - name
+      - sortOrder
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sortOrder:
+          type: integer
+    ProvinceListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Province"
+    District:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - provinceId
+      - name
+      - sortOrder
+      properties:
+        id:
+          type: string
+          format: uuid
+        provinceId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sortOrder:
+          type: integer
+    DistrictListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/District"
+    CategoryTreeNode:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - slug
+      - name
+      - children
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        children:
+          type: array
+          items:
+            "$ref": "#/components/schemas/CategoryTreeNode"
+    CategoryTreeResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/CategoryTreeNode"
+    CategoryPropertyPublic:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - title
+      - dataType
+      - isRequired
+      - isFilterable
+      - sortOrder
+      - options
+      properties:
+        code:
+          type: string
+        title:
+          type: string
+        helpText:
+          type: string
+          nullable: true
+        dataType:
+          "$ref": "#/components/schemas/PropertyDataType"
+        isRequired:
+          type: boolean
+        isFilterable:
+          type: boolean
+        sortOrder:
+          type: integer
+        options:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        defaultValue:
+          nullable: true
+        uiMetadata:
+          type: object
+          additionalProperties: true
+    CategoryFormDefinitionResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - categoryId
+      - slug
+      - name
+      - properties
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        properties:
+          type: array
+          items:
+            "$ref": "#/components/schemas/CategoryPropertyPublic"
+    HorseSelectionItem:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - originalName
+      - tjkNumber
+      properties:
+        id:
+          type: string
+          format: uuid
+        originalName:
+          type: string
+        tjkNumber:
+          type: string
+        birthYear:
+          type: integer
+          nullable: true
+        sireName:
+          type: string
+          nullable: true
+        damName:
+          type: string
+          nullable: true
+    HorseSelectionListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/HorseSelectionItem"
+    HorsePublicDetailResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - originalName
+      - tjkNumber
+      - detail
+      properties:
+        id:
+          type: string
+          format: uuid
+        originalName:
+          type: string
+        tjkNumber:
+          type: string
+        birthYear:
+          type: integer
+          nullable: true
+        sireName:
+          type: string
+          nullable: true
+        damName:
+          type: string
+          nullable: true
+        breed:
+          type: string
+          nullable: true
+        gender:
+          type: string
+          nullable: true
+        coat:
+          type: string
+          nullable: true
+        detail:
+          type: object
+          additionalProperties: true
+          description: Controlled public sections only
+    PublicMediaItem:
+      type: object
+      additionalProperties: false
+      required:
+      - assetId
+      - displayOrder
+      - isCover
+      - publicUrl
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        displayOrder:
+          type: integer
+        isCover:
+          type: boolean
+        publicUrl:
+          type: string
+        usage:
+          type: string
+          nullable: true
+    PublicPropertyValue:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - title
+      - value
+      properties:
+        code:
+          type: string
+        title:
+          type: string
+        value:
+          nullable: true
+        displayValue:
+          type: string
+          nullable: true
+    PublishedAdvertCard:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - title
+      - publishedAt
+      - categoryId
+      - districtId
+      - provinceId
+      - price
+      - cover
+      - isFavorite
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        price:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/Money"
+        categoryId:
+          type: string
+          format: uuid
+        districtId:
+          type: string
+          format: uuid
+        provinceId:
+          type: string
+          format: uuid
+        horseId:
+          type: string
+          format: uuid
+          nullable: true
+        cover:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/PublicMediaItem"
+        isFavorite:
+          type: boolean
+          nullable: true
+          description: 'Present when optional auth; null/omitted semantics: always
+            present as nullable for anonymous=false enrichment path — anonymous callers
+            get null'
+    PublishedAdvertSearchResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/PublishedAdvertCard"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    PublishedAdvertDetailResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - title
+      - description
+      - publishedAt
+      - price
+      - category
+      - location
+      - horse
+      - properties
+      - media
+      - isFavorite
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        price:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/Money"
+        category:
+          "$ref": "#/components/schemas/PublicCategorySummary"
+        location:
+          "$ref": "#/components/schemas/PublicLocationSummary"
+        horse:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/HorseSelectionItem"
+        properties:
+          type: array
+          items:
+            "$ref": "#/components/schemas/PublicPropertyValue"
+        media:
+          type: array
+          items:
+            "$ref": "#/components/schemas/PublicMediaItem"
+        isFavorite:
+          type: boolean
+          nullable: true
+    OwnerAdvertResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - status
+      - version
+      - mediaVersion
+      - categoryId
+      - districtId
+      - horseId
+      - title
+      - description
+      - price
+      - properties
+      - media
+      - publishedAt
+      - deletedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          "$ref": "#/components/schemas/AdvertStatus"
+        version:
+          type: integer
+          minimum: 1
+        mediaVersion:
+          type: integer
+          minimum: 1
+        categoryId:
+          type: string
+          format: uuid
+          nullable: true
+        districtId:
+          type: string
+          format: uuid
+          nullable: true
+        horseId:
+          type: string
+          format: uuid
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        price:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/Money"
+        properties:
+          type: object
+          additionalProperties: true
+        media:
+          type: array
+          items:
+            "$ref": "#/components/schemas/OwnerMediaRelationItem"
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        categoryClearedWarning:
+          type: boolean
+          nullable: true
+    OwnerMediaRelationItem:
+      type: object
+      additionalProperties: false
+      required:
+      - assetId
+      - displayOrder
+      - isCover
+      - lifecycleStatus
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        displayOrder:
+          type: integer
+        isCover:
+          type: boolean
+        lifecycleStatus:
+          "$ref": "#/components/schemas/MediaAssetLifecycle"
+    OwnerAdvertListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/OwnerAdvertResponse"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    CreateAdvertDraftRequest:
+      type: object
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+          nullable: true
+        districtId:
+          type: string
+          format: uuid
+          nullable: true
+        horseId:
+          type: string
+          format: uuid
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        price:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/Money"
+      additionalProperties: false
+    UpdateAdvertDraftDetailsRequest:
+      type: object
+      required:
+      - expectedVersion
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        districtId:
+          type: string
+          format: uuid
+          nullable: true
+        horseId:
+          type: string
+          format: uuid
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        price:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/Money"
+      additionalProperties: false
+    ChangeAdvertDraftCategoryRequest:
+      type: object
+      required:
+      - expectedVersion
+      - categoryId
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        categoryId:
+          type: string
+          format: uuid
+      additionalProperties: false
+    ReplaceAdvertDynamicPropertiesRequest:
+      type: object
+      required:
+      - expectedVersion
+      - properties
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        properties:
+          type: object
+          additionalProperties: true
+      additionalProperties: false
+    ExpectedVersionRequest:
+      type: object
+      required:
+      - expectedVersion
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+      additionalProperties: false
+    ModerationReasonRequest:
+      type: object
+      required:
+      - expectedVersion
+      - reason
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          minLength: 1
+      additionalProperties: false
+    FavoriteMutationResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - advertId
+      - favorited
+      properties:
+        advertId:
+          type: string
+          format: uuid
+        favorited:
+          type: boolean
+    FavoriteListItem:
+      type: object
+      additionalProperties: false
+      required:
+      - advertId
+      - available
+      properties:
+        advertId:
+          type: string
+          format: uuid
+        available:
+          type: boolean
+        card:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/PublishedAdvertCard"
+        unavailableReason:
+          type: string
+          nullable: true
+          description: Safe placeholder only; no moderation reason
+    FavoriteListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/FavoriteListItem"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    InitiateMediaUploadRequest:
+      type: object
+      properties:
+        declaredContentType:
+          type: string
+        declaredByteSize:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    InitiateMediaUploadResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - assetId
+      - upload
+      - constraints
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        upload:
+          "$ref": "#/components/schemas/UploadAuthorization"
+        constraints:
+          "$ref": "#/components/schemas/UploadConstraints"
+    MediaProcessingStatusResponse:
+      allOf:
+      - "$ref": "#/components/schemas/MediaProcessingState"
+    AttachMediaToAdvertRequest:
+      type: object
+      required:
+      - assetId
+      - expectedMediaVersion
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        displayOrder:
+          type: integer
+          minimum: 0
+        expectedMediaVersion:
+          type: integer
+          minimum: 1
+      additionalProperties: false
+    ReorderAdvertMediaRequest:
+      type: object
+      required:
+      - expectedMediaVersion
+      - orderedAssetIds
+      properties:
+        expectedMediaVersion:
+          type: integer
+          minimum: 1
+        orderedAssetIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+      additionalProperties: false
+    SetAdvertCoverRequest:
+      type: object
+      required:
+      - assetId
+      - expectedMediaVersion
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        expectedMediaVersion:
+          type: integer
+          minimum: 1
+      additionalProperties: false
+    AdvertMediaCollectionResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - advertId
+      - mediaVersion
+      - items
+      properties:
+        advertId:
+          type: string
+          format: uuid
+        mediaVersion:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/OwnerMediaRelationItem"
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      properties:
+        status:
+          type: string
+          enum:
+          - ok
+          - degraded
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+          description: Non-sensitive check labels only
+    AdminUserListItem:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - email
+      - firstName
+      - lastName
+      - role
+      - status
+      - emailVerified
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          "$ref": "#/components/schemas/UserRole"
+        status:
+          "$ref": "#/components/schemas/UserStatus"
+        emailVerified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    AdminUserListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/AdminUserListItem"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    AdminUserDetailResponse:
+      allOf:
+      - "$ref": "#/components/schemas/AdminUserListItem"
+      - type: object
+        additionalProperties: false
+        required:
+        - activeSessionCount
+        properties:
+          phone:
+            type: string
+            nullable: true
+          activeSessionCount:
+            type: integer
+            minimum: 0
+    ChangeUserStatusRequest:
+      type: object
+      required:
+      - expectedCurrentStatus
+      - newStatus
+      properties:
+        expectedCurrentStatus:
+          "$ref": "#/components/schemas/UserStatus"
+        newStatus:
+          "$ref": "#/components/schemas/UserStatus"
+      additionalProperties: false
+    ChangeUserRoleRequest:
+      type: object
+      required:
+      - expectedCurrentRole
+      - newRole
+      properties:
+        expectedCurrentRole:
+          "$ref": "#/components/schemas/UserRole"
+        newRole:
+          "$ref": "#/components/schemas/UserRole"
+      additionalProperties: false
+    SecurityEventItem:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - eventType
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventType:
+          "$ref": "#/components/schemas/SecurityEventType"
+        createdAt:
+          type: string
+          format: date-time
+        clientContext:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/ClientContext"
+        metadata:
+          type: object
+          additionalProperties: true
+    SecurityEventListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/SecurityEventItem"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    AdminCategoryDetailResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - slug
+      - name
+      - isActive
+      - sortOrder
+      - version
+      properties:
+        id:
+          type: string
+          format: uuid
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        sortOrder:
+          type: integer
+        version:
+          type: integer
+          minimum: 1
+    AdminCategoryListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/AdminCategoryDetailResponse"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    CreateCategoryRequest:
+      type: object
+      required:
+      - slug
+      - name
+      properties:
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    UpdateCategoryRequest:
+      type: object
+      required:
+      - expectedVersion
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    ReparentCategoryRequest:
+      type: object
+      required:
+      - expectedVersion
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        newParentId:
+          type: string
+          format: uuid
+          nullable: true
+      additionalProperties: false
+    SetActiveRequest:
+      type: object
+      required:
+      - expectedVersion
+      - isActive
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        isActive:
+          type: boolean
+      additionalProperties: false
+    ReorderItem:
+      type: object
+      required:
+      - id
+      - expectedVersion
+      - sortOrder
+      properties:
+        id:
+          type: string
+          format: uuid
+        expectedVersion:
+          type: integer
+          minimum: 1
+        sortOrder:
+          type: integer
+          minimum: 0
+    ReorderCategoriesRequest:
+      type: object
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ReorderItem"
+      additionalProperties: false
+    AdminCategoryPropertyResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - categoryId
+      - code
+      - title
+      - dataType
+      - isRequired
+      - isPublicVisible
+      - isFormVisible
+      - isFilterable
+      - sortOrder
+      - isActive
+      - version
+      - options
+      - validation
+      - uiMetadata
+      properties:
+        id:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        title:
+          type: string
+        helpText:
+          type: string
+          nullable: true
+        dataType:
+          "$ref": "#/components/schemas/PropertyDataType"
+        isRequired:
+          type: boolean
+        isPublicVisible:
+          type: boolean
+        isFormVisible:
+          type: boolean
+        isFilterable:
+          type: boolean
+        sortOrder:
+          type: integer
+        isActive:
+          type: boolean
+        version:
+          type: integer
+          minimum: 1
+        options:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        validation:
+          type: object
+          additionalProperties: true
+        defaultValue:
+          nullable: true
+        uiMetadata:
+          type: object
+          additionalProperties: true
+    AdminCategoryPropertyListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/AdminCategoryPropertyResponse"
+    CreateCategoryPropertyRequest:
+      type: object
+      required:
+      - code
+      - title
+      - dataType
+      properties:
+        code:
+          type: string
+        title:
+          type: string
+        helpText:
+          type: string
+          nullable: true
+        dataType:
+          "$ref": "#/components/schemas/PropertyDataType"
+        isRequired:
+          type: boolean
+        isPublicVisible:
+          type: boolean
+        isFormVisible:
+          type: boolean
+        isFilterable:
+          type: boolean
+        sortOrder:
+          type: integer
+          minimum: 0
+        options:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        validation:
+          type: object
+          additionalProperties: true
+        defaultValue:
+          nullable: true
+        uiMetadata:
+          type: object
+          additionalProperties: true
+      additionalProperties: false
+    UpdateCategoryPropertyRequest:
+      type: object
+      required:
+      - expectedVersion
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+        helpText:
+          type: string
+          nullable: true
+        isRequired:
+          type: boolean
+        isPublicVisible:
+          type: boolean
+        isFormVisible:
+          type: boolean
+        isFilterable:
+          type: boolean
+        sortOrder:
+          type: integer
+          minimum: 0
+        options:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        validation:
+          type: object
+          additionalProperties: true
+        defaultValue:
+          nullable: true
+        uiMetadata:
+          type: object
+          additionalProperties: true
+      additionalProperties: false
+      description: code immutable after use
+    ReorderCategoryPropertiesRequest:
+      type: object
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ReorderItem"
+      additionalProperties: false
+    ModerationQueueResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/OwnerAdvertResponse"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    StatusHistoryItem:
+      type: object
+      additionalProperties: false
+      required:
+      - toStatus
+      - isSystem
+      - createdAt
+      properties:
+        fromStatus:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/AdvertStatus"
+        toStatus:
+          "$ref": "#/components/schemas/AdvertStatus"
+        reason:
+          type: string
+          nullable: true
+        isSystem:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        actorUserId:
+          type: string
+          format: uuid
+          nullable: true
+    ModerationAdvertDetailResponse:
+      allOf:
+      - "$ref": "#/components/schemas/OwnerAdvertResponse"
+      - type: object
+        additionalProperties: false
+        required:
+        - ownerUserId
+        - statusHistory
+        properties:
+          ownerUserId:
+            type: string
+            format: uuid
+          statusHistory:
+            type: array
+            items:
+              "$ref": "#/components/schemas/StatusHistoryItem"
+    ActiveBannerItem:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - placement
+      - sortOrder
+      - imageUrl
+      properties:
+        id:
+          type: string
+          format: uuid
+        placement:
+          "$ref": "#/components/schemas/BannerPlacement"
+        title:
+          type: string
+          nullable: true
+        altText:
+          type: string
+          nullable: true
+        targetUrl:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+        imageUrl:
+          type: string
+    ActiveBannerListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ActiveBannerItem"
+    AdminBannerDetailResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - placement
+      - status
+      - assetId
+      - sortOrder
+      - version
+      - assetLifecycleStatus
+      properties:
+        id:
+          type: string
+          format: uuid
+        placement:
+          "$ref": "#/components/schemas/BannerPlacement"
+        status:
+          "$ref": "#/components/schemas/BannerStatus"
+        assetId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          nullable: true
+        altText:
+          type: string
+          nullable: true
+        targetUrl:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+        version:
+          type: integer
+          minimum: 1
+        assetLifecycleStatus:
+          "$ref": "#/components/schemas/MediaAssetLifecycle"
+    AdminBannerListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/AdminBannerDetailResponse"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    CreateBannerRequest:
+      type: object
+      required:
+      - placement
+      - assetId
+      properties:
+        placement:
+          "$ref": "#/components/schemas/BannerPlacement"
+        assetId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          nullable: true
+        altText:
+          type: string
+          nullable: true
+        targetUrl:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+      description: status not accepted; always created INACTIVE
+    UpdateBannerRequest:
+      type: object
+      required:
+      - expectedVersion
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        assetId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          nullable: true
+        altText:
+          type: string
+          nullable: true
+        targetUrl:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+          minimum: 0
+      additionalProperties: false
+    SetBannerStatusRequest:
+      type: object
+      required:
+      - expectedVersion
+      - status
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        status:
+          "$ref": "#/components/schemas/BannerStatus"
+      additionalProperties: false
+    ReorderBannersRequest:
+      type: object
+      required:
+      - placement
+      - items
+      properties:
+        placement:
+          "$ref": "#/components/schemas/BannerPlacement"
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ReorderItem"
+      additionalProperties: false
+    TriggerTJKSyncRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - mode
+      - sourceAdapter
+      properties:
+        mode:
+          "$ref": "#/components/schemas/TJKSyncMode"
+        sourceAdapter:
+          type: string
+        scope:
+          allOf:
+          - "$ref": "#/components/schemas/TJKSyncScope"
+          default: HORSES
+    TJKSyncRunResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - mode
+      - status
+      - scope
+      - sourceAdapter
+      - triggerKind
+      - version
+      - totalCount
+      - createdCount
+      - updatedCount
+      - unchangedCount
+      - skippedCount
+      - failedCount
+      - conflictCount
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        mode:
+          "$ref": "#/components/schemas/TJKSyncMode"
+        status:
+          "$ref": "#/components/schemas/TJKSyncRunStatus"
+        scope:
+          "$ref": "#/components/schemas/TJKSyncScope"
+        sourceAdapter:
+          type: string
+        triggerKind:
+          "$ref": "#/components/schemas/TJKTriggerKind"
+        version:
+          type: integer
+          minimum: 1
+        totalCount:
+          type: integer
+        createdCount:
+          type: integer
+        updatedCount:
+          type: integer
+        unchangedCount:
+          type: integer
+        skippedCount:
+          type: integer
+        failedCount:
+          type: integer
+        conflictCount:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        cancelRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastErrorSummary:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    TJKSyncRunListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/TJKSyncRunResponse"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    TJKSyncItemErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - runId
+      - errorClass
+      - status
+      - message
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        runId:
+          type: string
+          format: uuid
+        tjkNumber:
+          type: string
+          nullable: true
+        horseId:
+          type: string
+          format: uuid
+          nullable: true
+        errorClass:
+          type: string
+        status:
+          "$ref": "#/components/schemas/TJKSyncItemErrorStatus"
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+    TJKSyncItemErrorListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/TJKSyncItemErrorResponse"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    DomainErrorCode:
+      type: string
+      enum:
+      - VALIDATION_ERROR
+      - UNAUTHENTICATED
+      - FORBIDDEN
+      - ACCOUNT_INACTIVE
+      - EMAIL_NOT_VERIFIED
+      - NOT_FOUND
+      - CONFLICT
+      - STALE_VERSION
+      - INVALID_STATE
+      - OWNERSHIP_REQUIRED
+      - DUPLICATE
+      - TOKEN_INVALID
+      - TOKEN_EXPIRED
+      - TOKEN_ALREADY_USED
+      - SESSION_REVOKED
+      - REFRESH_REPLAY_DETECTED
+      - RATE_LIMITED
+      - DEPENDENCY_UNAVAILABLE
+      - PROCESSING_NOT_READY
+      - QUERY_TOO_COMPLEX
+      - INTERNAL_ERROR
+    SecurityEventType:
+      type: string
+      enum:
+      - LOGIN_SUCCESS
+      - LOGIN_FAILURE
+      - LOGOUT
+      - SESSION_REVOKED
+      - ALL_SESSIONS_REVOKED
+      - REFRESH_REPLAY_DETECTED
+      - PASSWORD_CHANGE
+      - PASSWORD_RESET
+      - EMAIL_VERIFICATION
+      - EMAIL_CHANGE
+      - ROLE_CHANGE
+      - ACCOUNT_STATUS_CHANGE
+      - BO_CONTEXT_REJECTED
+    TJKTriggerKind:
+      type: string
+      enum:
+      - SCHEDULED
+      - MANUAL
+    PublicCategorySummary:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - slug
+      - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+    PublicLocationSummary:
+      type: object
+      additionalProperties: false
+      required:
+      - provinceId
+      - provinceName
+      - districtId
+      - districtName
+      properties:
+        provinceId:
+          type: string
+          format: uuid
+        provinceName:
+          type: string
+        districtId:
+          type: string
+          format: uuid
+        districtName:
+          type: string
+    UploadAuthorization:
+      type: object
+      additionalProperties: false
+      required:
+      - method
+      - url
+      - expiresAt
+      properties:
+        method:
+          type: string
+          enum:
+          - PUT
+        url:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          description: Controlled request headers for upload
+      description: Provider-neutral short-lived upload authorization; no permanent
+        credentials/object keys
+    UploadConstraints:
+      type: object
+      additionalProperties: false
+      required:
+      - allowedContentTypes
+      - maxByteSize
+      - requiredHeaders
+      properties:
+        allowedContentTypes:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        maxByteSize:
+          type: integer
+          minimum: 1
+        requiredHeaders:
+          type: array
+          items:
+            type: string
+  responses:
+    BadRequest:
+      description: Bad request / invalid token format
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Unauthenticated or session revoked
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Forbidden / inactive / email not verified / ownership / BO context
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Conflict / stale version / invalid state / duplicate
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    ValidationError:
+      description: Validation or query too complex
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    RateLimited:
+      description: Rate limited
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    DependencyUnavailable:
+      description: External dependency unavailable
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Internal error
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/ErrorResponse"
