@@ -1,0 +1,210 @@
+package catalog_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+
+	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
+	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domaincatalog "github.com/hkizilbulak/haradan-be/internal/domain/catalog"
+)
+
+type fakeCatalogRepo struct {
+	categories []domaincatalog.Category
+	props      map[uuid.UUID][]domaincatalog.Property
+	listErr    error
+	getErr     error
+	countErr   error
+	propsErr   error
+	childCount map[uuid.UUID]int
+}
+
+func (f *fakeCatalogRepo) ListActiveCategories(context.Context) ([]domaincatalog.Category, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	return append([]domaincatalog.Category(nil), f.categories...), nil
+}
+
+func (f *fakeCatalogRepo) GetActiveCategory(_ context.Context, id uuid.UUID) (domaincatalog.Category, error) {
+	if f.getErr != nil {
+		return domaincatalog.Category{}, f.getErr
+	}
+	for _, c := range f.categories {
+		if c.ID == id {
+			return c, nil
+		}
+	}
+	return domaincatalog.Category{}, apperr.NotFound("Kategori bulunamadı.")
+}
+
+func (f *fakeCatalogRepo) CountActiveChildren(_ context.Context, parentID uuid.UUID) (int, error) {
+	if f.countErr != nil {
+		return 0, f.countErr
+	}
+	if f.childCount != nil {
+		return f.childCount[parentID], nil
+	}
+	n := 0
+	for _, c := range f.categories {
+		if c.ParentID != nil && *c.ParentID == parentID {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (f *fakeCatalogRepo) ListFormProperties(_ context.Context, categoryID uuid.UUID) ([]domaincatalog.Property, error) {
+	if f.propsErr != nil {
+		return nil, f.propsErr
+	}
+	return append([]domaincatalog.Property(nil), f.props[categoryID]...), nil
+}
+
+func TestGetPublicCategoryTreeBuildsDeterministicForest(t *testing.T) {
+	rootA := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	rootB := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	child := uuid.MustParse("00000000-0000-0000-0000-000000000003")
+	repo := &fakeCatalogRepo{categories: []domaincatalog.Category{
+		{ID: rootB, Slug: "b", Name: "B", SortOrder: 2},
+		{ID: rootA, Slug: "a", Name: "A", SortOrder: 1},
+		{ID: child, ParentID: &rootA, Slug: "a-child", Name: "Child", SortOrder: 1},
+	}}
+	svc := appcatalog.NewService(repo)
+	tree, err := svc.GetPublicCategoryTree(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tree) != 2 || tree[0].Slug != "a" || tree[1].Slug != "b" {
+		t.Fatalf("roots=%+v", tree)
+	}
+	if len(tree[0].Children) != 1 || tree[0].Children[0].Slug != "a-child" {
+		t.Fatalf("children=%+v", tree[0].Children)
+	}
+}
+
+func TestGetPublicCategoryTreeEmptyAndRepoError(t *testing.T) {
+	svc := appcatalog.NewService(&fakeCatalogRepo{})
+	tree, err := svc.GetPublicCategoryTree(context.Background())
+	if err != nil || len(tree) != 0 {
+		t.Fatalf("got=%v err=%v", tree, err)
+	}
+
+	svc = appcatalog.NewService(&fakeCatalogRepo{listErr: errors.New("boom")})
+	_, err = svc.GetPublicCategoryTree(context.Background())
+	ae, ok := apperr.As(err)
+	if !ok || ae.Kind != apperr.KindInternal {
+		t.Fatalf("want internal, got %v", err)
+	}
+}
+
+func TestGetCategoryFormDefinitionOrderingNotFoundInvalidState(t *testing.T) {
+	leaf := uuid.MustParse("00000000-0000-0000-0000-000000000010")
+	parent := uuid.MustParse("00000000-0000-0000-0000-000000000011")
+	repo := &fakeCatalogRepo{
+		categories: []domaincatalog.Category{
+			{ID: leaf, Slug: "leaf", Name: "Leaf", SortOrder: 1},
+			{ID: parent, Slug: "parent", Name: "Parent", SortOrder: 1},
+		},
+		childCount: map[uuid.UUID]int{parent: 1, leaf: 0},
+		props: map[uuid.UUID][]domaincatalog.Property{
+			leaf: {
+				{ID: uuid.New(), CategoryID: leaf, Code: "b", Title: "B", DataType: "STRING", SortOrder: 2, Options: json.RawMessage(`[]`)},
+				{ID: uuid.New(), CategoryID: leaf, Code: "a", Title: "A", DataType: "STRING", SortOrder: 1, Options: json.RawMessage(`[]`)},
+			},
+		},
+	}
+	svc := appcatalog.NewService(repo)
+
+	def, err := svc.GetCategoryFormDefinition(context.Background(), leaf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if def.Category.Slug != "leaf" || len(def.Properties) != 2 {
+		t.Fatalf("def=%+v", def)
+	}
+	if def.Properties[0].Code != "a" || def.Properties[1].Code != "b" {
+		t.Fatalf("order=%v %v", def.Properties[0].Code, def.Properties[1].Code)
+	}
+
+	_, err = svc.GetCategoryFormDefinition(context.Background(), parent)
+	ae, ok := apperr.As(err)
+	if !ok || ae.Code != apperr.CodeInvalidState {
+		t.Fatalf("want invalid state, got %v", err)
+	}
+
+	_, err = svc.GetCategoryFormDefinition(context.Background(), uuid.New())
+	ae, ok = apperr.As(err)
+	if !ok || ae.Code != apperr.CodeNotFound {
+		t.Fatalf("want not found, got %v", err)
+	}
+}
+
+func TestGetPublicCategoryTreeOrphanAndCycleSafe(t *testing.T) {
+	root := uuid.MustParse("00000000-0000-0000-0000-000000000021")
+	orphanParent := uuid.MustParse("00000000-0000-0000-0000-000000000099")
+	orphan := uuid.MustParse("00000000-0000-0000-0000-000000000022")
+	child := uuid.MustParse("00000000-0000-0000-0000-000000000023")
+
+	repo := &fakeCatalogRepo{categories: []domaincatalog.Category{
+		{ID: root, Slug: "root", Name: "Root", SortOrder: 1},
+		{ID: orphan, ParentID: &orphanParent, Slug: "orphan", Name: "Orphan", SortOrder: 1},
+		{ID: child, ParentID: &root, Slug: "child", Name: "Child", SortOrder: 1},
+		// Corrupt duplicate of root pointing at child creates a reachable cycle.
+		{ID: root, ParentID: &child, Slug: "root-cycle", Name: "RootCycle", SortOrder: 1},
+	}}
+	svc := appcatalog.NewService(repo)
+
+	done := make(chan struct{})
+	var tree []appcatalog.TreeNode
+	var err error
+	go func() {
+		tree, err = svc.GetPublicCategoryTree(context.Background())
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("category tree build hung; likely cycle recursion")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tree) != 1 || tree[0].Slug != "root" {
+		t.Fatalf("tree=%+v", tree)
+	}
+	if len(tree[0].Children) != 1 || tree[0].Children[0].Slug != "child" {
+		t.Fatalf("children=%+v", tree[0].Children)
+	}
+	if len(tree[0].Children[0].Children) != 0 {
+		t.Fatalf("cycle edge must be skipped, got %+v", tree[0].Children[0].Children)
+	}
+}
+
+func TestPropertyTieBreakByCodeThenID(t *testing.T) {
+	leaf := uuid.MustParse("00000000-0000-0000-0000-000000000030")
+	idLow := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	idHigh := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	repo := &fakeCatalogRepo{
+		categories: []domaincatalog.Category{{ID: leaf, Slug: "leaf", Name: "Leaf"}},
+		childCount: map[uuid.UUID]int{leaf: 0},
+		props: map[uuid.UUID][]domaincatalog.Property{
+			leaf: {
+				{ID: idHigh, CategoryID: leaf, Code: "same", Title: "High", DataType: "STRING", SortOrder: 1, Options: json.RawMessage(`[]`)},
+				{ID: idLow, CategoryID: leaf, Code: "same", Title: "Low", DataType: "STRING", SortOrder: 1, Options: json.RawMessage(`[]`)},
+			},
+		},
+	}
+	def, err := appcatalog.NewService(repo).GetCategoryFormDefinition(context.Background(), leaf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if def.Properties[0].ID != idLow || def.Properties[1].ID != idHigh {
+		t.Fatalf("tie-break failed: %+v", def.Properties)
+	}
+}

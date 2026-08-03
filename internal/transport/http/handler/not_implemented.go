@@ -232,18 +232,6 @@ func (NotImplementedServer) ListActiveBannersByPlacement(c *gin.Context, params 
 	respondNotImplemented(c)
 }
 
-func (NotImplementedServer) GetPublicCategoryTree(c *gin.Context) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) GetCategoryFormDefinition(c *gin.Context, categoryId generated.CategoryIdPath) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) SearchDistricts(c *gin.Context, params generated.SearchDistrictsParams) {
-	respondNotImplemented(c)
-}
-
 func (NotImplementedServer) SearchHorsesForSelection(c *gin.Context, params generated.SearchHorsesForSelectionParams) {
 	respondNotImplemented(c)
 }
@@ -357,17 +345,5 @@ func (NotImplementedServer) ConfirmMediaUpload(c *gin.Context, assetId generated
 }
 
 func (NotImplementedServer) InitiateMediaUpload(c *gin.Context) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) ListActiveProvinces(c *gin.Context) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) SearchProvinces(c *gin.Context, params generated.SearchProvincesParams) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) ListDistrictsByProvince(c *gin.Context, provinceId generated.ProvinceIdPath) {
 	respondNotImplemented(c)
 }

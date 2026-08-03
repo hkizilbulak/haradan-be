@@ -9,7 +9,11 @@ import (
 	"os/signal"
 	"syscall"
 
+	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
+	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
 	"github.com/hkizilbulak/haradan-be/internal/config"
+	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
+	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
 	"github.com/hkizilbulak/haradan-be/internal/platform/database"
 	applogger "github.com/hkizilbulak/haradan-be/internal/platform/logger"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler"
@@ -44,7 +48,12 @@ func run() error {
 	}
 	defer db.Close()
 
-	srvHandler := handler.NewServer(log, db)
+	geoRepo := pggeo.NewRepository(db.Pool())
+	catalogRepo := pgcatalog.NewRepository(db.Pool())
+	geoSvc := appgeo.NewService(geoRepo)
+	catalogSvc := appcatalog.NewService(catalogRepo)
+
+	srvHandler := handler.NewServer(log, db, geoSvc, catalogSvc)
 	engine := router.New(srvHandler, log)
 
 	httpServer := &http.Server{
