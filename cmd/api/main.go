@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
 	"github.com/hkizilbulak/haradan-be/internal/config"
@@ -16,6 +17,8 @@ import (
 	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
 	"github.com/hkizilbulak/haradan-be/internal/platform/database"
 	applogger "github.com/hkizilbulak/haradan-be/internal/platform/logger"
+	"github.com/hkizilbulak/haradan-be/internal/platform/security/password"
+	"github.com/hkizilbulak/haradan-be/internal/platform/security/token"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/router"
 )
@@ -48,12 +51,40 @@ func run() error {
 	}
 	defer db.Close()
 
+	hasher, err := password.NewHasher(password.Params{
+		Time:    cfg.Argon2Time,
+		Memory:  cfg.Argon2MemoryKiB,
+		Threads: cfg.Argon2Threads,
+		KeyLen:  cfg.Argon2KeyLen,
+	})
+	if err != nil {
+		return fmt.Errorf("password hasher: %w", err)
+	}
+	tokenMgr, err := token.NewManager(token.Config{
+		JWTSecret:          cfg.AuthJWTSecret,
+		AccessTokenTTL:     cfg.AccessTokenTTL,
+		RefreshAbsoluteTTL: cfg.RefreshAbsoluteTTL,
+		RefreshIdleTTL:     cfg.RefreshIdleTTL,
+	})
+	if err != nil {
+		return fmt.Errorf("token manager: %w", err)
+	}
+	authSvc, err := appauth.NewPostgresService(db.Pool(), appauth.Config{
+		Hasher:            hasher,
+		Tokens:            tokenMgr,
+		EmailVerifyTTL:    cfg.EmailVerificationTTL,
+		DummyPasswordHash: password.DummyHash(hasher),
+	})
+	if err != nil {
+		return fmt.Errorf("auth service: %w", err)
+	}
+
 	geoRepo := pggeo.NewRepository(db.Pool())
 	catalogRepo := pgcatalog.NewRepository(db.Pool())
 	geoSvc := appgeo.NewService(geoRepo)
 	catalogSvc := appcatalog.NewService(catalogRepo)
 
-	srvHandler := handler.NewServer(log, db, geoSvc, catalogSvc)
+	srvHandler := handler.NewServer(log, db, geoSvc, catalogSvc, authSvc)
 	engine := router.New(srvHandler, log)
 
 	httpServer := &http.Server{

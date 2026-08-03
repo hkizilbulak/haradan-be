@@ -42,6 +42,7 @@ func TestLoadValidTimeoutsAndDB(t *testing.T) {
 	t.Setenv("DB_MAX_CONN_LIFETIME", "10m")
 	t.Setenv("DB_MAX_CONN_IDLE_TIME", "1m")
 	t.Setenv("DB_HEALTH_TIMEOUT", "1500ms")
+	t.Setenv("AUTH_JWT_SECRET", "production-test-secret-value")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -111,11 +112,70 @@ func TestLoadErrorDoesNotLeakSecret(t *testing.T) {
 	}
 }
 
+func TestLoadAuthDefaultsAndProductionSecret(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AccessTokenTTL != 15*time.Minute || cfg.AuthJWTSecret != "" {
+		t.Fatalf("unexpected auth defaults: %+v", cfg)
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected missing AUTH_JWT_SECRET error")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("AUTH_JWT_SECRET", "production-test-secret-value")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AuthJWTSecret != "production-test-secret-value" {
+		t.Fatal("secret not loaded")
+	}
+}
+
+func TestLoadAuthIdleExceedsAbsolute(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("AUTH_REFRESH_ABSOLUTE_TTL", "1h")
+	t.Setenv("AUTH_REFRESH_IDLE_TTL", "2h")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected idle>absolute error")
+	}
+}
+
+func TestLoadZeroOrNegativeAuthTTL(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("AUTH_ACCESS_TOKEN_TTL", "0s")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected zero access TTL error")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("AUTH_REFRESH_ABSOLUTE_TTL", "-1h")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected negative refresh TTL error")
+	}
+}
+
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
 	keys := []string{
 		"APP_ENV", "HTTP_ADDR", "HTTP_READ_TIMEOUT", "HTTP_WRITE_TIMEOUT", "HTTP_IDLE_TIMEOUT", "HTTP_SHUTDOWN_TIMEOUT",
 		"DATABASE_URL", "DB_MAX_CONNS", "DB_MIN_CONNS", "DB_MAX_CONN_LIFETIME", "DB_MAX_CONN_IDLE_TIME", "DB_HEALTH_TIMEOUT",
+		"AUTH_JWT_SECRET", "AUTH_ACCESS_TOKEN_TTL", "AUTH_REFRESH_ABSOLUTE_TTL", "AUTH_REFRESH_IDLE_TTL",
+		"AUTH_EMAIL_VERIFICATION_TTL", "AUTH_ARGON2_TIME", "AUTH_ARGON2_MEMORY_KIB", "AUTH_ARGON2_THREADS", "AUTH_ARGON2_KEY_LEN",
 	}
 	for _, key := range keys {
 		prev, had := os.LookupEnv(key)

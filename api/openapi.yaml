@@ -2352,6 +2352,8 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/AuthTokenResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
         '401':
           "$ref": "#/components/responses/Unauthorized"
         '403':
@@ -2369,6 +2371,8 @@ paths:
             schema:
               "$ref": "#/components/schemas/LoginRequest"
       x-error-codes:
+        '400':
+        - VALIDATION_ERROR
         '401':
         - UNAUTHENTICATED
         '403':
@@ -2547,6 +2551,8 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/AuthTokenResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
         '401':
           "$ref": "#/components/responses/Unauthorized"
         '403':
@@ -2560,6 +2566,8 @@ paths:
             schema:
               "$ref": "#/components/schemas/RefreshSessionRequest"
       x-error-codes:
+        '400':
+        - VALIDATION_ERROR
         '401':
         - TOKEN_INVALID
         - SESSION_REVOKED
@@ -2588,6 +2596,8 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/GenericAuthMessageResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
         '422':
           "$ref": "#/components/responses/ValidationError"
         '429':
@@ -2603,6 +2613,8 @@ paths:
             schema:
               "$ref": "#/components/schemas/RegisterUserRequest"
       x-error-codes:
+        '400':
+        - VALIDATION_ERROR
         '422':
         - VALIDATION_ERROR
         '429':
@@ -2628,6 +2640,8 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/GenericAuthMessageResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
         '422':
           "$ref": "#/components/responses/ValidationError"
         '429':
@@ -2643,6 +2657,8 @@ paths:
             schema:
               "$ref": "#/components/schemas/EmailRequest"
       x-error-codes:
+        '400':
+        - VALIDATION_ERROR
         '422':
         - VALIDATION_ERROR
         '429':
@@ -2682,6 +2698,7 @@ paths:
               "$ref": "#/components/schemas/TokenRequest"
       x-error-codes:
         '400':
+        - VALIDATION_ERROR
         - TOKEN_INVALID
         - TOKEN_EXPIRED
         '409':

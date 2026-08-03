@@ -23,6 +23,18 @@ type Config struct {
 	DBMaxConnLifetime time.Duration
 	DBMaxConnIdleTime time.Duration
 	DBHealthTimeout   time.Duration
+
+	// Auth settings. Token TTLs are config-injected because docs leave exact
+	// durations unlocked; values here are engineering defaults, not product locks.
+	AuthJWTSecret        string
+	AccessTokenTTL       time.Duration
+	RefreshAbsoluteTTL   time.Duration
+	RefreshIdleTTL       time.Duration
+	EmailVerificationTTL time.Duration
+	Argon2Time           uint32
+	Argon2MemoryKiB      uint32
+	Argon2Threads        uint8
+	Argon2KeyLen         uint32
 }
 
 // Load reads configuration from the process environment.
@@ -87,7 +99,58 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	cfg.AuthJWTSecret = strings.TrimSpace(os.Getenv("AUTH_JWT_SECRET"))
+	if isProductionLike(cfg.AppEnv) && cfg.AuthJWTSecret == "" {
+		return Config{}, fmt.Errorf("AUTH_JWT_SECRET must not be empty in %s", cfg.AppEnv)
+	}
+
+	if cfg.AccessTokenTTL, err = durationEnv("AUTH_ACCESS_TOKEN_TTL", 15*time.Minute); err != nil {
+		return Config{}, err
+	}
+	if cfg.RefreshAbsoluteTTL, err = durationEnv("AUTH_REFRESH_ABSOLUTE_TTL", 30*24*time.Hour); err != nil {
+		return Config{}, err
+	}
+	if cfg.RefreshIdleTTL, err = durationEnv("AUTH_REFRESH_IDLE_TTL", 7*24*time.Hour); err != nil {
+		return Config{}, err
+	}
+	if cfg.EmailVerificationTTL, err = durationEnv("AUTH_EMAIL_VERIFICATION_TTL", 24*time.Hour); err != nil {
+		return Config{}, err
+	}
+	if cfg.RefreshIdleTTL > cfg.RefreshAbsoluteTTL {
+		return Config{}, fmt.Errorf("AUTH_REFRESH_IDLE_TTL must not exceed AUTH_REFRESH_ABSOLUTE_TTL")
+	}
+
+	if cfg.Argon2Time, err = uint32Env("AUTH_ARGON2_TIME", 3); err != nil {
+		return Config{}, err
+	}
+	if cfg.Argon2MemoryKiB, err = uint32Env("AUTH_ARGON2_MEMORY_KIB", 64*1024); err != nil {
+		return Config{}, err
+	}
+	if threads, err := uint32Env("AUTH_ARGON2_THREADS", 2); err != nil {
+		return Config{}, err
+	} else {
+		if threads == 0 || threads > 255 {
+			return Config{}, fmt.Errorf("AUTH_ARGON2_THREADS out of range")
+		}
+		cfg.Argon2Threads = uint8(threads)
+	}
+	if cfg.Argon2KeyLen, err = uint32Env("AUTH_ARGON2_KEY_LEN", 32); err != nil {
+		return Config{}, err
+	}
+	if cfg.Argon2Time == 0 || cfg.Argon2MemoryKiB == 0 || cfg.Argon2KeyLen == 0 {
+		return Config{}, fmt.Errorf("argon2 parameters must be greater than zero")
+	}
+
 	return cfg, nil
+}
+
+func isProductionLike(appEnv string) bool {
+	switch strings.ToLower(strings.TrimSpace(appEnv)) {
+	case "production", "staging", "prod":
+		return true
+	default:
+		return false
+	}
 }
 
 func getenvDefault(key, fallback string) string {
@@ -122,4 +185,16 @@ func int32Env(key string, fallback int32) (int32, error) {
 		return 0, fmt.Errorf("%s is not a valid integer", key)
 	}
 	return int32(n), nil
+}
+
+func uint32Env(key string, fallback uint32) (uint32, error) {
+	raw, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return fallback, nil
+	}
+	n, err := strconv.ParseUint(strings.TrimSpace(raw), 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("%s is not a valid integer", key)
+	}
+	return uint32(n), nil
 }

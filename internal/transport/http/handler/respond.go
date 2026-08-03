@@ -51,13 +51,44 @@ func respondError(c *gin.Context, logger *slog.Logger, err error) {
 			TraceId: traceID,
 		})
 	case apperr.KindConflict:
-		// Geo/Catalog 409 paths only declare INVALID_STATE in OpenAPI x-error-codes.
 		code := generated.DomainErrorCode(ae.Code)
-		if code != generated.DomainErrorCodeINVALIDSTATE {
+		switch code {
+		case generated.DomainErrorCodeINVALIDSTATE,
+			generated.DomainErrorCodeTOKENALREADYUSED,
+			generated.DomainErrorCodeCONFLICT,
+			generated.DomainErrorCodeSTALEVERSION,
+			generated.DomainErrorCodeDUPLICATE,
+			generated.DomainErrorCodePROCESSINGNOTREADY:
+			// keep exact conflict code from OpenAPI surface
+		default:
 			code = generated.DomainErrorCodeINVALIDSTATE
 		}
 		c.JSON(http.StatusConflict, generated.ErrorResponse{
 			Code:    code,
+			Message: ae.Message,
+			TraceId: traceID,
+		})
+	case apperr.KindBadRequest:
+		c.JSON(http.StatusBadRequest, generated.ErrorResponse{
+			Code:    generated.DomainErrorCode(ae.Code),
+			Message: ae.Message,
+			TraceId: traceID,
+		})
+	case apperr.KindUnauthenticated:
+		c.JSON(http.StatusUnauthorized, generated.ErrorResponse{
+			Code:    generated.DomainErrorCode(ae.Code),
+			Message: ae.Message,
+			TraceId: traceID,
+		})
+	case apperr.KindForbidden:
+		c.JSON(http.StatusForbidden, generated.ErrorResponse{
+			Code:    generated.DomainErrorCode(ae.Code),
+			Message: ae.Message,
+			TraceId: traceID,
+		})
+	case apperr.KindDependencyUnavailable:
+		c.JSON(http.StatusServiceUnavailable, generated.ErrorResponse{
+			Code:    generated.DomainErrorCodeDEPENDENCYUNAVAILABLE,
 			Message: ae.Message,
 			TraceId: traceID,
 		})
