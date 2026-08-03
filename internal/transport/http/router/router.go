@@ -22,7 +22,8 @@ func New(server generated.ServerInterface, logger *slog.Logger) *gin.Engine {
 	r.Use(requestLogger(logger))
 
 	generated.RegisterHandlersWithOptions(r, server, generated.GinServerOptions{
-		BaseURL: APIBasePath,
+		BaseURL:      APIBasePath,
+		ErrorHandler: generatedParseErrorHandler(logger),
 	})
 	return r
 }

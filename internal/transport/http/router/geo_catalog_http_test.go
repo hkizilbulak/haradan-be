@@ -223,10 +223,21 @@ func TestListDistrictsNotFound(t *testing.T) {
 func TestInvalidProvincePathUUID(t *testing.T) {
 	engine := newTestEngine(&geoRepoStub{}, &catalogRepoStub{})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/provinces/not-a-uuid/districts", nil)
+	req.Header.Set("X-Request-ID", "geo-bad-uuid-1")
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var body generated.ErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != generated.DomainErrorCodeVALIDATIONERROR || body.TraceId != "geo-bad-uuid-1" {
+		t.Fatalf("body=%+v", body)
+	}
+	if strings.Contains(rec.Body.String(), "Invalid format") {
+		t.Fatalf("leaked parser message: %s", rec.Body.String())
 	}
 }
 
