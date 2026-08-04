@@ -24,30 +24,6 @@ func (NotImplementedServer) GetHealth(c *gin.Context) {
 	respondNotImplemented(c)
 }
 
-func (NotImplementedServer) ListAdvertModerationQueue(c *gin.Context, params generated.ListAdvertModerationQueueParams) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) GetAdvertModerationDetail(c *gin.Context, advertId generated.AdvertIdPath) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) ApproveAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) RejectAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) RequestAdvertChanges(c *gin.Context, advertId generated.AdvertIdPath) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) SuspendAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
-	respondNotImplemented(c)
-}
-
 func (NotImplementedServer) ListBannersAdmin(c *gin.Context, params generated.ListBannersAdminParams) {
 	respondNotImplemented(c)
 }

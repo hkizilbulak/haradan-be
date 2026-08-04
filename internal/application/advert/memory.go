@@ -175,6 +175,84 @@ func (r MemoryRepository) FindByIDForOwnerForUpdate(ctx context.Context, ownerID
 	return r.FindByIDForOwner(ctx, ownerID, advertID)
 }
 
+// FindByID returns a non-deleted advert by id.
+func (r MemoryRepository) FindByID(_ context.Context, advertID uuid.UUID) (domainadvert.Advert, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	a, ok := r.store.adverts[advertID]
+	if !ok || a.IsDeleted() {
+		return domainadvert.Advert{}, apperr.NotFound(memoryAdvertNotFound)
+	}
+	return a, nil
+}
+
+// FindByIDForUpdate behaves like FindByID under the fake transaction lock.
+func (r MemoryRepository) FindByIDForUpdate(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error) {
+	return r.FindByID(ctx, advertID)
+}
+
+// ListForModeration returns non-deleted adverts matching status, newest first.
+func (r MemoryRepository) ListForModeration(
+	_ context.Context,
+	status domainadvert.Status,
+	afterCreated *time.Time,
+	afterID *uuid.UUID,
+	limit int,
+) ([]domainadvert.Advert, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+
+	var out []domainadvert.Advert
+	for _, a := range r.store.adverts {
+		if a.IsDeleted() || a.Status != status {
+			continue
+		}
+		out = append(out, a)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].CreatedAt.After(out[j].CreatedAt)
+		}
+		return out[i].ID.String() > out[j].ID.String()
+	})
+	if afterCreated != nil && afterID != nil {
+		filtered := out[:0:0]
+		for _, a := range out {
+			if a.CreatedAt.After(*afterCreated) {
+				continue
+			}
+			if a.CreatedAt.Equal(*afterCreated) && a.ID.String() >= afterID.String() {
+				continue
+			}
+			filtered = append(filtered, a)
+		}
+		out = filtered
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+// ListStatusHistory returns history for one advert, oldest first.
+func (r MemoryRepository) ListStatusHistory(_ context.Context, advertID uuid.UUID) ([]domainadvert.StatusHistory, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	var out []domainadvert.StatusHistory
+	for _, h := range r.store.history {
+		if h.AdvertID == advertID {
+			out = append(out, h)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].CreatedAt.Before(out[j].CreatedAt)
+		}
+		return out[i].ID.String() < out[j].ID.String()
+	})
+	return out, nil
+}
+
 // ListByOwner returns non-deleted adverts newest first with keyset paging.
 func (r MemoryRepository) ListByOwner(
 	_ context.Context,

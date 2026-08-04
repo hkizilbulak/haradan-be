@@ -34,11 +34,14 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 	}
 	if opt.AuthService != nil {
 		protected := make([]authn.ProtectedRoute, 0,
-			len(authn.AccountSessionProtectedRoutes)+len(authn.AdvertOwnerProtectedRoutes)+len(authn.MediaProtectedRoutes)+len(authn.FavoritesProtectedRoutes))
+			len(authn.AccountSessionProtectedRoutes)+len(authn.AdvertOwnerProtectedRoutes)+
+				len(authn.MediaProtectedRoutes)+len(authn.FavoritesProtectedRoutes)+
+				len(authn.AdvertModerationProtectedRoutes))
 		protected = append(protected, authn.AccountSessionProtectedRoutes...)
 		protected = append(protected, authn.AdvertOwnerProtectedRoutes...)
 		protected = append(protected, authn.MediaProtectedRoutes...)
 		protected = append(protected, authn.FavoritesProtectedRoutes...)
+		protected = append(protected, authn.AdvertModerationProtectedRoutes...)
 		r.Use(authn.Selective(opt.AuthService, logger, protected))
 	}
 
