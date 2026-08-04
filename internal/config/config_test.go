@@ -458,6 +458,65 @@ func TestLoadImageProcessorTinifyValidation(t *testing.T) {
 	}
 }
 
+func TestLoadWorkerDefaultsAndValidation(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WorkerConcurrency != 2 || cfg.WorkerPollInterval != time.Second {
+		t.Fatalf("defaults concurrency=%d poll=%v", cfg.WorkerConcurrency, cfg.WorkerPollInterval)
+	}
+	if cfg.WorkerLeaseDuration != 2*time.Minute || cfg.WorkerJobTimeout != 60*time.Second {
+		t.Fatalf("lease=%v timeout=%v", cfg.WorkerLeaseDuration, cfg.WorkerJobTimeout)
+	}
+	if cfg.WorkerID != "" {
+		t.Fatalf("WorkerID should default empty, got %q", cfg.WorkerID)
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("WORKER_CONCURRENCY", "0")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected concurrency validation error")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("WORKER_JOB_TIMEOUT", "3m")
+	t.Setenv("WORKER_LEASE_DURATION", "2m")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected job timeout < lease validation")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("WORKER_RETRY_BASE_DELAY", "10s")
+	t.Setenv("WORKER_RETRY_MAX_DELAY", "5s")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected retry base <= max validation")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("WORKER_ID", "   ")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected empty WORKER_ID rejection")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("WORKER_ID", "worker-a")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WorkerID != "worker-a" {
+		t.Fatalf("WorkerID=%q", cfg.WorkerID)
+	}
+}
+
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
 	keys := []string{
@@ -471,6 +530,9 @@ func clearConfigEnv(t *testing.T) {
 		"MEDIA_PROFILE_DETAIL_WIDTH", "MEDIA_PROFILE_DETAIL_HEIGHT",
 		"MEDIA_PROFILE_HOMEPAGE_WIDTH", "MEDIA_PROFILE_HOMEPAGE_HEIGHT",
 		"MEDIA_PROFILE_SEARCH_WIDTH", "MEDIA_PROFILE_SEARCH_HEIGHT",
+		"WORKER_CONCURRENCY", "WORKER_POLL_INTERVAL", "WORKER_LEASE_DURATION", "WORKER_JOB_TIMEOUT",
+		"WORKER_ID", "WORKER_SHUTDOWN_TIMEOUT", "WORKER_RETRY_BASE_DELAY", "WORKER_RETRY_MAX_DELAY",
+		"WORKER_LEASE_RECOVERY_INTERVAL",
 	}
 	for _, key := range keys {
 		prev, had := os.LookupEnv(key)

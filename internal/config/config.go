@@ -69,6 +69,17 @@ type Config struct {
 	MediaProfileHomepageH  int
 	MediaProfileSearchW    int
 	MediaProfileSearchH    int
+
+	// Background worker runtime (used by cmd/worker; API ignores these).
+	WorkerConcurrency           int
+	WorkerPollInterval          time.Duration
+	WorkerLeaseDuration         time.Duration
+	WorkerJobTimeout            time.Duration
+	WorkerID                    string
+	WorkerShutdownTimeout       time.Duration
+	WorkerRetryBaseDelay        time.Duration
+	WorkerRetryMaxDelay         time.Duration
+	WorkerLeaseRecoveryInterval time.Duration
 }
 
 // Supported STORAGE_PROVIDER values after normalization.
@@ -250,6 +261,41 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	if cfg.WorkerConcurrency, err = intEnv("WORKER_CONCURRENCY", 2); err != nil {
+		return Config{}, err
+	}
+	if cfg.WorkerPollInterval, err = durationEnv("WORKER_POLL_INTERVAL", time.Second); err != nil {
+		return Config{}, err
+	}
+	if cfg.WorkerLeaseDuration, err = durationEnv("WORKER_LEASE_DURATION", 2*time.Minute); err != nil {
+		return Config{}, err
+	}
+	if cfg.WorkerJobTimeout, err = durationEnv("WORKER_JOB_TIMEOUT", 60*time.Second); err != nil {
+		return Config{}, err
+	}
+	if v, ok := os.LookupEnv("WORKER_ID"); ok {
+		id := strings.TrimSpace(v)
+		if id == "" {
+			return Config{}, fmt.Errorf("WORKER_ID must not be empty when set")
+		}
+		cfg.WorkerID = id
+	}
+	if cfg.WorkerShutdownTimeout, err = durationEnv("WORKER_SHUTDOWN_TIMEOUT", 30*time.Second); err != nil {
+		return Config{}, err
+	}
+	if cfg.WorkerRetryBaseDelay, err = durationEnv("WORKER_RETRY_BASE_DELAY", 5*time.Second); err != nil {
+		return Config{}, err
+	}
+	if cfg.WorkerRetryMaxDelay, err = durationEnv("WORKER_RETRY_MAX_DELAY", 5*time.Minute); err != nil {
+		return Config{}, err
+	}
+	if cfg.WorkerLeaseRecoveryInterval, err = durationEnv("WORKER_LEASE_RECOVERY_INTERVAL", 30*time.Second); err != nil {
+		return Config{}, err
+	}
+	if err := validateWorkerConfig(cfg); err != nil {
+		return Config{}, err
+	}
+
 	return cfg, nil
 }
 
@@ -420,6 +466,49 @@ func isProductionLike(appEnv string) bool {
 	default:
 		return false
 	}
+}
+
+func validateWorkerConfig(cfg Config) error {
+	if cfg.WorkerConcurrency <= 0 {
+		return fmt.Errorf("WORKER_CONCURRENCY must be greater than zero")
+	}
+	if cfg.WorkerPollInterval <= 0 {
+		return fmt.Errorf("WORKER_POLL_INTERVAL must be greater than zero")
+	}
+	if cfg.WorkerLeaseDuration <= 0 {
+		return fmt.Errorf("WORKER_LEASE_DURATION must be greater than zero")
+	}
+	if cfg.WorkerJobTimeout <= 0 {
+		return fmt.Errorf("WORKER_JOB_TIMEOUT must be greater than zero")
+	}
+	if cfg.WorkerJobTimeout >= cfg.WorkerLeaseDuration {
+		return fmt.Errorf("WORKER_JOB_TIMEOUT must be less than WORKER_LEASE_DURATION")
+	}
+	if cfg.WorkerShutdownTimeout <= 0 {
+		return fmt.Errorf("WORKER_SHUTDOWN_TIMEOUT must be greater than zero")
+	}
+	if cfg.WorkerRetryBaseDelay <= 0 {
+		return fmt.Errorf("WORKER_RETRY_BASE_DELAY must be greater than zero")
+	}
+	if cfg.WorkerRetryMaxDelay < cfg.WorkerRetryBaseDelay {
+		return fmt.Errorf("WORKER_RETRY_BASE_DELAY must be less than or equal to WORKER_RETRY_MAX_DELAY")
+	}
+	if cfg.WorkerLeaseRecoveryInterval <= 0 {
+		return fmt.Errorf("WORKER_LEASE_RECOVERY_INTERVAL must be greater than zero")
+	}
+	return nil
+}
+
+func intEnv(key string, fallback int) (int, error) {
+	raw, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return fallback, nil
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return 0, fmt.Errorf("%s is not a valid integer", key)
+	}
+	return n, nil
 }
 
 func getenvDefault(key, fallback string) string {

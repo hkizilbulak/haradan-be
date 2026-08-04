@@ -12,6 +12,7 @@ package media
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -157,6 +158,11 @@ func (s *MemoryStore) JobsByType(jobType domainmedia.JobType) []domainmedia.Back
 
 // Repo returns the Repository view of the store.
 func (s *MemoryStore) Repo() Repository { return MemoryRepository{store: s} }
+
+// JobQueue returns the JobQueue view of the store.
+func (s *MemoryStore) JobQueue() JobQueue { return MemoryRepository{store: s} }
+
+var _ JobQueue = MemoryRepository{}
 
 // NewMemoryService builds a media service backed by the store. Storage and
 // Processor stay as supplied, so a test can pass a fake or deliberately leave
@@ -602,6 +608,194 @@ func (r MemoryRepository) FindJobByDedupKey(_ context.Context, key string) (doma
 		}
 	}
 	return domainmedia.BackgroundJob{}, apperr.NotFound("İş kaydı bulunamadı.")
+}
+
+const memoryJobLeaseLostMessage = "İş kirası geçersiz veya süresi dolmuş."
+const memoryJobLeaseExpiredMessage = "İş kirası süresi doldu."
+
+// ClaimNextJob leases one eligible QUEUED job matching supported types.
+func (r MemoryRepository) ClaimNextJob(_ context.Context, params ClaimJobParams) (domainmedia.BackgroundJob, bool, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	if len(params.SupportedTypes) == 0 || params.LeaseOwner == "" || !params.LeaseUntil.After(params.Now) {
+		return domainmedia.BackgroundJob{}, false, apperr.Internal(fmt.Errorf("invalid claim params"))
+	}
+	supported := map[domainmedia.JobType]struct{}{}
+	for _, t := range params.SupportedTypes {
+		supported[t] = struct{}{}
+	}
+	best := -1
+	for i, job := range r.store.jobs {
+		if job.Status != domainmedia.JobQueued {
+			continue
+		}
+		if job.CancelRequestedAt != nil {
+			continue
+		}
+		if job.AvailableAt.After(params.Now) {
+			continue
+		}
+		if job.AttemptCount >= job.MaxAttempts {
+			continue
+		}
+		if _, ok := supported[job.JobType]; !ok {
+			continue
+		}
+		if best < 0 {
+			best = i
+			continue
+		}
+		cur := r.store.jobs[best]
+		if job.AvailableAt.Before(cur.AvailableAt) ||
+			(job.AvailableAt.Equal(cur.AvailableAt) && job.ID.String() < cur.ID.String()) {
+			best = i
+		}
+	}
+	if best < 0 {
+		return domainmedia.BackgroundJob{}, false, nil
+	}
+	job := r.store.jobs[best]
+	owner := params.LeaseOwner
+	until := params.LeaseUntil
+	job.Status = domainmedia.JobLeased
+	job.LeaseOwner = &owner
+	job.LeasedUntil = &until
+	job.AttemptCount++
+	job.Version++
+	job.UpdatedAt = params.Now
+	job.LastError = nil
+	r.store.jobs[best] = job
+	return job, true, nil
+}
+
+// MarkJobSucceeded marks a claimed job SUCCEEDED.
+func (r MemoryRepository) MarkJobSucceeded(_ context.Context, guard JobLeaseGuard, now time.Time) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	i, job, ok := r.findClaimedLocked(guard)
+	if !ok {
+		return apperr.InvalidState(memoryJobLeaseLostMessage)
+	}
+	job.Status = domainmedia.JobSucceeded
+	job.CompletedAt = &now
+	job.LeaseOwner = nil
+	job.LeasedUntil = nil
+	job.LastError = nil
+	job.Version++
+	job.UpdatedAt = now
+	r.store.jobs[i] = job
+	return nil
+}
+
+// MarkJobFailed marks a claimed job FAILED.
+func (r MemoryRepository) MarkJobFailed(_ context.Context, guard JobLeaseGuard, now time.Time, lastError string) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	i, job, ok := r.findClaimedLocked(guard)
+	if !ok {
+		return apperr.InvalidState(memoryJobLeaseLostMessage)
+	}
+	job.Status = domainmedia.JobFailed
+	job.CompletedAt = &now
+	job.LeaseOwner = nil
+	job.LeasedUntil = nil
+	if lastError != "" {
+		msg := lastError
+		job.LastError = &msg
+	} else {
+		job.LastError = nil
+	}
+	job.Version++
+	job.UpdatedAt = now
+	r.store.jobs[i] = job
+	return nil
+}
+
+// RetryOrDeadLetterJob returns a claimed job to QUEUED or marks it DEAD.
+func (r MemoryRepository) RetryOrDeadLetterJob(_ context.Context, params RetryJobParams) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	i, job, ok := r.findClaimedLocked(params.JobLeaseGuard)
+	if !ok {
+		return apperr.InvalidState(memoryJobLeaseLostMessage)
+	}
+	job.LeaseOwner = nil
+	job.LeasedUntil = nil
+	job.Version++
+	job.UpdatedAt = params.Now
+	if params.LastError != "" {
+		msg := params.LastError
+		job.LastError = &msg
+	} else {
+		job.LastError = nil
+	}
+	if params.AttemptCount >= params.MaxAttempts {
+		job.Status = domainmedia.JobDead
+		job.CompletedAt = &params.Now
+	} else {
+		job.Status = domainmedia.JobQueued
+		job.AvailableAt = params.NextAvailableAt
+		job.CompletedAt = nil
+	}
+	r.store.jobs[i] = job
+	return nil
+}
+
+// RecoverExpiredJobLeases requeues or dead-letters expired LEASED jobs.
+func (r MemoryRepository) RecoverExpiredJobLeases(_ context.Context, now time.Time, limit int) (int, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	if limit <= 0 {
+		limit = 100
+	}
+	recovered := 0
+	for i := range r.store.jobs {
+		if recovered >= limit {
+			break
+		}
+		job := r.store.jobs[i]
+		if job.Status != domainmedia.JobLeased || job.LeasedUntil == nil || job.LeasedUntil.After(now) {
+			continue
+		}
+		job.LeaseOwner = nil
+		job.LeasedUntil = nil
+		job.Version++
+		job.UpdatedAt = now
+		if job.AttemptCount >= job.MaxAttempts {
+			job.Status = domainmedia.JobDead
+			job.CompletedAt = &now
+			if job.LastError == nil {
+				msg := memoryJobLeaseExpiredMessage
+				job.LastError = &msg
+			}
+		} else {
+			job.Status = domainmedia.JobQueued
+			job.AvailableAt = now
+			job.CompletedAt = nil
+		}
+		r.store.jobs[i] = job
+		recovered++
+	}
+	return recovered, nil
+}
+
+func (r MemoryRepository) findClaimedLocked(guard JobLeaseGuard) (int, domainmedia.BackgroundJob, bool) {
+	for i, job := range r.store.jobs {
+		if job.ID != guard.JobID {
+			continue
+		}
+		if job.Status != domainmedia.JobLeased {
+			return 0, domainmedia.BackgroundJob{}, false
+		}
+		if job.LeaseOwner == nil || *job.LeaseOwner != guard.LeaseOwner {
+			return 0, domainmedia.BackgroundJob{}, false
+		}
+		if job.Version != guard.Version {
+			return 0, domainmedia.BackgroundJob{}, false
+		}
+		return i, job, true
+	}
+	return 0, domainmedia.BackgroundJob{}, false
 }
 
 func (r MemoryRepository) assetLocked(assetID uuid.UUID) (domainmedia.Asset, error) {
