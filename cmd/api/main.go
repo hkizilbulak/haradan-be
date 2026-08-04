@@ -18,6 +18,7 @@ import (
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	"github.com/hkizilbulak/haradan-be/internal/config"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
+	"github.com/hkizilbulak/haradan-be/internal/infrastructure/email/resendemail"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/imageprocessor/tinifyprocessor"
 	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
 	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
@@ -77,9 +78,32 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("token manager: %w", err)
 	}
+	var emailSender appauth.EmailSender = appauth.NoopEmailSender{}
+	switch cfg.EmailProvider {
+	case config.EmailProviderUnconfigured:
+		// keep NoopEmailSender
+	case config.EmailProviderResend:
+		sender, err := resendemail.New(resendemail.Config{
+			APIKey:      cfg.ResendAPIKey,
+			BaseURL:     cfg.ResendBaseURL,
+			HTTPTimeout: cfg.EmailHTTPTimeout,
+			FromEmail:   cfg.FromEmail,
+			FromName:    cfg.FromName,
+			FrontendURL: cfg.FrontendURL,
+			TemplateID:  cfg.ResendRegistrationVerificationTemplateID,
+		})
+		if err != nil {
+			return fmt.Errorf("email sender: %w", err)
+		}
+		emailSender = sender
+	default:
+		return fmt.Errorf("email provider is not supported")
+	}
+
 	authSvc, err := appauth.NewPostgresService(db.Pool(), appauth.Config{
 		Hasher:            hasher,
 		Tokens:            tokenMgr,
+		EmailSender:       emailSender,
 		EmailVerifyTTL:    cfg.EmailVerificationTTL,
 		DummyPasswordHash: password.DummyHash(hasher),
 	})

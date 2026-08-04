@@ -517,6 +517,200 @@ func TestLoadWorkerDefaultsAndValidation(t *testing.T) {
 	}
 }
 
+func TestLoadEmailProviderDefaultsAndResend(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.EmailProvider != config.EmailProviderUnconfigured {
+		t.Fatalf("EmailProvider=%q", cfg.EmailProvider)
+	}
+	if cfg.ResendBaseURL != "https://api.resend.com" {
+		t.Fatalf("ResendBaseURL=%q", cfg.ResendBaseURL)
+	}
+	if cfg.EmailHTTPTimeout != 30*time.Second {
+		t.Fatalf("EmailHTTPTimeout=%v", cfg.EmailHTTPTimeout)
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("EMAIL_PROVIDER", "unconfigured")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.EmailProvider != config.EmailProviderUnconfigured {
+		t.Fatalf("EmailProvider=%q", cfg.EmailProvider)
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("EMAIL_PROVIDER", "RESEND")
+	t.Setenv("RESEND_API_KEY", "test-resend-api-key-do-not-leak")
+	t.Setenv("FROM_EMAIL", "noreply@example.com")
+	t.Setenv("FROM_NAME", "Haradan")
+	t.Setenv("FRONTEND_URL", "https://app.example.com")
+	t.Setenv("RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID", "tmpl_registration_verify")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.EmailProvider != config.EmailProviderResend {
+		t.Fatalf("EmailProvider=%q", cfg.EmailProvider)
+	}
+	if cfg.FromEmail != "noreply@example.com" || cfg.FromName != "Haradan" {
+		t.Fatalf("from fields: email=%q name=%q", cfg.FromEmail, cfg.FromName)
+	}
+	if cfg.ResendRegistrationVerificationTemplateID != "tmpl_registration_verify" {
+		t.Fatalf("template id=%q", cfg.ResendRegistrationVerificationTemplateID)
+	}
+}
+
+func TestLoadEmailProviderResendValidation(t *testing.T) {
+	setResendBase := func(t *testing.T) {
+		t.Helper()
+		t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+		t.Setenv("EMAIL_PROVIDER", "resend")
+		t.Setenv("RESEND_API_KEY", "test-resend-api-key-do-not-leak")
+		t.Setenv("FROM_EMAIL", "noreply@example.com")
+		t.Setenv("FROM_NAME", "Haradan")
+		t.Setenv("FRONTEND_URL", "https://app.example.com")
+		t.Setenv("RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID", "tmpl_registration_verify")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("EMAIL_PROVIDER", "sendgrid")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected unknown provider error")
+	}
+
+	required := []string{
+		"RESEND_API_KEY",
+		"FROM_EMAIL",
+		"FROM_NAME",
+		"FRONTEND_URL",
+		"RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID",
+	}
+	for _, missing := range required {
+		clearConfigEnv(t)
+		setResendBase(t)
+		_ = os.Unsetenv(missing)
+		_, err := config.Load()
+		if err == nil {
+			t.Fatalf("expected error when %s missing", missing)
+		}
+		if strings.Contains(err.Error(), "test-resend-api-key") {
+			t.Fatalf("error leaked api key for missing %s: %v", missing, err)
+		}
+	}
+
+	clearConfigEnv(t)
+	setResendBase(t)
+	t.Setenv("FROM_EMAIL", "not-an-email")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected invalid FROM_EMAIL error")
+	}
+
+	clearConfigEnv(t)
+	setResendBase(t)
+	t.Setenv("FROM_EMAIL", "Name <noreply@example.com>")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected display-name FROM_EMAIL rejection")
+	}
+
+	clearConfigEnv(t)
+	setResendBase(t)
+	t.Setenv("FROM_NAME", "Bad\nName")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected CRLF FROM_NAME rejection")
+	}
+
+	clearConfigEnv(t)
+	setResendBase(t)
+	t.Setenv("FROM_EMAIL", "bad\r@example.com")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected CRLF FROM_EMAIL rejection")
+	}
+
+	clearConfigEnv(t)
+	setResendBase(t)
+	t.Setenv("RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID", "tmpl\nid")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected CRLF template ID rejection")
+	}
+
+	clearConfigEnv(t)
+	setResendBase(t)
+	t.Setenv("FRONTEND_URL", "ftp://app.example.com")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected invalid FRONTEND_URL scheme error")
+	}
+
+	clearConfigEnv(t)
+	setResendBase(t)
+	t.Setenv("FRONTEND_URL", "https://user:pass@app.example.com")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected FRONTEND_URL userinfo rejection")
+	}
+
+	clearConfigEnv(t)
+	setResendBase(t)
+	t.Setenv("RESEND_BASE_URL", "http://api.resend.com")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected http base URL rejection")
+	}
+
+	clearConfigEnv(t)
+	setResendBase(t)
+	t.Setenv("RESEND_BASE_URL", "https://user:pass@api.resend.com")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected userinfo rejection")
+	}
+
+	clearConfigEnv(t)
+	setResendBase(t)
+	t.Setenv("RESEND_BASE_URL", "https://api.resend.com?x=1")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected query rejection")
+	}
+
+	clearConfigEnv(t)
+	setResendBase(t)
+	t.Setenv("RESEND_BASE_URL", "https://api.resend.com#frag")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected fragment rejection")
+	}
+
+	clearConfigEnv(t)
+	setResendBase(t)
+	t.Setenv("RESEND_BASE_URL", "https://api.resend.com/v1")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected path rejection")
+	}
+
+	clearConfigEnv(t)
+	setResendBase(t)
+	t.Setenv("EMAIL_HTTP_TIMEOUT", "0s")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected timeout <= 0 rejection")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("EMAIL_PROVIDER", "unconfigured")
+	// Resend fields must not be required when provider is unconfigured.
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.EmailProvider != config.EmailProviderUnconfigured {
+		t.Fatalf("EmailProvider=%q", cfg.EmailProvider)
+	}
+}
+
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
 	keys := []string{
@@ -530,6 +724,8 @@ func clearConfigEnv(t *testing.T) {
 		"MEDIA_PROFILE_DETAIL_WIDTH", "MEDIA_PROFILE_DETAIL_HEIGHT",
 		"MEDIA_PROFILE_HOMEPAGE_WIDTH", "MEDIA_PROFILE_HOMEPAGE_HEIGHT",
 		"MEDIA_PROFILE_SEARCH_WIDTH", "MEDIA_PROFILE_SEARCH_HEIGHT",
+		"EMAIL_PROVIDER", "RESEND_API_KEY", "FROM_EMAIL", "FROM_NAME", "FRONTEND_URL",
+		"RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID", "RESEND_BASE_URL", "EMAIL_HTTP_TIMEOUT",
 		"WORKER_CONCURRENCY", "WORKER_POLL_INTERVAL", "WORKER_LEASE_DURATION", "WORKER_JOB_TIMEOUT",
 		"WORKER_ID", "WORKER_SHUTDOWN_TIMEOUT", "WORKER_RETRY_BASE_DELAY", "WORKER_RETRY_MAX_DELAY",
 		"WORKER_LEASE_RECOVERY_INTERVAL",

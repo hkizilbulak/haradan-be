@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/mail"
 	"net/url"
 	"os"
 	"strconv"
@@ -70,6 +71,18 @@ type Config struct {
 	MediaProfileSearchW    int
 	MediaProfileSearchH    int
 
+	// Email delivery. EMAIL_PROVIDER empty/unconfigured keeps NoopEmailSender
+	// without requiring Resend credentials. Provider "resend" requires every
+	// Resend field below.
+	EmailProvider                            string
+	ResendAPIKey                             string
+	FromEmail                                string
+	FromName                                 string
+	FrontendURL                              string
+	ResendRegistrationVerificationTemplateID string
+	EmailHTTPTimeout                         time.Duration
+	ResendBaseURL                            string
+
 	// Background worker runtime (used by cmd/worker; API ignores these).
 	WorkerConcurrency           int
 	WorkerPollInterval          time.Duration
@@ -94,7 +107,14 @@ const (
 	ImageProcessorProviderTinify       = "tinify"
 )
 
+// Supported EMAIL_PROVIDER values after normalization.
+const (
+	EmailProviderUnconfigured = "unconfigured"
+	EmailProviderResend       = "resend"
+)
+
 const defaultTinifyBaseURL = "https://api.tinify.com"
+const defaultResendBaseURL = "https://api.resend.com"
 
 // Load reads configuration from the process environment.
 // It does not read .env files.
@@ -258,6 +278,26 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if err := validateImageProcessorConfig(cfg); err != nil {
+		return Config{}, err
+	}
+
+	if cfg.EmailProvider, err = normalizeEmailProvider(os.Getenv("EMAIL_PROVIDER")); err != nil {
+		return Config{}, err
+	}
+	cfg.ResendAPIKey = strings.TrimSpace(os.Getenv("RESEND_API_KEY"))
+	cfg.FromEmail = strings.TrimSpace(os.Getenv("FROM_EMAIL"))
+	cfg.FromName = strings.TrimSpace(os.Getenv("FROM_NAME"))
+	cfg.FrontendURL = strings.TrimSpace(os.Getenv("FRONTEND_URL"))
+	cfg.ResendRegistrationVerificationTemplateID = strings.TrimSpace(os.Getenv("RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID"))
+	if cfg.ResendBaseURL, err = normalizeResendBaseURL(
+		getenvDefault("RESEND_BASE_URL", defaultResendBaseURL),
+	); err != nil {
+		return Config{}, err
+	}
+	if cfg.EmailHTTPTimeout, err = durationEnv("EMAIL_HTTP_TIMEOUT", 30*time.Second); err != nil {
+		return Config{}, err
+	}
+	if err := validateEmailConfig(cfg); err != nil {
 		return Config{}, err
 	}
 
@@ -442,6 +482,132 @@ func validateImageProcessorConfig(cfg Config) error {
 	default:
 		return fmt.Errorf("IMAGE_PROCESSOR_PROVIDER is not supported")
 	}
+}
+
+func normalizeEmailProvider(raw string) (string, error) {
+	v := strings.ToLower(strings.TrimSpace(raw))
+	switch v {
+	case "", EmailProviderUnconfigured:
+		return EmailProviderUnconfigured, nil
+	case EmailProviderResend:
+		return EmailProviderResend, nil
+	default:
+		return "", fmt.Errorf("EMAIL_PROVIDER is not supported")
+	}
+}
+
+func normalizeResendBaseURL(raw string) (string, error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		s = defaultResendBaseURL
+	}
+	u, err := url.Parse(s)
+	if err != nil {
+		return "", fmt.Errorf("RESEND_BASE_URL is not a valid URL")
+	}
+	if u.Scheme != "https" {
+		return "", fmt.Errorf("RESEND_BASE_URL must use https")
+	}
+	if u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return "", fmt.Errorf("RESEND_BASE_URL must not contain userinfo, query, or fragment")
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("RESEND_BASE_URL host must not be empty")
+	}
+	path := strings.TrimSuffix(u.EscapedPath(), "/")
+	if path != "" {
+		return "", fmt.Errorf("RESEND_BASE_URL must not include a path")
+	}
+	return strings.TrimRight(u.Scheme+"://"+u.Host, "/"), nil
+}
+
+func validateEmailConfig(cfg Config) error {
+	if cfg.EmailHTTPTimeout <= 0 {
+		return fmt.Errorf("EMAIL_HTTP_TIMEOUT must be greater than zero")
+	}
+	if cfg.ResendBaseURL == "" {
+		return fmt.Errorf("RESEND_BASE_URL must not be empty")
+	}
+
+	switch cfg.EmailProvider {
+	case EmailProviderUnconfigured:
+		return nil
+	case EmailProviderResend:
+		if cfg.ResendAPIKey == "" {
+			return fmt.Errorf("RESEND_API_KEY must not be empty when EMAIL_PROVIDER=resend")
+		}
+		if containsCRLF(cfg.ResendAPIKey) {
+			return fmt.Errorf("RESEND_API_KEY must not contain CR or LF")
+		}
+		if cfg.FromEmail == "" {
+			return fmt.Errorf("FROM_EMAIL must not be empty when EMAIL_PROVIDER=resend")
+		}
+		if containsCRLF(cfg.FromEmail) {
+			return fmt.Errorf("FROM_EMAIL must not contain CR or LF")
+		}
+		if err := validateConfigEmailAddress(cfg.FromEmail); err != nil {
+			return fmt.Errorf("FROM_EMAIL is not a valid email address")
+		}
+		if cfg.FromName == "" {
+			return fmt.Errorf("FROM_NAME must not be empty when EMAIL_PROVIDER=resend")
+		}
+		if containsCRLF(cfg.FromName) {
+			return fmt.Errorf("FROM_NAME must not contain CR or LF")
+		}
+		if cfg.FrontendURL == "" {
+			return fmt.Errorf("FRONTEND_URL must not be empty when EMAIL_PROVIDER=resend")
+		}
+		if containsCRLF(cfg.FrontendURL) {
+			return fmt.Errorf("FRONTEND_URL must not contain CR or LF")
+		}
+		if err := validateFrontendURL(cfg.FrontendURL); err != nil {
+			return err
+		}
+		if cfg.ResendRegistrationVerificationTemplateID == "" {
+			return fmt.Errorf("RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID must not be empty when EMAIL_PROVIDER=resend")
+		}
+		if containsCRLF(cfg.ResendRegistrationVerificationTemplateID) {
+			return fmt.Errorf("RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID must not contain CR or LF")
+		}
+		return nil
+	default:
+		return fmt.Errorf("EMAIL_PROVIDER is not supported")
+	}
+}
+
+func containsCRLF(s string) bool {
+	return strings.ContainsAny(s, "\r\n")
+}
+
+func validateConfigEmailAddress(raw string) error {
+	addr, err := mail.ParseAddress(raw)
+	if err != nil {
+		return err
+	}
+	if addr.Name != "" {
+		return fmt.Errorf("display name not allowed")
+	}
+	if addr.Address == "" || !strings.Contains(addr.Address, "@") {
+		return fmt.Errorf("invalid address")
+	}
+	return nil
+}
+
+func validateFrontendURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("FRONTEND_URL is not a valid URL")
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("FRONTEND_URL must use http or https")
+	}
+	if u.Host == "" {
+		return fmt.Errorf("FRONTEND_URL host must not be empty")
+	}
+	if u.User != nil {
+		return fmt.Errorf("FRONTEND_URL must not contain userinfo")
+	}
+	return nil
 }
 
 func optionalPositiveIntEnv(key string) (int, error) {
