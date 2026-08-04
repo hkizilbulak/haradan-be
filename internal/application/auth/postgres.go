@@ -1,16 +1,24 @@
 package auth
 
 import (
+	"context"
 	"fmt"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
 	pgauth "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/auth"
 	pguser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/user"
 )
 
 type pgUserRepo struct{ *pguser.Repository }
+
+func (r pgUserRepo) UpdateProfile(ctx context.Context, userID uuid.UUID, patch ProfilePatch, now time.Time) (domainuser.User, error) {
+	return r.Repository.UpdateProfile(ctx, userID, patch.FirstName, patch.LastName, patch.PhoneSet, patch.PhoneValue, now)
+}
 
 type pgSessionRepo struct{ *pgauth.Repository }
 

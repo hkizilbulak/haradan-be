@@ -23,6 +23,7 @@ const (
 	CodeTokenAlreadyUsed      Code = "TOKEN_ALREADY_USED"
 	CodeSessionRevoked        Code = "SESSION_REVOKED"
 	CodeRefreshReplayDetected Code = "REFRESH_REPLAY_DETECTED"
+	CodeOwnershipRequired     Code = "OWNERSHIP_REQUIRED"
 	CodeDependencyUnavailable Code = "DEPENDENCY_UNAVAILABLE"
 )
 
@@ -140,6 +141,11 @@ func TokenExpired(message string) *Error {
 // TokenAlreadyUsed returns TOKEN_ALREADY_USED (AUTH-02 / 409).
 func TokenAlreadyUsed(message string) *Error {
 	return &Error{Kind: KindConflict, Code: CodeTokenAlreadyUsed, Message: message}
+}
+
+// OwnershipRequired returns OWNERSHIP_REQUIRED (403).
+func OwnershipRequired(message string) *Error {
+	return &Error{Kind: KindForbidden, Code: CodeOwnershipRequired, Message: message}
 }
 
 // Internal wraps an unexpected failure for safe client mapping.

@@ -85,7 +85,7 @@ func run() error {
 	catalogSvc := appcatalog.NewService(catalogRepo)
 
 	srvHandler := handler.NewServer(log, db, geoSvc, catalogSvc, authSvc)
-	engine := router.New(srvHandler, log)
+	engine := router.New(srvHandler, log, router.Options{AuthService: authSvc})
 
 	httpServer := &http.Server{
 		Addr:         cfg.HTTPAddr,

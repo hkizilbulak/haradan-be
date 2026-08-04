@@ -66,6 +66,7 @@ const (
 	EventLoginFailure          SecurityEventType = "LOGIN_FAILURE"
 	EventLogout                SecurityEventType = "LOGOUT"
 	EventSessionRevoked        SecurityEventType = "SESSION_REVOKED"
+	EventAllSessionsRevoked    SecurityEventType = "ALL_SESSIONS_REVOKED"
 	EventRefreshReplayDetected SecurityEventType = "REFRESH_REPLAY_DETECTED"
 	EventEmailVerification     SecurityEventType = "EMAIL_VERIFICATION"
 	EventBOContextRejected     SecurityEventType = "BO_CONTEXT_REJECTED"

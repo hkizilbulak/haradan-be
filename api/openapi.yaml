@@ -2970,6 +2970,8 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/MyProfileResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
         '401':
           "$ref": "#/components/responses/Unauthorized"
         '403':
@@ -2987,6 +2989,8 @@ paths:
             schema:
               "$ref": "#/components/schemas/UpdateMyProfileRequest"
       x-error-codes:
+        '400':
+        - VALIDATION_ERROR
         '401':
         - UNAUTHENTICATED
         - SESSION_REVOKED

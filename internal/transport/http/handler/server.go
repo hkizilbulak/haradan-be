@@ -8,6 +8,7 @@ import (
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
+	accounthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/account"
 	authhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/auth"
 	cataloghandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/catalog"
 	geohandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/geo"
@@ -26,6 +27,7 @@ type Server struct {
 	geo     *geohandler.Handler
 	catalog *cataloghandler.Handler
 	auth    *authhandler.Handler
+	account *accounthandler.Handler
 }
 
 // NewServer constructs the HTTP server implementation.
@@ -45,6 +47,7 @@ func NewServer(
 	}
 	if authSvc != nil {
 		s.auth = authhandler.NewHandler(authSvc, logger, respondError)
+		s.account = accounthandler.NewHandler(authSvc, logger, respondError)
 	}
 	return s
 }

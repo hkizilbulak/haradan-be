@@ -142,6 +142,26 @@ WHERE id = $1`
 	return nil
 }
 
+// UpdateProfile updates editable profile fields and returns the updated user.
+func (r *Repository) UpdateProfile(ctx context.Context, userID uuid.UUID, firstName, lastName *string, phoneSet bool, phone *string, now time.Time) (domainuser.User, error) {
+	const q = `
+UPDATE hrd_users
+SET first_name = COALESCE($2, first_name),
+    last_name = COALESCE($3, last_name),
+    phone = CASE WHEN $4 THEN $5 ELSE phone END,
+    updated_at = $6
+WHERE id = $1
+RETURNING ` + userColumns
+	u, err := scanUser(r.db.QueryRow(ctx, q, userID, firstName, lastName, phoneSet, phone, now))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domainuser.User{}, apperr.NotFound("user not found")
+	}
+	if err != nil {
+		return domainuser.User{}, apperr.Internal(fmt.Errorf("update profile: %w", pg.SanitizeErr(err)))
+	}
+	return u, nil
+}
+
 func scanUser(row pgx.Row) (domainuser.User, error) {
 	var u domainuser.User
 	var role, status string

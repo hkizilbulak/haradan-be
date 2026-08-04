@@ -110,6 +110,37 @@ func (r *Repository) FindSessionByIDForUpdate(ctx context.Context, id uuid.UUID)
 	return s, nil
 }
 
+// ListSessionsByUserID returns sessions for a user ordered by last_used_at DESC, id DESC.
+func (r *Repository) ListSessionsByUserID(ctx context.Context, userID uuid.UUID, afterLastUsed *time.Time, afterID *uuid.UUID, limit int) ([]domainauth.Session, error) {
+	const q = `
+SELECT ` + sessionColumns + `
+FROM hrd_auth_sessions
+WHERE user_id = $1
+  AND (
+    $2::timestamptz IS NULL
+    OR (last_used_at, id) < ($2::timestamptz, $3::uuid)
+  )
+ORDER BY last_used_at DESC, id DESC
+LIMIT $4`
+	rows, err := r.db.Query(ctx, q, userID, afterLastUsed, afterID, limit)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list sessions: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+	out := make([]domainauth.Session, 0, limit)
+	for rows.Next() {
+		s, err := scanSession(rows)
+		if err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan session: %w", pg.SanitizeErr(err)))
+		}
+		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list sessions rows: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
+}
+
 // RevokeSession marks a session revoked if not already revoked.
 func (r *Repository) RevokeSession(ctx context.Context, id uuid.UUID, now time.Time, reason string, replacedBy *uuid.UUID) error {
 	const q = `
@@ -121,6 +152,42 @@ WHERE id = $1`
 	_, err := r.db.Exec(ctx, q, id, now, reason, replacedBy)
 	if err != nil {
 		return apperr.Internal(fmt.Errorf("revoke session: %w", pg.SanitizeErr(err)))
+	}
+	return nil
+}
+
+// RevokeSessionForUser revokes a session owned by userID.
+// Cross-user IDs return NOT_FOUND to avoid confirming another user's session exists.
+func (r *Repository) RevokeSessionForUser(ctx context.Context, userID, sessionID uuid.UUID, now time.Time, reason string) (domainauth.Session, bool, error) {
+	s, err := r.FindSessionByIDForUpdate(ctx, sessionID)
+	if err != nil {
+		return domainauth.Session{}, false, err
+	}
+	if s.UserID != userID {
+		return domainauth.Session{}, false, apperr.NotFound("session not found")
+	}
+	if s.IsRevoked() {
+		return s, false, nil
+	}
+	if err := r.RevokeSession(ctx, sessionID, now, reason, nil); err != nil {
+		return domainauth.Session{}, false, err
+	}
+	s.RevokedAt = &now
+	s.RevokeReason = &reason
+	return s, true, nil
+}
+
+// RevokeAllSessionsForUser revokes every non-revoked session for the user.
+func (r *Repository) RevokeAllSessionsForUser(ctx context.Context, userID uuid.UUID, now time.Time, reason string) error {
+	const q = `
+UPDATE hrd_auth_sessions
+SET revoked_at = $2,
+    revoke_reason = $3
+WHERE user_id = $1
+  AND revoked_at IS NULL`
+	_, err := r.db.Exec(ctx, q, userID, now, reason)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("revoke all sessions: %w", pg.SanitizeErr(err)))
 	}
 	return nil
 }

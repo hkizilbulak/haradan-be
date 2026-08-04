@@ -93,4 +93,18 @@ func TestUserSessionSecurityIntegration(t *testing.T) {
 	if err != nil || verified.EmailVerifiedAt == nil {
 		t.Fatalf("verified=%+v err=%v", verified, err)
 	}
+
+	phone := "555"
+	first := "Neo"
+	updated, err := users.UpdateProfile(ctx, u.ID, &first, nil, true, &phone, now)
+	if err != nil || updated.FirstName != "Neo" || updated.Phone == nil {
+		t.Fatalf("%+v err=%v", updated, err)
+	}
+	listed, err := sessions.ListSessionsByUserID(ctx, u.ID, nil, nil, 10)
+	if err != nil || len(listed) != 1 {
+		t.Fatalf("%+v err=%v", listed, err)
+	}
+	if err := sessions.RevokeAllSessionsForUser(ctx, u.ID, now, "LOGOUT_ALL"); err != nil {
+		t.Fatal(err)
+	}
 }

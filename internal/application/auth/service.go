@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -695,6 +696,284 @@ func (s *Service) Logout(ctx context.Context, in LogoutInput) (LogoutResult, err
 		CreatedAt:     now,
 	})
 	return LogoutResult{Message: logoutSuccessMessage}, nil
+}
+
+const (
+	logoutAllSuccessMessage     = "Tüm oturumlar kapatıldı."
+	revokeSessionSuccessMessage = "Oturum iptal edildi."
+	minSessionPageLimit         = 1
+	maxSessionPageLimit         = 100
+	defaultSessionPageLimit     = 20
+)
+
+// ProfileView is ACCOUNT-01/02 output without secrets.
+type ProfileView struct {
+	ID            uuid.UUID
+	Email         string
+	EmailVerified bool
+	FirstName     string
+	LastName      string
+	Phone         *string
+	Role          domainuser.Role
+	Status        domainuser.Status
+}
+
+// SessionView is AUTH-08 list item without hashes/tokens.
+type SessionView struct {
+	ID            uuid.UUID
+	ClientContext domainauth.ClientContext
+	CreatedAt     time.Time
+	LastUsedAt    time.Time
+	RevokedAt     *time.Time
+	IsCurrent     bool
+}
+
+// SessionListResult is AUTH-08 output.
+type SessionListResult struct {
+	Items      []SessionView
+	NextCursor *string
+	HasMore    bool
+}
+
+// GetMyProfile implements ACCOUNT-01.
+func (s *Service) GetMyProfile(ctx context.Context, userID uuid.UUID) (ProfileView, error) {
+	user, err := s.requireActiveUser(ctx, userID)
+	if err != nil {
+		return ProfileView{}, err
+	}
+	return mapProfile(user), nil
+}
+
+// UpdateMyProfile implements ACCOUNT-02.
+func (s *Service) UpdateMyProfile(ctx context.Context, userID uuid.UUID, patch ProfilePatch) (ProfileView, error) {
+	patch, err := normalizeProfilePatch(patch)
+	if err != nil {
+		return ProfileView{}, err
+	}
+	now := s.clock.Now()
+	var updated domainuser.User
+	err = s.withTx(ctx, func(ctx context.Context, users UserRepository, _ SessionRepository) error {
+		user, err := users.FindByIDForUpdate(ctx, userID)
+		if err != nil {
+			if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindNotFound {
+				return apperr.Unauthenticated(apperr.CodeUnauthenticated, "Kimlik doğrulama gerekli.")
+			}
+			return err
+		}
+		if !user.IsActive() {
+			return apperr.Forbidden(apperr.CodeAccountInactive, "Hesap aktif değil.")
+		}
+		u, err := users.UpdateProfile(ctx, userID, patch, now)
+		if err != nil {
+			return err
+		}
+		updated = u
+		return nil
+	})
+	if err != nil {
+		return ProfileView{}, err
+	}
+	return mapProfile(updated), nil
+}
+
+// LogoutAllSessions implements AUTH-07 (idempotent).
+func (s *Service) LogoutAllSessions(ctx context.Context, principal domainauth.Principal) (LogoutResult, error) {
+	if _, err := s.requireActiveUser(ctx, principal.UserID); err != nil {
+		return LogoutResult{}, err
+	}
+	now := s.clock.Now()
+	err := s.withTx(ctx, func(ctx context.Context, _ UserRepository, sessions SessionRepository) error {
+		return sessions.RevokeAllSessionsForUser(ctx, principal.UserID, now, "LOGOUT_ALL")
+	})
+	if err != nil {
+		return LogoutResult{}, err
+	}
+	uid := principal.UserID
+	ctxCopy := principal.ClientContext
+	s.bestEffortEvent(ctx, domainauth.SecurityEvent{
+		ID:            uuid.New(),
+		SubjectUserID: &uid,
+		ActorUserID:   &uid,
+		EventType:     domainauth.EventAllSessionsRevoked,
+		ClientContext: &ctxCopy,
+		Metadata:      map[string]any{},
+		CreatedAt:     now,
+	})
+	return LogoutResult{Message: logoutAllSuccessMessage}, nil
+}
+
+// ListMySessions implements AUTH-08.
+func (s *Service) ListMySessions(ctx context.Context, userID, currentSessionID uuid.UUID, cursor *string, limit *int) (SessionListResult, error) {
+	if _, err := s.requireActiveUser(ctx, userID); err != nil {
+		return SessionListResult{}, err
+	}
+	lim, err := resolveSessionLimit(limit)
+	if err != nil {
+		return SessionListResult{}, err
+	}
+	var afterLastUsed *time.Time
+	var afterID *uuid.UUID
+	if cursor != nil && strings.TrimSpace(*cursor) != "" {
+		t, id, err := decodeSessionCursor(strings.TrimSpace(*cursor))
+		if err != nil {
+			return SessionListResult{}, apperr.BadRequest(apperr.CodeValidation, "Geçersiz cursor.")
+		}
+		afterLastUsed = &t
+		afterID = &id
+	}
+	rows, err := s.sessions.ListSessionsByUserID(ctx, userID, afterLastUsed, afterID, lim+1)
+	if err != nil {
+		return SessionListResult{}, err
+	}
+	hasMore := len(rows) > lim
+	if hasMore {
+		rows = rows[:lim]
+	}
+	items := make([]SessionView, 0, len(rows))
+	for _, sess := range rows {
+		items = append(items, SessionView{
+			ID:            sess.ID,
+			ClientContext: sess.ClientContext,
+			CreatedAt:     sess.CreatedAt,
+			LastUsedAt:    sess.LastUsedAt,
+			RevokedAt:     sess.RevokedAt,
+			IsCurrent:     sess.ID == currentSessionID,
+		})
+	}
+	var next *string
+	if hasMore && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		c := encodeSessionCursor(last.LastUsedAt, last.ID)
+		next = &c
+	}
+	return SessionListResult{Items: items, NextCursor: next, HasMore: hasMore}, nil
+}
+
+// RevokeMySession implements AUTH-09 (idempotent).
+func (s *Service) RevokeMySession(ctx context.Context, principal domainauth.Principal, sessionID uuid.UUID) (LogoutResult, error) {
+	if _, err := s.requireActiveUser(ctx, principal.UserID); err != nil {
+		return LogoutResult{}, err
+	}
+	now := s.clock.Now()
+	var newlyRevoked bool
+	err := s.withTx(ctx, func(ctx context.Context, _ UserRepository, sessions SessionRepository) error {
+		_, newly, err := sessions.RevokeSessionForUser(ctx, principal.UserID, sessionID, now, "USER_REVOKE")
+		if err != nil {
+			return err
+		}
+		newlyRevoked = newly
+		return nil
+	})
+	if err != nil {
+		return LogoutResult{}, err
+	}
+	if newlyRevoked {
+		uid := principal.UserID
+		ctxCopy := principal.ClientContext
+		s.bestEffortEvent(ctx, domainauth.SecurityEvent{
+			ID:            uuid.New(),
+			SubjectUserID: &uid,
+			ActorUserID:   &uid,
+			EventType:     domainauth.EventSessionRevoked,
+			ClientContext: &ctxCopy,
+			Metadata:      map[string]any{},
+			CreatedAt:     now,
+		})
+	}
+	return LogoutResult{Message: revokeSessionSuccessMessage}, nil
+}
+
+func (s *Service) requireActiveUser(ctx context.Context, userID uuid.UUID) (domainuser.User, error) {
+	user, err := s.users.FindByID(ctx, userID)
+	if err != nil {
+		if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindNotFound {
+			return domainuser.User{}, apperr.Unauthenticated(apperr.CodeUnauthenticated, "Kimlik doğrulama gerekli.")
+		}
+		return domainuser.User{}, err
+	}
+	if !user.IsActive() {
+		return domainuser.User{}, apperr.Forbidden(apperr.CodeAccountInactive, "Hesap aktif değil.")
+	}
+	return user, nil
+}
+
+func mapProfile(u domainuser.User) ProfileView {
+	return ProfileView{
+		ID:            u.ID,
+		Email:         u.Email,
+		EmailVerified: u.EmailVerifiedAt != nil,
+		FirstName:     u.FirstName,
+		LastName:      u.LastName,
+		Phone:         u.Phone,
+		Role:          u.Role,
+		Status:        u.Status,
+	}
+}
+
+func normalizeProfilePatch(patch ProfilePatch) (ProfilePatch, error) {
+	if patch.FirstName == nil && patch.LastName == nil && !patch.PhoneSet {
+		return patch, nil
+	}
+	if patch.FirstName != nil {
+		v := strings.TrimSpace(*patch.FirstName)
+		if v == "" || firstNameTooLong(v) {
+			return ProfilePatch{}, apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "firstName", Message: "Ad geçersiz."})
+		}
+		patch.FirstName = &v
+	}
+	if patch.LastName != nil {
+		v := strings.TrimSpace(*patch.LastName)
+		if v == "" || lastNameTooLong(v) {
+			return ProfilePatch{}, apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "lastName", Message: "Soyad geçersiz."})
+		}
+		patch.LastName = &v
+	}
+	if patch.PhoneSet && patch.PhoneValue != nil {
+		v := strings.TrimSpace(*patch.PhoneValue)
+		if v == "" {
+			patch.PhoneValue = nil
+		} else if len(v) > 32 {
+			return ProfilePatch{}, apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "phone", Message: "Telefon çok uzun."})
+		} else {
+			patch.PhoneValue = &v
+		}
+	}
+	return patch, nil
+}
+
+func resolveSessionLimit(limit *int) (int, error) {
+	if limit == nil {
+		return defaultSessionPageLimit, nil
+	}
+	if *limit < minSessionPageLimit || *limit > maxSessionPageLimit {
+		return 0, apperr.BadRequest(apperr.CodeValidation, "limit 1 ile 100 arasında olmalıdır")
+	}
+	return *limit, nil
+}
+
+func encodeSessionCursor(lastUsed time.Time, id uuid.UUID) string {
+	raw := lastUsed.UTC().Format(time.RFC3339Nano) + "|" + id.String()
+	return base64.RawURLEncoding.EncodeToString([]byte(raw))
+}
+
+func decodeSessionCursor(cursor string) (time.Time, uuid.UUID, error) {
+	b, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		return time.Time{}, uuid.Nil, err
+	}
+	parts := strings.SplitN(string(b), "|", 2)
+	if len(parts) != 2 {
+		return time.Time{}, uuid.Nil, fmt.Errorf("bad cursor")
+	}
+	t, err := time.Parse(time.RFC3339Nano, parts[0])
+	if err != nil {
+		return time.Time{}, uuid.Nil, err
+	}
+	id, err := uuid.Parse(parts[1])
+	if err != nil {
+		return time.Time{}, uuid.Nil, err
+	}
+	return t, id, nil
 }
 
 // AuthenticateAccessToken validates an access token for middleware/handler use.

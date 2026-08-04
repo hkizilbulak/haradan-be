@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -141,6 +142,26 @@ func (m memUsers) MarkEmailVerified(_ context.Context, userID uuid.UUID, verifie
 	m.store.users[userID] = u
 	return nil
 }
+func (m memUsers) UpdateProfile(_ context.Context, userID uuid.UUID, patch ProfilePatch, now time.Time) (domainuser.User, error) {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	u, ok := m.store.users[userID]
+	if !ok {
+		return domainuser.User{}, apperr.NotFound("user not found")
+	}
+	if patch.FirstName != nil {
+		u.FirstName = *patch.FirstName
+	}
+	if patch.LastName != nil {
+		u.LastName = *patch.LastName
+	}
+	if patch.PhoneSet {
+		u.Phone = patch.PhoneValue
+	}
+	u.UpdatedAt = now
+	m.store.users[userID] = u
+	return u, nil
+}
 
 type memSessions struct{ store *memStore }
 
@@ -180,6 +201,35 @@ func (m memSessions) FindSessionByID(_ context.Context, id uuid.UUID) (domainaut
 func (m memSessions) FindSessionByIDForUpdate(ctx context.Context, id uuid.UUID) (domainauth.Session, error) {
 	return m.FindSessionByID(ctx, id)
 }
+func (m memSessions) ListSessionsByUserID(_ context.Context, userID uuid.UUID, afterLastUsed *time.Time, afterID *uuid.UUID, limit int) ([]domainauth.Session, error) {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	all := make([]domainauth.Session, 0)
+	for _, s := range m.store.sessions {
+		if s.UserID != userID {
+			continue
+		}
+		if afterLastUsed != nil && afterID != nil {
+			if s.LastUsedAt.After(*afterLastUsed) {
+				continue
+			}
+			if s.LastUsedAt.Equal(*afterLastUsed) && s.ID.String() >= afterID.String() {
+				continue
+			}
+		}
+		all = append(all, s)
+	}
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].LastUsedAt.Equal(all[j].LastUsedAt) {
+			return all[i].ID.String() > all[j].ID.String()
+		}
+		return all[i].LastUsedAt.After(all[j].LastUsedAt)
+	})
+	if limit < len(all) {
+		all = all[:limit]
+	}
+	return all, nil
+}
 func (m memSessions) RevokeSession(_ context.Context, id uuid.UUID, now time.Time, reason string, replacedBy *uuid.UUID) error {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()
@@ -192,6 +242,36 @@ func (m memSessions) RevokeSession(_ context.Context, id uuid.UUID, now time.Tim
 		s.ReplacedBySessionID = replacedBy
 	}
 	m.store.sessions[id] = s
+	return nil
+}
+func (m memSessions) RevokeSessionForUser(ctx context.Context, userID, sessionID uuid.UUID, now time.Time, reason string) (domainauth.Session, bool, error) {
+	s, err := m.FindSessionByIDForUpdate(ctx, sessionID)
+	if err != nil {
+		return domainauth.Session{}, false, err
+	}
+	if s.UserID != userID {
+		return domainauth.Session{}, false, apperr.NotFound("session not found")
+	}
+	if s.IsRevoked() {
+		return s, false, nil
+	}
+	if err := m.RevokeSession(ctx, sessionID, now, reason, nil); err != nil {
+		return domainauth.Session{}, false, err
+	}
+	s.RevokedAt = &now
+	s.RevokeReason = &reason
+	return s, true, nil
+}
+func (m memSessions) RevokeAllSessionsForUser(_ context.Context, userID uuid.UUID, now time.Time, reason string) error {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	for id, s := range m.store.sessions {
+		if s.UserID == userID && s.RevokedAt == nil {
+			s.RevokedAt = &now
+			s.RevokeReason = &reason
+			m.store.sessions[id] = s
+		}
+	}
 	return nil
 }
 func (m memSessions) RevokeFamily(_ context.Context, familyID uuid.UUID, now time.Time, reason string) error {

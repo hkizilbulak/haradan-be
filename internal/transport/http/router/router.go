@@ -6,20 +6,35 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware"
+	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authn"
 )
 
 const APIBasePath = "/api"
 
+// Options configures optional router dependencies.
+type Options struct {
+	AuthService *appauth.Service
+}
+
 // New builds the Gin engine with foundation middleware and OpenAPI routes.
-func New(server generated.ServerInterface, logger *slog.Logger) *gin.Engine {
+func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(middleware.RequestID())
 	r.Use(requestLogger(logger))
+
+	var opt Options
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+	if opt.AuthService != nil {
+		r.Use(authn.Selective(opt.AuthService, logger, authn.AccountSessionProtectedRoutes))
+	}
 
 	generated.RegisterHandlersWithOptions(r, server, generated.GinServerOptions{
 		BaseURL:      APIBasePath,
