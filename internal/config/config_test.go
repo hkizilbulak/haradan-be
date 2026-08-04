@@ -218,6 +218,94 @@ func TestLoadMediaSettings(t *testing.T) {
 	}
 }
 
+func TestLoadStorageProviderDefaultsAndB2(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.StorageProvider != config.StorageProviderUnconfigured {
+		t.Fatalf("StorageProvider=%q", cfg.StorageProvider)
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("STORAGE_PROVIDER", "unconfigured")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.StorageProvider != config.StorageProviderUnconfigured {
+		t.Fatalf("StorageProvider=%q", cfg.StorageProvider)
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("STORAGE_PROVIDER", "backblaze")
+	t.Setenv("S3_ENDPOINT", "https://example.invalid")
+	t.Setenv("S3_REGION", "eu-central-003")
+	t.Setenv("S3_BUCKET", "bucket")
+	t.Setenv("S3_ACCESS_KEY", "access-key-value")
+	t.Setenv("S3_SECRET_KEY", "secret-key-value-do-not-leak")
+	t.Setenv("S3_BASE_PATH", "/media/prod/")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.StorageProvider != config.StorageProviderB2 {
+		t.Fatalf("StorageProvider=%q", cfg.StorageProvider)
+	}
+	if cfg.S3BasePath != "media/prod" {
+		t.Fatalf("S3BasePath=%q", cfg.S3BasePath)
+	}
+}
+
+func TestLoadStorageProviderB2RequiresFields(t *testing.T) {
+	required := []string{"S3_ENDPOINT", "S3_REGION", "S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY"}
+	for _, missing := range required {
+		clearConfigEnv(t)
+		t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+		t.Setenv("STORAGE_PROVIDER", "b2")
+		t.Setenv("S3_ENDPOINT", "https://example.invalid")
+		t.Setenv("S3_REGION", "eu-central-003")
+		t.Setenv("S3_BUCKET", "bucket")
+		t.Setenv("S3_ACCESS_KEY", "access-key-value")
+		t.Setenv("S3_SECRET_KEY", "secret-key-value-do-not-leak")
+		_ = os.Unsetenv(missing)
+		_, err := config.Load()
+		if err == nil {
+			t.Fatalf("expected error when %s missing", missing)
+		}
+		if strings.Contains(err.Error(), "secret-key-value") || strings.Contains(err.Error(), "access-key-value") {
+			t.Fatalf("error leaked credential for missing %s: %v", missing, err)
+		}
+	}
+}
+
+func TestLoadStorageUnknownProviderAndBasePath(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("STORAGE_PROVIDER", "minio")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected unknown provider error")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("S3_BASE_PATH", "media/../secret")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected base path traversal error")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("S3_BASE_PATH", `media\bad`)
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected base path backslash error")
+	}
+}
+
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
 	keys := []string{
@@ -226,6 +314,7 @@ func clearConfigEnv(t *testing.T) {
 		"AUTH_JWT_SECRET", "AUTH_ACCESS_TOKEN_TTL", "AUTH_REFRESH_ABSOLUTE_TTL", "AUTH_REFRESH_IDLE_TTL",
 		"AUTH_EMAIL_VERIFICATION_TTL", "AUTH_ARGON2_TIME", "AUTH_ARGON2_MEMORY_KIB", "AUTH_ARGON2_THREADS", "AUTH_ARGON2_KEY_LEN",
 		"MEDIA_ALLOWED_CONTENT_TYPES", "MEDIA_MAX_BYTE_SIZE", "MEDIA_UPLOAD_URL_TTL",
+		"STORAGE_PROVIDER", "S3_ENDPOINT", "S3_REGION", "S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BASE_PATH",
 	}
 	for _, key := range keys {
 		prev, had := os.LookupEnv(key)

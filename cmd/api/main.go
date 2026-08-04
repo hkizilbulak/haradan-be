@@ -20,6 +20,7 @@ import (
 	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
 	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
 	pghorse "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/horse"
+	"github.com/hkizilbulak/haradan-be/internal/infrastructure/storage/s3storage"
 	"github.com/hkizilbulak/haradan-be/internal/platform/database"
 	applogger "github.com/hkizilbulak/haradan-be/internal/platform/logger"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/password"
@@ -95,11 +96,31 @@ func run() error {
 		return fmt.Errorf("advert service: %w", err)
 	}
 
-	// Storage and Processor are left as UnconfiguredStorage/UnconfiguredImageProcessor
-	// until a real B2/image-processing adapter is wired: a half-wired process
-	// must fail loudly with DEPENDENCY_UNAVAILABLE instead of pretending uploads work.
+	// ImageProcessor stays Unconfigured until a real compression adapter is wired.
+	// Storage uses B2 when STORAGE_PROVIDER=b2; otherwise UnconfiguredStorage.
+	var mediaStorage appmedia.Storage = appmedia.UnconfiguredStorage{}
+	switch cfg.StorageProvider {
+	case config.StorageProviderUnconfigured:
+		// keep UnconfiguredStorage
+	case config.StorageProviderB2:
+		store, err := s3storage.New(s3storage.Config{
+			Endpoint:  cfg.S3Endpoint,
+			Region:    cfg.S3Region,
+			Bucket:    cfg.S3Bucket,
+			AccessKey: cfg.S3AccessKey,
+			SecretKey: cfg.S3SecretKey,
+			BasePath:  cfg.S3BasePath,
+		})
+		if err != nil {
+			return fmt.Errorf("storage: %w", err)
+		}
+		mediaStorage = store
+	default:
+		return fmt.Errorf("storage provider is not supported")
+	}
+
 	mediaSvc, err := appmedia.NewPostgresService(db.Pool(), appmedia.Config{
-		Storage:             appmedia.UnconfiguredStorage{},
+		Storage:             mediaStorage,
 		Processor:           appmedia.UnconfiguredImageProcessor{},
 		AllowedContentTypes: cfg.MediaAllowedContentTypes,
 		MaxByteSize:         cfg.MediaMaxByteSize,

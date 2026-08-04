@@ -40,12 +40,28 @@ type Config struct {
 	// byte ceiling and pixel bounds are open product/technical decisions, so no
 	// value is defaulted here. While the allowlist is empty or the byte ceiling
 	// is unset, upload initiation reports the dependency as unavailable instead
-	// of accepting a file under invented limits. No storage or compression
-	// provider credentials are read here.
+	// of accepting a file under invented limits.
 	MediaAllowedContentTypes []string
 	MediaMaxByteSize         int64
 	MediaUploadURLTTL        time.Duration
+
+	// Object storage. STORAGE_PROVIDER empty/unconfigured keeps the process on
+	// UnconfiguredStorage without requiring credentials. Provider "b2" requires
+	// every S3_* field below (except optional S3_BASE_PATH).
+	StorageProvider string
+	S3Endpoint      string
+	S3Region        string
+	S3Bucket        string
+	S3AccessKey     string
+	S3SecretKey     string
+	S3BasePath      string
 }
+
+// Supported STORAGE_PROVIDER values after normalization.
+const (
+	StorageProviderUnconfigured = "unconfigured"
+	StorageProviderB2           = "b2"
+)
 
 // Load reads configuration from the process environment.
 // It does not read .env files.
@@ -162,7 +178,83 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	if cfg.StorageProvider, err = normalizeStorageProvider(os.Getenv("STORAGE_PROVIDER")); err != nil {
+		return Config{}, err
+	}
+	cfg.S3Endpoint = strings.TrimSpace(os.Getenv("S3_ENDPOINT"))
+	cfg.S3Region = strings.TrimSpace(os.Getenv("S3_REGION"))
+	cfg.S3Bucket = strings.TrimSpace(os.Getenv("S3_BUCKET"))
+	cfg.S3AccessKey = strings.TrimSpace(os.Getenv("S3_ACCESS_KEY"))
+	cfg.S3SecretKey = strings.TrimSpace(os.Getenv("S3_SECRET_KEY"))
+	if cfg.S3BasePath, err = normalizeS3BasePath(os.Getenv("S3_BASE_PATH")); err != nil {
+		return Config{}, err
+	}
+	if err := validateStorageConfig(cfg); err != nil {
+		return Config{}, err
+	}
+
 	return cfg, nil
+}
+
+func normalizeStorageProvider(raw string) (string, error) {
+	v := strings.ToLower(strings.TrimSpace(raw))
+	switch v {
+	case "", StorageProviderUnconfigured:
+		return StorageProviderUnconfigured, nil
+	case StorageProviderB2, "backblaze":
+		return StorageProviderB2, nil
+	default:
+		return "", fmt.Errorf("STORAGE_PROVIDER is not supported")
+	}
+}
+
+func normalizeS3BasePath(raw string) (string, error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", nil
+	}
+	if strings.Contains(s, `\`) {
+		return "", fmt.Errorf("S3_BASE_PATH must not contain backslashes")
+	}
+	s = strings.Trim(s, "/")
+	if s == "" {
+		return "", nil
+	}
+	parts := strings.Split(s, "/")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return "", fmt.Errorf("S3_BASE_PATH contains an invalid path segment")
+		}
+		out = append(out, part)
+	}
+	return strings.Join(out, "/"), nil
+}
+
+func validateStorageConfig(cfg Config) error {
+	switch cfg.StorageProvider {
+	case StorageProviderUnconfigured:
+		return nil
+	case StorageProviderB2:
+		if cfg.S3Endpoint == "" {
+			return fmt.Errorf("S3_ENDPOINT must not be empty when STORAGE_PROVIDER=b2")
+		}
+		if cfg.S3Region == "" {
+			return fmt.Errorf("S3_REGION must not be empty when STORAGE_PROVIDER=b2")
+		}
+		if cfg.S3Bucket == "" {
+			return fmt.Errorf("S3_BUCKET must not be empty when STORAGE_PROVIDER=b2")
+		}
+		if cfg.S3AccessKey == "" {
+			return fmt.Errorf("S3_ACCESS_KEY must not be empty when STORAGE_PROVIDER=b2")
+		}
+		if cfg.S3SecretKey == "" {
+			return fmt.Errorf("S3_SECRET_KEY must not be empty when STORAGE_PROVIDER=b2")
+		}
+		return nil
+	default:
+		return fmt.Errorf("STORAGE_PROVIDER is not supported")
+	}
 }
 
 func isProductionLike(appEnv string) bool {
