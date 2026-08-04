@@ -1,0 +1,121 @@
+package advert
+
+import (
+	"context"
+	"encoding/json"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
+	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
+	domaincatalog "github.com/hkizilbulak/haradan-be/internal/domain/catalog"
+	domaingeo "github.com/hkizilbulak/haradan-be/internal/domain/geo"
+	domainhorse "github.com/hkizilbulak/haradan-be/internal/domain/horse"
+	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
+)
+
+// Repository persists adverts and their immutable status history.
+//
+// Every owner-scoped read/write is filtered by owner id so a foreign advert is
+// indistinguishable from a missing one (NOT_FOUND, never an existence leak).
+type Repository interface {
+	BeginTx(ctx context.Context) (pgx.Tx, error)
+	WithTx(tx pgx.Tx) Repository
+
+	Create(ctx context.Context, a domainadvert.Advert) error
+	InsertHistory(ctx context.Context, h domainadvert.StatusHistory) error
+
+	FindByIDForOwner(ctx context.Context, ownerID, advertID uuid.UUID) (domainadvert.Advert, error)
+	FindByIDForOwnerForUpdate(ctx context.Context, ownerID, advertID uuid.UUID) (domainadvert.Advert, error)
+	ListByOwner(
+		ctx context.Context,
+		ownerID uuid.UUID,
+		status *domainadvert.Status,
+		afterCreated *time.Time,
+		afterID *uuid.UUID,
+		limit int,
+	) ([]domainadvert.Advert, error)
+
+	// UpdateDetails applies core content fields when owner+id+version still match
+	// and the status is owner-editable.
+	UpdateDetails(
+		ctx context.Context,
+		ownerID, advertID uuid.UUID,
+		patch domainadvert.DetailsPatch,
+		expectedVersion int,
+		now time.Time,
+	) (domainadvert.Advert, error)
+
+	// UpdateCategoryClearProperties sets the category and resets properties to {}.
+	UpdateCategoryClearProperties(
+		ctx context.Context,
+		ownerID, advertID, categoryID uuid.UUID,
+		expectedVersion int,
+		now time.Time,
+	) (domainadvert.Advert, error)
+
+	// ReplaceProperties overwrites the dynamic property object.
+	ReplaceProperties(
+		ctx context.Context,
+		ownerID, advertID uuid.UUID,
+		properties json.RawMessage,
+		expectedVersion int,
+		now time.Time,
+	) (domainadvert.Advert, error)
+
+	// SoftDeleteDraft stamps deleted_at on a DRAFT advert.
+	SoftDeleteDraft(
+		ctx context.Context,
+		ownerID, advertID uuid.UUID,
+		expectedVersion int,
+		now time.Time,
+	) (domainadvert.Advert, error)
+
+	// TransitionStatus moves status when owner+id+version+from status match.
+	TransitionStatus(
+		ctx context.Context,
+		ownerID, advertID uuid.UUID,
+		from, to domainadvert.Status,
+		expectedVersion int,
+		publishedAt *time.Time,
+		now time.Time,
+	) (domainadvert.Advert, error)
+}
+
+// CatalogReader reads the category metadata the advert core depends on.
+type CatalogReader interface {
+	GetActiveCategory(ctx context.Context, id uuid.UUID) (domaincatalog.Category, error)
+	CountActiveChildren(ctx context.Context, parentID uuid.UUID) (int, error)
+	ListFormProperties(ctx context.Context, categoryID uuid.UUID) ([]domaincatalog.Property, error)
+}
+
+// GeoReader resolves the advert district reference.
+type GeoReader interface {
+	GetActiveDistrict(ctx context.Context, id uuid.UUID) (domaingeo.District, error)
+}
+
+// HorseReader resolves the advert horse reference.
+type HorseReader interface {
+	FindByID(ctx context.Context, id uuid.UUID) (domainhorse.Horse, error)
+}
+
+// UserReader reads the owner account state required before moderation submit.
+type UserReader interface {
+	FindByID(ctx context.Context, id uuid.UUID) (domainuser.User, error)
+}
+
+// Clock provides the current time.
+type Clock interface {
+	Now() time.Time
+}
+
+type systemClock struct{}
+
+func (systemClock) Now() time.Time { return time.Now().UTC() }
+
+// MoneyInput is the raw price pair from a request; both halves or neither.
+type MoneyInput struct {
+	AmountMinor *int64
+	Currency    *string
+}
