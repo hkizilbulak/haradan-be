@@ -12,9 +12,11 @@ import (
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
+	apphorse "github.com/hkizilbulak/haradan-be/internal/application/horse"
 	"github.com/hkizilbulak/haradan-be/internal/config"
 	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
 	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
+	pghorse "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/horse"
 	"github.com/hkizilbulak/haradan-be/internal/platform/database"
 	applogger "github.com/hkizilbulak/haradan-be/internal/platform/logger"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/password"
@@ -81,10 +83,12 @@ func run() error {
 
 	geoRepo := pggeo.NewRepository(db.Pool())
 	catalogRepo := pgcatalog.NewRepository(db.Pool())
+	horseRepo := pghorse.NewRepository(db.Pool())
 	geoSvc := appgeo.NewService(geoRepo)
 	catalogSvc := appcatalog.NewService(catalogRepo)
+	horseSvc := apphorse.NewService(horseRepo)
 
-	srvHandler := handler.NewServer(log, db, geoSvc, catalogSvc, authSvc)
+	srvHandler := handler.NewServer(log, db, geoSvc, catalogSvc, horseSvc, authSvc)
 	engine := router.New(srvHandler, log, router.Options{AuthService: authSvc})
 
 	httpServer := &http.Server{

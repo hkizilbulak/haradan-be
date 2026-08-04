@@ -7,11 +7,13 @@ import (
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
+	apphorse "github.com/hkizilbulak/haradan-be/internal/application/horse"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	accounthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/account"
 	authhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/auth"
 	cataloghandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/catalog"
 	geohandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/geo"
+	horsehandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/horse"
 )
 
 // DependencyChecker is a minimal health dependency contract.
@@ -26,6 +28,7 @@ type Server struct {
 	deps    DependencyChecker
 	geo     *geohandler.Handler
 	catalog *cataloghandler.Handler
+	horse   *horsehandler.Handler
 	auth    *authhandler.Handler
 	account *accounthandler.Handler
 }
@@ -36,6 +39,7 @@ func NewServer(
 	deps DependencyChecker,
 	geoSvc *appgeo.Service,
 	catalogSvc *appcatalog.Service,
+	horseSvc *apphorse.Service,
 	authSvc *appauth.Service,
 ) *Server {
 	s := &Server{logger: logger, deps: deps}
@@ -44,6 +48,9 @@ func NewServer(
 	}
 	if catalogSvc != nil {
 		s.catalog = cataloghandler.NewHandler(catalogSvc, logger, respondError)
+	}
+	if horseSvc != nil {
+		s.horse = horsehandler.NewHandler(horseSvc, logger, respondError)
 	}
 	if authSvc != nil {
 		s.auth = authhandler.NewHandler(authSvc, logger, respondError)

@@ -46,7 +46,7 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 // NewFoundation constructs a router with the foundation server and dependency checker.
 // Geo and Catalog services are nil in foundation-only tests; those ops stay 501.
 func NewFoundation(logger *slog.Logger, deps handler.DependencyChecker) *gin.Engine {
-	return New(handler.NewServer(logger, deps, nil, nil, nil), logger)
+	return New(handler.NewServer(logger, deps, nil, nil, nil, nil), logger)
 }
 
 func requestLogger(logger *slog.Logger) gin.HandlerFunc {
