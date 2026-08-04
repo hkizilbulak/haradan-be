@@ -31,6 +31,13 @@ var expectedTables = []string{
 	"hrd_background_jobs",
 	"hrd_tjk_sync_runs",
 	"hrd_tjk_sync_item_errors",
+	"hrd_packages",
+	"hrd_advert_package_assignments",
+	"hrd_advert_feature_activations",
+	"hrd_campaigns",
+	"hrd_notification_templates",
+	"hrd_notifications",
+	"hrd_user_notification_states",
 }
 
 var (
@@ -54,8 +61,8 @@ func ValidateEmbeddedMigrations(fsys fs.FS) error {
 		return fmt.Errorf("list migrations: %w", err)
 	}
 	sort.Strings(entries)
-	if len(entries) != 8 {
-		return fmt.Errorf("expected 8 SQL migration files, got %d", len(entries))
+	if len(entries) != 9 {
+		return fmt.Errorf("expected 9 SQL migration files, got %d", len(entries))
 	}
 
 	created := make(map[string]struct{})
@@ -123,8 +130,8 @@ func ValidateEmbeddedMigrations(fsys fs.FS) error {
 		}
 	}
 
-	if len(created) != 19 {
-		return fmt.Errorf("expected 19 CREATE TABLE statements, got %d", len(created))
+	if len(created) != 26 {
+		return fmt.Errorf("expected 26 CREATE TABLE statements, got %d", len(created))
 	}
 	for _, table := range expectedTables {
 		if _, ok := created[table]; !ok {
