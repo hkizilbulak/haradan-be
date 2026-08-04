@@ -39,6 +39,19 @@ var AdvertOwnerProtectedRoutes = []ProtectedRoute{
 	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/archive"},
 }
 
+// MediaProtectedRoutes are MEDIA-01..07 owner-scoped routes. Admin media
+// routes (/api/v1/admin/media/...) are intentionally excluded; they are out of
+// scope here.
+var MediaProtectedRoutes = []ProtectedRoute{
+	{Method: "POST", Path: "/api/v1/media/uploads"},
+	{Method: "POST", Path: "/api/v1/media/assets/:assetId/confirm"},
+	{Method: "GET", Path: "/api/v1/media/assets/:assetId"},
+	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/media"},
+	{Method: "DELETE", Path: "/api/v1/me/adverts/:advertId/media/:assetId"},
+	{Method: "PUT", Path: "/api/v1/me/adverts/:advertId/media/order"},
+	{Method: "PUT", Path: "/api/v1/me/adverts/:advertId/media/cover"},
+}
+
 // Selective runs Bearer access-token auth only for the listed method+path pairs.
 // Unlisted routes (including public Health/Geo/Catalog/Auth and remaining 501 FE_AUTH
 // stubs) are left untouched.

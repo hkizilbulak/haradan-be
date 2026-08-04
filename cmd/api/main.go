@@ -14,6 +14,7 @@ import (
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
 	apphorse "github.com/hkizilbulak/haradan-be/internal/application/horse"
+	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	"github.com/hkizilbulak/haradan-be/internal/config"
 	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
 	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
@@ -93,7 +94,21 @@ func run() error {
 		return fmt.Errorf("advert service: %w", err)
 	}
 
-	srvHandler := handler.NewServer(log, db, geoSvc, catalogSvc, horseSvc, advertSvc, authSvc)
+	// Storage and Processor are left as UnconfiguredStorage/UnconfiguredImageProcessor
+	// until a real B2/image-processing adapter is wired: a half-wired process
+	// must fail loudly with DEPENDENCY_UNAVAILABLE instead of pretending uploads work.
+	mediaSvc, err := appmedia.NewPostgresService(db.Pool(), appmedia.Config{
+		Storage:             appmedia.UnconfiguredStorage{},
+		Processor:           appmedia.UnconfiguredImageProcessor{},
+		AllowedContentTypes: cfg.MediaAllowedContentTypes,
+		MaxByteSize:         cfg.MediaMaxByteSize,
+		UploadURLTTL:        cfg.MediaUploadURLTTL,
+	})
+	if err != nil {
+		return fmt.Errorf("media service: %w", err)
+	}
+
+	srvHandler := handler.NewServer(log, db, geoSvc, catalogSvc, horseSvc, advertSvc, mediaSvc, authSvc)
 	engine := router.New(srvHandler, log, router.Options{AuthService: authSvc})
 
 	httpServer := &http.Server{

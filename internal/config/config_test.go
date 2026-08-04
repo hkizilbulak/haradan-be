@@ -169,6 +169,55 @@ func TestLoadZeroOrNegativeAuthTTL(t *testing.T) {
 	}
 }
 
+// TestLoadMediaSettings covers the media upload knobs: unset means "not
+// configured", never an invented allowlist or byte ceiling.
+func TestLoadMediaSettings(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.MediaAllowedContentTypes) != 0 || cfg.MediaMaxByteSize != 0 {
+		t.Fatalf("media limits must stay unset by default: %+v", cfg)
+	}
+	if cfg.MediaUploadURLTTL != 15*time.Minute {
+		t.Fatalf("MediaUploadURLTTL=%v", cfg.MediaUploadURLTTL)
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("MEDIA_ALLOWED_CONTENT_TYPES", " image/jpeg , image/png ,, ")
+	t.Setenv("MEDIA_MAX_BYTE_SIZE", "5242880")
+	t.Setenv("MEDIA_UPLOAD_URL_TTL", "5m")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.MediaAllowedContentTypes) != 2 ||
+		cfg.MediaAllowedContentTypes[0] != "image/jpeg" ||
+		cfg.MediaAllowedContentTypes[1] != "image/png" {
+		t.Fatalf("MediaAllowedContentTypes=%v", cfg.MediaAllowedContentTypes)
+	}
+	if cfg.MediaMaxByteSize != 5242880 || cfg.MediaUploadURLTTL != 5*time.Minute {
+		t.Fatalf("media overrides not applied: %+v", cfg)
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("MEDIA_MAX_BYTE_SIZE", "-1")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected negative MEDIA_MAX_BYTE_SIZE error")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("MEDIA_MAX_BYTE_SIZE", "abc")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected invalid MEDIA_MAX_BYTE_SIZE error")
+	}
+}
+
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
 	keys := []string{
@@ -176,6 +225,7 @@ func clearConfigEnv(t *testing.T) {
 		"DATABASE_URL", "DB_MAX_CONNS", "DB_MIN_CONNS", "DB_MAX_CONN_LIFETIME", "DB_MAX_CONN_IDLE_TIME", "DB_HEALTH_TIMEOUT",
 		"AUTH_JWT_SECRET", "AUTH_ACCESS_TOKEN_TTL", "AUTH_REFRESH_ABSOLUTE_TTL", "AUTH_REFRESH_IDLE_TTL",
 		"AUTH_EMAIL_VERIFICATION_TTL", "AUTH_ARGON2_TIME", "AUTH_ARGON2_MEMORY_KIB", "AUTH_ARGON2_THREADS", "AUTH_ARGON2_KEY_LEN",
+		"MEDIA_ALLOWED_CONTENT_TYPES", "MEDIA_MAX_BYTE_SIZE", "MEDIA_UPLOAD_URL_TTL",
 	}
 	for _, key := range keys {
 		prev, had := os.LookupEnv(key)

@@ -35,6 +35,16 @@ type Config struct {
 	Argon2MemoryKiB      uint32
 	Argon2Threads        uint8
 	Argon2KeyLen         uint32
+
+	// Media upload settings. All three are optional: the exact MIME allowlist,
+	// byte ceiling and pixel bounds are open product/technical decisions, so no
+	// value is defaulted here. While the allowlist is empty or the byte ceiling
+	// is unset, upload initiation reports the dependency as unavailable instead
+	// of accepting a file under invented limits. No storage or compression
+	// provider credentials are read here.
+	MediaAllowedContentTypes []string
+	MediaMaxByteSize         int64
+	MediaUploadURLTTL        time.Duration
 }
 
 // Load reads configuration from the process environment.
@@ -141,6 +151,17 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("argon2 parameters must be greater than zero")
 	}
 
+	cfg.MediaAllowedContentTypes = csvEnv("MEDIA_ALLOWED_CONTENT_TYPES")
+	if cfg.MediaMaxByteSize, err = int64Env("MEDIA_MAX_BYTE_SIZE", 0); err != nil {
+		return Config{}, err
+	}
+	if cfg.MediaMaxByteSize < 0 {
+		return Config{}, fmt.Errorf("MEDIA_MAX_BYTE_SIZE must not be negative")
+	}
+	if cfg.MediaUploadURLTTL, err = durationEnv("MEDIA_UPLOAD_URL_TTL", 15*time.Minute); err != nil {
+		return Config{}, err
+	}
+
 	return cfg, nil
 }
 
@@ -185,6 +206,38 @@ func int32Env(key string, fallback int32) (int32, error) {
 		return 0, fmt.Errorf("%s is not a valid integer", key)
 	}
 	return int32(n), nil
+}
+
+func int64Env(key string, fallback int64) (int64, error) {
+	raw, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return fallback, nil
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s is not a valid integer", key)
+	}
+	return n, nil
+}
+
+// csvEnv reads a comma-separated list, dropping blank entries. An unset or empty
+// variable yields nil so callers can tell "not configured" from "configured".
+func csvEnv(key string) []string {
+	raw, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if v := strings.TrimSpace(part); v != "" {
+			out = append(out, v)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func uint32Env(key string, fallback uint32) (uint32, error) {

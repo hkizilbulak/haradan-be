@@ -23,7 +23,7 @@ func newAccountEngine(t *testing.T) (*appauth.Service, func(method, path, body, 
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	svc, _, _ := appauth.NewMemoryServiceForTest(t)
-	engine := router.New(handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, svc), log, router.Options{AuthService: svc})
+	engine := router.New(handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, nil, svc), log, router.Options{AuthService: svc})
 	do := func(method, path, body, auth string) *httptest.ResponseRecorder {
 		var rdr io.Reader
 		if body != "" {

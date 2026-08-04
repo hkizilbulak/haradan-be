@@ -86,6 +86,12 @@ func respondError(c *gin.Context, logger *slog.Logger, err error) {
 			Message: ae.Message,
 			TraceId: traceID,
 		})
+	case apperr.KindRateLimited:
+		c.JSON(http.StatusTooManyRequests, generated.ErrorResponse{
+			Code:    generated.DomainErrorCodeRATELIMITED,
+			Message: ae.Message,
+			TraceId: traceID,
+		})
 	case apperr.KindDependencyUnavailable:
 		c.JSON(http.StatusServiceUnavailable, generated.ErrorResponse{
 			Code:    generated.DomainErrorCodeDEPENDENCYUNAVAILABLE,

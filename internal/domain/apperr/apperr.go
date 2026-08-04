@@ -27,6 +27,7 @@ const (
 	CodeDependencyUnavailable Code = "DEPENDENCY_UNAVAILABLE"
 	CodeStaleVersion          Code = "STALE_VERSION"
 	CodeProcessingNotReady    Code = "PROCESSING_NOT_READY"
+	CodeRateLimited           Code = "RATE_LIMITED"
 )
 
 // Kind classifies application/domain failures for transport mapping.
@@ -41,6 +42,7 @@ const (
 	KindForbidden
 	KindDependencyUnavailable
 	KindBadRequest
+	KindRateLimited
 )
 
 // FieldError describes a single field validation failure.
@@ -123,6 +125,11 @@ func DependencyUnavailable(message string) *Error {
 		Code:    CodeDependencyUnavailable,
 		Message: message,
 	}
+}
+
+// RateLimited returns a 429-class abuse/throttling failure.
+func RateLimited(message string) *Error {
+	return &Error{Kind: KindRateLimited, Code: CodeRateLimited, Message: message}
 }
 
 // BadRequest returns a 400-class client error with an exact DomainErrorCode.

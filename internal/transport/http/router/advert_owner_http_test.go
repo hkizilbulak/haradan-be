@@ -54,7 +54,7 @@ func newAdvertEngine(t *testing.T) *advertTestEnv {
 		t.Fatal(err)
 	}
 
-	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, advertSvc, authSvc)
+	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, advertSvc, nil, authSvc)
 	engine := router.New(srv, log, router.Options{AuthService: authSvc})
 
 	do := func(method, path, body, auth string) *httptest.ResponseRecorder {
