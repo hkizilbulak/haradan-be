@@ -49,6 +49,14 @@ func (g *geoRepoStub) GetActiveProvinceID(_ context.Context, id uuid.UUID) (uuid
 	}
 	return id, nil
 }
+func (g *geoRepoStub) GetActiveDistrict(_ context.Context, id uuid.UUID) (domaingeo.District, error) {
+	for _, d := range g.districts {
+		if d.ID == id && d.IsActive {
+			return d, nil
+		}
+	}
+	return domaingeo.District{}, apperr.NotFound("İlçe bulunamadı.")
+}
 func (g *geoRepoStub) ListActiveDistrictsByProvince(_ context.Context, provinceID uuid.UUID) ([]domaingeo.District, error) {
 	var out []domaingeo.District
 	for _, d := range g.districts {
@@ -90,7 +98,7 @@ func newTestEngine(geoRepo *geoRepoStub, catalogRepo *catalogRepoStub) http.Hand
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	geoSvc := appgeo.NewService(geoRepo)
 	catalogSvc := appcatalog.NewService(catalogRepo)
-	srv := handler.NewServer(log, fakeDeps{}, geoSvc, catalogSvc, nil, nil)
+	srv := handler.NewServer(log, fakeDeps{}, geoSvc, catalogSvc, nil, nil, nil)
 	return router.New(srv, log)
 }
 

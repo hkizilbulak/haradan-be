@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
@@ -87,8 +88,12 @@ func run() error {
 	geoSvc := appgeo.NewService(geoRepo)
 	catalogSvc := appcatalog.NewService(catalogRepo)
 	horseSvc := apphorse.NewService(horseRepo)
+	advertSvc, err := appadvert.NewPostgresService(db.Pool(), appadvert.Config{})
+	if err != nil {
+		return fmt.Errorf("advert service: %w", err)
+	}
 
-	srvHandler := handler.NewServer(log, db, geoSvc, catalogSvc, horseSvc, authSvc)
+	srvHandler := handler.NewServer(log, db, geoSvc, catalogSvc, horseSvc, advertSvc, authSvc)
 	engine := router.New(srvHandler, log, router.Options{AuthService: authSvc})
 
 	httpServer := &http.Server{

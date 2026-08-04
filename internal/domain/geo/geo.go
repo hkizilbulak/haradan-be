@@ -33,6 +33,7 @@ type Repository interface {
 	ListActiveProvinces(ctx context.Context) ([]Province, error)
 	SearchActiveProvincesByNormalizedPrefix(ctx context.Context, prefix string, limit int) ([]Province, error)
 	GetActiveProvinceID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	GetActiveDistrict(ctx context.Context, id uuid.UUID) (District, error)
 	ListActiveDistrictsByProvince(ctx context.Context, provinceID uuid.UUID) ([]District, error)
 	SearchActiveDistrictsByNormalizedPrefix(ctx context.Context, prefix string, provinceID *uuid.UUID, limit int) ([]District, error)
 }

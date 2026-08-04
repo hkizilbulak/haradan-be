@@ -25,6 +25,8 @@ const (
 	CodeRefreshReplayDetected Code = "REFRESH_REPLAY_DETECTED"
 	CodeOwnershipRequired     Code = "OWNERSHIP_REQUIRED"
 	CodeDependencyUnavailable Code = "DEPENDENCY_UNAVAILABLE"
+	CodeStaleVersion          Code = "STALE_VERSION"
+	CodeProcessingNotReady    Code = "PROCESSING_NOT_READY"
 )
 
 // Kind classifies application/domain failures for transport mapping.
@@ -146,6 +148,16 @@ func TokenAlreadyUsed(message string) *Error {
 // OwnershipRequired returns OWNERSHIP_REQUIRED (403).
 func OwnershipRequired(message string) *Error {
 	return &Error{Kind: KindForbidden, Code: CodeOwnershipRequired, Message: message}
+}
+
+// StaleVersion returns STALE_VERSION (409).
+func StaleVersion(message string) *Error {
+	return &Error{Kind: KindConflict, Code: CodeStaleVersion, Message: message}
+}
+
+// ProcessingNotReady returns PROCESSING_NOT_READY (409).
+func ProcessingNotReady(message string) *Error {
+	return &Error{Kind: KindConflict, Code: CodeProcessingNotReady, Message: message}
 }
 
 // Internal wraps an unexpected failure for safe client mapping.

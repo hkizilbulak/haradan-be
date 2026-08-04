@@ -105,6 +105,26 @@ WHERE id = $1 AND is_active = true`
 	return found, nil
 }
 
+// GetActiveDistrict returns an active district by id.
+func (r *Repository) GetActiveDistrict(ctx context.Context, id uuid.UUID) (domaingeo.District, error) {
+	const q = `
+SELECT id, province_id, name, sort_order, is_active, created_at, updated_at
+FROM hrd_districts
+WHERE id = $1 AND is_active = true`
+
+	var d domaingeo.District
+	err := r.db.QueryRow(ctx, q, id).Scan(
+		&d.ID, &d.ProvinceID, &d.Name, &d.SortOrder, &d.IsActive, &d.CreatedAt, &d.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domaingeo.District{}, apperr.NotFound("İlçe bulunamadı.")
+		}
+		return domaingeo.District{}, fmt.Errorf("get district: %w", pg.SanitizeErr(err))
+	}
+	return d, nil
+}
+
 // ListActiveDistrictsByProvince returns active districts for a province.
 func (r *Repository) ListActiveDistrictsByProvince(ctx context.Context, provinceID uuid.UUID) ([]domaingeo.District, error) {
 	const q = `

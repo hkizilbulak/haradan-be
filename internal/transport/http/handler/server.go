@@ -4,12 +4,14 @@ import (
 	"context"
 	"log/slog"
 
+	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
 	apphorse "github.com/hkizilbulak/haradan-be/internal/application/horse"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	accounthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/account"
+	adverthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/advert"
 	authhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/auth"
 	cataloghandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/catalog"
 	geohandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/geo"
@@ -29,6 +31,7 @@ type Server struct {
 	geo     *geohandler.Handler
 	catalog *cataloghandler.Handler
 	horse   *horsehandler.Handler
+	advert  *adverthandler.Handler
 	auth    *authhandler.Handler
 	account *accounthandler.Handler
 }
@@ -40,6 +43,7 @@ func NewServer(
 	geoSvc *appgeo.Service,
 	catalogSvc *appcatalog.Service,
 	horseSvc *apphorse.Service,
+	advertSvc *appadvert.Service,
 	authSvc *appauth.Service,
 ) *Server {
 	s := &Server{logger: logger, deps: deps}
@@ -51,6 +55,9 @@ func NewServer(
 	}
 	if horseSvc != nil {
 		s.horse = horsehandler.NewHandler(horseSvc, logger, respondError)
+	}
+	if advertSvc != nil {
+		s.advert = adverthandler.NewHandler(advertSvc, logger, respondError)
 	}
 	if authSvc != nil {
 		s.auth = authhandler.NewHandler(authSvc, logger, respondError)

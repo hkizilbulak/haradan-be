@@ -59,6 +59,15 @@ func (f *fakeGeoRepo) GetActiveProvinceID(_ context.Context, id uuid.UUID) (uuid
 	return id, nil
 }
 
+func (f *fakeGeoRepo) GetActiveDistrict(_ context.Context, id uuid.UUID) (domaingeo.District, error) {
+	for _, d := range f.districts {
+		if d.ID == id && d.IsActive {
+			return d, nil
+		}
+	}
+	return domaingeo.District{}, apperr.NotFound("İlçe bulunamadı.")
+}
+
 func (f *fakeGeoRepo) ListActiveDistrictsByProvince(_ context.Context, provinceID uuid.UUID) ([]domaingeo.District, error) {
 	if f.listDistErr != nil {
 		return nil, f.listDistErr

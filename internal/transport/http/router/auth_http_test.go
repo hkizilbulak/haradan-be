@@ -22,7 +22,7 @@ func newAuthEngine(t *testing.T) (*httptest.ResponseRecorder, func(method, path,
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	svc, _, _ := appauth.NewMemoryServiceForTest(t)
-	engine := router.New(handler.NewServer(log, fakeDeps{}, nil, nil, nil, svc), log)
+	engine := router.New(handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, svc), log)
 	do := func(method, path, body, auth string) *httptest.ResponseRecorder {
 		var rdr io.Reader
 		if body != "" {
@@ -198,7 +198,7 @@ func TestAuthVerifyAndResendHTTP(t *testing.T) {
 		return nil
 	})
 	svc, _, _ := appauth.NewMemoryServiceForTestWithEmail(t, sender)
-	engine := router.New(handler.NewServer(log, fakeDeps{}, nil, nil, nil, svc), log)
+	engine := router.New(handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, svc), log)
 	do := func(method, path, body string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(method, path, strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")

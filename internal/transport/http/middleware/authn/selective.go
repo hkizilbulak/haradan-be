@@ -23,6 +23,22 @@ var AccountSessionProtectedRoutes = []ProtectedRoute{
 	{Method: "DELETE", Path: "/api/v1/me/sessions/:sessionId"},
 }
 
+// AdvertOwnerProtectedRoutes are ADVERT-OWNER-01..11 routes. Media relation and
+// public/search routes are intentionally excluded; they are out of scope here.
+var AdvertOwnerProtectedRoutes = []ProtectedRoute{
+	{Method: "POST", Path: "/api/v1/me/adverts"},
+	{Method: "GET", Path: "/api/v1/me/adverts"},
+	{Method: "GET", Path: "/api/v1/me/adverts/:advertId"},
+	{Method: "PATCH", Path: "/api/v1/me/adverts/:advertId"},
+	{Method: "PUT", Path: "/api/v1/me/adverts/:advertId/category"},
+	{Method: "PUT", Path: "/api/v1/me/adverts/:advertId/properties"},
+	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/submit"},
+	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/resubmit"},
+	{Method: "DELETE", Path: "/api/v1/me/adverts/:advertId"},
+	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/sold"},
+	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/archive"},
+}
+
 // Selective runs Bearer access-token auth only for the listed method+path pairs.
 // Unlisted routes (including public Health/Geo/Catalog/Auth and remaining 501 FE_AUTH
 // stubs) are left untouched.
