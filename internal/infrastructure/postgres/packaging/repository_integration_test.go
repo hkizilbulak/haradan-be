@@ -57,7 +57,7 @@ func (c itestClock) Now() time.Time { return c.t }
 type itestFixture struct {
 	pool    *pgxpool.Pool
 	svc     *apppackaging.Service
-	clock   itestClock
+	clock   *itestClock
 	adminID uuid.UUID
 	ownerID uuid.UUID
 	otherID uuid.UUID
@@ -144,7 +144,7 @@ VALUES ($1, $2, $3, $4, true, 1, $5, $5)`,
 		_, _ = pool.Exec(context.Background(), `DELETE FROM hrd_adverts WHERE id = $1`, advert.ID)
 	})
 
-	clock := itestClock{t: now}
+	clock := &itestClock{t: now}
 	svc, err := apppackaging.NewPostgresService(pool, adverts, users, clock)
 	if err != nil {
 		t.Fatal(err)
@@ -186,12 +186,12 @@ func TestAssignmentCreateHistoryAndUniqueActiveIntegration(t *testing.T) {
 	ctx := context.Background()
 
 	first, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageID: seedAdvanced,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	hist, err := f.svc.ListAdvertPackageHistory(ctx, f.adminID, f.advert.ID, 10, nil, nil)
+	hist, err := f.svc.ListAdvertPackageHistory(ctx, apppackaging.ListAdvertPackageHistoryInput{ActorUserID: f.adminID, AdvertID: f.advert.ID, Limit: intPtr(10)})
 	if err != nil || len(hist.Items) != 1 {
 		t.Fatalf("history=%+v err=%v", hist, err)
 	}
@@ -207,8 +207,9 @@ func TestAssignmentCreateHistoryAndUniqueActiveIntegration(t *testing.T) {
 	if !asConflict(err) {
 		t.Fatalf("want conflict, got %v", err)
 	}
+	f.clock.t = f.clock.t.Add(time.Second)
 	second, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageID: seedMiddle,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeMiddle,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -216,11 +217,12 @@ func TestAssignmentCreateHistoryAndUniqueActiveIntegration(t *testing.T) {
 	if second.Assignment.ID == first.Assignment.ID {
 		t.Fatal("expected supersede + new assignment")
 	}
-	hist, err = f.svc.ListAdvertPackageHistory(ctx, f.adminID, f.advert.ID, 10, nil, nil)
+	hist, err = f.svc.ListAdvertPackageHistory(ctx, apppackaging.ListAdvertPackageHistoryInput{ActorUserID: f.adminID, AdvertID: f.advert.ID, Limit: intPtr(10)})
 	if err != nil || len(hist.Items) != 2 {
 		t.Fatalf("history len=%d err=%v", len(hist.Items), err)
 	}
 	if hist.Items[0].Assignment.Status != domainpackaging.AssignmentStatusActive ||
+		hist.Items[0].Assignment.ID != second.Assignment.ID ||
 		hist.Items[1].Assignment.Status != domainpackaging.AssignmentStatusSuperseded {
 		t.Fatalf("history statuses unexpected: %+v", hist.Items)
 	}
@@ -232,7 +234,7 @@ func TestEffectiveFutureAssignmentIntegration(t *testing.T) {
 	ctx := context.Background()
 	start := f.clock.Now().Add(24 * time.Hour)
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageID: seedStarter,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
 		StartsAt: &start,
 	})
 	if err != nil {
@@ -254,13 +256,13 @@ func TestConcurrentAssignmentOneActiveIntegration(t *testing.T) {
 
 	var wg sync.WaitGroup
 	errs := make(chan error, 2)
-	pkgs := []uuid.UUID{seedStarter, seedMiddle}
+	pkgs := []domainpackaging.PackageCode{domainpackaging.PackageCodeStarter, domainpackaging.PackageCodeMiddle}
 	for i := 0; i < 2; i++ {
 		wg.Add(1)
-		go func(pkgID uuid.UUID) {
+		go func(pkgCode domainpackaging.PackageCode) {
 			defer wg.Done()
 			_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-				ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageID: pkgID,
+				ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: pkgCode,
 			})
 			errs <- err
 		}(pkgs[i])
@@ -288,7 +290,7 @@ func TestUrgentActivateDeactivateVersionIntegration(t *testing.T) {
 	f := newItestFixture(t, pool)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageID: seedAdvanced,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -322,7 +324,7 @@ func TestConcurrentUrgentOneActiveIntegration(t *testing.T) {
 	f := newItestFixture(t, pool)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageID: seedAdvanced,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -382,7 +384,7 @@ func TestPackageChangeDeactivatesUrgentIntegration(t *testing.T) {
 	f := newItestFixture(t, pool)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageID: seedAdvanced,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -391,7 +393,7 @@ func TestPackageChangeDeactivatesUrgentIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageID: seedMiddle,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeMiddle,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -434,7 +436,7 @@ func TestNilStartsAtIdempotentIntegration(t *testing.T) {
 	f := newItestFixture(t, pool)
 	ctx := context.Background()
 	first, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageID: seedStarter,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -442,7 +444,7 @@ func TestNilStartsAtIdempotentIntegration(t *testing.T) {
 	// Wall clock moves; request still omits StartsAt/EndsAt.
 	time.Sleep(5 * time.Millisecond)
 	second, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageID: seedStarter,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -460,4 +462,81 @@ func asConflict(err error) bool {
 func asForbidden(err error) bool {
 	var ae *apperr.Error
 	return errors.As(err, &ae) && ae.Kind == apperr.KindForbidden
+}
+
+func intPtr(v int) *int { return &v }
+
+func TestUpdatePackageAllowsUrgentFalseIntegration(t *testing.T) {
+	pool := requirePackagingIntegration(t)
+	f := newItestFixture(t, pool)
+	ctx := context.Background()
+	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.ActivateUrgent(ctx, f.ownerID, f.advert.ID); err != nil {
+		t.Fatal(err)
+	}
+	pkg, err := f.svc.GetPackageByCode(ctx, f.adminID, domainpackaging.PackageCodeAdvanced)
+	if err != nil {
+		t.Fatal(err)
+	}
+	falseVal := false
+	name := pkg.DisplayName
+	updated, err := f.svc.UpdatePackage(ctx, apppackaging.UpdatePackageInput{
+		ActorUserID: f.adminID, Code: domainpackaging.PackageCodeAdvanced,
+		ExpectedVersion: pkg.Version, DisplayName: &name, AllowsUrgent: &falseVal,
+	})
+	if err != nil || updated.AllowsUrgent {
+		t.Fatalf("update: %#v %v", updated, err)
+	}
+	t.Cleanup(func() {
+		trueVal := true
+		_, _ = f.svc.UpdatePackage(context.Background(), apppackaging.UpdatePackageInput{
+			ActorUserID: f.adminID, Code: domainpackaging.PackageCodeAdvanced,
+			ExpectedVersion: updated.Version, AllowsUrgent: &trueVal,
+		})
+	})
+	var active int
+	if err := f.pool.QueryRow(ctx, `
+SELECT COUNT(*) FROM hrd_advert_feature_activations
+WHERE advert_id = $1 AND feature_code = 'URGENT' AND status = 'ACTIVE'`, f.advert.ID).Scan(&active); err != nil {
+		t.Fatal(err)
+	}
+	if active != 0 {
+		t.Fatalf("urgent still active=%d", active)
+	}
+}
+
+func TestCancelAdvertPackageIntegration(t *testing.T) {
+	pool := requirePackagingIntegration(t)
+	f := newItestFixture(t, pool)
+	ctx := context.Background()
+	if err := f.svc.CancelAdvertPackage(ctx, apppackaging.CancelAdvertPackageInput{
+		ActorUserID: f.adminID, AdvertID: f.advert.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.ActivateUrgent(ctx, f.ownerID, f.advert.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.CancelAdvertPackage(ctx, apppackaging.CancelAdvertPackageInput{
+		ActorUserID: f.adminID, AdvertID: f.advert.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var activeAssign, activeUrgent int
+	_ = f.pool.QueryRow(ctx, `SELECT COUNT(*) FROM hrd_advert_package_assignments WHERE advert_id=$1 AND status='ACTIVE'`, f.advert.ID).Scan(&activeAssign)
+	_ = f.pool.QueryRow(ctx, `SELECT COUNT(*) FROM hrd_advert_feature_activations WHERE advert_id=$1 AND status='ACTIVE'`, f.advert.ID).Scan(&activeUrgent)
+	if activeAssign != 0 || activeUrgent != 0 {
+		t.Fatalf("assign=%d urgent=%d", activeAssign, activeUrgent)
+	}
 }

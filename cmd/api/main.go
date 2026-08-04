@@ -11,18 +11,24 @@ import (
 
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
+	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
 	appfavorite "github.com/hkizilbulak/haradan-be/internal/application/favorite"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
 	apphorse "github.com/hkizilbulak/haradan-be/internal/application/horse"
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
+	appnotification "github.com/hkizilbulak/haradan-be/internal/application/notification"
+	apppackaging "github.com/hkizilbulak/haradan-be/internal/application/packaging"
 	"github.com/hkizilbulak/haradan-be/internal/config"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/email/resendemail"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/imageprocessor/tinifyprocessor"
+	pgadvert "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/advert"
 	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
 	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
 	pghorse "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/horse"
+	pgmedia "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/media"
+	pguser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/user"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/storage/s3storage"
 	"github.com/hkizilbulak/haradan-be/internal/platform/database"
 	applogger "github.com/hkizilbulak/haradan-be/internal/platform/logger"
@@ -183,7 +189,28 @@ func run() error {
 		return fmt.Errorf("favorite service: %w", err)
 	}
 
-	srvHandler := handler.NewServer(log, db, geoSvc, catalogSvc, horseSvc, advertSvc, mediaSvc, favoriteSvc, authSvc)
+	advertRepo := pgadvert.NewRepository(db.Pool())
+	userRepo := pguser.NewRepository(db.Pool())
+	mediaRepo := pgmedia.NewRepository(db.Pool())
+	campaignPackages := appcampaign.NewPostgresPackageLookup(db.Pool())
+
+	packagingSvc, err := apppackaging.NewPostgresService(db.Pool(), advertRepo, userRepo, nil)
+	if err != nil {
+		return fmt.Errorf("packaging service: %w", err)
+	}
+	campaignSvc, err := appcampaign.NewPostgresService(db.Pool(), campaignPackages, mediaRepo, userRepo, nil)
+	if err != nil {
+		return fmt.Errorf("campaign service: %w", err)
+	}
+	notificationSvc, err := appnotification.NewPostgresService(db.Pool(), userRepo, nil)
+	if err != nil {
+		return fmt.Errorf("notification service: %w", err)
+	}
+
+	srvHandler := handler.NewServer(
+		log, db, geoSvc, catalogSvc, horseSvc, advertSvc, mediaSvc, favoriteSvc,
+		packagingSvc, campaignSvc, campaignPackages, notificationSvc, authSvc,
+	)
 	engine := router.New(srvHandler, log, router.Options{AuthService: authSvc})
 
 	httpServer := &http.Server{

@@ -323,3 +323,67 @@ func (NotImplementedServer) ConfirmMediaUpload(c *gin.Context, assetId generated
 func (NotImplementedServer) InitiateMediaUpload(c *gin.Context) {
 	respondNotImplemented(c)
 }
+
+func (NotImplementedServer) ListAdminPackages(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetAdminPackage(c *gin.Context, packageCode generated.PackageCodePath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) UpdateAdminPackage(c *gin.Context, packageCode generated.PackageCodePath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetAdminAdvertPackage(c *gin.Context, advertId generated.AdvertIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) AssignAdminAdvertPackage(c *gin.Context, advertId generated.AdvertIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ListAdminAdvertPackageHistory(c *gin.Context, advertId generated.AdvertIdPath, params generated.ListAdminAdvertPackageHistoryParams) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) CancelAdminAdvertPackage(c *gin.Context, advertId generated.AdvertIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ActivateAdvertUrgent(c *gin.Context, advertId generated.AdvertIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) DeactivateAdvertUrgent(c *gin.Context, advertId generated.AdvertIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ListAdminCampaigns(c *gin.Context, params generated.ListAdminCampaignsParams) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) CreateAdminCampaign(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetAdminCampaign(c *gin.Context, campaignId generated.CampaignIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) UpdateAdminCampaign(c *gin.Context, campaignId generated.CampaignIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ListAdminNotificationTemplates(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetAdminNotificationTemplate(c *gin.Context, eventType generated.NotificationEventTypePath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) UpdateAdminNotificationTemplate(c *gin.Context, eventType generated.NotificationEventTypePath) {
+	respondNotImplemented(c)
+}

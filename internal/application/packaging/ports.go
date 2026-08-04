@@ -19,9 +19,14 @@ type Clock interface {
 
 // PackageRepository persists the package catalog.
 type PackageRepository interface {
+	BeginTx(ctx context.Context) (pgx.Tx, error)
+	WithTx(tx pgx.Tx) PackageRepository
+
 	FindByID(ctx context.Context, id uuid.UUID) (domainpackaging.Package, error)
 	FindByCode(ctx context.Context, code domainpackaging.PackageCode) (domainpackaging.Package, error)
+	LockByCode(ctx context.Context, code domainpackaging.PackageCode) (domainpackaging.Package, error)
 	List(ctx context.Context, includeInactive bool) ([]domainpackaging.Package, error)
+	UpdateOptimistic(ctx context.Context, p domainpackaging.Package, expectedVersion int) (domainpackaging.Package, error)
 }
 
 // AssignmentRepository persists advert package assignment history.
@@ -43,6 +48,7 @@ type AssignmentRepository interface {
 	) ([]domainpackaging.AdvertPackageAssignment, error)
 	Create(ctx context.Context, a domainpackaging.AdvertPackageAssignment) error
 	MarkSuperseded(ctx context.Context, id uuid.UUID, supersededAt, updatedAt time.Time) error
+	MarkCancelled(ctx context.Context, id uuid.UUID, cancelledAt, updatedAt time.Time, reason *string) error
 }
 
 // FeatureRepository persists advert feature activations (URGENT).
@@ -73,6 +79,13 @@ type FeatureRepository interface {
 		reason *string,
 		updatedAt time.Time,
 	) (bool, error)
+	DeactivateActiveUrgentForPackage(
+		ctx context.Context,
+		packageID uuid.UUID,
+		deactivatedAt time.Time,
+		reason *string,
+		updatedAt time.Time,
+	) (int64, error)
 }
 
 // AdvertReader loads adverts for package/URGENT authorization and locks.

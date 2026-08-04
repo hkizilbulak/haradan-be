@@ -49,6 +49,39 @@ func (e AdvertStatus) Valid() bool {
 	}
 }
 
+// Defines values for AdvertUrgentActivationViewFeatureCode.
+const (
+	URGENT AdvertUrgentActivationViewFeatureCode = "URGENT"
+)
+
+// Valid indicates whether the value is a known member of the AdvertUrgentActivationViewFeatureCode enum.
+func (e AdvertUrgentActivationViewFeatureCode) Valid() bool {
+	switch e {
+	case URGENT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdvertUrgentActivationViewStatus.
+const (
+	AdvertUrgentActivationViewStatusACTIVE      AdvertUrgentActivationViewStatus = "ACTIVE"
+	AdvertUrgentActivationViewStatusDEACTIVATED AdvertUrgentActivationViewStatus = "DEACTIVATED"
+)
+
+// Valid indicates whether the value is a known member of the AdvertUrgentActivationViewStatus enum.
+func (e AdvertUrgentActivationViewStatus) Valid() bool {
+	switch e {
+	case AdvertUrgentActivationViewStatusACTIVE:
+		return true
+	case AdvertUrgentActivationViewStatusDEACTIVATED:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuthTokenResponseTokenType.
 const (
 	Bearer AuthTokenResponseTokenType = "Bearer"
@@ -97,6 +130,30 @@ func (e BannerStatus) Valid() bool {
 	case BannerStatusACTIVE:
 		return true
 	case BannerStatusINACTIVE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CampaignEventType.
+const (
+	CampaignEventTypePACKAGEEXPIRY10DAYS CampaignEventType = "PACKAGE_EXPIRY_10_DAYS"
+	CampaignEventTypePACKAGEEXPIRY3DAYS  CampaignEventType = "PACKAGE_EXPIRY_3_DAYS"
+	CampaignEventTypePACKAGERENEWAL      CampaignEventType = "PACKAGE_RENEWAL"
+	CampaignEventTypePACKAGEUPGRADE      CampaignEventType = "PACKAGE_UPGRADE"
+)
+
+// Valid indicates whether the value is a known member of the CampaignEventType enum.
+func (e CampaignEventType) Valid() bool {
+	switch e {
+	case CampaignEventTypePACKAGEEXPIRY10DAYS:
+		return true
+	case CampaignEventTypePACKAGEEXPIRY3DAYS:
+		return true
+	case CampaignEventTypePACKAGERENEWAL:
+		return true
+	case CampaignEventTypePACKAGEUPGRADE:
 		return true
 	default:
 		return false
@@ -277,6 +334,93 @@ func (e MediaVariantLifecycle) Valid() bool {
 	case MediaVariantLifecyclePROCESSING:
 		return true
 	case MediaVariantLifecycleREADY:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NotificationEventType.
+const (
+	NotificationEventTypeADVANCEDADVERTPUBLISHED NotificationEventType = "ADVANCED_ADVERT_PUBLISHED"
+	NotificationEventTypePACKAGEEXPIRY10DAYS     NotificationEventType = "PACKAGE_EXPIRY_10_DAYS"
+	NotificationEventTypePACKAGEEXPIRY3DAYS      NotificationEventType = "PACKAGE_EXPIRY_3_DAYS"
+	NotificationEventTypeURGENTADVERTACTIVATED   NotificationEventType = "URGENT_ADVERT_ACTIVATED"
+)
+
+// Valid indicates whether the value is a known member of the NotificationEventType enum.
+func (e NotificationEventType) Valid() bool {
+	switch e {
+	case NotificationEventTypeADVANCEDADVERTPUBLISHED:
+		return true
+	case NotificationEventTypePACKAGEEXPIRY10DAYS:
+		return true
+	case NotificationEventTypePACKAGEEXPIRY3DAYS:
+		return true
+	case NotificationEventTypeURGENTADVERTACTIVATED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PackageAssignmentSource.
+const (
+	ADMIN  PackageAssignmentSource = "ADMIN"
+	SYSTEM PackageAssignmentSource = "SYSTEM"
+)
+
+// Valid indicates whether the value is a known member of the PackageAssignmentSource enum.
+func (e PackageAssignmentSource) Valid() bool {
+	switch e {
+	case ADMIN:
+		return true
+	case SYSTEM:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PackageAssignmentStatus.
+const (
+	PackageAssignmentStatusACTIVE     PackageAssignmentStatus = "ACTIVE"
+	PackageAssignmentStatusCANCELLED  PackageAssignmentStatus = "CANCELLED"
+	PackageAssignmentStatusEXPIRED    PackageAssignmentStatus = "EXPIRED"
+	PackageAssignmentStatusSUPERSEDED PackageAssignmentStatus = "SUPERSEDED"
+)
+
+// Valid indicates whether the value is a known member of the PackageAssignmentStatus enum.
+func (e PackageAssignmentStatus) Valid() bool {
+	switch e {
+	case PackageAssignmentStatusACTIVE:
+		return true
+	case PackageAssignmentStatusCANCELLED:
+		return true
+	case PackageAssignmentStatusEXPIRED:
+		return true
+	case PackageAssignmentStatusSUPERSEDED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PackageCode.
+const (
+	ADVANCED PackageCode = "ADVANCED"
+	MIDDLE   PackageCode = "MIDDLE"
+	STARTER  PackageCode = "STARTER"
+)
+
+// Valid indicates whether the value is a known member of the PackageCode enum.
+func (e PackageCode) Valid() bool {
+	switch e {
+	case ADVANCED:
+		return true
+	case MIDDLE:
+		return true
+	case STARTER:
 		return true
 	default:
 		return false
@@ -663,8 +807,85 @@ type AdvertMediaCollectionResponse struct {
 	MediaVersion int                      `json:"mediaVersion"`
 }
 
+// AdvertPackageAssignmentView defines model for AdvertPackageAssignmentView.
+type AdvertPackageAssignmentView struct {
+	AdvertId         openapi_types.UUID      `json:"advertId"`
+	AssignedAt       time.Time               `json:"assignedAt"`
+	AssignedByUserId openapi_types.UUID      `json:"assignedByUserId"`
+	CancelledAt      *time.Time              `json:"cancelledAt,omitempty"`
+	CreatedAt        time.Time               `json:"createdAt"`
+	EndsAt           *time.Time              `json:"endsAt,omitempty"`
+	ExpiredAt        *time.Time              `json:"expiredAt,omitempty"`
+	Id               openapi_types.UUID      `json:"id"`
+	PackageCode      PackageCode             `json:"packageCode"`
+	Reason           *string                 `json:"reason,omitempty"`
+	Source           PackageAssignmentSource `json:"source"`
+	StartsAt         time.Time               `json:"startsAt"`
+	Status           PackageAssignmentStatus `json:"status"`
+	SupersededAt     *time.Time              `json:"supersededAt,omitempty"`
+	UpdatedAt        time.Time               `json:"updatedAt"`
+	Version          int                     `json:"version"`
+}
+
+// AdvertPackageHistoryItem defines model for AdvertPackageHistoryItem.
+type AdvertPackageHistoryItem struct {
+	AdvertId         openapi_types.UUID      `json:"advertId"`
+	AssignedAt       time.Time               `json:"assignedAt"`
+	AssignedByUserId openapi_types.UUID      `json:"assignedByUserId"`
+	CancelledAt      *time.Time              `json:"cancelledAt,omitempty"`
+	CreatedAt        time.Time               `json:"createdAt"`
+	EndsAt           *time.Time              `json:"endsAt,omitempty"`
+	ExpiredAt        *time.Time              `json:"expiredAt,omitempty"`
+	Id               openapi_types.UUID      `json:"id"`
+	PackageCode      PackageCode             `json:"packageCode"`
+	Reason           *string                 `json:"reason,omitempty"`
+	Source           PackageAssignmentSource `json:"source"`
+	StartsAt         time.Time               `json:"startsAt"`
+	Status           PackageAssignmentStatus `json:"status"`
+	SupersededAt     *time.Time              `json:"supersededAt,omitempty"`
+	UpdatedAt        time.Time               `json:"updatedAt"`
+	Version          int                     `json:"version"`
+}
+
+// AdvertPackageHistoryPage defines model for AdvertPackageHistoryPage.
+type AdvertPackageHistoryPage struct {
+	HasMore    bool                       `json:"hasMore"`
+	Items      []AdvertPackageHistoryItem `json:"items"`
+	NextCursor *string                    `json:"nextCursor,omitempty"`
+}
+
 // AdvertStatus defines model for AdvertStatus.
 type AdvertStatus string
+
+// AdvertUrgentActivationView defines model for AdvertUrgentActivationView.
+type AdvertUrgentActivationView struct {
+	ActivatedAt         time.Time                             `json:"activatedAt"`
+	ActivatedByUserId   openapi_types.UUID                    `json:"activatedByUserId"`
+	ActivationVersion   int                                   `json:"activationVersion"`
+	AdvertId            openapi_types.UUID                    `json:"advertId"`
+	CreatedAt           time.Time                             `json:"createdAt"`
+	DeactivatedAt       *time.Time                            `json:"deactivatedAt,omitempty"`
+	FeatureCode         AdvertUrgentActivationViewFeatureCode `json:"featureCode"`
+	Id                  openapi_types.UUID                    `json:"id"`
+	PackageAssignmentId openapi_types.UUID                    `json:"packageAssignmentId"`
+	Reason              *string                               `json:"reason,omitempty"`
+	Status              AdvertUrgentActivationViewStatus      `json:"status"`
+	UpdatedAt           time.Time                             `json:"updatedAt"`
+}
+
+// AdvertUrgentActivationViewFeatureCode defines model for AdvertUrgentActivationView.FeatureCode.
+type AdvertUrgentActivationViewFeatureCode string
+
+// AdvertUrgentActivationViewStatus defines model for AdvertUrgentActivationView.Status.
+type AdvertUrgentActivationViewStatus string
+
+// AssignAdvertPackageRequest defines model for AssignAdvertPackageRequest.
+type AssignAdvertPackageRequest struct {
+	EndsAt      *time.Time  `json:"endsAt,omitempty"`
+	PackageCode PackageCode `json:"packageCode"`
+	Reason      *string     `json:"reason,omitempty"`
+	StartsAt    *time.Time  `json:"startsAt,omitempty"`
+}
 
 // AttachMediaToAdvertRequest defines model for AttachMediaToAdvertRequest.
 type AttachMediaToAdvertRequest struct {
@@ -690,6 +911,49 @@ type BannerPlacement string
 
 // BannerStatus defines model for BannerStatus.
 type BannerStatus string
+
+// CampaignAdminView defines model for CampaignAdminView.
+type CampaignAdminView struct {
+	BadgeText         *string             `json:"badgeText,omitempty"`
+	CampaignPrice     *Money              `json:"campaignPrice,omitempty"`
+	Code              string              `json:"code"`
+	CreatedAt         time.Time           `json:"createdAt"`
+	CtaLabel          *string             `json:"ctaLabel,omitempty"`
+	CtaUrl            *string             `json:"ctaUrl,omitempty"`
+	CurrencyCode      string              `json:"currencyCode"`
+	Description       *string             `json:"description,omitempty"`
+	EmailBody         *string             `json:"emailBody,omitempty"`
+	EmailHeading      *string             `json:"emailHeading,omitempty"`
+	EmailSubject      *string             `json:"emailSubject,omitempty"`
+	EndsAt            *time.Time          `json:"endsAt,omitempty"`
+	EventType         CampaignEventType   `json:"eventType"`
+	Id                openapi_types.UUID  `json:"id"`
+	ImageAssetId      *openapi_types.UUID `json:"imageAssetId,omitempty"`
+	IsActive          bool                `json:"isActive"`
+	Name              string              `json:"name"`
+	OriginalPrice     *Money              `json:"originalPrice,omitempty"`
+	SourcePackageCode *PackageCode        `json:"sourcePackageCode,omitempty"`
+	StartsAt          time.Time           `json:"startsAt"`
+	TargetPackageCode *PackageCode        `json:"targetPackageCode,omitempty"`
+	Title             string              `json:"title"`
+	UpdatedAt         time.Time           `json:"updatedAt"`
+	Version           int                 `json:"version"`
+}
+
+// CampaignEventType defines model for CampaignEventType.
+type CampaignEventType string
+
+// CampaignPage defines model for CampaignPage.
+type CampaignPage struct {
+	HasMore    bool                `json:"hasMore"`
+	Items      []CampaignAdminView `json:"items"`
+	NextCursor *string             `json:"nextCursor,omitempty"`
+}
+
+// CancelAdvertPackageRequest defines model for CancelAdvertPackageRequest.
+type CancelAdvertPackageRequest struct {
+	Reason *string `json:"reason,omitempty"`
+}
 
 // CategoryFormDefinitionResponse defines model for CategoryFormDefinitionResponse.
 type CategoryFormDefinitionResponse struct {
@@ -771,6 +1035,30 @@ type CreateBannerRequest struct {
 	SortOrder *int               `json:"sortOrder,omitempty"`
 	TargetUrl *string            `json:"targetUrl,omitempty"`
 	Title     *string            `json:"title,omitempty"`
+}
+
+// CreateCampaignRequest defines model for CreateCampaignRequest.
+type CreateCampaignRequest struct {
+	BadgeText         *string             `json:"badgeText,omitempty"`
+	CampaignPrice     *Money              `json:"campaignPrice,omitempty"`
+	Code              string              `json:"code"`
+	CtaLabel          *string             `json:"ctaLabel,omitempty"`
+	CtaUrl            *string             `json:"ctaUrl,omitempty"`
+	CurrencyCode      *string             `json:"currencyCode,omitempty"`
+	Description       *string             `json:"description,omitempty"`
+	EmailBody         *string             `json:"emailBody,omitempty"`
+	EmailHeading      *string             `json:"emailHeading,omitempty"`
+	EmailSubject      *string             `json:"emailSubject,omitempty"`
+	EndsAt            *time.Time          `json:"endsAt,omitempty"`
+	EventType         CampaignEventType   `json:"eventType"`
+	ImageAssetId      *openapi_types.UUID `json:"imageAssetId,omitempty"`
+	IsActive          *bool               `json:"isActive,omitempty"`
+	Name              string              `json:"name"`
+	OriginalPrice     *Money              `json:"originalPrice,omitempty"`
+	SourcePackageCode *PackageCode        `json:"sourcePackageCode,omitempty"`
+	StartsAt          time.Time           `json:"startsAt"`
+	TargetPackageCode *PackageCode        `json:"targetPackageCode,omitempty"`
+	Title             string              `json:"title"`
 }
 
 // CreateCategoryPropertyRequest defines model for CreateCategoryPropertyRequest.
@@ -1018,6 +1306,30 @@ type MyProfileResponse struct {
 	Status        UserStatus         `json:"status"`
 }
 
+// NotificationEventType defines model for NotificationEventType.
+type NotificationEventType string
+
+// NotificationTemplateAdminListResponse defines model for NotificationTemplateAdminListResponse.
+type NotificationTemplateAdminListResponse struct {
+	Items []NotificationTemplateAdminView `json:"items"`
+}
+
+// NotificationTemplateAdminView defines model for NotificationTemplateAdminView.
+type NotificationTemplateAdminView struct {
+	CreatedAt            time.Time             `json:"createdAt"`
+	EmailSubjectFallback *string               `json:"emailSubjectFallback,omitempty"`
+	EventType            NotificationEventType `json:"eventType"`
+	Id                   openapi_types.UUID    `json:"id"`
+	InAppBodyTemplate    string                `json:"inAppBodyTemplate"`
+	InAppTitleTemplate   string                `json:"inAppTitleTemplate"`
+	IsActive             bool                  `json:"isActive"`
+	Name                 string                `json:"name"`
+	ResendTemplateId     *string               `json:"resendTemplateId,omitempty"`
+	UpdatedAt            time.Time             `json:"updatedAt"`
+	UpdatedByUserId      *openapi_types.UUID   `json:"updatedByUserId,omitempty"`
+	Version              int                   `json:"version"`
+}
+
 // OwnerAdvertListResponse defines model for OwnerAdvertListResponse.
 type OwnerAdvertListResponse struct {
 	HasMore    bool                  `json:"hasMore"`
@@ -1051,6 +1363,40 @@ type OwnerMediaRelationItem struct {
 	IsCover         bool                `json:"isCover"`
 	LifecycleStatus MediaAssetLifecycle `json:"lifecycleStatus"`
 }
+
+// PackageAdminListResponse defines model for PackageAdminListResponse.
+type PackageAdminListResponse struct {
+	Items []PackageAdminView `json:"items"`
+}
+
+// PackageAdminView defines model for PackageAdminView.
+type PackageAdminView struct {
+	AllowsUrgent        bool        `json:"allowsUrgent"`
+	BadgeText           *string     `json:"badgeText,omitempty"`
+	Benefits            []string    `json:"benefits"`
+	Code                PackageCode `json:"code"`
+	CreatedAt           time.Time   `json:"createdAt"`
+	CurrencyCode        string      `json:"currencyCode"`
+	DefaultDurationDays *int        `json:"defaultDurationDays,omitempty"`
+	Description         *string     `json:"description,omitempty"`
+	DisplayName         string      `json:"displayName"`
+	DisplayPrice        *Money      `json:"displayPrice,omitempty"`
+	IsActive            bool        `json:"isActive"`
+	SearchPriority      int         `json:"searchPriority"`
+	ShowcaseEligible    bool        `json:"showcaseEligible"`
+	SortOrder           int         `json:"sortOrder"`
+	UpdatedAt           time.Time   `json:"updatedAt"`
+	Version             int         `json:"version"`
+}
+
+// PackageAssignmentSource defines model for PackageAssignmentSource.
+type PackageAssignmentSource string
+
+// PackageAssignmentStatus defines model for PackageAssignmentStatus.
+type PackageAssignmentStatus string
+
+// PackageCode defines model for PackageCode.
+type PackageCode string
 
 // PropertyDataType defines model for PropertyDataType.
 type PropertyDataType string
@@ -1370,6 +1716,30 @@ type UpdateBannerRequest struct {
 	Title           *string             `json:"title,omitempty"`
 }
 
+// UpdateCampaignRequest defines model for UpdateCampaignRequest.
+type UpdateCampaignRequest struct {
+	BadgeText         *string             `json:"badgeText,omitempty"`
+	CampaignPrice     *Money              `json:"campaignPrice,omitempty"`
+	CtaLabel          *string             `json:"ctaLabel,omitempty"`
+	CtaUrl            *string             `json:"ctaUrl,omitempty"`
+	CurrencyCode      *string             `json:"currencyCode,omitempty"`
+	Description       *string             `json:"description,omitempty"`
+	EmailBody         *string             `json:"emailBody,omitempty"`
+	EmailHeading      *string             `json:"emailHeading,omitempty"`
+	EmailSubject      *string             `json:"emailSubject,omitempty"`
+	EndsAt            *time.Time          `json:"endsAt,omitempty"`
+	EventType         *CampaignEventType  `json:"eventType,omitempty"`
+	ExpectedVersion   int                 `json:"expectedVersion"`
+	ImageAssetId      *openapi_types.UUID `json:"imageAssetId,omitempty"`
+	IsActive          *bool               `json:"isActive,omitempty"`
+	Name              *string             `json:"name,omitempty"`
+	OriginalPrice     *Money              `json:"originalPrice,omitempty"`
+	SourcePackageCode *PackageCode        `json:"sourcePackageCode,omitempty"`
+	StartsAt          *time.Time          `json:"startsAt,omitempty"`
+	TargetPackageCode *PackageCode        `json:"targetPackageCode,omitempty"`
+	Title             *string             `json:"title,omitempty"`
+}
+
 // UpdateCategoryPropertyRequest code immutable after use
 type UpdateCategoryPropertyRequest struct {
 	DefaultValue    interface{}               `json:"defaultValue,omitempty"`
@@ -1400,6 +1770,34 @@ type UpdateMyProfileRequest struct {
 	FirstName *string `json:"firstName,omitempty"`
 	LastName  *string `json:"lastName,omitempty"`
 	Phone     *string `json:"phone,omitempty"`
+}
+
+// UpdateNotificationTemplateRequest defines model for UpdateNotificationTemplateRequest.
+type UpdateNotificationTemplateRequest struct {
+	EmailSubjectFallback *string `json:"emailSubjectFallback,omitempty"`
+	ExpectedVersion      int     `json:"expectedVersion"`
+	InAppBodyTemplate    *string `json:"inAppBodyTemplate,omitempty"`
+	InAppTitleTemplate   *string `json:"inAppTitleTemplate,omitempty"`
+	IsActive             *bool   `json:"isActive,omitempty"`
+	Name                 *string `json:"name,omitempty"`
+	ResendTemplateId     *string `json:"resendTemplateId,omitempty"`
+}
+
+// UpdatePackageRequest defines model for UpdatePackageRequest.
+type UpdatePackageRequest struct {
+	AllowsUrgent        *bool     `json:"allowsUrgent,omitempty"`
+	BadgeText           *string   `json:"badgeText,omitempty"`
+	Benefits            *[]string `json:"benefits,omitempty"`
+	CurrencyCode        *string   `json:"currencyCode,omitempty"`
+	DefaultDurationDays *int      `json:"defaultDurationDays,omitempty"`
+	Description         *string   `json:"description,omitempty"`
+	DisplayName         *string   `json:"displayName,omitempty"`
+	DisplayPrice        *Money    `json:"displayPrice,omitempty"`
+	ExpectedVersion     int       `json:"expectedVersion"`
+	IsActive            *bool     `json:"isActive,omitempty"`
+	SearchPriority      *int      `json:"searchPriority,omitempty"`
+	ShowcaseEligible    *bool     `json:"showcaseEligible,omitempty"`
+	SortOrder           *int      `json:"sortOrder,omitempty"`
 }
 
 // UploadAuthorization Provider-neutral short-lived upload authorization; no permanent credentials/object keys
@@ -1437,6 +1835,9 @@ type AssetIdPath = openapi_types.UUID
 // BannerIdPath defines model for BannerIdPath.
 type BannerIdPath = openapi_types.UUID
 
+// CampaignIdPath defines model for CampaignIdPath.
+type CampaignIdPath = openapi_types.UUID
+
 // CategoryIdPath defines model for CategoryIdPath.
 type CategoryIdPath = openapi_types.UUID
 
@@ -1457,6 +1858,12 @@ type HorseIdPath = openapi_types.UUID
 
 // Limit defines model for Limit.
 type Limit = int
+
+// NotificationEventTypePath defines model for NotificationEventTypePath.
+type NotificationEventTypePath = NotificationEventType
+
+// PackageCodePath defines model for PackageCodePath.
+type PackageCodePath = PackageCode
 
 // PropertyIdPath defines model for PropertyIdPath.
 type PropertyIdPath = openapi_types.UUID
@@ -1508,6 +1915,13 @@ type ListAdvertModerationQueueParams struct {
 	Status *AdvertStatus `form:"status,omitempty" json:"status,omitempty"`
 }
 
+// ListAdminAdvertPackageHistoryParams defines parameters for ListAdminAdvertPackageHistory.
+type ListAdminAdvertPackageHistoryParams struct {
+	// Cursor Opaque cursor
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListBannersAdminParams defines parameters for ListBannersAdmin.
 type ListBannersAdminParams struct {
 	// Cursor Opaque cursor
@@ -1515,6 +1929,17 @@ type ListBannersAdminParams struct {
 	Limit     *Limit           `form:"limit,omitempty" json:"limit,omitempty"`
 	Placement *BannerPlacement `form:"placement,omitempty" json:"placement,omitempty"`
 	Status    *BannerStatus    `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// ListAdminCampaignsParams defines parameters for ListAdminCampaigns.
+type ListAdminCampaignsParams struct {
+	// Cursor Opaque cursor
+	Cursor            *Cursor            `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit             *Limit             `form:"limit,omitempty" json:"limit,omitempty"`
+	EventType         *CampaignEventType `form:"eventType,omitempty" json:"eventType,omitempty"`
+	IsActive          *bool              `form:"isActive,omitempty" json:"isActive,omitempty"`
+	SourcePackageCode *PackageCode       `form:"sourcePackageCode,omitempty" json:"sourcePackageCode,omitempty"`
+	TargetPackageCode *PackageCode       `form:"targetPackageCode,omitempty" json:"targetPackageCode,omitempty"`
 }
 
 // ListCategoriesAdminParams defines parameters for ListCategoriesAdmin.
@@ -1640,6 +2065,12 @@ type SearchProvincesParams struct {
 // ApproveAdvertJSONRequestBody defines body for ApproveAdvert for application/json ContentType.
 type ApproveAdvertJSONRequestBody = ExpectedVersionRequest
 
+// AssignAdminAdvertPackageJSONRequestBody defines body for AssignAdminAdvertPackage for application/json ContentType.
+type AssignAdminAdvertPackageJSONRequestBody = AssignAdvertPackageRequest
+
+// CancelAdminAdvertPackageJSONRequestBody defines body for CancelAdminAdvertPackage for application/json ContentType.
+type CancelAdminAdvertPackageJSONRequestBody = CancelAdvertPackageRequest
+
 // RejectAdvertJSONRequestBody defines body for RejectAdvert for application/json ContentType.
 type RejectAdvertJSONRequestBody = ModerationReasonRequest
 
@@ -1660,6 +2091,12 @@ type UpdateBannerJSONRequestBody = UpdateBannerRequest
 
 // SetBannerStatusJSONRequestBody defines body for SetBannerStatus for application/json ContentType.
 type SetBannerStatusJSONRequestBody = SetBannerStatusRequest
+
+// CreateAdminCampaignJSONRequestBody defines body for CreateAdminCampaign for application/json ContentType.
+type CreateAdminCampaignJSONRequestBody = CreateCampaignRequest
+
+// UpdateAdminCampaignJSONRequestBody defines body for UpdateAdminCampaign for application/json ContentType.
+type UpdateAdminCampaignJSONRequestBody = UpdateCampaignRequest
 
 // CreateCategoryJSONRequestBody defines body for CreateCategory for application/json ContentType.
 type CreateCategoryJSONRequestBody = CreateCategoryRequest
@@ -1690,6 +2127,12 @@ type ReparentCategoryJSONRequestBody = ReparentCategoryRequest
 
 // InitiateAdminMediaUploadJSONRequestBody defines body for InitiateAdminMediaUpload for application/json ContentType.
 type InitiateAdminMediaUploadJSONRequestBody = InitiateMediaUploadRequest
+
+// UpdateAdminNotificationTemplateJSONRequestBody defines body for UpdateAdminNotificationTemplate for application/json ContentType.
+type UpdateAdminNotificationTemplateJSONRequestBody = UpdateNotificationTemplateRequest
+
+// UpdateAdminPackageJSONRequestBody defines body for UpdateAdminPackage for application/json ContentType.
+type UpdateAdminPackageJSONRequestBody = UpdatePackageRequest
 
 // TriggerTJKSyncJSONRequestBody defines body for TriggerTJKSync for application/json ContentType.
 type TriggerTJKSyncJSONRequestBody = TriggerTJKSyncRequest
@@ -1786,6 +2229,18 @@ type ServerInterface interface {
 	// ApproveAdvert ApproveAdvert
 	// (POST /v1/admin/adverts/{advertId}/approve)
 	ApproveAdvert(c *gin.Context, advertId AdvertIdPath)
+	// GetAdminAdvertPackage GetAdminAdvertPackage
+	// (GET /v1/admin/adverts/{advertId}/package)
+	GetAdminAdvertPackage(c *gin.Context, advertId AdvertIdPath)
+	// AssignAdminAdvertPackage AssignAdminAdvertPackage
+	// (PUT /v1/admin/adverts/{advertId}/package)
+	AssignAdminAdvertPackage(c *gin.Context, advertId AdvertIdPath)
+	// ListAdminAdvertPackageHistory ListAdminAdvertPackageHistory
+	// (GET /v1/admin/adverts/{advertId}/package-history)
+	ListAdminAdvertPackageHistory(c *gin.Context, advertId AdvertIdPath, params ListAdminAdvertPackageHistoryParams)
+	// CancelAdminAdvertPackage CancelAdminAdvertPackage
+	// (POST /v1/admin/adverts/{advertId}/package/cancel)
+	CancelAdminAdvertPackage(c *gin.Context, advertId AdvertIdPath)
 	// RejectAdvert RejectAdvert
 	// (POST /v1/admin/adverts/{advertId}/reject)
 	RejectAdvert(c *gin.Context, advertId AdvertIdPath)
@@ -1813,6 +2268,18 @@ type ServerInterface interface {
 	// SetBannerStatus SetBannerStatus
 	// (POST /v1/admin/banners/{bannerId}/status)
 	SetBannerStatus(c *gin.Context, bannerId BannerIdPath)
+	// ListAdminCampaigns ListAdminCampaigns
+	// (GET /v1/admin/campaigns)
+	ListAdminCampaigns(c *gin.Context, params ListAdminCampaignsParams)
+	// CreateAdminCampaign CreateAdminCampaign
+	// (POST /v1/admin/campaigns)
+	CreateAdminCampaign(c *gin.Context)
+	// GetAdminCampaign GetAdminCampaign
+	// (GET /v1/admin/campaigns/{campaignId})
+	GetAdminCampaign(c *gin.Context, campaignId CampaignIdPath)
+	// UpdateAdminCampaign UpdateAdminCampaign
+	// (PATCH /v1/admin/campaigns/{campaignId})
+	UpdateAdminCampaign(c *gin.Context, campaignId CampaignIdPath)
 	// ListCategoriesAdmin ListCategoriesAdmin
 	// (GET /v1/admin/categories)
 	ListCategoriesAdmin(c *gin.Context, params ListCategoriesAdminParams)
@@ -1858,6 +2325,24 @@ type ServerInterface interface {
 	// InitiateAdminMediaUpload InitiateAdminMediaUpload
 	// (POST /v1/admin/media/uploads)
 	InitiateAdminMediaUpload(c *gin.Context)
+	// ListAdminNotificationTemplates ListAdminNotificationTemplates
+	// (GET /v1/admin/notification-templates)
+	ListAdminNotificationTemplates(c *gin.Context)
+	// GetAdminNotificationTemplate GetAdminNotificationTemplate
+	// (GET /v1/admin/notification-templates/{eventType})
+	GetAdminNotificationTemplate(c *gin.Context, eventType NotificationEventTypePath)
+	// UpdateAdminNotificationTemplate UpdateAdminNotificationTemplate
+	// (PATCH /v1/admin/notification-templates/{eventType})
+	UpdateAdminNotificationTemplate(c *gin.Context, eventType NotificationEventTypePath)
+	// ListAdminPackages ListAdminPackages
+	// (GET /v1/admin/packages)
+	ListAdminPackages(c *gin.Context)
+	// GetAdminPackage GetAdminPackage
+	// (GET /v1/admin/packages/{packageCode})
+	GetAdminPackage(c *gin.Context, packageCode PackageCodePath)
+	// UpdateAdminPackage UpdateAdminPackage
+	// (PATCH /v1/admin/packages/{packageCode})
+	UpdateAdminPackage(c *gin.Context, packageCode PackageCodePath)
 	// IgnoreTJKSyncItemError IgnoreTJKSyncItemError
 	// (POST /v1/admin/tjk/item-errors/{errorId}/ignore)
 	IgnoreTJKSyncItemError(c *gin.Context, errorId ErrorIdPath)
@@ -1900,6 +2385,12 @@ type ServerInterface interface {
 	// GetPublishedAdvertDetail GetPublishedAdvertDetail
 	// (GET /v1/adverts/{advertId})
 	GetPublishedAdvertDetail(c *gin.Context, advertId AdvertIdPath)
+	// DeactivateAdvertUrgent DeactivateAdvertUrgent
+	// (DELETE /v1/adverts/{advertId}/urgent)
+	DeactivateAdvertUrgent(c *gin.Context, advertId AdvertIdPath)
+	// ActivateAdvertUrgent ActivateAdvertUrgent
+	// (PUT /v1/adverts/{advertId}/urgent)
+	ActivateAdvertUrgent(c *gin.Context, advertId AdvertIdPath)
 	// ConfirmEmailChange ConfirmEmailChange
 	// (POST /v1/auth/email/confirm)
 	ConfirmEmailChange(c *gin.Context)
@@ -2155,6 +2646,125 @@ func (siw *ServerInterfaceWrapper) ApproveAdvert(c *gin.Context) {
 	siw.Handler.ApproveAdvert(c, advertId)
 }
 
+// GetAdminAdvertPackage operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminAdvertPackage(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "advertId" -------------
+	var advertId AdvertIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminAdvertPackage(c, advertId)
+}
+
+// AssignAdminAdvertPackage operation middleware
+func (siw *ServerInterfaceWrapper) AssignAdminAdvertPackage(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "advertId" -------------
+	var advertId AdvertIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AssignAdminAdvertPackage(c, advertId)
+}
+
+// ListAdminAdvertPackageHistory operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminAdvertPackageHistory(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "advertId" -------------
+	var advertId AdvertIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminAdvertPackageHistoryParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", c.Request.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cursor: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminAdvertPackageHistory(c, advertId, params)
+}
+
+// CancelAdminAdvertPackage operation middleware
+func (siw *ServerInterfaceWrapper) CancelAdminAdvertPackage(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "advertId" -------------
+	var advertId AdvertIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CancelAdminAdvertPackage(c, advertId)
+}
+
 // RejectAdvert operation middleware
 func (siw *ServerInterfaceWrapper) RejectAdvert(c *gin.Context) {
 
@@ -2380,6 +2990,136 @@ func (siw *ServerInterfaceWrapper) SetBannerStatus(c *gin.Context) {
 	}
 
 	siw.Handler.SetBannerStatus(c, bannerId)
+}
+
+// ListAdminCampaigns operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminCampaigns(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminCampaignsParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", c.Request.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cursor: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "eventType" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "eventType", c.Request.URL.Query(), &params.EventType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter eventType: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "isActive" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "isActive", c.Request.URL.Query(), &params.IsActive, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter isActive: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "sourcePackageCode" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sourcePackageCode", c.Request.URL.Query(), &params.SourcePackageCode, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter sourcePackageCode: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "targetPackageCode" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "targetPackageCode", c.Request.URL.Query(), &params.TargetPackageCode, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter targetPackageCode: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminCampaigns(c, params)
+}
+
+// CreateAdminCampaign operation middleware
+func (siw *ServerInterfaceWrapper) CreateAdminCampaign(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateAdminCampaign(c)
+}
+
+// GetAdminCampaign operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminCampaign(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId CampaignIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", c.Param("campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter campaignId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminCampaign(c, campaignId)
+}
+
+// UpdateAdminCampaign operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminCampaign(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "campaignId" -------------
+	var campaignId CampaignIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "campaignId", c.Param("campaignId"), &campaignId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter campaignId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAdminCampaign(c, campaignId)
 }
 
 // ListCategoriesAdmin operation middleware
@@ -2755,6 +3495,132 @@ func (siw *ServerInterfaceWrapper) InitiateAdminMediaUpload(c *gin.Context) {
 	}
 
 	siw.Handler.InitiateAdminMediaUpload(c)
+}
+
+// ListAdminNotificationTemplates operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminNotificationTemplates(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminNotificationTemplates(c)
+}
+
+// GetAdminNotificationTemplate operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminNotificationTemplate(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "eventType" -------------
+	var eventType NotificationEventTypePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventType", c.Param("eventType"), &eventType, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter eventType: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminNotificationTemplate(c, eventType)
+}
+
+// UpdateAdminNotificationTemplate operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminNotificationTemplate(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "eventType" -------------
+	var eventType NotificationEventTypePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventType", c.Param("eventType"), &eventType, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter eventType: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAdminNotificationTemplate(c, eventType)
+}
+
+// ListAdminPackages operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminPackages(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminPackages(c)
+}
+
+// GetAdminPackage operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminPackage(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "packageCode" -------------
+	var packageCode PackageCodePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "packageCode", c.Param("packageCode"), &packageCode, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter packageCode: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminPackage(c, packageCode)
+}
+
+// UpdateAdminPackage operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminPackage(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "packageCode" -------------
+	var packageCode PackageCodePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "packageCode", c.Param("packageCode"), &packageCode, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter packageCode: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAdminPackage(c, packageCode)
 }
 
 // IgnoreTJKSyncItemError operation middleware
@@ -3265,6 +4131,56 @@ func (siw *ServerInterfaceWrapper) GetPublishedAdvertDetail(c *gin.Context) {
 	}
 
 	siw.Handler.GetPublishedAdvertDetail(c, advertId)
+}
+
+// DeactivateAdvertUrgent operation middleware
+func (siw *ServerInterfaceWrapper) DeactivateAdvertUrgent(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "advertId" -------------
+	var advertId AdvertIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeactivateAdvertUrgent(c, advertId)
+}
+
+// ActivateAdvertUrgent operation middleware
+func (siw *ServerInterfaceWrapper) ActivateAdvertUrgent(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "advertId" -------------
+	var advertId AdvertIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ActivateAdvertUrgent(c, advertId)
 }
 
 // ConfirmEmailChange operation middleware
@@ -4433,4 +5349,20 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/provinces", wrapper.ListActiveProvinces)
 	router.GET(options.BaseURL+"/v1/provinces/search", wrapper.SearchProvinces)
 	router.GET(options.BaseURL+"/v1/provinces/:provinceId/districts", wrapper.ListDistrictsByProvince)
+	router.GET(options.BaseURL+"/v1/admin/packages", wrapper.ListAdminPackages)
+	router.GET(options.BaseURL+"/v1/admin/packages/:packageCode", wrapper.GetAdminPackage)
+	router.PATCH(options.BaseURL+"/v1/admin/packages/:packageCode", wrapper.UpdateAdminPackage)
+	router.GET(options.BaseURL+"/v1/admin/adverts/:advertId/package", wrapper.GetAdminAdvertPackage)
+	router.PUT(options.BaseURL+"/v1/admin/adverts/:advertId/package", wrapper.AssignAdminAdvertPackage)
+	router.POST(options.BaseURL+"/v1/admin/adverts/:advertId/package/cancel", wrapper.CancelAdminAdvertPackage)
+	router.GET(options.BaseURL+"/v1/admin/adverts/:advertId/package-history", wrapper.ListAdminAdvertPackageHistory)
+	router.GET(options.BaseURL+"/v1/admin/campaigns", wrapper.ListAdminCampaigns)
+	router.POST(options.BaseURL+"/v1/admin/campaigns", wrapper.CreateAdminCampaign)
+	router.GET(options.BaseURL+"/v1/admin/campaigns/:campaignId", wrapper.GetAdminCampaign)
+	router.PATCH(options.BaseURL+"/v1/admin/campaigns/:campaignId", wrapper.UpdateAdminCampaign)
+	router.GET(options.BaseURL+"/v1/admin/notification-templates", wrapper.ListAdminNotificationTemplates)
+	router.GET(options.BaseURL+"/v1/admin/notification-templates/:eventType", wrapper.GetAdminNotificationTemplate)
+	router.PATCH(options.BaseURL+"/v1/admin/notification-templates/:eventType", wrapper.UpdateAdminNotificationTemplate)
+	router.DELETE(options.BaseURL+"/v1/adverts/:advertId/urgent", wrapper.DeactivateAdvertUrgent)
+	router.PUT(options.BaseURL+"/v1/adverts/:advertId/urgent", wrapper.ActivateAdvertUrgent)
 }

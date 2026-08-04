@@ -36,7 +36,7 @@ func newFavoriteEngine(t *testing.T) *favoriteTestEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, nil, favSvc, authSvc)
+	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, nil, favSvc, nil, nil, nil, nil, authSvc)
 	engine := router.New(srv, log, router.Options{AuthService: authSvc})
 	do := func(method, path, body, auth string) *httptest.ResponseRecorder {
 		var rdr io.Reader

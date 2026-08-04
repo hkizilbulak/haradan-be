@@ -99,6 +99,12 @@ func NewMemoryService(store *MemoryStore, clock Clock) (*Service, error) {
 
 type memoryPackages struct{ store *MemoryStore }
 
+func (m memoryPackages) BeginTx(ctx context.Context) (pgx.Tx, error) {
+	return m.store.AssignmentRepo().BeginTx(ctx)
+}
+
+func (m memoryPackages) WithTx(pgx.Tx) PackageRepository { return m }
+
 func (m memoryPackages) FindByID(_ context.Context, id uuid.UUID) (domainpackaging.Package, error) {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()
@@ -120,6 +126,10 @@ func (m memoryPackages) FindByCode(_ context.Context, code domainpackaging.Packa
 	return domainpackaging.Package{}, apperr.NotFound(packageNotFoundMessage)
 }
 
+func (m memoryPackages) LockByCode(ctx context.Context, code domainpackaging.PackageCode) (domainpackaging.Package, error) {
+	return m.FindByCode(ctx, code)
+}
+
 func (m memoryPackages) List(_ context.Context, includeInactive bool) ([]domainpackaging.Package, error) {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()
@@ -137,6 +147,25 @@ func (m memoryPackages) List(_ context.Context, includeInactive bool) ([]domainp
 		return out[i].Code < out[j].Code
 	})
 	return out, nil
+}
+
+func (m memoryPackages) UpdateOptimistic(
+	_ context.Context,
+	p domainpackaging.Package,
+	expectedVersion int,
+) (domainpackaging.Package, error) {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	cur, ok := m.store.packages[p.ID]
+	if !ok {
+		return domainpackaging.Package{}, apperr.NotFound(packageNotFoundMessage)
+	}
+	if cur.Version != expectedVersion {
+		return domainpackaging.Package{}, apperr.StaleVersion(stalePackageVersionMessage)
+	}
+	p.Version = cur.Version + 1
+	m.store.packages[p.ID] = p
+	return p, nil
 }
 
 type memoryAssignments struct{ store *MemoryStore }
@@ -249,6 +278,29 @@ func (m memoryAssignments) MarkSuperseded(_ context.Context, id uuid.UUID, super
 	return nil
 }
 
+func (m memoryAssignments) MarkCancelled(
+	_ context.Context,
+	id uuid.UUID,
+	cancelledAt, updatedAt time.Time,
+	reason *string,
+) error {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	a, ok := m.store.assignments[id]
+	if !ok || a.Status != domainpackaging.AssignmentStatusActive {
+		return apperr.NotFound(assignmentNotFoundMessage)
+	}
+	a.Status = domainpackaging.AssignmentStatusCancelled
+	a.CancelledAt = &cancelledAt
+	if reason != nil {
+		a.Reason = reason
+	}
+	a.UpdatedAt = updatedAt
+	a.Version++
+	m.store.assignments[id] = a
+	return nil
+}
+
 type memoryFeatures struct{ store *MemoryStore }
 
 func (m memoryFeatures) WithTx(pgx.Tx) FeatureRepository { return m }
@@ -338,6 +390,42 @@ func (m memoryFeatures) DeactivateActive(
 	return false, nil
 }
 
+func (m memoryFeatures) DeactivateActiveUrgentForPackage(
+	_ context.Context,
+	packageID uuid.UUID,
+	deactivatedAt time.Time,
+	reason *string,
+	updatedAt time.Time,
+) (int64, error) {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	activeAssignmentIDs := map[uuid.UUID]struct{}{}
+	for _, a := range m.store.assignments {
+		if a.PackageID == packageID && a.Status == domainpackaging.AssignmentStatusActive {
+			activeAssignmentIDs[a.ID] = struct{}{}
+		}
+	}
+	var n int64
+	for id, f := range m.store.features {
+		if f.FeatureCode != domainpackaging.FeatureCodeUrgent {
+			continue
+		}
+		if f.Status != domainpackaging.FeatureActivationStatusActive {
+			continue
+		}
+		if _, ok := activeAssignmentIDs[f.PackageAssignmentID]; !ok {
+			continue
+		}
+		f.Status = domainpackaging.FeatureActivationStatusDeactivated
+		f.DeactivatedAt = &deactivatedAt
+		f.Reason = reason
+		f.UpdatedAt = updatedAt
+		m.store.features[id] = f
+		n++
+	}
+	return n, nil
+}
+
 type memoryAdverts struct{ store *MemoryStore }
 
 func (m memoryAdverts) FindByID(_ context.Context, advertID uuid.UUID) (domainadvert.Advert, error) {
@@ -409,7 +497,6 @@ func uuidLess(a, b uuid.UUID) bool {
 }
 
 const (
-	assignmentNotFoundMessage = "Aktif paket ataması bulunamadı."
 	activationNotFoundMessage = "Aktif URGENT aktivasyonu bulunamadı."
 	assignmentConflictMessage = "Paket ataması aynı anda başka bir işlem tarafından güncellendi."
 	activationConflictMessage = "URGENT aktivasyonu aynı anda başka bir işlem tarafından güncellendi."

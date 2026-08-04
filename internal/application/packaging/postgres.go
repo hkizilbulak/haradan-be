@@ -15,6 +15,14 @@ import (
 
 type pgPackageRepo struct{ *pgpackaging.Repository }
 
+func (r pgPackageRepo) BeginTx(ctx context.Context) (pgx.Tx, error) {
+	return r.Repository.BeginTx(ctx)
+}
+
+func (r pgPackageRepo) WithTx(tx pgx.Tx) PackageRepository {
+	return pgPackageRepo{r.Repository.WithTx(tx)}
+}
+
 func (r pgPackageRepo) FindByID(ctx context.Context, id uuid.UUID) (domainpackaging.Package, error) {
 	return r.FindPackageByID(ctx, id)
 }
@@ -23,8 +31,20 @@ func (r pgPackageRepo) FindByCode(ctx context.Context, code domainpackaging.Pack
 	return r.FindPackageByCode(ctx, code)
 }
 
+func (r pgPackageRepo) LockByCode(ctx context.Context, code domainpackaging.PackageCode) (domainpackaging.Package, error) {
+	return r.LockPackageByCode(ctx, code)
+}
+
 func (r pgPackageRepo) List(ctx context.Context, includeInactive bool) ([]domainpackaging.Package, error) {
 	return r.ListPackages(ctx, includeInactive)
+}
+
+func (r pgPackageRepo) UpdateOptimistic(
+	ctx context.Context,
+	p domainpackaging.Package,
+	expectedVersion int,
+) (domainpackaging.Package, error) {
+	return r.UpdatePackageOptimistic(ctx, p, expectedVersion)
 }
 
 type pgAssignmentRepo struct{ *pgpackaging.Repository }
@@ -73,6 +93,15 @@ func (r pgAssignmentRepo) MarkSuperseded(ctx context.Context, id uuid.UUID, supe
 	return r.MarkAssignmentSuperseded(ctx, id, supersededAt, updatedAt)
 }
 
+func (r pgAssignmentRepo) MarkCancelled(
+	ctx context.Context,
+	id uuid.UUID,
+	cancelledAt, updatedAt time.Time,
+	reason *string,
+) error {
+	return r.MarkAssignmentCancelled(ctx, id, cancelledAt, updatedAt, reason)
+}
+
 type pgFeatureRepo struct{ *pgpackaging.Repository }
 
 func (r pgFeatureRepo) WithTx(tx pgx.Tx) FeatureRepository {
@@ -108,6 +137,16 @@ func (r pgFeatureRepo) DeactivateActive(
 	updatedAt time.Time,
 ) (bool, error) {
 	return r.DeactivateActiveFeature(ctx, advertID, code, deactivatedAt, reason, updatedAt)
+}
+
+func (r pgFeatureRepo) DeactivateActiveUrgentForPackage(
+	ctx context.Context,
+	packageID uuid.UUID,
+	deactivatedAt time.Time,
+	reason *string,
+	updatedAt time.Time,
+) (int64, error) {
+	return r.Repository.DeactivateActiveUrgentForPackage(ctx, packageID, deactivatedAt, reason, updatedAt)
 }
 
 // NewPostgresService constructs a packaging Service backed by PostgreSQL.

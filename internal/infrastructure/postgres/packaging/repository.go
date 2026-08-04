@@ -99,6 +99,119 @@ func (r *Repository) FindPackageByCode(ctx context.Context, code domainpackaging
 	return p, nil
 }
 
+// LockPackageByCode locks a package row by code.
+func (r *Repository) LockPackageByCode(ctx context.Context, code domainpackaging.PackageCode) (domainpackaging.Package, error) {
+	q := `SELECT ` + packageColumns + ` FROM hrd_packages WHERE code = $1 FOR UPDATE`
+	row := r.db.QueryRow(ctx, q, string(code))
+	p, err := scanPackage(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domainpackaging.Package{}, apperr.NotFound(packageNotFoundMessage)
+	}
+	if err != nil {
+		return domainpackaging.Package{}, apperr.Internal(fmt.Errorf("lock package by code: %w", pg.SanitizeErr(err)))
+	}
+	return p, nil
+}
+
+// UpdatePackageOptimistic updates a package when version matches.
+func (r *Repository) UpdatePackageOptimistic(
+	ctx context.Context,
+	p domainpackaging.Package,
+	expectedVersion int,
+) (domainpackaging.Package, error) {
+	const q = `
+UPDATE hrd_packages
+SET display_name = $3,
+    description = $4,
+    badge_text = $5,
+    benefits = $6,
+    display_price_amount_minor = $7,
+    currency_code = $8,
+    default_duration_days = $9,
+    allows_urgent = $10,
+    showcase_eligible = $11,
+    search_priority = $12,
+    is_active = $13,
+    sort_order = $14,
+    updated_at = $15,
+    version = version + 1
+WHERE code = $1 AND version = $2
+RETURNING ` + packageColumns
+	row := r.db.QueryRow(ctx, q,
+		string(p.Code), expectedVersion,
+		p.DisplayName, p.Description, p.BadgeText, p.BenefitsJSON,
+		p.DisplayPriceAmountMinor, p.CurrencyCode, p.DefaultDurationDays,
+		p.AllowsUrgent, p.ShowcaseEligible, p.SearchPriority, p.IsActive, p.SortOrder,
+		p.UpdatedAt,
+	)
+	out, err := scanPackage(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domainpackaging.Package{}, apperr.StaleVersion(stalePackageVersionMessage)
+	}
+	if err != nil {
+		if isCheckViolation(err) {
+			return domainpackaging.Package{}, apperr.Validation("Paket güncellemesi geçersiz.")
+		}
+		return domainpackaging.Package{}, apperr.Internal(fmt.Errorf("update package: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
+}
+
+const stalePackageVersionMessage = "Paket başka bir işlem tarafından güncellendi."
+
+// MarkAssignmentCancelled marks an assignment CANCELLED.
+func (r *Repository) MarkAssignmentCancelled(
+	ctx context.Context,
+	id uuid.UUID,
+	cancelledAt, updatedAt time.Time,
+	reason *string,
+) error {
+	const q = `
+UPDATE hrd_advert_package_assignments
+SET status = 'CANCELLED',
+    cancelled_at = $2,
+    reason = COALESCE($4, reason),
+    updated_at = $3,
+    version = version + 1
+WHERE id = $1 AND status = 'ACTIVE'`
+	tag, err := r.db.Exec(ctx, q, id, cancelledAt, updatedAt, reason)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("cancel assignment: %w", pg.SanitizeErr(err)))
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound(assignmentNotFoundMessage)
+	}
+	return nil
+}
+
+// DeactivateActiveUrgentForPackage deactivates ACTIVE URGENT rows linked to
+// ACTIVE assignments of the given package.
+func (r *Repository) DeactivateActiveUrgentForPackage(
+	ctx context.Context,
+	packageID uuid.UUID,
+	deactivatedAt time.Time,
+	reason *string,
+	updatedAt time.Time,
+) (int64, error) {
+	const q = `
+UPDATE hrd_advert_feature_activations AS fa
+SET status = 'DEACTIVATED',
+    deactivated_at = $2,
+    reason = COALESCE($3, fa.reason),
+    updated_at = $4
+FROM hrd_advert_package_assignments AS a
+WHERE fa.package_assignment_id = a.id
+  AND a.package_id = $1
+  AND a.status = 'ACTIVE'
+  AND fa.feature_code = 'URGENT'
+  AND fa.status = 'ACTIVE'`
+	tag, err := r.db.Exec(ctx, q, packageID, deactivatedAt, reason, updatedAt)
+	if err != nil {
+		return 0, apperr.Internal(fmt.Errorf("deactivate urgent for package: %w", pg.SanitizeErr(err)))
+	}
+	return tag.RowsAffected(), nil
+}
+
 // ListPackages returns packages ordered by sort_order ASC, code ASC.
 func (r *Repository) ListPackages(ctx context.Context, includeInactive bool) ([]domainpackaging.Package, error) {
 	q := `SELECT ` + packageColumns + ` FROM hrd_packages`

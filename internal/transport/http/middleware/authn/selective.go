@@ -70,6 +70,30 @@ var AdvertModerationProtectedRoutes = []ProtectedRoute{
 	{Method: "POST", Path: "/api/v1/admin/adverts/:advertId/suspend"},
 }
 
+// PackagingAdminProtectedRoutes are packaging/campaign/notification-template BO_AUTH routes.
+var PackagingAdminProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/admin/packages"},
+	{Method: "GET", Path: "/api/v1/admin/packages/:packageCode"},
+	{Method: "PATCH", Path: "/api/v1/admin/packages/:packageCode"},
+	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId/package"},
+	{Method: "PUT", Path: "/api/v1/admin/adverts/:advertId/package"},
+	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId/package-history"},
+	{Method: "POST", Path: "/api/v1/admin/adverts/:advertId/package/cancel"},
+	{Method: "GET", Path: "/api/v1/admin/campaigns"},
+	{Method: "POST", Path: "/api/v1/admin/campaigns"},
+	{Method: "GET", Path: "/api/v1/admin/campaigns/:campaignId"},
+	{Method: "PATCH", Path: "/api/v1/admin/campaigns/:campaignId"},
+	{Method: "GET", Path: "/api/v1/admin/notification-templates"},
+	{Method: "GET", Path: "/api/v1/admin/notification-templates/:eventType"},
+	{Method: "PATCH", Path: "/api/v1/admin/notification-templates/:eventType"},
+}
+
+// AdvertUrgentProtectedRoutes are owner/admin URGENT activate/deactivate routes.
+var AdvertUrgentProtectedRoutes = []ProtectedRoute{
+	{Method: "PUT", Path: "/api/v1/adverts/:advertId/urgent"},
+	{Method: "DELETE", Path: "/api/v1/adverts/:advertId/urgent"},
+}
+
 // Selective runs Bearer access-token auth only for the listed method+path pairs.
 // Unlisted routes (including public Health/Geo/Catalog/Auth and remaining 501 FE_AUTH
 // stubs) are left untouched.

@@ -54,7 +54,7 @@ func newModerationEngine(t *testing.T) *moderationTestEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, advertSvc, nil, nil, authSvc)
+	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, advertSvc, nil, nil, nil, nil, nil, nil, authSvc)
 	engine := router.New(srv, log, router.Options{AuthService: authSvc})
 	do := func(method, path, body, auth string) *httptest.ResponseRecorder {
 		var rdr io.Reader

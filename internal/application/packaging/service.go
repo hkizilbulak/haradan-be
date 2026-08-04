@@ -2,8 +2,12 @@ package packaging
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,16 +23,22 @@ const (
 	maxHistoryLimit     = 100
 	defaultHistoryLimit = 20
 
-	packageNotFoundMessage    = "Paket bulunamadı."
-	advertNotFoundMessage     = "İlan bulunamadı."
-	forbiddenMessage          = "Bu işlem için yetkiniz yok."
-	packageInactiveMessage    = "Pasif pakete atama yapılamaz."
-	invalidDateRangeMessage   = "Başlangıç ve bitiş tarihleri geçersiz."
-	advertTerminalMessage     = "Bu ilan durumunda paket ataması yapılamaz."
-	urgentAdvertStateMessage  = "Bu ilan durumunda URGENT açılamaz."
-	urgentRequiresAdvancedMsg = "URGENT yalnız ADVANCED paket ile açılabilir."
-	packageLossUrgentReason   = "PACKAGE_ASSIGNMENT_CHANGED"
+	packageNotFoundMessage      = "Paket bulunamadı."
+	advertNotFoundMessage       = "İlan bulunamadı."
+	forbiddenMessage            = "Bu işlem için yetkiniz yok."
+	packageInactiveMessage      = "Pasif pakete atama yapılamaz."
+	invalidDateRangeMessage     = "Başlangıç ve bitiş tarihleri geçersiz."
+	advertTerminalMessage       = "Bu ilan durumunda paket ataması yapılamaz."
+	urgentAdvertStateMessage    = "Bu ilan durumunda URGENT açılamaz."
+	urgentRequiresAdvancedMsg   = "URGENT yalnız ADVANCED paket ile açılabilir."
+	packageLossUrgentReason     = "PACKAGE_ASSIGNMENT_CHANGED"
+	packageUrgentDisabledReason = "PACKAGE_URGENT_DISABLED"
+	stalePackageVersionMessage  = "Paket başka bir işlem tarafından güncellendi."
+	invalidCursorMessage        = "Geçersiz sayfalama imleci."
+	assignmentNotFoundMessage   = "Aktif paket ataması bulunamadı."
 )
+
+var currencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
 
 // Service implements package catalog, assignment, and URGENT use cases.
 type Service struct {
@@ -78,10 +88,40 @@ func (systemClock) Now() time.Time { return time.Now().UTC() }
 type AssignAdvertPackageInput struct {
 	ActorUserID uuid.UUID
 	AdvertID    uuid.UUID
-	PackageID   uuid.UUID
+	PackageCode domainpackaging.PackageCode
 	StartsAt    *time.Time
 	EndsAt      *time.Time
 	Reason      *string
+}
+
+// CancelAdvertPackageInput cancels the active assignment for an advert.
+type CancelAdvertPackageInput struct {
+	ActorUserID uuid.UUID
+	AdvertID    uuid.UUID
+	Reason      *string
+}
+
+// UpdatePackageInput is the admin package catalog patch.
+type UpdatePackageInput struct {
+	ActorUserID             uuid.UUID
+	Code                    domainpackaging.PackageCode
+	ExpectedVersion         int
+	DisplayName             *string
+	Description             *string
+	DescriptionSet          bool
+	BadgeText               *string
+	BadgeTextSet            bool
+	Benefits                *[]string
+	DisplayPriceAmountMinor *int64
+	DisplayPriceSet         bool
+	CurrencyCode            *string
+	DefaultDurationDays     *int
+	DefaultDurationSet      bool
+	AllowsUrgent            *bool
+	ShowcaseEligible        *bool
+	SearchPriority          *int
+	IsActive                *bool
+	SortOrder               *int
 }
 
 // AssignmentView pairs an assignment with its package snapshot.
@@ -92,8 +132,9 @@ type AssignmentView struct {
 
 // HistoryResult is paginated assignment history.
 type HistoryResult struct {
-	Items   []AssignmentView
-	HasMore bool
+	Items      []AssignmentView
+	HasMore    bool
+	NextCursor *string
 }
 
 // ListPackages returns packages ordered by sort_order ASC, code ASC.
@@ -101,13 +142,80 @@ func (s *Service) ListPackages(ctx context.Context, includeInactive bool) ([]dom
 	return s.packages.List(ctx, includeInactive)
 }
 
+// ListAdminPackages returns all packages for an ACTIVE ADMIN.
+func (s *Service) ListAdminPackages(ctx context.Context, actorUserID uuid.UUID) ([]domainpackaging.Package, error) {
+	if err := s.requireAdmin(ctx, actorUserID); err != nil {
+		return nil, err
+	}
+	return s.packages.List(ctx, true)
+}
+
+// GetPackageByCode returns a package by code for an ACTIVE ADMIN.
+func (s *Service) GetPackageByCode(
+	ctx context.Context,
+	actorUserID uuid.UUID,
+	code domainpackaging.PackageCode,
+) (domainpackaging.Package, error) {
+	if err := s.requireAdmin(ctx, actorUserID); err != nil {
+		return domainpackaging.Package{}, err
+	}
+	if !code.Valid() {
+		return domainpackaging.Package{}, apperr.Validation("Geçersiz paket kodu.")
+	}
+	return s.packages.FindByCode(ctx, code)
+}
+
+// UpdatePackage applies an optimistic catalog update for an ACTIVE ADMIN.
+func (s *Service) UpdatePackage(ctx context.Context, in UpdatePackageInput) (domainpackaging.Package, error) {
+	if err := s.requireAdmin(ctx, in.ActorUserID); err != nil {
+		return domainpackaging.Package{}, err
+	}
+	if !in.Code.Valid() {
+		return domainpackaging.Package{}, apperr.Validation("Geçersiz paket kodu.")
+	}
+	if in.ExpectedVersion < 1 {
+		return domainpackaging.Package{}, apperr.Validation("Geçersiz sürüm.")
+	}
+
+	var out domainpackaging.Package
+	err := s.withPackageTx(ctx, func(ctx context.Context, packages PackageRepository, features FeatureRepository) error {
+		current, err := packages.LockByCode(ctx, in.Code)
+		if err != nil {
+			return err
+		}
+		updated, err := applyPackagePatch(current, in)
+		if err != nil {
+			return err
+		}
+		updated.UpdatedAt = s.clock.Now().UTC()
+		saved, err := packages.UpdateOptimistic(ctx, updated, in.ExpectedVersion)
+		if err != nil {
+			return err
+		}
+		if current.AllowsUrgent && !saved.AllowsUrgent {
+			now := s.clock.Now().UTC()
+			if _, err := features.DeactivateActiveUrgentForPackage(
+				ctx, saved.ID, now, strPtr(packageUrgentDisabledReason), now,
+			); err != nil {
+				return err
+			}
+		}
+		out = saved
+		return nil
+	})
+	return out, err
+}
+
 // AssignAdvertPackage assigns an active package to an advert (ADMIN only).
 func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackageInput) (AssignmentView, error) {
 	if err := s.requireAdmin(ctx, in.ActorUserID); err != nil {
 		return AssignmentView{}, err
 	}
+	if !in.PackageCode.Valid() {
+		return AssignmentView{}, apperr.Validation("Geçersiz paket kodu.")
+	}
 
-	pkg, err := s.packages.FindByID(ctx, in.PackageID)
+	pkg, err := s.packages.FindByCode(ctx, in.PackageCode)
 	if err != nil {
 		return AssignmentView{}, err
 	}
@@ -185,6 +293,7 @@ func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackag
 }
 
 // GetAdvertPackage returns the currently effective ACTIVE assignment, if any.
+// Missing assignment yields (nil, nil).
 func (s *Service) GetAdvertPackage(ctx context.Context, advertID uuid.UUID) (*AssignmentView, error) {
 	now := s.clock.Now().UTC()
 	a, err := s.assignments.FindEffectiveActiveByAdvertID(ctx, advertID, now)
@@ -201,22 +310,82 @@ func (s *Service) GetAdvertPackage(ctx context.Context, advertID uuid.UUID) (*As
 	return &AssignmentView{Assignment: a, Package: pkg}, nil
 }
 
-// ListAdvertPackageHistory returns assignment history for ADMIN actors.
-func (s *Service) ListAdvertPackageHistory(
+// GetAdminAdvertPackage returns the effective assignment for an ACTIVE ADMIN or NotFound.
+func (s *Service) GetAdminAdvertPackage(
 	ctx context.Context,
 	actorUserID, advertID uuid.UUID,
-	limit int,
-	afterAssignedAt *time.Time,
-	afterID *uuid.UUID,
-) (HistoryResult, error) {
+) (AssignmentView, error) {
 	if err := s.requireAdmin(ctx, actorUserID); err != nil {
-		return HistoryResult{}, err
+		return AssignmentView{}, err
 	}
 	if _, err := s.adverts.FindByID(ctx, advertID); err != nil {
+		return AssignmentView{}, err
+	}
+	view, err := s.GetAdvertPackage(ctx, advertID)
+	if err != nil {
+		return AssignmentView{}, err
+	}
+	if view == nil {
+		return AssignmentView{}, apperr.NotFound(assignmentNotFoundMessage)
+	}
+	return *view, nil
+}
+
+// CancelAdvertPackage cancels the ACTIVE assignment (idempotent when none).
+func (s *Service) CancelAdvertPackage(ctx context.Context, in CancelAdvertPackageInput) error {
+	if err := s.requireAdmin(ctx, in.ActorUserID); err != nil {
+		return err
+	}
+	return s.withTx(ctx, func(ctx context.Context, assignments AssignmentRepository, features FeatureRepository) error {
+		if _, err := s.adverts.FindByIDForUpdate(ctx, in.AdvertID); err != nil {
+			return err
+		}
+		current, err := assignments.LockActiveByAdvertID(ctx, in.AdvertID)
+		if err != nil {
+			if isNotFound(err) {
+				return nil
+			}
+			return err
+		}
+		now := s.clock.Now().UTC()
+		if err := assignments.MarkCancelled(ctx, current.ID, now, now, trimReason(in.Reason)); err != nil {
+			return err
+		}
+		return deactivateUrgentForPackageLoss(ctx, features, in.AdvertID, now)
+	})
+}
+
+// ListAdvertPackageHistoryInput carries admin history pagination.
+type ListAdvertPackageHistoryInput struct {
+	ActorUserID uuid.UUID
+	AdvertID    uuid.UUID
+	Limit       *int
+	Cursor      *string
+}
+
+// ListAdvertPackageHistory returns assignment history for ADMIN actors.
+func (s *Service) ListAdvertPackageHistory(ctx context.Context, in ListAdvertPackageHistoryInput) (HistoryResult, error) {
+	if err := s.requireAdmin(ctx, in.ActorUserID); err != nil {
 		return HistoryResult{}, err
 	}
-	lim := normalizeLimit(limit)
-	rows, err := s.assignments.ListHistoryByAdvertID(ctx, advertID, afterAssignedAt, afterID, lim+1)
+	if _, err := s.adverts.FindByID(ctx, in.AdvertID); err != nil {
+		return HistoryResult{}, err
+	}
+	lim := defaultHistoryLimit
+	if in.Limit != nil {
+		lim = normalizeLimit(*in.Limit)
+	}
+	var afterAssignedAt *time.Time
+	var afterID *uuid.UUID
+	if in.Cursor != nil && strings.TrimSpace(*in.Cursor) != "" {
+		t, id, err := decodeHistoryCursor(*in.Cursor)
+		if err != nil {
+			return HistoryResult{}, err
+		}
+		afterAssignedAt = &t
+		afterID = &id
+	}
+	rows, err := s.assignments.ListHistoryByAdvertID(ctx, in.AdvertID, afterAssignedAt, afterID, lim+1)
 	if err != nil {
 		return HistoryResult{}, err
 	}
@@ -232,7 +401,13 @@ func (s *Service) ListAdvertPackageHistory(
 		}
 		items = append(items, AssignmentView{Assignment: row, Package: pkg})
 	}
-	return HistoryResult{Items: items, HasMore: hasMore}, nil
+	out := HistoryResult{Items: items, HasMore: hasMore}
+	if hasMore && len(items) > 0 {
+		last := items[len(items)-1].Assignment
+		cursor := encodeHistoryCursor(last.AssignedAt, last.ID)
+		out.NextCursor = &cursor
+	}
+	return out, nil
 }
 
 // ActivateUrgent opens ACTIVE URGENT for an advert (owner or admin).
@@ -380,6 +555,137 @@ func (s *Service) withTx(
 		return apperr.Internal(fmt.Errorf("commit packaging tx: %w", err))
 	}
 	return nil
+}
+
+func (s *Service) withPackageTx(
+	ctx context.Context,
+	fn func(context.Context, PackageRepository, FeatureRepository) error,
+) error {
+	tx, err := s.packages.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	packages := s.packages.WithTx(tx)
+	features := s.features.WithTx(tx)
+	if err := fn(ctx, packages, features); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return apperr.Internal(fmt.Errorf("commit packaging package tx: %w", err))
+	}
+	return nil
+}
+
+func applyPackagePatch(current domainpackaging.Package, in UpdatePackageInput) (domainpackaging.Package, error) {
+	out := current
+
+	if in.DisplayName != nil {
+		name := strings.TrimSpace(*in.DisplayName)
+		if name == "" {
+			return domainpackaging.Package{}, apperr.Validation("Görünen ad boş olamaz.")
+		}
+		out.DisplayName = name
+	}
+	if in.DescriptionSet {
+		out.Description = trimOptional(in.Description)
+	}
+	if in.BadgeTextSet {
+		out.BadgeText = trimOptional(in.BadgeText)
+	}
+	if in.Benefits != nil {
+		raw, err := json.Marshal(*in.Benefits)
+		if err != nil {
+			return domainpackaging.Package{}, apperr.Internal(fmt.Errorf("marshal benefits: %w", err))
+		}
+		out.BenefitsJSON = raw
+	}
+	if in.DisplayPriceSet {
+		out.DisplayPriceAmountMinor = in.DisplayPriceAmountMinor
+		if in.DisplayPriceAmountMinor != nil && *in.DisplayPriceAmountMinor < 0 {
+			return domainpackaging.Package{}, apperr.Validation("Fiyat negatif olamaz.")
+		}
+	}
+	if in.CurrencyCode != nil {
+		code := strings.TrimSpace(*in.CurrencyCode)
+		if !currencyPattern.MatchString(code) {
+			return domainpackaging.Package{}, apperr.Validation("Geçersiz para birimi.")
+		}
+		out.CurrencyCode = code
+	}
+	if in.DefaultDurationSet {
+		if in.DefaultDurationDays != nil && *in.DefaultDurationDays <= 0 {
+			return domainpackaging.Package{}, apperr.Validation("Varsayılan süre pozitif olmalıdır.")
+		}
+		out.DefaultDurationDays = in.DefaultDurationDays
+	}
+	if in.AllowsUrgent != nil {
+		out.AllowsUrgent = *in.AllowsUrgent
+	}
+	if in.ShowcaseEligible != nil {
+		out.ShowcaseEligible = *in.ShowcaseEligible
+	}
+	if in.SearchPriority != nil {
+		if *in.SearchPriority < 0 {
+			return domainpackaging.Package{}, apperr.Validation("Arama önceliği negatif olamaz.")
+		}
+		out.SearchPriority = *in.SearchPriority
+	}
+	if in.IsActive != nil {
+		out.IsActive = *in.IsActive
+	}
+	if in.SortOrder != nil {
+		if *in.SortOrder < 0 {
+			return domainpackaging.Package{}, apperr.Validation("Sıra negatif olamaz.")
+		}
+		out.SortOrder = *in.SortOrder
+	}
+	return out, nil
+}
+
+func trimOptional(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	s := strings.TrimSpace(*v)
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func encodeHistoryCursor(assignedAt time.Time, id uuid.UUID) string {
+	raw := assignedAt.UTC().Format(time.RFC3339Nano) + "|" + id.String()
+	return base64.RawURLEncoding.EncodeToString([]byte(raw))
+}
+
+func decodeHistoryCursor(cursor string) (time.Time, uuid.UUID, error) {
+	raw, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		return time.Time{}, uuid.Nil, apperr.Validation(invalidCursorMessage, apperr.FieldError{
+			Field: "cursor", Message: invalidCursorMessage,
+		})
+	}
+	parts := strings.SplitN(string(raw), "|", 2)
+	if len(parts) != 2 {
+		return time.Time{}, uuid.Nil, apperr.Validation(invalidCursorMessage, apperr.FieldError{
+			Field: "cursor", Message: invalidCursorMessage,
+		})
+	}
+	assignedAt, err := time.Parse(time.RFC3339Nano, parts[0])
+	if err != nil {
+		return time.Time{}, uuid.Nil, apperr.Validation(invalidCursorMessage, apperr.FieldError{
+			Field: "cursor", Message: invalidCursorMessage,
+		})
+	}
+	id, err := uuid.Parse(parts[1])
+	if err != nil || id == uuid.Nil {
+		return time.Time{}, uuid.Nil, apperr.Validation(invalidCursorMessage, apperr.FieldError{
+			Field: "cursor", Message: invalidCursorMessage,
+		})
+	}
+	return assignedAt, id, nil
 }
 
 func (s *Service) requireAdmin(ctx context.Context, actorUserID uuid.UUID) error {
