@@ -306,6 +306,158 @@ func TestLoadStorageUnknownProviderAndBasePath(t *testing.T) {
 	}
 }
 
+func TestLoadImageProcessorProviderDefaultsAndTinify(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ImageProcessorProvider != config.ImageProcessorProviderUnconfigured {
+		t.Fatalf("ImageProcessorProvider=%q", cfg.ImageProcessorProvider)
+	}
+	if cfg.TinifyBaseURL != "https://api.tinify.com" {
+		t.Fatalf("TinifyBaseURL=%q", cfg.TinifyBaseURL)
+	}
+	if cfg.TinifyHTTPTimeout != 30*time.Second {
+		t.Fatalf("TinifyHTTPTimeout=%v", cfg.TinifyHTTPTimeout)
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("IMAGE_PROCESSOR_PROVIDER", "unconfigured")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ImageProcessorProvider != config.ImageProcessorProviderUnconfigured {
+		t.Fatalf("ImageProcessorProvider=%q", cfg.ImageProcessorProvider)
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("IMAGE_PROCESSOR_PROVIDER", "TINIFY")
+	t.Setenv("TINIFY_API_KEY", "test-api-key-do-not-leak")
+	t.Setenv("MEDIA_PROFILE_DETAIL_WIDTH", "10")
+	t.Setenv("MEDIA_PROFILE_DETAIL_HEIGHT", "20")
+	t.Setenv("MEDIA_PROFILE_HOMEPAGE_WIDTH", "30")
+	t.Setenv("MEDIA_PROFILE_HOMEPAGE_HEIGHT", "40")
+	t.Setenv("MEDIA_PROFILE_SEARCH_WIDTH", "50")
+	t.Setenv("MEDIA_PROFILE_SEARCH_HEIGHT", "60")
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ImageProcessorProvider != config.ImageProcessorProviderTinify {
+		t.Fatalf("ImageProcessorProvider=%q", cfg.ImageProcessorProvider)
+	}
+	if cfg.MediaProfileDetailW != 10 || cfg.MediaProfileSearchH != 60 {
+		t.Fatalf("unexpected profile dims detail=%dx%d searchH=%d", cfg.MediaProfileDetailW, cfg.MediaProfileDetailH, cfg.MediaProfileSearchH)
+	}
+}
+
+func TestLoadImageProcessorTinifyValidation(t *testing.T) {
+	setTinifyBase := func(t *testing.T) {
+		t.Helper()
+		t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+		t.Setenv("IMAGE_PROCESSOR_PROVIDER", "tinify")
+		t.Setenv("TINIFY_API_KEY", "test-api-key-do-not-leak")
+		t.Setenv("MEDIA_PROFILE_DETAIL_WIDTH", "10")
+		t.Setenv("MEDIA_PROFILE_DETAIL_HEIGHT", "20")
+		t.Setenv("MEDIA_PROFILE_HOMEPAGE_WIDTH", "30")
+		t.Setenv("MEDIA_PROFILE_HOMEPAGE_HEIGHT", "40")
+		t.Setenv("MEDIA_PROFILE_SEARCH_WIDTH", "50")
+		t.Setenv("MEDIA_PROFILE_SEARCH_HEIGHT", "60")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("IMAGE_PROCESSOR_PROVIDER", "imaginary")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected unknown provider error")
+	}
+
+	clearConfigEnv(t)
+	setTinifyBase(t)
+	_ = os.Unsetenv("TINIFY_API_KEY")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected missing API key error")
+	} else if strings.Contains(err.Error(), "test-api-key") {
+		t.Fatalf("error leaked api key: %v", err)
+	}
+
+	dims := []string{
+		"MEDIA_PROFILE_DETAIL_WIDTH",
+		"MEDIA_PROFILE_DETAIL_HEIGHT",
+		"MEDIA_PROFILE_HOMEPAGE_WIDTH",
+		"MEDIA_PROFILE_HOMEPAGE_HEIGHT",
+		"MEDIA_PROFILE_SEARCH_WIDTH",
+		"MEDIA_PROFILE_SEARCH_HEIGHT",
+	}
+	for _, missing := range dims {
+		clearConfigEnv(t)
+		setTinifyBase(t)
+		_ = os.Unsetenv(missing)
+		if _, err := config.Load(); err == nil {
+			t.Fatalf("expected error when %s missing", missing)
+		}
+	}
+
+	clearConfigEnv(t)
+	setTinifyBase(t)
+	t.Setenv("MEDIA_PROFILE_DETAIL_WIDTH", "0")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected zero width error")
+	}
+
+	clearConfigEnv(t)
+	setTinifyBase(t)
+	t.Setenv("TINIFY_HTTP_TIMEOUT", "not-a-duration")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected invalid timeout error")
+	}
+
+	clearConfigEnv(t)
+	setTinifyBase(t)
+	t.Setenv("TINIFY_BASE_URL", "http://api.tinify.com")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected http base URL rejection")
+	}
+
+	clearConfigEnv(t)
+	setTinifyBase(t)
+	t.Setenv("TINIFY_BASE_URL", "https://user:pass@api.tinify.com")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected userinfo rejection")
+	}
+
+	clearConfigEnv(t)
+	setTinifyBase(t)
+	t.Setenv("TINIFY_BASE_URL", "https://api.tinify.com/v1")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected path rejection")
+	}
+
+	clearConfigEnv(t)
+	setTinifyBase(t)
+	t.Setenv("MEDIA_ALLOWED_CONTENT_TYPES", "image/jpeg,image/gif")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected unsupported content type error")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("IMAGE_PROCESSOR_PROVIDER", "unconfigured")
+	t.Setenv("MEDIA_ALLOWED_CONTENT_TYPES", "image/jpeg,image/gif")
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.MediaAllowedContentTypes) != 2 {
+		t.Fatalf("unconfigured provider should keep media allowlist intact: %v", cfg.MediaAllowedContentTypes)
+	}
+}
+
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
 	keys := []string{
@@ -315,6 +467,10 @@ func clearConfigEnv(t *testing.T) {
 		"AUTH_EMAIL_VERIFICATION_TTL", "AUTH_ARGON2_TIME", "AUTH_ARGON2_MEMORY_KIB", "AUTH_ARGON2_THREADS", "AUTH_ARGON2_KEY_LEN",
 		"MEDIA_ALLOWED_CONTENT_TYPES", "MEDIA_MAX_BYTE_SIZE", "MEDIA_UPLOAD_URL_TTL",
 		"STORAGE_PROVIDER", "S3_ENDPOINT", "S3_REGION", "S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BASE_PATH",
+		"IMAGE_PROCESSOR_PROVIDER", "TINIFY_API_KEY", "TINIFY_BASE_URL", "TINIFY_HTTP_TIMEOUT",
+		"MEDIA_PROFILE_DETAIL_WIDTH", "MEDIA_PROFILE_DETAIL_HEIGHT",
+		"MEDIA_PROFILE_HOMEPAGE_WIDTH", "MEDIA_PROFILE_HOMEPAGE_HEIGHT",
+		"MEDIA_PROFILE_SEARCH_WIDTH", "MEDIA_PROFILE_SEARCH_HEIGHT",
 	}
 	for _, key := range keys {
 		prev, had := os.LookupEnv(key)

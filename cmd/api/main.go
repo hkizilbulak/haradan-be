@@ -17,6 +17,8 @@ import (
 	apphorse "github.com/hkizilbulak/haradan-be/internal/application/horse"
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	"github.com/hkizilbulak/haradan-be/internal/config"
+	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
+	"github.com/hkizilbulak/haradan-be/internal/infrastructure/imageprocessor/tinifyprocessor"
 	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
 	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
 	pghorse "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/horse"
@@ -96,8 +98,8 @@ func run() error {
 		return fmt.Errorf("advert service: %w", err)
 	}
 
-	// ImageProcessor stays Unconfigured until a real compression adapter is wired.
 	// Storage uses B2 when STORAGE_PROVIDER=b2; otherwise UnconfiguredStorage.
+	// ImageProcessor uses Tinify when IMAGE_PROCESSOR_PROVIDER=tinify; otherwise Unconfigured.
 	var mediaStorage appmedia.Storage = appmedia.UnconfiguredStorage{}
 	switch cfg.StorageProvider {
 	case config.StorageProviderUnconfigured:
@@ -119,9 +121,32 @@ func run() error {
 		return fmt.Errorf("storage provider is not supported")
 	}
 
+	var mediaProcessor appmedia.ImageProcessor = appmedia.UnconfiguredImageProcessor{}
+	switch cfg.ImageProcessorProvider {
+	case config.ImageProcessorProviderUnconfigured:
+		// keep UnconfiguredImageProcessor
+	case config.ImageProcessorProviderTinify:
+		proc, err := tinifyprocessor.New(tinifyprocessor.Config{
+			APIKey:      cfg.TinifyAPIKey,
+			BaseURL:     cfg.TinifyBaseURL,
+			HTTPTimeout: cfg.TinifyHTTPTimeout,
+			Profiles: map[string]tinifyprocessor.ProfileConfig{
+				domainmedia.ProfileDetail:   {Width: cfg.MediaProfileDetailW, Height: cfg.MediaProfileDetailH},
+				domainmedia.ProfileHomepage: {Width: cfg.MediaProfileHomepageW, Height: cfg.MediaProfileHomepageH},
+				domainmedia.ProfileSearch:   {Width: cfg.MediaProfileSearchW, Height: cfg.MediaProfileSearchH},
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("image processor: %w", err)
+		}
+		mediaProcessor = proc
+	default:
+		return fmt.Errorf("image processor provider is not supported")
+	}
+
 	mediaSvc, err := appmedia.NewPostgresService(db.Pool(), appmedia.Config{
 		Storage:             mediaStorage,
-		Processor:           appmedia.UnconfiguredImageProcessor{},
+		Processor:           mediaProcessor,
 		AllowedContentTypes: cfg.MediaAllowedContentTypes,
 		MaxByteSize:         cfg.MediaMaxByteSize,
 		UploadURLTTL:        cfg.MediaUploadURLTTL,

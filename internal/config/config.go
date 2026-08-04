@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -55,6 +56,19 @@ type Config struct {
 	S3AccessKey     string
 	S3SecretKey     string
 	S3BasePath      string
+
+	// Image processor. Empty/unconfigured keeps UnconfiguredImageProcessor.
+	// Provider "tinify" requires API key and all profile width/height values.
+	ImageProcessorProvider string
+	TinifyAPIKey           string
+	TinifyBaseURL          string
+	TinifyHTTPTimeout      time.Duration
+	MediaProfileDetailW    int
+	MediaProfileDetailH    int
+	MediaProfileHomepageW  int
+	MediaProfileHomepageH  int
+	MediaProfileSearchW    int
+	MediaProfileSearchH    int
 }
 
 // Supported STORAGE_PROVIDER values after normalization.
@@ -62,6 +76,14 @@ const (
 	StorageProviderUnconfigured = "unconfigured"
 	StorageProviderB2           = "b2"
 )
+
+// Supported IMAGE_PROCESSOR_PROVIDER values after normalization.
+const (
+	ImageProcessorProviderUnconfigured = "unconfigured"
+	ImageProcessorProviderTinify       = "tinify"
+)
+
+const defaultTinifyBaseURL = "https://api.tinify.com"
 
 // Load reads configuration from the process environment.
 // It does not read .env files.
@@ -193,6 +215,41 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	if cfg.ImageProcessorProvider, err = normalizeImageProcessorProvider(os.Getenv("IMAGE_PROCESSOR_PROVIDER")); err != nil {
+		return Config{}, err
+	}
+	cfg.TinifyAPIKey = strings.TrimSpace(os.Getenv("TINIFY_API_KEY"))
+	if cfg.TinifyBaseURL, err = normalizeTinifyBaseURL(
+		getenvDefault("TINIFY_BASE_URL", defaultTinifyBaseURL),
+		cfg.AppEnv,
+	); err != nil {
+		return Config{}, err
+	}
+	if cfg.TinifyHTTPTimeout, err = durationEnv("TINIFY_HTTP_TIMEOUT", 30*time.Second); err != nil {
+		return Config{}, err
+	}
+	if cfg.MediaProfileDetailW, err = optionalPositiveIntEnv("MEDIA_PROFILE_DETAIL_WIDTH"); err != nil {
+		return Config{}, err
+	}
+	if cfg.MediaProfileDetailH, err = optionalPositiveIntEnv("MEDIA_PROFILE_DETAIL_HEIGHT"); err != nil {
+		return Config{}, err
+	}
+	if cfg.MediaProfileHomepageW, err = optionalPositiveIntEnv("MEDIA_PROFILE_HOMEPAGE_WIDTH"); err != nil {
+		return Config{}, err
+	}
+	if cfg.MediaProfileHomepageH, err = optionalPositiveIntEnv("MEDIA_PROFILE_HOMEPAGE_HEIGHT"); err != nil {
+		return Config{}, err
+	}
+	if cfg.MediaProfileSearchW, err = optionalPositiveIntEnv("MEDIA_PROFILE_SEARCH_WIDTH"); err != nil {
+		return Config{}, err
+	}
+	if cfg.MediaProfileSearchH, err = optionalPositiveIntEnv("MEDIA_PROFILE_SEARCH_HEIGHT"); err != nil {
+		return Config{}, err
+	}
+	if err := validateImageProcessorConfig(cfg); err != nil {
+		return Config{}, err
+	}
+
 	return cfg, nil
 }
 
@@ -255,6 +312,105 @@ func validateStorageConfig(cfg Config) error {
 	default:
 		return fmt.Errorf("STORAGE_PROVIDER is not supported")
 	}
+}
+
+func normalizeImageProcessorProvider(raw string) (string, error) {
+	v := strings.ToLower(strings.TrimSpace(raw))
+	switch v {
+	case "", ImageProcessorProviderUnconfigured:
+		return ImageProcessorProviderUnconfigured, nil
+	case ImageProcessorProviderTinify:
+		return ImageProcessorProviderTinify, nil
+	default:
+		return "", fmt.Errorf("IMAGE_PROCESSOR_PROVIDER is not supported")
+	}
+}
+
+func normalizeTinifyBaseURL(raw, appEnv string) (string, error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		s = defaultTinifyBaseURL
+	}
+	u, err := url.Parse(s)
+	if err != nil {
+		return "", fmt.Errorf("TINIFY_BASE_URL is not a valid URL")
+	}
+	if u.Scheme != "https" {
+		return "", fmt.Errorf("TINIFY_BASE_URL must use https")
+	}
+	if isProductionLike(appEnv) && u.Scheme != "https" {
+		return "", fmt.Errorf("TINIFY_BASE_URL must use https in %s", appEnv)
+	}
+	if u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return "", fmt.Errorf("TINIFY_BASE_URL must not contain userinfo, query, or fragment")
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("TINIFY_BASE_URL host must not be empty")
+	}
+	path := strings.TrimSuffix(u.EscapedPath(), "/")
+	if path != "" {
+		return "", fmt.Errorf("TINIFY_BASE_URL must not include a path")
+	}
+	return strings.TrimRight(u.Scheme+"://"+u.Host, "/"), nil
+}
+
+func validateImageProcessorConfig(cfg Config) error {
+	switch cfg.ImageProcessorProvider {
+	case ImageProcessorProviderUnconfigured:
+		return nil
+	case ImageProcessorProviderTinify:
+		if cfg.TinifyAPIKey == "" {
+			return fmt.Errorf("TINIFY_API_KEY must not be empty when IMAGE_PROCESSOR_PROVIDER=tinify")
+		}
+		if cfg.TinifyBaseURL == "" {
+			return fmt.Errorf("TINIFY_BASE_URL must not be empty when IMAGE_PROCESSOR_PROVIDER=tinify")
+		}
+		if cfg.TinifyHTTPTimeout <= 0 {
+			return fmt.Errorf("TINIFY_HTTP_TIMEOUT must be greater than zero")
+		}
+		dims := []struct {
+			name string
+			v    int
+		}{
+			{"MEDIA_PROFILE_DETAIL_WIDTH", cfg.MediaProfileDetailW},
+			{"MEDIA_PROFILE_DETAIL_HEIGHT", cfg.MediaProfileDetailH},
+			{"MEDIA_PROFILE_HOMEPAGE_WIDTH", cfg.MediaProfileHomepageW},
+			{"MEDIA_PROFILE_HOMEPAGE_HEIGHT", cfg.MediaProfileHomepageH},
+			{"MEDIA_PROFILE_SEARCH_WIDTH", cfg.MediaProfileSearchW},
+			{"MEDIA_PROFILE_SEARCH_HEIGHT", cfg.MediaProfileSearchH},
+		}
+		for _, d := range dims {
+			if d.v <= 0 {
+				return fmt.Errorf("%s must be greater than zero when IMAGE_PROCESSOR_PROVIDER=tinify", d.name)
+			}
+		}
+		for _, ct := range cfg.MediaAllowedContentTypes {
+			switch strings.ToLower(strings.TrimSpace(ct)) {
+			case "image/jpeg", "image/png":
+				continue
+			default:
+				return fmt.Errorf("MEDIA_ALLOWED_CONTENT_TYPES may only include image/jpeg and image/png when IMAGE_PROCESSOR_PROVIDER=tinify")
+			}
+		}
+		return nil
+	default:
+		return fmt.Errorf("IMAGE_PROCESSOR_PROVIDER is not supported")
+	}
+}
+
+func optionalPositiveIntEnv(key string) (int, error) {
+	raw, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return 0, fmt.Errorf("%s is not a valid integer", key)
+	}
+	if n <= 0 {
+		return 0, fmt.Errorf("%s must be greater than zero", key)
+	}
+	return n, nil
 }
 
 func isProductionLike(appEnv string) bool {
