@@ -52,6 +52,13 @@ var MediaProtectedRoutes = []ProtectedRoute{
 	{Method: "PUT", Path: "/api/v1/me/adverts/:advertId/media/cover"},
 }
 
+// FavoritesProtectedRoutes are FAVORITE-01..03 authenticated user routes.
+var FavoritesProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/me/favorites"},
+	{Method: "PUT", Path: "/api/v1/me/favorites/:advertId"},
+	{Method: "DELETE", Path: "/api/v1/me/favorites/:advertId"},
+}
+
 // Selective runs Bearer access-token auth only for the listed method+path pairs.
 // Unlisted routes (including public Health/Geo/Catalog/Auth and remaining 501 FE_AUTH
 // stubs) are left untouched.

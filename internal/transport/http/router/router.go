@@ -34,10 +34,11 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 	}
 	if opt.AuthService != nil {
 		protected := make([]authn.ProtectedRoute, 0,
-			len(authn.AccountSessionProtectedRoutes)+len(authn.AdvertOwnerProtectedRoutes)+len(authn.MediaProtectedRoutes))
+			len(authn.AccountSessionProtectedRoutes)+len(authn.AdvertOwnerProtectedRoutes)+len(authn.MediaProtectedRoutes)+len(authn.FavoritesProtectedRoutes))
 		protected = append(protected, authn.AccountSessionProtectedRoutes...)
 		protected = append(protected, authn.AdvertOwnerProtectedRoutes...)
 		protected = append(protected, authn.MediaProtectedRoutes...)
+		protected = append(protected, authn.FavoritesProtectedRoutes...)
 		r.Use(authn.Selective(opt.AuthService, logger, protected))
 	}
 
@@ -51,7 +52,7 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 // NewFoundation constructs a router with the foundation server and dependency checker.
 // Geo and Catalog services are nil in foundation-only tests; those ops stay 501.
 func NewFoundation(logger *slog.Logger, deps handler.DependencyChecker) *gin.Engine {
-	return New(handler.NewServer(logger, deps, nil, nil, nil, nil, nil, nil), logger)
+	return New(handler.NewServer(logger, deps, nil, nil, nil, nil, nil, nil, nil), logger)
 }
 
 func requestLogger(logger *slog.Logger) gin.HandlerFunc {

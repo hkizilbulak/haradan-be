@@ -98,7 +98,7 @@ func newTestEngine(geoRepo *geoRepoStub, catalogRepo *catalogRepoStub) http.Hand
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	geoSvc := appgeo.NewService(geoRepo)
 	catalogSvc := appcatalog.NewService(catalogRepo)
-	srv := handler.NewServer(log, fakeDeps{}, geoSvc, catalogSvc, nil, nil, nil, nil)
+	srv := handler.NewServer(log, fakeDeps{}, geoSvc, catalogSvc, nil, nil, nil, nil, nil)
 	return router.New(srv, log)
 }
 

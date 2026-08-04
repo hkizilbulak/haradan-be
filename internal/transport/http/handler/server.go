@@ -7,6 +7,7 @@ import (
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
+	appfavorite "github.com/hkizilbulak/haradan-be/internal/application/favorite"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
 	apphorse "github.com/hkizilbulak/haradan-be/internal/application/horse"
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
@@ -15,6 +16,7 @@ import (
 	adverthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/advert"
 	authhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/auth"
 	cataloghandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/catalog"
+	favoritehandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/favorite"
 	geohandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/geo"
 	horsehandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/horse"
 	mediahandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/media"
@@ -28,15 +30,16 @@ type DependencyChecker interface {
 // Server is the HTTP transport adapter for OpenAPI operations.
 type Server struct {
 	NotImplementedServer
-	logger  *slog.Logger
-	deps    DependencyChecker
-	geo     *geohandler.Handler
-	catalog *cataloghandler.Handler
-	horse   *horsehandler.Handler
-	advert  *adverthandler.Handler
-	media   *mediahandler.Handler
-	auth    *authhandler.Handler
-	account *accounthandler.Handler
+	logger   *slog.Logger
+	deps     DependencyChecker
+	geo      *geohandler.Handler
+	catalog  *cataloghandler.Handler
+	horse    *horsehandler.Handler
+	advert   *adverthandler.Handler
+	media    *mediahandler.Handler
+	favorite *favoritehandler.Handler
+	auth     *authhandler.Handler
+	account  *accounthandler.Handler
 }
 
 // NewServer constructs the HTTP server implementation.
@@ -48,6 +51,7 @@ func NewServer(
 	horseSvc *apphorse.Service,
 	advertSvc *appadvert.Service,
 	mediaSvc *appmedia.Service,
+	favoriteSvc *appfavorite.Service,
 	authSvc *appauth.Service,
 ) *Server {
 	s := &Server{logger: logger, deps: deps}
@@ -65,6 +69,9 @@ func NewServer(
 	}
 	if mediaSvc != nil {
 		s.media = mediahandler.NewHandler(mediaSvc, logger, respondError)
+	}
+	if favoriteSvc != nil {
+		s.favorite = favoritehandler.NewHandler(favoriteSvc, logger, respondError)
 	}
 	if authSvc != nil {
 		s.auth = authhandler.NewHandler(authSvc, logger, respondError)

@@ -54,7 +54,7 @@ func newMediaEngine(t *testing.T) *mediaTestEnv {
 		t.Fatal(err)
 	}
 
-	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, mediaSvc, authSvc)
+	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, mediaSvc, nil, authSvc)
 	engine := router.New(srv, log, router.Options{AuthService: authSvc})
 
 	do := func(method, path, body, auth string) *httptest.ResponseRecorder {
@@ -201,7 +201,7 @@ func TestInitiateMediaUploadDependencyUnavailableHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, mediaSvc, authSvc)
+	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, mediaSvc, nil, authSvc)
 	engine := router.New(srv, log, router.Options{AuthService: authSvc})
 
 	env := &mediaTestEnv{authSvc: authSvc, do: func(method, path, body, auth string) *httptest.ResponseRecorder {

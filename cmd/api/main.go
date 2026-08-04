@@ -12,6 +12,7 @@ import (
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
+	appfavorite "github.com/hkizilbulak/haradan-be/internal/application/favorite"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
 	apphorse "github.com/hkizilbulak/haradan-be/internal/application/horse"
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
@@ -107,8 +108,12 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("media service: %w", err)
 	}
+	favoriteSvc, err := appfavorite.NewPostgresService(db.Pool(), appfavorite.Config{})
+	if err != nil {
+		return fmt.Errorf("favorite service: %w", err)
+	}
 
-	srvHandler := handler.NewServer(log, db, geoSvc, catalogSvc, horseSvc, advertSvc, mediaSvc, authSvc)
+	srvHandler := handler.NewServer(log, db, geoSvc, catalogSvc, horseSvc, advertSvc, mediaSvc, favoriteSvc, authSvc)
 	engine := router.New(srvHandler, log, router.Options{AuthService: authSvc})
 
 	httpServer := &http.Server{
