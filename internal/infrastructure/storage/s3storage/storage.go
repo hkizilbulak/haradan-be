@@ -205,6 +205,12 @@ func (s *Storage) HeadObject(ctx context.Context, objectKey string) (appmedia.Ob
 	if out.ContentLength != nil {
 		info.ByteSize = *out.ContentLength
 	}
+	if out.ETag != nil {
+		info.ETag = strings.TrimSpace(*out.ETag)
+	}
+	if out.LastModified != nil {
+		info.LastModified = out.LastModified.UTC()
+	}
 	return info, nil
 }
 
@@ -237,9 +243,27 @@ func (s *Storage) PutObject(ctx context.Context, objectKey string, contentType s
 
 // GetObject implements appmedia.Storage.
 func (s *Storage) GetObject(ctx context.Context, objectKey string) ([]byte, string, error) {
-	providerKey, err := s.providerKey(objectKey)
+	reader, err := s.OpenObject(ctx, objectKey)
 	if err != nil {
 		return nil, "", err
+	}
+	defer reader.Body.Close()
+
+	data, err := io.ReadAll(reader.Body)
+	if err != nil {
+		if mapped := mapContextError(err); mapped != nil {
+			return nil, "", mapped
+		}
+		return nil, "", apperr.Internal(fmt.Errorf("read object body: %w", err))
+	}
+	return data, reader.ContentType, nil
+}
+
+// OpenObject implements streaming object reads for public media delivery.
+func (s *Storage) OpenObject(ctx context.Context, objectKey string) (appmedia.ObjectReader, error) {
+	providerKey, err := s.providerKey(objectKey)
+	if err != nil {
+		return appmedia.ObjectReader{}, err
 	}
 
 	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
@@ -247,23 +271,23 @@ func (s *Storage) GetObject(ctx context.Context, objectKey string) ([]byte, stri
 		Key:    aws.String(providerKey),
 	})
 	if err != nil {
-		return nil, "", mapGetObjectError(err)
-	}
-	defer out.Body.Close()
-
-	data, err := io.ReadAll(out.Body)
-	if err != nil {
-		if mapped := mapContextError(err); mapped != nil {
-			return nil, "", mapped
-		}
-		return nil, "", apperr.Internal(fmt.Errorf("read object body: %w", err))
+		return appmedia.ObjectReader{}, mapGetObjectError(err)
 	}
 
-	contentType := ""
+	reader := appmedia.ObjectReader{Body: out.Body}
 	if out.ContentType != nil {
-		contentType = *out.ContentType
+		reader.ContentType = *out.ContentType
 	}
-	return data, contentType, nil
+	if out.ContentLength != nil {
+		reader.ByteSize = *out.ContentLength
+	}
+	if out.ETag != nil {
+		reader.ETag = strings.TrimSpace(*out.ETag)
+	}
+	if out.LastModified != nil {
+		reader.LastModified = out.LastModified.UTC()
+	}
+	return reader, nil
 }
 
 // DeleteObject implements idempotent object removal.

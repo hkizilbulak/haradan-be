@@ -447,6 +447,10 @@ func (r *recordingEmail) SendRegistrationVerification(_ context.Context, _, plai
 	return nil
 }
 
+func (r *recordingEmail) SendPasswordReset(ctx context.Context, toEmail, plaintextToken string) error {
+	return r.SendRegistrationVerification(ctx, toEmail, plaintextToken)
+}
+
 func TestRegisterEmailFailureRecoveredByResendThenVerify(t *testing.T) {
 	mail := &recordingEmail{failN: 1}
 	svc, store, _ := NewMemoryServiceForTestWithEmail(t, mail)

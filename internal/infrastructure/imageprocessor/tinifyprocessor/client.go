@@ -193,7 +193,7 @@ func canonicalContentType(raw string) (string, error) {
 		v = strings.TrimSpace(v[:i])
 	}
 	switch v {
-	case "image/jpeg", "image/png":
+	case "image/jpeg", "image/png", "image/webp":
 		return v, nil
 	default:
 		return "", fmt.Errorf("unsupported content type")

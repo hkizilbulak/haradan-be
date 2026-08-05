@@ -57,6 +57,12 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 		BaseURL:      APIBasePath,
 		ErrorHandler: generatedParseErrorHandler(logger),
 	})
+
+	// Anonymous public media HEAD is registered outside OpenAPI; GET is generated.
+	// Range requests are not implemented yet.
+	if deliverer, ok := server.(interface{ DeliverPublicMedia(*gin.Context) }); ok {
+		r.HEAD(APIBasePath+"/v1/media/:assetId/:profile", deliverer.DeliverPublicMedia)
+	}
 	return r
 }
 

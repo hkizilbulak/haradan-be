@@ -12,6 +12,7 @@ const (
 	dependencyUnavailableMessage  = "Görsel işleme servisi şu anda kullanılamıyor."
 	invalidImageMessage           = "Geçersiz görsel."
 	unsupportedImageMessage       = "Desteklenmeyen görsel formatı."
+	fileTooLargeMessage           = "Dosya izin verilen boyuttan büyük."
 	invalidProfileMessage         = "Geçersiz dönüşüm profili."
 	processorMisconfiguredMessage = "Görsel işleme yapılandırması geçersiz."
 )

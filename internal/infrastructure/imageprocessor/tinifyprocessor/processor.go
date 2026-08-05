@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	_ "golang.org/x/image/webp"
+
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
@@ -118,7 +120,8 @@ func (p *Processor) ValidateAndNormalize(
 	}, nil
 }
 
-// GenerateVariant locally fit-resizes the master, then compresses once via Tinify.
+// GenerateVariant locally fit-resizes the master (advert profiles), then
+// compresses once via Tinify. BANNER is compress-only (no resize).
 func (p *Processor) GenerateVariant(
 	ctx context.Context,
 	master []byte,
@@ -133,6 +136,11 @@ func (p *Processor) GenerateVariant(
 			Message: invalidProfileMessage,
 		})
 	}
+
+	if profile == domainmedia.ProfileBanner {
+		return p.compressOnly(ctx, master)
+	}
+
 	bounds, ok := p.profiles[profile]
 	if !ok || bounds.Width <= 0 || bounds.Height <= 0 {
 		return appmedia.ProcessedImage{}, apperr.DependencyUnavailable(processorMisconfiguredMessage)
@@ -147,12 +155,16 @@ func (p *Processor) GenerateVariant(
 	if err != nil {
 		return appmedia.ProcessedImage{}, validationImage(invalidImageMessage, "file")
 	}
+	expectedType := src.ContentType
+	if src.ContentType == "image/webp" {
+		expectedType = "image/png"
+	}
 
 	out, err := p.client.shrink(ctx, resized)
 	if err != nil {
 		return appmedia.ProcessedImage{}, sanitizeErr(err)
 	}
-	if out.ContentType != src.ContentType {
+	if out.ContentType != expectedType {
 		return appmedia.ProcessedImage{}, dependencyError()
 	}
 	if out.Width != w || out.Height != h {
@@ -169,9 +181,35 @@ func (p *Processor) GenerateVariant(
 	}, nil
 }
 
+func (p *Processor) compressOnly(ctx context.Context, master []byte) (appmedia.ProcessedImage, error) {
+	src, err := validateRawImage(master, "")
+	if err != nil {
+		return appmedia.ProcessedImage{}, err
+	}
+	out, err := p.client.shrink(ctx, master)
+	if err != nil {
+		return appmedia.ProcessedImage{}, sanitizeErr(err)
+	}
+	if out.ContentType != src.ContentType {
+		return appmedia.ProcessedImage{}, dependencyError()
+	}
+	if out.Width <= 0 || out.Height <= 0 || len(out.Bytes) == 0 {
+		return appmedia.ProcessedImage{}, dependencyError()
+	}
+	return appmedia.ProcessedImage{
+		ContentType: out.ContentType,
+		Bytes:       out.Bytes,
+		Width:       out.Width,
+		Height:      out.Height,
+	}, nil
+}
+
 func validateRawImage(raw []byte, declaredType string) (decodedImage, error) {
 	if len(raw) == 0 {
 		return decodedImage{}, validationImage(invalidImageMessage, "file")
+	}
+	if int64(len(raw)) > domainmedia.MaxUploadBytes {
+		return decodedImage{}, validationImage(fileTooLargeMessage, "file")
 	}
 
 	sniffed := http.DetectContentType(raw)
@@ -217,6 +255,8 @@ func decodeImage(raw []byte) (decodedImage, error) {
 		expected = "image/jpeg"
 	case "png":
 		expected = "image/png"
+	case "webp":
+		expected = "image/webp"
 	default:
 		return decodedImage{}, validationImage(unsupportedImageMessage, "contentType")
 	}

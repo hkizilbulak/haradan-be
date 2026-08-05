@@ -2,8 +2,8 @@
 // worker steps behind them.
 //
 // Two invariants shape every projection in this file: object keys never reach a
-// client, and a MASTER_READY asset says nothing about variant readiness. Public
-// URL construction is not decided yet, so variant publicUrl is always nil here.
+// client, and a MASTER_READY asset says nothing about variant readiness. READY
+// variants project PublicDeliveryURL relative paths (never object keys).
 package media
 
 import (
@@ -111,9 +111,8 @@ type InitiateView struct {
 	Constraints UploadConstraintsView `json:"constraints"`
 }
 
-// VariantStatusView is the per-profile readiness of one variant. PublicURL stays
-// nil in this slice because the public URL strategy is undecided; it must never
-// be filled with an object key.
+// VariantStatusView is the per-profile readiness of one variant. PublicURL is
+// the same-origin delivery path for READY variants; object keys never appear.
 type VariantStatusView struct {
 	TransformProfile string                       `json:"transformProfile"`
 	LifecycleStatus  domainmedia.VariantLifecycle `json:"lifecycleStatus"`
@@ -156,14 +155,15 @@ func (s *Service) InitiateMediaUpload(
 	ownerID uuid.UUID,
 	in InitiateInput,
 ) (InitiateView, error) {
-	if len(s.allowedContentTypes) == 0 || s.maxByteSize <= 0 {
+	maxBytes := effectiveMaxByteSize(s.maxByteSize)
+	if len(s.allowedContentTypes) == 0 {
 		return InitiateView{}, apperr.DependencyUnavailable(mediaNotConfiguredMessage)
 	}
 	declaredType, err := validateDeclaredContentType(s.allowedContentTypes, in.DeclaredContentType)
 	if err != nil {
 		return InitiateView{}, err
 	}
-	if err := validateDeclaredByteSize(s.maxByteSize, in.DeclaredByteSize); err != nil {
+	if err := validateDeclaredByteSize(maxBytes, in.DeclaredByteSize); err != nil {
 		return InitiateView{}, err
 	}
 
@@ -190,7 +190,7 @@ func (s *Service) InitiateMediaUpload(
 		return InitiateView{}, err
 	}
 
-	auth, err := s.storage.CreateUploadAuthorization(ctx, rawKey, declaredType, s.maxByteSize, s.uploadURLTTL)
+	auth, err := s.storage.CreateUploadAuthorization(ctx, rawKey, declaredType, maxBytes, s.uploadURLTTL)
 	if err != nil {
 		return InitiateView{}, err
 	}
@@ -205,7 +205,7 @@ func (s *Service) InitiateMediaUpload(
 		},
 		Constraints: UploadConstraintsView{
 			AllowedContentTypes: append([]string(nil), s.allowedContentTypes...),
-			MaxByteSize:         s.maxByteSize,
+			MaxByteSize:         maxBytes,
 			RequiredHeaders:     headerNames(auth.Headers),
 		},
 	}, nil
@@ -233,9 +233,9 @@ func (s *Service) ConfirmMediaUpload(ctx context.Context, ownerID, assetID uuid.
 		return ProcessingView{}, apperr.InvalidState(assetNotConfirmableMessage)
 	}
 
-	// Without MIME/size limits we cannot validate provider metadata; fail closed
+	// Without MIME limits we cannot validate provider metadata; fail closed
 	// rather than accepting an object under invented ceilings.
-	if len(s.allowedContentTypes) == 0 || s.maxByteSize <= 0 {
+	if len(s.allowedContentTypes) == 0 {
 		return ProcessingView{}, apperr.DependencyUnavailable(mediaNotConfiguredMessage)
 	}
 
@@ -629,7 +629,7 @@ func ownerMediaView(advertID uuid.UUID, mediaVersion int, rows []RelationRow) Ow
 }
 
 // processingView projects an asset and its variants. No object key is copied
-// into the result, and publicUrl stays nil until the public URL strategy exists.
+// into the result. READY variants expose PublicDeliveryURL relative paths.
 func (s *Service) processingView(ctx context.Context, asset domainmedia.Asset) (ProcessingView, error) {
 	variants, err := s.repo.ListVariantsByAsset(ctx, asset.ID)
 	if err != nil {
@@ -637,10 +637,17 @@ func (s *Service) processingView(ctx context.Context, asset domainmedia.Asset) (
 	}
 	items := make([]VariantStatusView, 0, len(variants))
 	for _, v := range variants {
-		items = append(items, VariantStatusView{
+		item := VariantStatusView{
 			TransformProfile: v.TransformProfile,
 			LifecycleStatus:  v.LifecycleStatus,
-		})
+		}
+		if v.LifecycleStatus == domainmedia.VariantReady && domainmedia.IsKnownDeliveryProfile(v.TransformProfile) {
+			url := domainmedia.PublicDeliveryURL(asset.ID, v.TransformProfile)
+			if url != "" {
+				item.PublicURL = &url
+			}
+		}
+		items = append(items, item)
 	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].TransformProfile < items[j].TransformProfile })
 	return ProcessingView{

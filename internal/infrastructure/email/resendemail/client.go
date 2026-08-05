@@ -13,6 +13,7 @@ import (
 const (
 	maxErrorBodyBytes = 4 << 10 // 4 KiB
 	emailsPath        = "/emails"
+	templatesPath     = "/templates"
 )
 
 type httpDoer interface {

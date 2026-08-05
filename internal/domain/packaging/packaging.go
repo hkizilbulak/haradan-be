@@ -1,35 +1,34 @@
 // Package packaging holds package catalog, advert package assignments, and
-// URGENT feature activation aggregates aligned with migration 00009.
+// URGENT feature activation aggregates aligned with migrations 00009/00011.
 package packaging
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-// PackageCode is the catalog code CHECK set.
+// PackageCode is a dynamic catalog code (uppercase-normalized).
+// Format: [A-Z0-9][A-Z0-9_-]{1,63}
 type PackageCode string
 
-const (
-	PackageCodeStarter  PackageCode = "STARTER"
-	PackageCodeMiddle   PackageCode = "MIDDLE"
-	PackageCodeAdvanced PackageCode = "ADVANCED"
-)
+var packageCodePattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9_-]{1,63}$`)
 
-// Valid reports whether c is a known package code.
+// Valid reports whether c matches the controlled package code format.
 func (c PackageCode) Valid() bool {
-	switch c {
-	case PackageCodeStarter, PackageCodeMiddle, PackageCodeAdvanced:
-		return true
-	}
-	return false
+	return packageCodePattern.MatchString(string(c))
 }
 
-// ParsePackageCode converts an external value into a PackageCode.
+// NormalizePackageCode trims and uppercases an external code value.
+func NormalizePackageCode(v string) PackageCode {
+	return PackageCode(strings.ToUpper(strings.TrimSpace(v)))
+}
+
+// ParsePackageCode converts an external value into a normalized PackageCode.
 func ParsePackageCode(v string) (PackageCode, bool) {
-	c := PackageCode(strings.TrimSpace(v))
+	c := NormalizePackageCode(v)
 	return c, c.Valid()
 }
 
@@ -112,6 +111,7 @@ type Package struct {
 	AllowsUrgent            bool
 	ShowcaseEligible        bool
 	SearchPriority          int
+	BroadcastOnPublish      bool
 	IsActive                bool
 	SortOrder               int
 	Version                 int
@@ -121,7 +121,13 @@ type Package struct {
 
 // AllowsUrgentFeature reports whether this package may host URGENT.
 func (p Package) AllowsUrgentFeature() bool {
-	return p.AllowsUrgent && p.Code == PackageCodeAdvanced
+	return p.AllowsUrgent
+}
+
+// EmitsPublishBroadcast reports whether assigning/publishing with this package
+// should fan out the global PACKAGE_ADVERT_PUBLISHED notification.
+func (p Package) EmitsPublishBroadcast() bool {
+	return p.BroadcastOnPublish
 }
 
 // AdvertPackageAssignment is a package entitlement history row.

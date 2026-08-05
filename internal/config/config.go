@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 )
 
 // Config holds process configuration loaded from environment variables.
@@ -38,11 +40,8 @@ type Config struct {
 	Argon2Threads        uint8
 	Argon2KeyLen         uint32
 
-	// Media upload settings. All three are optional: the exact MIME allowlist,
-	// byte ceiling and pixel bounds are open product/technical decisions, so no
-	// value is defaulted here. While the allowlist is empty or the byte ceiling
-	// is unset, upload initiation reports the dependency as unavailable instead
-	// of accepting a file under invented limits.
+	// Media upload settings. MIME allowlist stays optional (empty = uploads
+	// unavailable). MEDIA_MAX_BYTE_SIZE defaults to 64 MiB and is capped there.
 	MediaAllowedContentTypes []string
 	MediaMaxByteSize         int64
 	MediaUploadURLTTL        time.Duration
@@ -79,7 +78,9 @@ type Config struct {
 	FromEmail                                string
 	FromName                                 string
 	FrontendURL                              string
-	ResendRegistrationVerificationTemplateID string
+	ResendRegistrationVerificationTemplateID string // legacy alias for welcome template
+	ResendWelcomeTemplateID                  string
+	ResendResetPasswordTemplateID            string
 	EmailHTTPTimeout                         time.Duration
 	ResendBaseURL                            string
 
@@ -100,17 +101,25 @@ type Config struct {
 	PackageExpiryScanHour          int
 	PackageExpirySchedulerInterval time.Duration
 	PackageExpiryScanBatchSize     int
-	MediaPublicBaseURL             string
+	// JobSchedulerRefreshInterval reloads active hrd_job_definitions into the
+	// worker cron scheduler. The legacy PACKAGE_EXPIRY_SCHEDULER_INTERVAL is
+	// retained for config compatibility but the job-definition scheduler is
+	// authoritative for PACKAGE_EXPIRY_SCAN.
+	JobSchedulerRefreshInterval time.Duration
+	MediaPublicBaseURL          string
 
-	// TJK is intentionally disabled unless a public scrape endpoint is
-	// configured. It has no credentials, but is kept opt-in to prevent jobs
-	// being claimed by workers that cannot complete them.
+	// TJK is intentionally disabled unless enabled. It has no credentials, but
+	// is kept opt-in to prevent jobs being claimed by workers that cannot
+	// complete them. When enabled without TJK_BASE_URL, the legacy public host
+	// https://www.tjk.org is used.
 	TJKEnabled      bool
 	TJKBaseURL      string
 	TJKHTTPTimeout  time.Duration
 	TJKBatchSize    int
 	TJKMaxBodyBytes int64
 }
+
+const defaultTJKBaseURL = "https://www.tjk.org"
 
 // Supported STORAGE_PROVIDER values after normalization.
 const (
@@ -238,11 +247,17 @@ func Load() (Config, error) {
 	}
 
 	cfg.MediaAllowedContentTypes = csvEnv("MEDIA_ALLOWED_CONTENT_TYPES")
-	if cfg.MediaMaxByteSize, err = int64Env("MEDIA_MAX_BYTE_SIZE", 0); err != nil {
+	if cfg.MediaMaxByteSize, err = int64Env("MEDIA_MAX_BYTE_SIZE", domainmedia.MaxUploadBytes); err != nil {
 		return Config{}, err
 	}
 	if cfg.MediaMaxByteSize < 0 {
 		return Config{}, fmt.Errorf("MEDIA_MAX_BYTE_SIZE must not be negative")
+	}
+	if cfg.MediaMaxByteSize == 0 {
+		cfg.MediaMaxByteSize = domainmedia.MaxUploadBytes
+	}
+	if cfg.MediaMaxByteSize > domainmedia.MaxUploadBytes {
+		cfg.MediaMaxByteSize = domainmedia.MaxUploadBytes
 	}
 	if cfg.MediaUploadURLTTL, err = durationEnv("MEDIA_UPLOAD_URL_TTL", 15*time.Minute); err != nil {
 		return Config{}, err
@@ -294,6 +309,7 @@ func Load() (Config, error) {
 	if cfg.MediaProfileSearchH, err = optionalPositiveIntEnv("MEDIA_PROFILE_SEARCH_HEIGHT"); err != nil {
 		return Config{}, err
 	}
+	cfg = applyDefaultMediaProfileDimensions(cfg)
 	if err := validateImageProcessorConfig(cfg); err != nil {
 		return Config{}, err
 	}
@@ -306,6 +322,9 @@ func Load() (Config, error) {
 	cfg.FromName = strings.TrimSpace(os.Getenv("FROM_NAME"))
 	cfg.FrontendURL = strings.TrimSpace(os.Getenv("FRONTEND_URL"))
 	cfg.ResendRegistrationVerificationTemplateID = strings.TrimSpace(os.Getenv("RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID"))
+	cfg.ResendWelcomeTemplateID = strings.TrimSpace(os.Getenv("RESEND_WELCOME_TEMPLATE_ID"))
+	cfg.ResendResetPasswordTemplateID = strings.TrimSpace(os.Getenv("RESEND_RESET_PASSWORD_TEMPLATE_ID"))
+	cfg = applyDefaultResendTemplateIDs(cfg)
 	if cfg.ResendBaseURL, err = normalizeResendBaseURL(
 		getenvDefault("RESEND_BASE_URL", defaultResendBaseURL),
 	); err != nil {
@@ -366,6 +385,9 @@ func Load() (Config, error) {
 	if cfg.PackageExpirySchedulerInterval, err = durationEnv("PACKAGE_EXPIRY_SCHEDULER_INTERVAL", time.Hour); err != nil {
 		return Config{}, err
 	}
+	if cfg.JobSchedulerRefreshInterval, err = durationEnv("JOB_SCHEDULER_REFRESH_INTERVAL", time.Minute); err != nil {
+		return Config{}, err
+	}
 	if cfg.PackageExpiryScanBatchSize, err = intEnv("PACKAGE_EXPIRY_SCAN_BATCH_SIZE", 100); err != nil {
 		return Config{}, err
 	}
@@ -379,12 +401,15 @@ func Load() (Config, error) {
 	if cfg.PackageExpiryScanHour < 0 || cfg.PackageExpiryScanHour > 23 {
 		return Config{}, fmt.Errorf("PACKAGE_EXPIRY_SCAN_HOUR must be between 0 and 23")
 	}
+	if cfg.JobSchedulerRefreshInterval <= 0 {
+		return Config{}, fmt.Errorf("JOB_SCHEDULER_REFRESH_INTERVAL must be greater than zero")
+	}
 	if _, err := time.LoadLocation(cfg.PackageExpiryTimezone); err != nil {
 		return Config{}, fmt.Errorf("PACKAGE_EXPIRY_TIMEZONE is not valid")
 	}
 
 	cfg.TJKBaseURL = strings.TrimSpace(os.Getenv("TJK_BASE_URL"))
-	if cfg.TJKHTTPTimeout, err = durationEnv("TJK_HTTP_TIMEOUT", 20*time.Second); err != nil {
+	if cfg.TJKHTTPTimeout, err = durationEnv("TJK_HTTP_TIMEOUT", 60*time.Second); err != nil {
 		return Config{}, err
 	}
 	if cfg.TJKBatchSize, err = intEnv("TJK_BATCH_SIZE", 100); err != nil {
@@ -404,7 +429,7 @@ func Load() (Config, error) {
 	}
 	if cfg.TJKEnabled {
 		if cfg.TJKBaseURL == "" {
-			return Config{}, fmt.Errorf("TJK_BASE_URL must not be empty when TJK_ENABLED=true")
+			cfg.TJKBaseURL = defaultTJKBaseURL
 		}
 		u, parseErr := url.Parse(cfg.TJKBaseURL)
 		if parseErr != nil || u.Scheme == "" || u.Host == "" || u.User != nil {
@@ -480,11 +505,10 @@ func validateStorageConfig(cfg Config) error {
 }
 
 func validateMediaPublicBaseURL(cfg Config) error {
-	if cfg.StorageProvider != StorageProviderB2 {
-		return nil
-	}
 	if cfg.MediaPublicBaseURL == "" {
-		return fmt.Errorf("MEDIA_PUBLIC_BASE_URL must not be empty when STORAGE_PROVIDER=b2")
+		// Private B2 + same-origin /v1/media/{id}/{profile} delivery does not
+		// require a public CDN origin.
+		return nil
 	}
 	u, err := url.Parse(cfg.MediaPublicBaseURL)
 	if err != nil || u.Scheme == "" || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
@@ -494,6 +518,56 @@ func validateMediaPublicBaseURL(cfg Config) error {
 		return fmt.Errorf("MEDIA_PUBLIC_BASE_URL must not contain query or fragment")
 	}
 	return nil
+}
+
+func applyDefaultMediaProfileDimensions(cfg Config) Config {
+	if d, ok := domainmedia.DefaultProfileDimensions(domainmedia.ProfileDetail); ok {
+		if cfg.MediaProfileDetailW <= 0 {
+			cfg.MediaProfileDetailW = d.Width
+		}
+		if cfg.MediaProfileDetailH <= 0 {
+			cfg.MediaProfileDetailH = d.Height
+		}
+	}
+	if d, ok := domainmedia.DefaultProfileDimensions(domainmedia.ProfileHomepage); ok {
+		if cfg.MediaProfileHomepageW <= 0 {
+			cfg.MediaProfileHomepageW = d.Width
+		}
+		if cfg.MediaProfileHomepageH <= 0 {
+			cfg.MediaProfileHomepageH = d.Height
+		}
+	}
+	if d, ok := domainmedia.DefaultProfileDimensions(domainmedia.ProfileSearch); ok {
+		if cfg.MediaProfileSearchW <= 0 {
+			cfg.MediaProfileSearchW = d.Width
+		}
+		if cfg.MediaProfileSearchH <= 0 {
+			cfg.MediaProfileSearchH = d.Height
+		}
+	}
+	return cfg
+}
+
+const (
+	defaultResendWelcomeTemplateID       = "welcome-email"
+	defaultResendResetPasswordTemplateID = "reset-password"
+)
+
+func applyDefaultResendTemplateIDs(cfg Config) Config {
+	if cfg.ResendWelcomeTemplateID == "" {
+		if cfg.ResendRegistrationVerificationTemplateID != "" {
+			cfg.ResendWelcomeTemplateID = cfg.ResendRegistrationVerificationTemplateID
+		} else {
+			cfg.ResendWelcomeTemplateID = defaultResendWelcomeTemplateID
+		}
+	}
+	if cfg.ResendRegistrationVerificationTemplateID == "" {
+		cfg.ResendRegistrationVerificationTemplateID = cfg.ResendWelcomeTemplateID
+	}
+	if cfg.ResendResetPasswordTemplateID == "" {
+		cfg.ResendResetPasswordTemplateID = defaultResendResetPasswordTemplateID
+	}
+	return cfg
 }
 
 func normalizeImageProcessorProvider(raw string) (string, error) {
@@ -568,10 +642,10 @@ func validateImageProcessorConfig(cfg Config) error {
 		}
 		for _, ct := range cfg.MediaAllowedContentTypes {
 			switch strings.ToLower(strings.TrimSpace(ct)) {
-			case "image/jpeg", "image/png":
+			case "image/jpeg", "image/png", "image/webp":
 				continue
 			default:
-				return fmt.Errorf("MEDIA_ALLOWED_CONTENT_TYPES may only include image/jpeg and image/png when IMAGE_PROCESSOR_PROVIDER=tinify")
+				return fmt.Errorf("MEDIA_ALLOWED_CONTENT_TYPES may only include image/jpeg, image/png, and image/webp when IMAGE_PROCESSOR_PROVIDER=tinify")
 			}
 		}
 		return nil
@@ -659,11 +733,20 @@ func validateEmailConfig(cfg Config) error {
 		if err := validateFrontendURL(cfg.FrontendURL); err != nil {
 			return err
 		}
-		if cfg.ResendRegistrationVerificationTemplateID == "" {
-			return fmt.Errorf("RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID must not be empty when EMAIL_PROVIDER=resend")
+		if cfg.ResendWelcomeTemplateID == "" {
+			return fmt.Errorf("RESEND_WELCOME_TEMPLATE_ID must not be empty when EMAIL_PROVIDER=resend")
 		}
-		if containsCRLF(cfg.ResendRegistrationVerificationTemplateID) {
-			return fmt.Errorf("RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID must not contain CR or LF")
+		if containsCRLF(cfg.ResendWelcomeTemplateID) {
+			return fmt.Errorf("RESEND_WELCOME_TEMPLATE_ID must not contain CR or LF")
+		}
+		if cfg.ResendResetPasswordTemplateID == "" {
+			return fmt.Errorf("RESEND_RESET_PASSWORD_TEMPLATE_ID must not be empty when EMAIL_PROVIDER=resend")
+		}
+		if containsCRLF(cfg.ResendResetPasswordTemplateID) {
+			return fmt.Errorf("RESEND_RESET_PASSWORD_TEMPLATE_ID must not contain CR or LF")
+		}
+		if cfg.ResendWelcomeTemplateID == cfg.ResendResetPasswordTemplateID {
+			return fmt.Errorf("RESEND_WELCOME_TEMPLATE_ID and RESEND_RESET_PASSWORD_TEMPLATE_ID must differ")
 		}
 		return nil
 	default:

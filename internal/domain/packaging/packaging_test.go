@@ -8,19 +8,30 @@ import (
 )
 
 func TestPackageCodeAndUrgentHelpers(t *testing.T) {
-	if !domainpackaging.PackageCodeAdvanced.Valid() {
-		t.Fatal("advanced valid")
+	if !domainpackaging.PackageCode("ADVANCED").Valid() {
+		t.Fatal("ADVANCED remains a valid dynamic code")
 	}
-	if domainpackaging.PackageCode("PAYMENT").Valid() {
-		t.Fatal("PAYMENT must be invalid")
+	if !domainpackaging.PackageCode("CUSTOM_PRO").Valid() {
+		t.Fatal("dynamic codes must be valid")
 	}
-	p := domainpackaging.Package{Code: domainpackaging.PackageCodeAdvanced, AllowsUrgent: true}
+	if domainpackaging.PackageCode("bad code").Valid() {
+		t.Fatal("invalid format must be rejected")
+	}
+	p := domainpackaging.Package{Code: domainpackaging.PackageCode("ADVANCED"), AllowsUrgent: true}
 	if !p.AllowsUrgentFeature() {
 		t.Fatal("expected allows urgent feature")
 	}
 	p.AllowsUrgent = false
 	if p.AllowsUrgentFeature() {
 		t.Fatal("requires allows_urgent")
+	}
+	p.BroadcastOnPublish = true
+	if !p.EmitsPublishBroadcast() {
+		t.Fatal("expected broadcast on publish")
+	}
+	p.BroadcastOnPublish = false
+	if p.EmitsPublishBroadcast() {
+		t.Fatal("broadcast requires flag")
 	}
 }
 

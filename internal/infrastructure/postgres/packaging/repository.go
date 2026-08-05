@@ -26,7 +26,7 @@ const (
 
 const packageColumns = `id, code, display_name, description, badge_text, benefits,
 display_price_amount_minor, currency_code, default_duration_days, allows_urgent,
-showcase_eligible, search_priority, is_active, sort_order, version, created_at, updated_at`
+showcase_eligible, search_priority, broadcast_on_publish, is_active, sort_order, version, created_at, updated_at`
 
 const assignmentColumns = `id, advert_id, package_id, status, starts_at, ends_at,
 assigned_by_user_id, assigned_at, superseded_at, expired_at, cancelled_at, reason,
@@ -113,6 +113,35 @@ func (r *Repository) LockPackageByCode(ctx context.Context, code domainpackaging
 	return p, nil
 }
 
+// CreatePackage inserts a new package catalog row.
+func (r *Repository) CreatePackage(ctx context.Context, p domainpackaging.Package) error {
+	const q = `
+INSERT INTO hrd_packages (
+  id, code, display_name, description, badge_text, benefits,
+  display_price_amount_minor, currency_code, default_duration_days, allows_urgent,
+  showcase_eligible, search_priority, broadcast_on_publish, is_active, sort_order,
+  version, created_at, updated_at
+) VALUES (
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18
+)`
+	_, err := r.db.Exec(ctx, q,
+		p.ID, string(p.Code), p.DisplayName, p.Description, p.BadgeText, p.BenefitsJSON,
+		p.DisplayPriceAmountMinor, p.CurrencyCode, p.DefaultDurationDays, p.AllowsUrgent,
+		p.ShowcaseEligible, p.SearchPriority, p.BroadcastOnPublish, p.IsActive, p.SortOrder,
+		p.Version, p.CreatedAt, p.UpdatedAt,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return apperr.Conflict("Bu paket kodu zaten kullanılıyor.")
+		}
+		if isCheckViolation(err) {
+			return apperr.Validation("Paket oluşturma geçersiz.")
+		}
+		return apperr.Internal(fmt.Errorf("create package: %w", pg.SanitizeErr(err)))
+	}
+	return nil
+}
+
 // UpdatePackageOptimistic updates a package when version matches.
 func (r *Repository) UpdatePackageOptimistic(
 	ctx context.Context,
@@ -131,9 +160,10 @@ SET display_name = $3,
     allows_urgent = $10,
     showcase_eligible = $11,
     search_priority = $12,
-    is_active = $13,
-    sort_order = $14,
-    updated_at = $15,
+    broadcast_on_publish = $13,
+    is_active = $14,
+    sort_order = $15,
+    updated_at = $16,
     version = version + 1
 WHERE code = $1 AND version = $2
 RETURNING ` + packageColumns
@@ -141,7 +171,8 @@ RETURNING ` + packageColumns
 		string(p.Code), expectedVersion,
 		p.DisplayName, p.Description, p.BadgeText, p.BenefitsJSON,
 		p.DisplayPriceAmountMinor, p.CurrencyCode, p.DefaultDurationDays,
-		p.AllowsUrgent, p.ShowcaseEligible, p.SearchPriority, p.IsActive, p.SortOrder,
+		p.AllowsUrgent, p.ShowcaseEligible, p.SearchPriority, p.BroadcastOnPublish,
+		p.IsActive, p.SortOrder,
 		p.UpdatedAt,
 	)
 	out, err := scanPackage(row)
@@ -510,7 +541,8 @@ func scanPackage(row rowScanner) (domainpackaging.Package, error) {
 	err := row.Scan(
 		&p.ID, &code, &p.DisplayName, &p.Description, &p.BadgeText, &p.BenefitsJSON,
 		&p.DisplayPriceAmountMinor, &p.CurrencyCode, &p.DefaultDurationDays, &p.AllowsUrgent,
-		&p.ShowcaseEligible, &p.SearchPriority, &p.IsActive, &p.SortOrder, &p.Version, &p.CreatedAt, &p.UpdatedAt,
+		&p.ShowcaseEligible, &p.SearchPriority, &p.BroadcastOnPublish, &p.IsActive, &p.SortOrder,
+		&p.Version, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
 		return domainpackaging.Package{}, err

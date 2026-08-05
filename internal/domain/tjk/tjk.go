@@ -43,6 +43,12 @@ type ItemError struct {
 	ResolvedAt                  *time.Time
 }
 
+// HorseInput is the normalized TJK sync upsert payload. Detail holds only
+// controlled domain-detail JSONB keys (pedigree/siblings/statistics); advert
+// rows are never written by this path.
 type HorseInput struct {
 	Number, Name, Race, Sire, Dam string
+	BirthYear                     *int
+	Gender                        *string
+	Detail                        json.RawMessage
 }

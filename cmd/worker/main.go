@@ -11,6 +11,8 @@ import (
 
 	"github.com/google/uuid"
 
+	appjobadmin "github.com/hkizilbulak/haradan-be/internal/application/jobadmin"
+	"github.com/hkizilbulak/haradan-be/internal/application/jobscheduler"
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	appnotification "github.com/hkizilbulak/haradan-be/internal/application/notification"
 	apptjk "github.com/hkizilbulak/haradan-be/internal/application/tjk"
@@ -19,6 +21,7 @@ import (
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/email/resendemail"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/imageprocessor/tinifyprocessor"
+	pgjobdef "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/jobdef"
 	pgtjk "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/tjk"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/storage/s3storage"
 	tjkclient "github.com/hkizilbulak/haradan-be/internal/infrastructure/tjk"
@@ -113,7 +116,9 @@ func run() error {
 		sender, err := resendemail.New(resendemail.Config{
 			APIKey: cfg.ResendAPIKey, BaseURL: cfg.ResendBaseURL, HTTPTimeout: cfg.EmailHTTPTimeout,
 			FromEmail: cfg.FromEmail, FromName: cfg.FromName, FrontendURL: cfg.FrontendURL,
-			TemplateID: cfg.ResendRegistrationVerificationTemplateID,
+			WelcomeTemplateID:       cfg.ResendWelcomeTemplateID,
+			ResetPasswordTemplateID: cfg.ResendResetPasswordTemplateID,
+			TemplateID:              cfg.ResendRegistrationVerificationTemplateID,
 		})
 		if err != nil {
 			return fmt.Errorf("notification email sender: %w", err)
@@ -125,16 +130,35 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("notification runtime: %w", err)
 	}
-	scheduler, err := notificationWorker.NewExpiryScheduler(cfg.PackageExpirySchedulerInterval, log)
-	if err != nil {
-		return fmt.Errorf("notification expiry scheduler: %w", err)
+
+	jobRepo := pgjobdef.NewRepository(db.Pool())
+	caps := appjobadmin.ProviderCapabilities{
+		TJKEnabled: cfg.TJKEnabled,
+		B2Enabled:  cfg.StorageProvider == config.StorageProviderB2,
 	}
+	loc, err := time.LoadLocation(cfg.PackageExpiryTimezone)
+	if err != nil {
+		return fmt.Errorf("job scheduler timezone: %w", err)
+	}
+	defScheduler, err := jobscheduler.New(jobscheduler.Config{
+		Definitions:     jobRepo,
+		Enqueuer:        jobRepo,
+		Capabilities:    caps,
+		RefreshInterval: cfg.JobSchedulerRefreshInterval,
+		Location:        loc,
+		Logger:          log,
+	})
+	if err != nil {
+		return fmt.Errorf("job definition scheduler: %w", err)
+	}
+
 	supported := []domainmedia.JobType{
 		domainmedia.JobValidateAndNormalize,
 		domainmedia.JobGenerateVariant,
 		domainmedia.JobDeleteObjects,
 		domainmedia.JobReconcile,
-		domainmedia.JobNotificationFanoutAdvancedAdvert,
+		domainmedia.JobNotificationFanoutPackageAdvert,
+		domainmedia.JobNotificationFanoutAdvancedAdvert, // historical rows
 		domainmedia.JobNotificationFanoutUrgentAdvert,
 		domainmedia.JobPackageExpiryReminderScan,
 	}
@@ -168,7 +192,7 @@ func run() error {
 
 	runCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	go scheduler.Run(runCtx)
+	go defScheduler.Run(runCtx)
 	if cfg.TJKEnabled {
 		client, err := tjkclient.NewClient(tjkclient.Config{BaseURL: cfg.TJKBaseURL, HTTPTimeout: cfg.TJKHTTPTimeout, MaxBodyBytes: cfg.TJKMaxBodyBytes})
 		if err != nil {
@@ -184,7 +208,7 @@ func run() error {
 	if err := runner.Run(runCtx); err != nil {
 		return fmt.Errorf("runner: %w", err)
 	}
-	scheduler.Wait()
+	defScheduler.Wait()
 	log.Info("worker stopped", "workerId", workerID)
 	return nil
 }

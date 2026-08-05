@@ -43,7 +43,7 @@ func (s *Service) Trigger(ctx context.Context, actorID uuid.UUID, mode, source s
 		return domain.Run{}, apperr.Validation("Geçersiz TJK kaynak adaptörü.")
 	}
 	now := s.now()
-	run := domain.Run{ID: uuid.New(), Mode: mode, Status: domain.RunQueued, SourceAdapter: source, Scope: "HORSES", Checkpoint: []byte(`{}`), TriggerKind: "MANUAL", CreatedByUserID: &actorID, Version: 1, CreatedAt: now, UpdatedAt: now}
+	run := domain.Run{ID: uuid.New(), Mode: mode, Status: domain.RunQueued, SourceAdapter: source, Scope: "HORSES", Checkpoint: []byte(`{"page":0}`), TriggerKind: "MANUAL", CreatedByUserID: &actorID, Version: 1, CreatedAt: now, UpdatedAt: now}
 	if err := s.repo.CreateRun(ctx, run); err != nil {
 		return domain.Run{}, err
 	}

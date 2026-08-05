@@ -58,14 +58,14 @@ func TestNotificationTemplateUpdateIntegration(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = pool.Exec(context.Background(), `
 UPDATE hrd_notification_templates
-SET name = 'Advanced advert published placeholder',
+SET name = 'Package advert published placeholder',
     in_app_title_template = 'Yeni ilan',
     in_app_body_template = 'Yeni bir ilan yayınlandı.',
     version = 1,
     is_active = false,
     updated_by_user_id = NULL,
     updated_at = TIMESTAMPTZ '2020-01-01 00:00:00+00'
-WHERE event_type = 'ADVANCED_ADVERT_PUBLISHED'`)
+WHERE event_type = 'PACKAGE_ADVERT_PUBLISHED'`)
 		_, _ = pool.Exec(context.Background(), `DELETE FROM hrd_users WHERE id = $1`, admin.ID)
 	})
 
@@ -77,7 +77,7 @@ WHERE event_type = 'ADVANCED_ADVERT_PUBLISHED'`)
 	if err != nil || len(list) < 4 {
 		t.Fatalf("list templates: %d %v", len(list), err)
 	}
-	tpl, err := svc.GetTemplateByEventType(ctx, admin.ID, domainnotification.TemplateEventTypeAdvancedAdvertPublished)
+	tpl, err := svc.GetTemplateByEventType(ctx, admin.ID, domainnotification.TemplateEventTypePackageAdvertPublished)
 	if err != nil {
 		t.Fatal(err)
 	}

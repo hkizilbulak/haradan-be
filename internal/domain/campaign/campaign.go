@@ -1,4 +1,4 @@
-// Package campaign holds campaign catalog aggregates aligned with migration 00009.
+// Package campaign holds campaign catalog aggregates aligned with migrations 00009/00011.
 package campaign
 
 import (
@@ -12,17 +12,17 @@ import (
 type CampaignEventType string
 
 const (
-	CampaignEventTypePackageExpiry10Days CampaignEventType = "PACKAGE_EXPIRY_10_DAYS"
-	CampaignEventTypePackageExpiry3Days  CampaignEventType = "PACKAGE_EXPIRY_3_DAYS"
-	CampaignEventTypePackageRenewal      CampaignEventType = "PACKAGE_RENEWAL"
-	CampaignEventTypePackageUpgrade      CampaignEventType = "PACKAGE_UPGRADE"
+	CampaignEventTypePackageExpiry5Days CampaignEventType = "PACKAGE_EXPIRY_5_DAYS"
+	CampaignEventTypePackageExpiry1Day  CampaignEventType = "PACKAGE_EXPIRY_1_DAY"
+	CampaignEventTypePackageRenewal     CampaignEventType = "PACKAGE_RENEWAL"
+	CampaignEventTypePackageUpgrade     CampaignEventType = "PACKAGE_UPGRADE"
 )
 
 // Valid reports whether t is a known campaign event type.
 func (t CampaignEventType) Valid() bool {
 	switch t {
-	case CampaignEventTypePackageExpiry10Days,
-		CampaignEventTypePackageExpiry3Days,
+	case CampaignEventTypePackageExpiry5Days,
+		CampaignEventTypePackageExpiry1Day,
 		CampaignEventTypePackageRenewal,
 		CampaignEventTypePackageUpgrade:
 		return true

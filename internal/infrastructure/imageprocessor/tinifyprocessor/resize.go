@@ -76,7 +76,8 @@ func resizeFit(src decodedImage, maxW, maxH int) ([]byte, int, int, error) {
 		if err := jpeg.Encode(&buf, outImg, &jpeg.Options{Quality: localJPEGQuality}); err != nil {
 			return nil, 0, 0, err
 		}
-	case "image/png":
+	case "image/png", "image/webp":
+		// WebP has no stdlib encoder; persist resized output as PNG for Tinify.
 		if err := png.Encode(&buf, outImg); err != nil {
 			return nil, 0, 0, err
 		}

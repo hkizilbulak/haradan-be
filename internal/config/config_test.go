@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hkizilbulak/haradan-be/internal/config"
+	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 )
 
 func TestLoadDefaults(t *testing.T) {
@@ -28,6 +29,53 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg.DBHealthTimeout != 2*time.Second {
 		t.Fatalf("unexpected health timeout: %v", cfg.DBHealthTimeout)
+	}
+	if cfg.TJKEnabled || cfg.TJKBaseURL != "" {
+		t.Fatalf("TJK should be disabled by default: enabled=%v url=%q", cfg.TJKEnabled, cfg.TJKBaseURL)
+	}
+	if cfg.TJKHTTPTimeout != 60*time.Second {
+		t.Fatalf("TJK timeout default = %v", cfg.TJKHTTPTimeout)
+	}
+}
+
+func TestLoadTJKEnabledDefaultsBaseURL(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("TJK_ENABLED", "true")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if !cfg.TJKEnabled {
+		t.Fatal("expected TJK enabled")
+	}
+	if cfg.TJKBaseURL != "https://www.tjk.org" {
+		t.Fatalf("base URL = %q", cfg.TJKBaseURL)
+	}
+	if cfg.TJKHTTPTimeout != 60*time.Second {
+		t.Fatalf("timeout = %v", cfg.TJKHTTPTimeout)
+	}
+}
+
+func TestLoadTJKExplicitBaseURL(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("TJK_BASE_URL", "https://tjk.example.test")
+	t.Setenv("TJK_HTTP_TIMEOUT", "45s")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if !cfg.TJKEnabled {
+		t.Fatal("expected TJK enabled when base URL set")
+	}
+	if cfg.TJKBaseURL != "https://tjk.example.test" {
+		t.Fatalf("base URL = %q", cfg.TJKBaseURL)
+	}
+	if cfg.TJKHTTPTimeout != 45*time.Second {
+		t.Fatalf("timeout = %v", cfg.TJKHTTPTimeout)
 	}
 }
 
@@ -178,8 +226,8 @@ func TestLoadMediaSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cfg.MediaAllowedContentTypes) != 0 || cfg.MediaMaxByteSize != 0 {
-		t.Fatalf("media limits must stay unset by default: %+v", cfg)
+	if len(cfg.MediaAllowedContentTypes) != 0 || cfg.MediaMaxByteSize != domainmedia.MaxUploadBytes {
+		t.Fatalf("media limits: types=%v max=%d", cfg.MediaAllowedContentTypes, cfg.MediaMaxByteSize)
 	}
 	if cfg.MediaUploadURLTTL != 15*time.Minute {
 		t.Fatalf("MediaUploadURLTTL=%v", cfg.MediaUploadURLTTL)
@@ -249,7 +297,6 @@ func TestLoadStorageProviderDefaultsAndB2(t *testing.T) {
 	t.Setenv("S3_ACCESS_KEY", "access-key-value")
 	t.Setenv("S3_SECRET_KEY", "secret-key-value-do-not-leak")
 	t.Setenv("S3_BASE_PATH", "/media/prod/")
-	t.Setenv("MEDIA_PUBLIC_BASE_URL", "https://cdn.example.invalid/media")
 	cfg, err = config.Load()
 	if err != nil {
 		t.Fatal(err)
@@ -259,6 +306,12 @@ func TestLoadStorageProviderDefaultsAndB2(t *testing.T) {
 	}
 	if cfg.S3BasePath != "media/prod" {
 		t.Fatalf("S3BasePath=%q", cfg.S3BasePath)
+	}
+	if cfg.MediaProfileDetailW != domainmedia.ProfileDetailWidth {
+		t.Fatalf("default DETAIL width=%d", cfg.MediaProfileDetailW)
+	}
+	if cfg.MediaPublicBaseURL != "" {
+		t.Fatalf("MEDIA_PUBLIC_BASE_URL must be optional for b2, got %q", cfg.MediaPublicBaseURL)
 	}
 }
 
@@ -399,8 +452,12 @@ func TestLoadImageProcessorTinifyValidation(t *testing.T) {
 		clearConfigEnv(t)
 		setTinifyBase(t)
 		_ = os.Unsetenv(missing)
-		if _, err := config.Load(); err == nil {
-			t.Fatalf("expected error when %s missing", missing)
+		cfg, err := config.Load()
+		if err != nil {
+			t.Fatalf("missing %s should fall back to defaults: %v", missing, err)
+		}
+		if cfg.MediaProfileDetailW <= 0 || cfg.MediaProfileSearchH <= 0 {
+			t.Fatalf("defaults not applied after unsetting %s: %+v", missing, cfg)
 		}
 	}
 
@@ -553,7 +610,6 @@ func TestLoadEmailProviderDefaultsAndResend(t *testing.T) {
 	t.Setenv("FROM_EMAIL", "noreply@example.com")
 	t.Setenv("FROM_NAME", "Haradan")
 	t.Setenv("FRONTEND_URL", "https://app.example.com")
-	t.Setenv("RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID", "tmpl_registration_verify")
 	cfg, err = config.Load()
 	if err != nil {
 		t.Fatal(err)
@@ -564,8 +620,11 @@ func TestLoadEmailProviderDefaultsAndResend(t *testing.T) {
 	if cfg.FromEmail != "noreply@example.com" || cfg.FromName != "Haradan" {
 		t.Fatalf("from fields: email=%q name=%q", cfg.FromEmail, cfg.FromName)
 	}
-	if cfg.ResendRegistrationVerificationTemplateID != "tmpl_registration_verify" {
-		t.Fatalf("template id=%q", cfg.ResendRegistrationVerificationTemplateID)
+	if cfg.ResendWelcomeTemplateID != "welcome-email" {
+		t.Fatalf("welcome template id=%q", cfg.ResendWelcomeTemplateID)
+	}
+	if cfg.ResendResetPasswordTemplateID != "reset-password" {
+		t.Fatalf("reset template id=%q", cfg.ResendResetPasswordTemplateID)
 	}
 }
 
@@ -578,7 +637,6 @@ func TestLoadEmailProviderResendValidation(t *testing.T) {
 		t.Setenv("FROM_EMAIL", "noreply@example.com")
 		t.Setenv("FROM_NAME", "Haradan")
 		t.Setenv("FRONTEND_URL", "https://app.example.com")
-		t.Setenv("RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID", "tmpl_registration_verify")
 	}
 
 	clearConfigEnv(t)
@@ -593,7 +651,6 @@ func TestLoadEmailProviderResendValidation(t *testing.T) {
 		"FROM_EMAIL",
 		"FROM_NAME",
 		"FRONTEND_URL",
-		"RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID",
 	}
 	for _, missing := range required {
 		clearConfigEnv(t)
@@ -726,10 +783,17 @@ func clearConfigEnv(t *testing.T) {
 		"MEDIA_PROFILE_HOMEPAGE_WIDTH", "MEDIA_PROFILE_HOMEPAGE_HEIGHT",
 		"MEDIA_PROFILE_SEARCH_WIDTH", "MEDIA_PROFILE_SEARCH_HEIGHT",
 		"EMAIL_PROVIDER", "RESEND_API_KEY", "FROM_EMAIL", "FROM_NAME", "FRONTEND_URL",
-		"RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID", "RESEND_BASE_URL", "EMAIL_HTTP_TIMEOUT",
+		"RESEND_REGISTRATION_VERIFICATION_TEMPLATE_ID", "RESEND_WELCOME_TEMPLATE_ID",
+		"RESEND_RESET_PASSWORD_TEMPLATE_ID", "RESEND_BASE_URL", "EMAIL_HTTP_TIMEOUT",
+		"MEDIA_PUBLIC_BASE_URL",
+		"NOTIFICATION_FANOUT_BATCH_SIZE", "NOTIFICATION_EMAIL_CHUNK_SIZE",
+		"PACKAGE_EXPIRY_TIMEZONE", "PACKAGE_EXPIRY_SCAN_HOUR", "PACKAGE_EXPIRY_SCHEDULER_INTERVAL",
+		"JOB_SCHEDULER_REFRESH_INTERVAL",
+		"PACKAGE_EXPIRY_SCAN_BATCH_SIZE",
 		"WORKER_CONCURRENCY", "WORKER_POLL_INTERVAL", "WORKER_LEASE_DURATION", "WORKER_JOB_TIMEOUT",
 		"WORKER_ID", "WORKER_SHUTDOWN_TIMEOUT", "WORKER_RETRY_BASE_DELAY", "WORKER_RETRY_MAX_DELAY",
 		"WORKER_LEASE_RECOVERY_INTERVAL",
+		"TJK_ENABLED", "TJK_BASE_URL", "TJK_HTTP_TIMEOUT", "TJK_BATCH_SIZE", "TJK_MAX_BODY_BYTES",
 	}
 	for _, key := range keys {
 		prev, had := os.LookupEnv(key)

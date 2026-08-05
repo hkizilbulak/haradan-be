@@ -22,10 +22,17 @@ import (
 	pguser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/user"
 )
 
+// Former deterministic seed IDs from migration 00009 (removed by 00011 when untouched).
 var (
-	seedStarter  = uuid.MustParse("a0000000-0000-4000-8000-000000000001")
-	seedMiddle   = uuid.MustParse("a0000000-0000-4000-8000-000000000002")
-	seedAdvanced = uuid.MustParse("a0000000-0000-4000-8000-000000000003")
+	legacySeedStarter  = uuid.MustParse("a0000000-0000-4000-8000-000000000001")
+	legacySeedMiddle   = uuid.MustParse("a0000000-0000-4000-8000-000000000002")
+	legacySeedAdvanced = uuid.MustParse("a0000000-0000-4000-8000-000000000003")
+)
+
+var (
+	codeStarter  = domainpackaging.PackageCode("STARTER")
+	codeMiddle   = domainpackaging.PackageCode("MIDDLE")
+	codeAdvanced = domainpackaging.PackageCode("ADVANCED")
 )
 
 func requirePackagingIntegration(t *testing.T) *pgxpool.Pool {
@@ -55,13 +62,16 @@ type itestClock struct{ t time.Time }
 func (c itestClock) Now() time.Time { return c.t }
 
 type itestFixture struct {
-	pool    *pgxpool.Pool
-	svc     *apppackaging.Service
-	clock   *itestClock
-	adminID uuid.UUID
-	ownerID uuid.UUID
-	otherID uuid.UUID
-	advert  domainadvert.Advert
+	pool     *pgxpool.Pool
+	svc      *apppackaging.Service
+	clock    *itestClock
+	adminID  uuid.UUID
+	ownerID  uuid.UUID
+	otherID  uuid.UUID
+	advert   domainadvert.Advert
+	starter  domainpackaging.Package
+	middle   domainpackaging.Package
+	advanced domainpackaging.Package
 }
 
 func newItestFixture(t *testing.T, pool *pgxpool.Pool) *itestFixture {
@@ -149,30 +159,187 @@ VALUES ($1, $2, $3, $4, true, 1, $5, $5)`,
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &itestFixture{pool: pool, svc: svc, clock: clock, adminID: adminID, ownerID: ownerID, otherID: otherID, advert: advert}
+	f := &itestFixture{pool: pool, svc: svc, clock: clock, adminID: adminID, ownerID: ownerID, otherID: otherID, advert: advert}
+	f.ensureCatalogPackages(t)
+	return f
 }
 
-func TestPackageSeedListOrderIntegration(t *testing.T) {
+// ensureCatalogPackages creates STARTER/MIDDLE/ADVANCED via CreatePackage when missing.
+func (f *itestFixture) ensureCatalogPackages(t *testing.T) {
+	t.Helper()
+	ctx := context.Background()
+	dur := 30
+
+	type def struct {
+		code               domainpackaging.PackageCode
+		name               string
+		sortOrder          int
+		allowsUrgent       bool
+		showcaseEligible   bool
+		searchPriority     int
+		broadcastOnPublish bool
+		duration           *int
+		dest               *domainpackaging.Package
+	}
+	defs := []def{
+		{code: codeStarter, name: "Starter", sortOrder: 10, dest: &f.starter},
+		{
+			code: codeMiddle, name: "Middle", sortOrder: 20,
+			showcaseEligible: true, dest: &f.middle,
+		},
+		{
+			code: codeAdvanced, name: "Advanced", sortOrder: 30,
+			allowsUrgent: true, showcaseEligible: true, searchPriority: 100,
+			broadcastOnPublish: true, duration: &dur, dest: &f.advanced,
+		},
+	}
+
+	for _, d := range defs {
+		existing, err := f.svc.GetPackageByCode(ctx, f.adminID, d.code)
+		if err == nil {
+			*d.dest = f.alignPackageFlags(t, existing, d.allowsUrgent, d.showcaseEligible, d.searchPriority, d.broadcastOnPublish, d.sortOrder)
+			continue
+		}
+		if !asNotFound(err) {
+			t.Fatalf("GetPackageByCode(%s): %v", d.code, err)
+		}
+		created, err := f.svc.CreatePackage(ctx, apppackaging.CreatePackageInput{
+			ActorUserID: f.adminID, Code: d.code, DisplayName: d.name,
+			CurrencyCode: "TRY", DefaultDurationDays: d.duration,
+			AllowsUrgent: d.allowsUrgent, ShowcaseEligible: d.showcaseEligible,
+			SearchPriority: d.searchPriority, BroadcastOnPublish: d.broadcastOnPublish,
+			IsActive: true, SortOrder: d.sortOrder,
+		})
+		if err != nil {
+			t.Fatalf("CreatePackage(%s): %v", d.code, err)
+		}
+		*d.dest = created
+		pkgID := created.ID
+		t.Cleanup(func() {
+			_, _ = f.pool.Exec(context.Background(), `
+DELETE FROM hrd_packages WHERE id = $1
+  AND NOT EXISTS (SELECT 1 FROM hrd_advert_package_assignments a WHERE a.package_id = $1)
+  AND NOT EXISTS (
+    SELECT 1 FROM hrd_campaigns c
+    WHERE c.source_package_id = $1 OR c.target_package_id = $1
+  )`, pkgID)
+		})
+	}
+}
+
+func (f *itestFixture) alignPackageFlags(
+	t *testing.T,
+	pkg domainpackaging.Package,
+	allowsUrgent, showcaseEligible bool,
+	searchPriority int,
+	broadcastOnPublish bool,
+	sortOrder int,
+) domainpackaging.Package {
+	t.Helper()
+	if pkg.AllowsUrgent == allowsUrgent &&
+		pkg.ShowcaseEligible == showcaseEligible &&
+		pkg.SearchPriority == searchPriority &&
+		pkg.BroadcastOnPublish == broadcastOnPublish &&
+		pkg.SortOrder == sortOrder &&
+		pkg.IsActive {
+		return pkg
+	}
+	ctx := context.Background()
+	name := pkg.DisplayName
+	active := true
+	updated, err := f.svc.UpdatePackage(ctx, apppackaging.UpdatePackageInput{
+		ActorUserID: f.adminID, Code: pkg.Code, ExpectedVersion: pkg.Version,
+		DisplayName: &name, AllowsUrgent: &allowsUrgent, ShowcaseEligible: &showcaseEligible,
+		SearchPriority: &searchPriority, BroadcastOnPublish: &broadcastOnPublish,
+		IsActive: &active, SortOrder: &sortOrder,
+	})
+	if err != nil {
+		t.Fatalf("align flags for %s: %v", pkg.Code, err)
+	}
+	return updated
+}
+
+func TestEmptyPackageCatalogAfterMigrations(t *testing.T) {
 	pool := requirePackagingIntegration(t)
 	ctx := context.Background()
 	repo := pgpackaging.NewRepository(pool)
-	items, err := repo.ListPackages(ctx, false)
+
+	var untouched int
+	if err := pool.QueryRow(ctx, `
+SELECT COUNT(*) FROM hrd_packages
+WHERE id = ANY($1::uuid[])
+  AND version = 1
+  AND created_at = TIMESTAMPTZ '2020-01-01 00:00:00+00'
+  AND updated_at = TIMESTAMPTZ '2020-01-01 00:00:00+00'
+  AND description IS NULL
+  AND badge_text IS NULL
+  AND benefits = '[]'::jsonb
+  AND display_price_amount_minor IS NULL
+  AND currency_code = 'TRY'
+  AND default_duration_days IS NULL
+  AND broadcast_on_publish = false`,
+		[]uuid.UUID{legacySeedStarter, legacySeedMiddle, legacySeedAdvanced},
+	).Scan(&untouched); err != nil {
+		t.Fatal(err)
+	}
+	if untouched != 0 {
+		t.Fatalf("migration 00011 should remove untouched seed packages; found %d", untouched)
+	}
+
+	items, err := repo.ListPackages(ctx, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) < 3 {
-		t.Fatalf("expected seeded packages, got %d", len(items))
+	legacyIDs := map[uuid.UUID]struct{}{
+		legacySeedStarter: {}, legacySeedMiddle: {}, legacySeedAdvanced: {},
+	}
+	for _, p := range items {
+		if _, ok := legacyIDs[p.ID]; ok {
+			// Leftover upgrade rows (referenced/edited seeds) are allowed.
+			continue
+		}
+		// Operator-created or prior-test packages may remain on a shared DB.
+		t.Logf("non-seed catalog row present: code=%s id=%s (allowed on shared test DB)", p.Code, p.ID)
+	}
+	if len(items) == 0 {
+		t.Log("catalog empty after migrations (ideal fresh DB)")
+	}
+}
+
+func TestCreatePackageListOrderIntegration(t *testing.T) {
+	pool := requirePackagingIntegration(t)
+	f := newItestFixture(t, pool)
+	ctx := context.Background()
+
+	items, err := f.svc.ListPackages(ctx, false)
+	if err != nil {
+		t.Fatal(err)
 	}
 	byCode := map[domainpackaging.PackageCode]domainpackaging.Package{}
 	for _, p := range items {
 		byCode[p.Code] = p
 	}
-	if byCode[domainpackaging.PackageCodeStarter].ID != seedStarter ||
-		byCode[domainpackaging.PackageCodeMiddle].ID != seedMiddle ||
-		byCode[domainpackaging.PackageCodeAdvanced].ID != seedAdvanced {
-		t.Fatal("seed package ids mismatch")
+	for _, code := range []domainpackaging.PackageCode{codeStarter, codeMiddle, codeAdvanced} {
+		if _, ok := byCode[code]; !ok {
+			t.Fatalf("missing created package %s", code)
+		}
 	}
-	// Active list must be ordered by sort_order, code.
+	if byCode[codeStarter].SortOrder > byCode[codeMiddle].SortOrder ||
+		byCode[codeMiddle].SortOrder > byCode[codeAdvanced].SortOrder {
+		t.Fatalf("expected STARTER < MIDDLE < ADVANCED sort_order, got %+v", []int{
+			byCode[codeStarter].SortOrder, byCode[codeMiddle].SortOrder, byCode[codeAdvanced].SortOrder,
+		})
+	}
+	if !byCode[codeAdvanced].AllowsUrgent || !byCode[codeAdvanced].BroadcastOnPublish ||
+		!byCode[codeAdvanced].ShowcaseEligible || byCode[codeAdvanced].SearchPriority != 100 {
+		t.Fatalf("ADVANCED capabilities: %+v", byCode[codeAdvanced])
+	}
+	if !byCode[codeMiddle].ShowcaseEligible || byCode[codeMiddle].BroadcastOnPublish {
+		t.Fatalf("MIDDLE capabilities: %+v", byCode[codeMiddle])
+	}
+	if byCode[codeStarter].AllowsUrgent || byCode[codeStarter].ShowcaseEligible || byCode[codeStarter].BroadcastOnPublish {
+		t.Fatalf("STARTER capabilities: %+v", byCode[codeStarter])
+	}
 	for i := 1; i < len(items); i++ {
 		if items[i-1].SortOrder > items[i].SortOrder {
 			t.Fatalf("sort_order not ascending: %+v", items)
@@ -186,7 +353,7 @@ func TestAssignmentCreateHistoryAndUniqueActiveIntegration(t *testing.T) {
 	ctx := context.Background()
 
 	first, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: codeAdvanced,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -209,7 +376,7 @@ func TestAssignmentCreateHistoryAndUniqueActiveIntegration(t *testing.T) {
 	}
 	f.clock.t = f.clock.t.Add(time.Second)
 	second, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeMiddle,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: codeMiddle,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -234,7 +401,7 @@ func TestEffectiveFutureAssignmentIntegration(t *testing.T) {
 	ctx := context.Background()
 	start := f.clock.Now().Add(24 * time.Hour)
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: codeStarter,
 		StartsAt: &start,
 	})
 	if err != nil {
@@ -256,7 +423,7 @@ func TestConcurrentAssignmentOneActiveIntegration(t *testing.T) {
 
 	var wg sync.WaitGroup
 	errs := make(chan error, 2)
-	pkgs := []domainpackaging.PackageCode{domainpackaging.PackageCodeStarter, domainpackaging.PackageCodeMiddle}
+	pkgs := []domainpackaging.PackageCode{codeStarter, codeMiddle}
 	for i := 0; i < 2; i++ {
 		wg.Add(1)
 		go func(pkgCode domainpackaging.PackageCode) {
@@ -290,7 +457,7 @@ func TestUrgentActivateDeactivateVersionIntegration(t *testing.T) {
 	f := newItestFixture(t, pool)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: codeAdvanced,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -324,7 +491,7 @@ func TestConcurrentUrgentOneActiveIntegration(t *testing.T) {
 	f := newItestFixture(t, pool)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: codeAdvanced,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -384,7 +551,7 @@ func TestPackageChangeDeactivatesUrgentIntegration(t *testing.T) {
 	f := newItestFixture(t, pool)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: codeAdvanced,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -393,7 +560,7 @@ func TestPackageChangeDeactivatesUrgentIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeMiddle,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: codeMiddle,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -416,7 +583,7 @@ func TestCheckViolationSafeMessageIntegration(t *testing.T) {
 	repo := pgpackaging.NewRepository(pool)
 	now := f.clock.Now()
 	err := repo.CreateAssignment(ctx, domainpackaging.AdvertPackageAssignment{
-		ID: uuid.New(), AdvertID: f.advert.ID, PackageID: seedStarter,
+		ID: uuid.New(), AdvertID: f.advert.ID, PackageID: f.starter.ID,
 		Status: "NOT_A_STATUS", StartsAt: now, AssignedByUserID: f.adminID, AssignedAt: now,
 		Source: domainpackaging.AssignmentSourceAdmin, Version: 1, CreatedAt: now, UpdatedAt: now,
 	})
@@ -436,7 +603,7 @@ func TestNilStartsAtIdempotentIntegration(t *testing.T) {
 	f := newItestFixture(t, pool)
 	ctx := context.Background()
 	first, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: codeStarter,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -444,7 +611,7 @@ func TestNilStartsAtIdempotentIntegration(t *testing.T) {
 	// Wall clock moves; request still omits StartsAt/EndsAt.
 	time.Sleep(5 * time.Millisecond)
 	second, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: codeStarter,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -464,6 +631,11 @@ func asForbidden(err error) bool {
 	return errors.As(err, &ae) && ae.Kind == apperr.KindForbidden
 }
 
+func asNotFound(err error) bool {
+	var ae *apperr.Error
+	return errors.As(err, &ae) && ae.Kind == apperr.KindNotFound
+}
+
 func intPtr(v int) *int { return &v }
 
 func TestUpdatePackageAllowsUrgentFalseIntegration(t *testing.T) {
@@ -471,7 +643,7 @@ func TestUpdatePackageAllowsUrgentFalseIntegration(t *testing.T) {
 	f := newItestFixture(t, pool)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: codeAdvanced,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -479,14 +651,14 @@ func TestUpdatePackageAllowsUrgentFalseIntegration(t *testing.T) {
 	if _, err := f.svc.ActivateUrgent(ctx, f.ownerID, f.advert.ID); err != nil {
 		t.Fatal(err)
 	}
-	pkg, err := f.svc.GetPackageByCode(ctx, f.adminID, domainpackaging.PackageCodeAdvanced)
+	pkg, err := f.svc.GetPackageByCode(ctx, f.adminID, codeAdvanced)
 	if err != nil {
 		t.Fatal(err)
 	}
 	falseVal := false
 	name := pkg.DisplayName
 	updated, err := f.svc.UpdatePackage(ctx, apppackaging.UpdatePackageInput{
-		ActorUserID: f.adminID, Code: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.adminID, Code: codeAdvanced,
 		ExpectedVersion: pkg.Version, DisplayName: &name, AllowsUrgent: &falseVal,
 	})
 	if err != nil || updated.AllowsUrgent {
@@ -494,9 +666,13 @@ func TestUpdatePackageAllowsUrgentFalseIntegration(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		trueVal := true
+		cur, err := f.svc.GetPackageByCode(context.Background(), f.adminID, codeAdvanced)
+		if err != nil {
+			return
+		}
 		_, _ = f.svc.UpdatePackage(context.Background(), apppackaging.UpdatePackageInput{
-			ActorUserID: f.adminID, Code: domainpackaging.PackageCodeAdvanced,
-			ExpectedVersion: updated.Version, AllowsUrgent: &trueVal,
+			ActorUserID: f.adminID, Code: codeAdvanced,
+			ExpectedVersion: cur.Version, AllowsUrgent: &trueVal,
 		})
 	})
 	var active int
@@ -520,7 +696,7 @@ func TestCancelAdvertPackageIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.adminID, AdvertID: f.advert.ID, PackageCode: codeAdvanced,
 	})
 	if err != nil {
 		t.Fatal(err)

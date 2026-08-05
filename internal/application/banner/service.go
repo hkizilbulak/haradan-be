@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -171,7 +170,7 @@ func (s *Service) SetBannerStatus(ctx context.Context, in SetStatusInput) (domai
 			return apperr.StaleVersion("Banner başka bir işlem tarafından güncellendi.")
 		}
 		if in.Status == domainbanner.StatusActive {
-			if err := s.requireReadyVariant(ctx, b.AssetID, b.Placement); err != nil {
+			if err := s.requireReadyVariant(ctx, b.AssetID); err != nil {
 				return err
 			}
 		}
@@ -226,14 +225,16 @@ func (s *Service) validateAsset(ctx context.Context, id uuid.UUID) error {
 	}
 	return err
 }
-func (s *Service) requireReadyVariant(ctx context.Context, asset uuid.UUID, placement domainbanner.Placement) error {
+func (s *Service) requireReadyVariant(ctx context.Context, asset uuid.UUID) error {
 	variants, err := s.media.ListVariantsByAsset(ctx, asset)
 	if err != nil {
 		return err
 	}
-	profile := map[domainbanner.Placement]string{domainbanner.PlacementHomepage: domainmedia.ProfileHomepage, domainbanner.PlacementListingDetail: domainmedia.ProfileDetail, domainbanner.PlacementSearch: domainmedia.ProfileSearch}[placement]
 	for _, v := range variants {
-		if v.TransformProfile == profile && v.LifecycleStatus == domainmedia.VariantReady && v.ObjectKey != nil && strings.TrimSpace(*v.ObjectKey) != "" {
+		if v.TransformProfile == domainmedia.ProfileBanner &&
+			v.LifecycleStatus == domainmedia.VariantReady &&
+			v.ObjectKey != nil &&
+			domainmedia.IsOwnedVariantObjectKey(asset, domainmedia.ProfileBanner, *v.ObjectKey) {
 			return nil
 		}
 	}

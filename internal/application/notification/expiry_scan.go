@@ -82,7 +82,7 @@ func NewExpiryScanService(cfg ExpiryScanConfig) (*ExpiryScanService, error) {
 // ProcessExpiryScan handles PACKAGE_EXPIRY_REMINDER_SCAN jobs. The initial
 // invocation (no offset/cursor in the payload) also expires assignments whose
 // ends_at has passed and deactivates any URGENT feature they were carrying,
-// before dispatching the 10D/3D reminder scans.
+// before dispatching the 5D/1D reminder scans.
 func (s *ExpiryScanService) ProcessExpiryScan(ctx context.Context, payload json.RawMessage) error {
 	var in struct {
 		Offset            string `json:"offset"`
@@ -97,8 +97,8 @@ func (s *ExpiryScanService) ProcessExpiryScan(ctx context.Context, payload json.
 			return err
 		}
 		for _, off := range []domainnotification.PackageExpiryDayOffset{
-			domainnotification.PackageExpiryDayOffset10D,
-			domainnotification.PackageExpiryDayOffset3D,
+			domainnotification.PackageExpiryDayOffset5D,
+			domainnotification.PackageExpiryDayOffset1D,
 		} {
 			if err := s.scanOffset(ctx, off, nil); err != nil {
 				return err

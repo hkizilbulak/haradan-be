@@ -50,6 +50,49 @@ func (h *Handler) ListPublicPackages(c *gin.Context) {
 	c.JSON(http.StatusOK, generated.PublicPackageListResponse{Items: out})
 }
 
+// CreateAdminPackage handles POST /v1/admin/packages.
+func (h *Handler) CreateAdminPackage(c *gin.Context) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	var req generated.CreatePackageRequest
+	if !bind.JSONBody(c, &req) {
+		return
+	}
+	var price *int64
+	currency := req.CurrencyCode
+	if req.DisplayPrice != nil {
+		amount := int64(req.DisplayPrice.AmountMinor)
+		price = &amount
+		if currency == "" {
+			currency = req.DisplayPrice.Currency
+		}
+	}
+	out, err := h.svc.CreatePackage(c.Request.Context(), apppackaging.CreatePackageInput{
+		ActorUserID:             actorID,
+		Code:                    domainpackaging.PackageCode(req.Code),
+		DisplayName:             req.DisplayName,
+		Description:             req.Description,
+		BadgeText:               req.BadgeText,
+		Benefits:                req.Benefits,
+		DisplayPriceAmountMinor: price,
+		CurrencyCode:            currency,
+		DefaultDurationDays:     req.DefaultDurationDays,
+		AllowsUrgent:            req.AllowsUrgent,
+		ShowcaseEligible:        req.ShowcaseEligible,
+		SearchPriority:          req.SearchPriority,
+		BroadcastOnPublish:      req.BroadcastOnPublish,
+		IsActive:                req.IsActive,
+		SortOrder:               req.SortOrder,
+	})
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusCreated, mapPackageAdminView(out))
+}
+
 // ListAdminPackages handles GET /v1/admin/packages.
 func (h *Handler) ListAdminPackages(c *gin.Context) {
 	actorID, ok := h.requireAdminBO(c)

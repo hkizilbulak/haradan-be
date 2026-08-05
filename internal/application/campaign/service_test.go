@@ -48,12 +48,12 @@ func newFixture(t *testing.T) *fixture {
 
 	starter := domainpackaging.Package{
 		ID:   uuid.MustParse("a0000000-0000-4000-8000-000000000001"),
-		Code: domainpackaging.PackageCodeStarter, DisplayName: "Starter",
+		Code: domainpackaging.PackageCode("STARTER"), DisplayName: "Starter",
 		CurrencyCode: "TRY", IsActive: true, Version: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	advanced := domainpackaging.Package{
 		ID:   uuid.MustParse("a0000000-0000-4000-8000-000000000003"),
-		Code: domainpackaging.PackageCodeAdvanced, DisplayName: "Advanced",
+		Code: domainpackaging.PackageCode("ADVANCED"), DisplayName: "Advanced",
 		CurrencyCode: "TRY", IsActive: true, Version: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	store.PutPackage(starter)
@@ -87,8 +87,8 @@ func requireCode(t *testing.T, err error, code apperr.Code) {
 func baseCreate(f *fixture) appcampaign.CreateCampaignInput {
 	orig := int64(10000)
 	camp := int64(8000)
-	src := string(domainpackaging.PackageCodeStarter)
-	tgt := string(domainpackaging.PackageCodeAdvanced)
+	src := string(domainpackaging.PackageCode("STARTER"))
+	tgt := string(domainpackaging.PackageCode("ADVANCED"))
 	return appcampaign.CreateCampaignInput{
 		ActorUserID:                     f.admin.ID,
 		Code:                            "RENEW-STARTER-1",

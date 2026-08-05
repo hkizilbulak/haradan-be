@@ -9,7 +9,6 @@ import (
 
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
-	domainpackaging "github.com/hkizilbulak/haradan-be/internal/domain/packaging"
 )
 
 // AdvertNotificationEmitter is the narrow port advert moderation uses.
@@ -19,7 +18,7 @@ type AdvertNotificationEmitter interface {
 
 // PackagingNotificationEmitter is the narrow port packaging uses.
 type PackagingNotificationEmitter interface {
-	OnAdvancedAssignedWhilePublished(ctx context.Context, tx pgx.Tx, advertID, assignmentID uuid.UUID) error
+	OnPackageAssignedWhilePublished(ctx context.Context, tx pgx.Tx, advertID, assignmentID uuid.UUID) error
 	OnUrgentActivated(ctx context.Context, tx pgx.Tx, advertID, assignmentID uuid.UUID, activationVersion int) error
 }
 
@@ -51,7 +50,7 @@ func NewEmitter(cfg EmitterConfig) (*Emitter, error) {
 	return &Emitter{writer: cfg.Writer, adverts: cfg.Adverts, packages: cfg.Packages, clock: clock}, nil
 }
 
-// OnAdvertPublished emits advanced and urgent events when an advert is
+// OnAdvertPublished emits package-broadcast and urgent events when an advert is
 // published. The caller already transitioned the advert to PUBLISHED inside
 // tx (not yet committed), so this must NOT re-read advert status through the
 // non-tx AdvertSnapshotReader to decide whether to emit: that read would go
@@ -62,10 +61,10 @@ func NewEmitter(cfg EmitterConfig) (*Emitter, error) {
 // unrelated transaction (they pre-exist relative to this publish).
 func (e *Emitter) OnAdvertPublished(ctx context.Context, tx pgx.Tx, advertID uuid.UUID) error {
 	now := e.clock.Now().UTC()
-	if asg, _, ok, err := EffectiveAdvancedAssignment(ctx, e.packages, advertID, now); err != nil {
+	if asg, _, ok, err := EffectiveBroadcastAssignment(ctx, e.packages, advertID, now); err != nil {
 		return err
 	} else if ok {
-		if err := e.writer.WriteAdvancedAdvertPublished(ctx, tx, WriteAdvancedAdvertPublishedInput{
+		if err := e.writer.WritePackageAdvertPublished(ctx, tx, WritePackageAdvertPublishedInput{
 			AdvertID: advertID, AssignmentID: asg.ID,
 		}); err != nil {
 			return err
@@ -85,8 +84,9 @@ func (e *Emitter) OnAdvertPublished(ctx context.Context, tx pgx.Tx, advertID uui
 	})
 }
 
-// OnAdvancedAssignedWhilePublished emits when ADVANCED is assigned to a published advert.
-func (e *Emitter) OnAdvancedAssignedWhilePublished(ctx context.Context, tx pgx.Tx, advertID, assignmentID uuid.UUID) error {
+// OnPackageAssignedWhilePublished emits when a broadcast-capable package is
+// assigned to a published advert.
+func (e *Emitter) OnPackageAssignedWhilePublished(ctx context.Context, tx pgx.Tx, advertID, assignmentID uuid.UUID) error {
 	advert, err := e.adverts.GetAdvertSnapshot(ctx, advertID)
 	if err != nil {
 		return err
@@ -102,10 +102,10 @@ func (e *Emitter) OnAdvancedAssignedWhilePublished(ctx context.Context, tx pgx.T
 	if err != nil {
 		return err
 	}
-	if pkg.Code != domainpackaging.PackageCodeAdvanced {
+	if !pkg.EmitsPublishBroadcast() {
 		return nil
 	}
-	return e.writer.WriteAdvancedAdvertPublished(ctx, tx, WriteAdvancedAdvertPublishedInput{
+	return e.writer.WritePackageAdvertPublished(ctx, tx, WritePackageAdvertPublishedInput{
 		AdvertID: advertID, AssignmentID: assignmentID,
 	})
 }

@@ -99,19 +99,19 @@ func (e AuthTokenResponseTokenType) Valid() bool {
 
 // Defines values for BannerPlacement.
 const (
-	HOMEPAGE      BannerPlacement = "HOMEPAGE"
-	LISTINGDETAIL BannerPlacement = "LISTING_DETAIL"
-	SEARCH        BannerPlacement = "SEARCH"
+	BannerPlacementHOMEPAGE      BannerPlacement = "HOMEPAGE"
+	BannerPlacementLISTINGDETAIL BannerPlacement = "LISTING_DETAIL"
+	BannerPlacementSEARCH        BannerPlacement = "SEARCH"
 )
 
 // Valid indicates whether the value is a known member of the BannerPlacement enum.
 func (e BannerPlacement) Valid() bool {
 	switch e {
-	case HOMEPAGE:
+	case BannerPlacementHOMEPAGE:
 		return true
-	case LISTINGDETAIL:
+	case BannerPlacementLISTINGDETAIL:
 		return true
-	case SEARCH:
+	case BannerPlacementSEARCH:
 		return true
 	default:
 		return false
@@ -138,18 +138,18 @@ func (e BannerStatus) Valid() bool {
 
 // Defines values for CampaignEventType.
 const (
-	CampaignEventTypePACKAGEEXPIRY10DAYS CampaignEventType = "PACKAGE_EXPIRY_10_DAYS"
-	CampaignEventTypePACKAGEEXPIRY3DAYS  CampaignEventType = "PACKAGE_EXPIRY_3_DAYS"
-	CampaignEventTypePACKAGERENEWAL      CampaignEventType = "PACKAGE_RENEWAL"
-	CampaignEventTypePACKAGEUPGRADE      CampaignEventType = "PACKAGE_UPGRADE"
+	CampaignEventTypePACKAGEEXPIRY1DAY  CampaignEventType = "PACKAGE_EXPIRY_1_DAY"
+	CampaignEventTypePACKAGEEXPIRY5DAYS CampaignEventType = "PACKAGE_EXPIRY_5_DAYS"
+	CampaignEventTypePACKAGERENEWAL     CampaignEventType = "PACKAGE_RENEWAL"
+	CampaignEventTypePACKAGEUPGRADE     CampaignEventType = "PACKAGE_UPGRADE"
 )
 
 // Valid indicates whether the value is a known member of the CampaignEventType enum.
 func (e CampaignEventType) Valid() bool {
 	switch e {
-	case CampaignEventTypePACKAGEEXPIRY10DAYS:
+	case CampaignEventTypePACKAGEEXPIRY1DAY:
 		return true
-	case CampaignEventTypePACKAGEEXPIRY3DAYS:
+	case CampaignEventTypePACKAGEEXPIRY5DAYS:
 		return true
 	case CampaignEventTypePACKAGERENEWAL:
 		return true
@@ -274,6 +274,75 @@ func (e HealthResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for JobHistoryItemExecutionType.
+const (
+	JobHistoryItemExecutionTypeMANUAL    JobHistoryItemExecutionType = "MANUAL"
+	JobHistoryItemExecutionTypeSCHEDULED JobHistoryItemExecutionType = "SCHEDULED"
+)
+
+// Valid indicates whether the value is a known member of the JobHistoryItemExecutionType enum.
+func (e JobHistoryItemExecutionType) Valid() bool {
+	switch e {
+	case JobHistoryItemExecutionTypeMANUAL:
+		return true
+	case JobHistoryItemExecutionTypeSCHEDULED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobRunStatus.
+const (
+	JobRunStatusCANCELLED JobRunStatus = "CANCELLED"
+	JobRunStatusDEAD      JobRunStatus = "DEAD"
+	JobRunStatusFAILED    JobRunStatus = "FAILED"
+	JobRunStatusLEASED    JobRunStatus = "LEASED"
+	JobRunStatusQUEUED    JobRunStatus = "QUEUED"
+	JobRunStatusSUCCEEDED JobRunStatus = "SUCCEEDED"
+)
+
+// Valid indicates whether the value is a known member of the JobRunStatus enum.
+func (e JobRunStatus) Valid() bool {
+	switch e {
+	case JobRunStatusCANCELLED:
+		return true
+	case JobRunStatusDEAD:
+		return true
+	case JobRunStatusFAILED:
+		return true
+	case JobRunStatusLEASED:
+		return true
+	case JobRunStatusQUEUED:
+		return true
+	case JobRunStatusSUCCEEDED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobType.
+const (
+	MEDIARECONCILE    JobType = "MEDIA_RECONCILE"
+	PACKAGEEXPIRYSCAN JobType = "PACKAGE_EXPIRY_SCAN"
+	TJKSYNC           JobType = "TJK_SYNC"
+)
+
+// Valid indicates whether the value is a known member of the JobType enum.
+func (e JobType) Valid() bool {
+	switch e {
+	case MEDIARECONCILE:
+		return true
+	case PACKAGEEXPIRYSCAN:
+		return true
+	case TJKSYNC:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MediaAssetLifecycle.
 const (
 	MediaAssetLifecycleCLEANUPCANDIDATE  MediaAssetLifecycle = "CLEANUP_CANDIDATE"
@@ -304,6 +373,30 @@ func (e MediaAssetLifecycle) Valid() bool {
 	case MediaAssetLifecycleVALIDATING:
 		return true
 	case MediaAssetLifecycleVALIDATIONFAILED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MediaDeliveryProfile.
+const (
+	MediaDeliveryProfileBANNER   MediaDeliveryProfile = "BANNER"
+	MediaDeliveryProfileDETAIL   MediaDeliveryProfile = "DETAIL"
+	MediaDeliveryProfileHOMEPAGE MediaDeliveryProfile = "HOMEPAGE"
+	MediaDeliveryProfileSEARCH   MediaDeliveryProfile = "SEARCH"
+)
+
+// Valid indicates whether the value is a known member of the MediaDeliveryProfile enum.
+func (e MediaDeliveryProfile) Valid() bool {
+	switch e {
+	case MediaDeliveryProfileBANNER:
+		return true
+	case MediaDeliveryProfileDETAIL:
+		return true
+	case MediaDeliveryProfileHOMEPAGE:
+		return true
+	case MediaDeliveryProfileSEARCH:
 		return true
 	default:
 		return false
@@ -342,20 +435,20 @@ func (e MediaVariantLifecycle) Valid() bool {
 
 // Defines values for NotificationEventType.
 const (
-	NotificationEventTypeADVANCEDADVERTPUBLISHED NotificationEventType = "ADVANCED_ADVERT_PUBLISHED"
-	NotificationEventTypePACKAGEEXPIRY10DAYS     NotificationEventType = "PACKAGE_EXPIRY_10_DAYS"
-	NotificationEventTypePACKAGEEXPIRY3DAYS      NotificationEventType = "PACKAGE_EXPIRY_3_DAYS"
-	NotificationEventTypeURGENTADVERTACTIVATED   NotificationEventType = "URGENT_ADVERT_ACTIVATED"
+	NotificationEventTypePACKAGEADVERTPUBLISHED NotificationEventType = "PACKAGE_ADVERT_PUBLISHED"
+	NotificationEventTypePACKAGEEXPIRY1DAY      NotificationEventType = "PACKAGE_EXPIRY_1_DAY"
+	NotificationEventTypePACKAGEEXPIRY5DAYS     NotificationEventType = "PACKAGE_EXPIRY_5_DAYS"
+	NotificationEventTypeURGENTADVERTACTIVATED  NotificationEventType = "URGENT_ADVERT_ACTIVATED"
 )
 
 // Valid indicates whether the value is a known member of the NotificationEventType enum.
 func (e NotificationEventType) Valid() bool {
 	switch e {
-	case NotificationEventTypeADVANCEDADVERTPUBLISHED:
+	case NotificationEventTypePACKAGEADVERTPUBLISHED:
 		return true
-	case NotificationEventTypePACKAGEEXPIRY10DAYS:
+	case NotificationEventTypePACKAGEEXPIRY1DAY:
 		return true
-	case NotificationEventTypePACKAGEEXPIRY3DAYS:
+	case NotificationEventTypePACKAGEEXPIRY5DAYS:
 		return true
 	case NotificationEventTypeURGENTADVERTACTIVATED:
 		return true
@@ -400,27 +493,6 @@ func (e PackageAssignmentStatus) Valid() bool {
 	case PackageAssignmentStatusEXPIRED:
 		return true
 	case PackageAssignmentStatusSUPERSEDED:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for PackageCode.
-const (
-	ADVANCED PackageCode = "ADVANCED"
-	MIDDLE   PackageCode = "MIDDLE"
-	STARTER  PackageCode = "STARTER"
-)
-
-// Valid indicates whether the value is a known member of the PackageCode enum.
-func (e PackageCode) Valid() bool {
-	switch e {
-	case ADVANCED:
-		return true
-	case MIDDLE:
-		return true
-	case STARTER:
 		return true
 	default:
 		return false
@@ -600,16 +672,16 @@ func (e TJKSyncScope) Valid() bool {
 
 // Defines values for TJKTriggerKind.
 const (
-	MANUAL    TJKTriggerKind = "MANUAL"
-	SCHEDULED TJKTriggerKind = "SCHEDULED"
+	TJKTriggerKindMANUAL    TJKTriggerKind = "MANUAL"
+	TJKTriggerKindSCHEDULED TJKTriggerKind = "SCHEDULED"
 )
 
 // Valid indicates whether the value is a known member of the TJKTriggerKind enum.
 func (e TJKTriggerKind) Valid() bool {
 	switch e {
-	case MANUAL:
+	case TJKTriggerKindMANUAL:
 		return true
-	case SCHEDULED:
+	case TJKTriggerKindSCHEDULED:
 		return true
 	default:
 		return false
@@ -1087,6 +1159,24 @@ type CreateCategoryRequest struct {
 	SortOrder   *int                `json:"sortOrder,omitempty"`
 }
 
+// CreatePackageRequest defines model for CreatePackageRequest.
+type CreatePackageRequest struct {
+	AllowsUrgent        bool        `json:"allowsUrgent"`
+	BadgeText           *string     `json:"badgeText,omitempty"`
+	Benefits            []string    `json:"benefits"`
+	BroadcastOnPublish  bool        `json:"broadcastOnPublish"`
+	Code                PackageCode `json:"code"`
+	CurrencyCode        string      `json:"currencyCode"`
+	DefaultDurationDays *int        `json:"defaultDurationDays,omitempty"`
+	Description         *string     `json:"description,omitempty"`
+	DisplayName         string      `json:"displayName"`
+	DisplayPrice        *Money      `json:"displayPrice,omitempty"`
+	IsActive            bool        `json:"isActive"`
+	SearchPriority      int         `json:"searchPriority"`
+	ShowcaseEligible    bool        `json:"showcaseEligible"`
+	SortOrder           int         `json:"sortOrder"`
+}
+
 // District defines model for District.
 type District struct {
 	Id         openapi_types.UUID `json:"id"`
@@ -1227,6 +1317,68 @@ type InitiateMediaUploadResponse struct {
 	Upload UploadAuthorization `json:"upload"`
 }
 
+// JobAdminListResponse defines model for JobAdminListResponse.
+type JobAdminListResponse struct {
+	Items []JobAdminView `json:"items"`
+}
+
+// JobAdminView defines model for JobAdminView.
+type JobAdminView struct {
+	CreatedAt             time.Time          `json:"createdAt"`
+	CronExpression        string             `json:"cronExpression"`
+	Description           *string            `json:"description,omitempty"`
+	Id                    openapi_types.UUID `json:"id"`
+	IsActive              bool               `json:"isActive"`
+	JobType               JobType            `json:"jobType"`
+	Key                   string             `json:"key"`
+	LastDurationMs        *int               `json:"lastDurationMs,omitempty"`
+	LastRunAt             *time.Time         `json:"lastRunAt,omitempty"`
+	LastStatus            *JobRunStatus      `json:"lastStatus,omitempty"`
+	Name                  string             `json:"name"`
+	NextRunAt             *time.Time         `json:"nextRunAt,omitempty"`
+	SupportsReferenceDate bool               `json:"supportsReferenceDate"`
+	TimeoutSeconds        int                `json:"timeoutSeconds"`
+	UpdatedAt             time.Time          `json:"updatedAt"`
+	Version               int                `json:"version"`
+}
+
+// JobHistoryItem defines model for JobHistoryItem.
+type JobHistoryItem struct {
+	CompletedAt   *time.Time                  `json:"completedAt,omitempty"`
+	CreatedAt     time.Time                   `json:"createdAt"`
+	DurationMs    *int                        `json:"durationMs,omitempty"`
+	ExecutionType JobHistoryItemExecutionType `json:"executionType"`
+	Id            openapi_types.UUID          `json:"id"`
+	JobId         openapi_types.UUID          `json:"jobId"`
+	LastError     *string                     `json:"lastError,omitempty"`
+	ReferenceDate *openapi_types.Date         `json:"referenceDate,omitempty"`
+	StartedAt     *time.Time                  `json:"startedAt,omitempty"`
+	Status        JobRunStatus                `json:"status"`
+	UpdatedAt     time.Time                   `json:"updatedAt"`
+}
+
+// JobHistoryItemExecutionType defines model for JobHistoryItem.ExecutionType.
+type JobHistoryItemExecutionType string
+
+// JobHistoryPage defines model for JobHistoryPage.
+type JobHistoryPage struct {
+	HasMore    bool             `json:"hasMore"`
+	Items      []JobHistoryItem `json:"items"`
+	NextCursor *string          `json:"nextCursor,omitempty"`
+}
+
+// JobRunAcceptedResponse defines model for JobRunAcceptedResponse.
+type JobRunAcceptedResponse struct {
+	JobId openapi_types.UUID `json:"jobId"`
+	RunId openapi_types.UUID `json:"runId"`
+}
+
+// JobRunStatus defines model for JobRunStatus.
+type JobRunStatus string
+
+// JobType defines model for JobType.
+type JobType string
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	ClientContext ClientContext       `json:"clientContext"`
@@ -1241,6 +1393,9 @@ type MarkAllNotificationsReadResponse struct {
 
 // MediaAssetLifecycle defines model for MediaAssetLifecycle.
 type MediaAssetLifecycle string
+
+// MediaDeliveryProfile defines model for MediaDeliveryProfile.
+type MediaDeliveryProfile string
 
 // MediaProcessingState defines model for MediaProcessingState.
 type MediaProcessingState struct {
@@ -1412,6 +1567,7 @@ type PackageAdminView struct {
 	AllowsUrgent        bool        `json:"allowsUrgent"`
 	BadgeText           *string     `json:"badgeText,omitempty"`
 	Benefits            []string    `json:"benefits"`
+	BroadcastOnPublish  bool        `json:"broadcastOnPublish"`
 	Code                PackageCode `json:"code"`
 	CreatedAt           time.Time   `json:"createdAt"`
 	CurrencyCode        string      `json:"currencyCode"`
@@ -1434,10 +1590,28 @@ type PackageAssignmentSource string
 type PackageAssignmentStatus string
 
 // PackageCode defines model for PackageCode.
-type PackageCode string
+type PackageCode = string
 
 // PropertyDataType defines model for PropertyDataType.
 type PropertyDataType string
+
+// ProviderEmailTemplateListResponse defines model for ProviderEmailTemplateListResponse.
+type ProviderEmailTemplateListResponse struct {
+	Items []ProviderEmailTemplateSummary `json:"items"`
+}
+
+// ProviderEmailTemplateSummary defines model for ProviderEmailTemplateSummary.
+type ProviderEmailTemplateSummary struct {
+	Alias  *string `json:"alias,omitempty"`
+	Id     string  `json:"id"`
+	Name   string  `json:"name"`
+	Status *string `json:"status,omitempty"`
+}
+
+// ProviderEmailTemplateVariablesResponse defines model for ProviderEmailTemplateVariablesResponse.
+type ProviderEmailTemplateVariablesResponse struct {
+	Variables []string `json:"variables"`
+}
 
 // Province defines model for Province.
 type Province struct {
@@ -1624,6 +1798,11 @@ type RequestEmailChangeRequest struct {
 type ResetPasswordRequest struct {
 	NewPassword string `json:"newPassword"`
 	Token       string `json:"token"`
+}
+
+// RunJobRequest defines model for RunJobRequest.
+type RunJobRequest struct {
+	ReferenceDate *openapi_types.Date `json:"referenceDate,omitempty"`
 }
 
 // SecurityEventItem defines model for SecurityEventItem.
@@ -1841,6 +2020,14 @@ type UpdateCategoryRequest struct {
 	SortOrder       *int    `json:"sortOrder,omitempty"`
 }
 
+// UpdateJobRequest defines model for UpdateJobRequest.
+type UpdateJobRequest struct {
+	CronExpression  *string `json:"cronExpression,omitempty"`
+	ExpectedVersion int     `json:"expectedVersion"`
+	IsActive        *bool   `json:"isActive,omitempty"`
+	TimeoutSeconds  *int    `json:"timeoutSeconds,omitempty"`
+}
+
 // UpdateMyProfileRequest defines model for UpdateMyProfileRequest.
 type UpdateMyProfileRequest struct {
 	FirstName *string `json:"firstName,omitempty"`
@@ -1864,6 +2051,7 @@ type UpdatePackageRequest struct {
 	AllowsUrgent        *bool     `json:"allowsUrgent,omitempty"`
 	BadgeText           *string   `json:"badgeText,omitempty"`
 	Benefits            *[]string `json:"benefits,omitempty"`
+	BroadcastOnPublish  *bool     `json:"broadcastOnPublish,omitempty"`
 	CurrencyCode        *string   `json:"currencyCode,omitempty"`
 	DefaultDurationDays *int      `json:"defaultDurationDays,omitempty"`
 	Description         *string   `json:"description,omitempty"`
@@ -1932,6 +2120,9 @@ type ExpectedVersionQuery = int
 // HorseIdPath defines model for HorseIdPath.
 type HorseIdPath = openapi_types.UUID
 
+// JobIdPath defines model for JobIdPath.
+type JobIdPath = openapi_types.UUID
+
 // Limit defines model for Limit.
 type Limit = int
 
@@ -1946,6 +2137,9 @@ type PackageCodePath = PackageCode
 
 // PropertyIdPath defines model for PropertyIdPath.
 type PropertyIdPath = openapi_types.UUID
+
+// ProviderEmailTemplateIdPath defines model for ProviderEmailTemplateIdPath.
+type ProviderEmailTemplateIdPath = string
 
 // ProvinceIdPath defines model for ProvinceIdPath.
 type ProvinceIdPath = openapi_types.UUID
@@ -2027,6 +2221,13 @@ type ListCategoriesAdminParams struct {
 	Cursor   *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 	Limit    *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 	IsActive *bool   `form:"isActive,omitempty" json:"isActive,omitempty"`
+}
+
+// ListAdminJobHistoryParams defines parameters for ListAdminJobHistory.
+type ListAdminJobHistoryParams struct {
+	// Cursor Opaque cursor
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // ListTJKSyncRunsParams defines parameters for ListTJKSyncRuns.
@@ -2226,11 +2427,20 @@ type SetCategoryPropertyActiveJSONRequestBody = SetActiveRequest
 // ReparentCategoryJSONRequestBody defines body for ReparentCategory for application/json ContentType.
 type ReparentCategoryJSONRequestBody = ReparentCategoryRequest
 
+// UpdateAdminJobJSONRequestBody defines body for UpdateAdminJob for application/json ContentType.
+type UpdateAdminJobJSONRequestBody = UpdateJobRequest
+
+// RunAdminJobJSONRequestBody defines body for RunAdminJob for application/json ContentType.
+type RunAdminJobJSONRequestBody = RunJobRequest
+
 // InitiateAdminMediaUploadJSONRequestBody defines body for InitiateAdminMediaUpload for application/json ContentType.
 type InitiateAdminMediaUploadJSONRequestBody = InitiateMediaUploadRequest
 
 // UpdateAdminNotificationTemplateJSONRequestBody defines body for UpdateAdminNotificationTemplate for application/json ContentType.
 type UpdateAdminNotificationTemplateJSONRequestBody = UpdateNotificationTemplateRequest
+
+// CreateAdminPackageJSONRequestBody defines body for CreateAdminPackage for application/json ContentType.
+type CreateAdminPackageJSONRequestBody = CreatePackageRequest
 
 // UpdateAdminPackageJSONRequestBody defines body for UpdateAdminPackage for application/json ContentType.
 type UpdateAdminPackageJSONRequestBody = UpdatePackageRequest
@@ -2417,6 +2627,27 @@ type ServerInterface interface {
 	// ReparentCategory ReparentCategory
 	// (POST /v1/admin/categories/{categoryId}/reparent)
 	ReparentCategory(c *gin.Context, categoryId CategoryIdPath)
+	// ListAdminProviderEmailTemplates ListAdminProviderEmailTemplates
+	// (GET /v1/admin/email-templates/provider)
+	ListAdminProviderEmailTemplates(c *gin.Context)
+	// GetAdminProviderEmailTemplateVariables GetAdminProviderEmailTemplateVariables
+	// (GET /v1/admin/email-templates/provider/{templateId}/variables)
+	GetAdminProviderEmailTemplateVariables(c *gin.Context, templateId ProviderEmailTemplateIdPath)
+	// ListAdminJobs ListAdminJobs
+	// (GET /v1/admin/jobs)
+	ListAdminJobs(c *gin.Context)
+	// GetAdminJob GetAdminJob
+	// (GET /v1/admin/jobs/{jobId})
+	GetAdminJob(c *gin.Context, jobId JobIdPath)
+	// UpdateAdminJob UpdateAdminJob
+	// (PATCH /v1/admin/jobs/{jobId})
+	UpdateAdminJob(c *gin.Context, jobId JobIdPath)
+	// ListAdminJobHistory ListAdminJobHistory
+	// (GET /v1/admin/jobs/{jobId}/history)
+	ListAdminJobHistory(c *gin.Context, jobId JobIdPath, params ListAdminJobHistoryParams)
+	// RunAdminJob RunAdminJob
+	// (POST /v1/admin/jobs/{jobId}/run)
+	RunAdminJob(c *gin.Context, jobId JobIdPath)
 	// GetAdminMediaProcessingStatus GetAdminMediaProcessingStatus
 	// (GET /v1/admin/media/assets/{assetId})
 	GetAdminMediaProcessingStatus(c *gin.Context, assetId AssetIdPath)
@@ -2438,6 +2669,9 @@ type ServerInterface interface {
 	// ListAdminPackages ListAdminPackages
 	// (GET /v1/admin/packages)
 	ListAdminPackages(c *gin.Context)
+	// CreateAdminPackage CreateAdminPackage
+	// (POST /v1/admin/packages)
+	CreateAdminPackage(c *gin.Context)
 	// GetAdminPackage GetAdminPackage
 	// (GET /v1/admin/packages/{packageCode})
 	GetAdminPackage(c *gin.Context, packageCode PackageCodePath)
@@ -2639,6 +2873,9 @@ type ServerInterface interface {
 	// InitiateMediaUpload InitiateMediaUpload
 	// (POST /v1/media/uploads)
 	InitiateMediaUpload(c *gin.Context)
+	// GetPublicMedia GetPublicMedia
+	// (GET /v1/media/{assetId}/{profile})
+	GetPublicMedia(c *gin.Context, assetId AssetIdPath, profile MediaDeliveryProfile)
 	// ListPublicPackages ListPublicPackages
 	// (GET /v1/packages)
 	ListPublicPackages(c *gin.Context)
@@ -3556,6 +3793,176 @@ func (siw *ServerInterfaceWrapper) ReparentCategory(c *gin.Context) {
 	siw.Handler.ReparentCategory(c, categoryId)
 }
 
+// ListAdminProviderEmailTemplates operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminProviderEmailTemplates(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminProviderEmailTemplates(c)
+}
+
+// GetAdminProviderEmailTemplateVariables operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminProviderEmailTemplateVariables(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "templateId" -------------
+	var templateId ProviderEmailTemplateIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "templateId", c.Param("templateId"), &templateId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter templateId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminProviderEmailTemplateVariables(c, templateId)
+}
+
+// ListAdminJobs operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminJobs(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminJobs(c)
+}
+
+// GetAdminJob operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminJob(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId JobIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", c.Param("jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter jobId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminJob(c, jobId)
+}
+
+// UpdateAdminJob operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminJob(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId JobIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", c.Param("jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter jobId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAdminJob(c, jobId)
+}
+
+// ListAdminJobHistory operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminJobHistory(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId JobIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", c.Param("jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter jobId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminJobHistoryParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", c.Request.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cursor: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminJobHistory(c, jobId, params)
+}
+
+// RunAdminJob operation middleware
+func (siw *ServerInterfaceWrapper) RunAdminJob(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId JobIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", c.Param("jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter jobId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RunAdminJob(c, jobId)
+}
+
 // GetAdminMediaProcessingStatus operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminMediaProcessingStatus(c *gin.Context) {
 
@@ -3693,6 +4100,19 @@ func (siw *ServerInterfaceWrapper) ListAdminPackages(c *gin.Context) {
 	}
 
 	siw.Handler.ListAdminPackages(c)
+}
+
+// CreateAdminPackage operation middleware
+func (siw *ServerInterfaceWrapper) CreateAdminPackage(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateAdminPackage(c)
 }
 
 // GetAdminPackage operation middleware
@@ -5439,6 +5859,40 @@ func (siw *ServerInterfaceWrapper) InitiateMediaUpload(c *gin.Context) {
 	siw.Handler.InitiateMediaUpload(c)
 }
 
+// GetPublicMedia operation middleware
+func (siw *ServerInterfaceWrapper) GetPublicMedia(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "assetId" -------------
+	var assetId AssetIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "assetId", c.Param("assetId"), &assetId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter assetId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "profile" -------------
+	var profile MediaDeliveryProfile
+
+	err = runtime.BindStyledParameterWithOptions("simple", "profile", c.Param("profile"), &profile, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter profile: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetPublicMedia(c, assetId, profile)
+}
+
 // ListPublicPackages operation middleware
 func (siw *ServerInterfaceWrapper) ListPublicPackages(c *gin.Context) {
 
@@ -5641,6 +6095,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/v1/me/password", wrapper.ChangePassword)
 	router.GET(options.BaseURL+"/v1/me/sessions", wrapper.ListMySessions)
 	router.DELETE(options.BaseURL+"/v1/me/sessions/:sessionId", wrapper.RevokeMySession)
+	router.GET(options.BaseURL+"/v1/media/:assetId/:profile", wrapper.GetPublicMedia)
 	router.GET(options.BaseURL+"/v1/media/assets/:assetId", wrapper.GetMediaProcessingStatus)
 	router.POST(options.BaseURL+"/v1/media/assets/:assetId/confirm", wrapper.ConfirmMediaUpload)
 	router.POST(options.BaseURL+"/v1/media/uploads", wrapper.InitiateMediaUpload)
@@ -5648,6 +6103,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/provinces/search", wrapper.SearchProvinces)
 	router.GET(options.BaseURL+"/v1/provinces/:provinceId/districts", wrapper.ListDistrictsByProvince)
 	router.GET(options.BaseURL+"/v1/admin/packages", wrapper.ListAdminPackages)
+	router.POST(options.BaseURL+"/v1/admin/packages", wrapper.CreateAdminPackage)
 	router.GET(options.BaseURL+"/v1/admin/packages/:packageCode", wrapper.GetAdminPackage)
 	router.PATCH(options.BaseURL+"/v1/admin/packages/:packageCode", wrapper.UpdateAdminPackage)
 	router.GET(options.BaseURL+"/v1/admin/adverts/:advertId/package", wrapper.GetAdminAdvertPackage)
@@ -5661,6 +6117,13 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/admin/notification-templates", wrapper.ListAdminNotificationTemplates)
 	router.GET(options.BaseURL+"/v1/admin/notification-templates/:eventType", wrapper.GetAdminNotificationTemplate)
 	router.PATCH(options.BaseURL+"/v1/admin/notification-templates/:eventType", wrapper.UpdateAdminNotificationTemplate)
+	router.GET(options.BaseURL+"/v1/admin/email-templates/provider", wrapper.ListAdminProviderEmailTemplates)
+	router.GET(options.BaseURL+"/v1/admin/email-templates/provider/:templateId/variables", wrapper.GetAdminProviderEmailTemplateVariables)
+	router.GET(options.BaseURL+"/v1/admin/jobs", wrapper.ListAdminJobs)
+	router.GET(options.BaseURL+"/v1/admin/jobs/:jobId", wrapper.GetAdminJob)
+	router.PATCH(options.BaseURL+"/v1/admin/jobs/:jobId", wrapper.UpdateAdminJob)
+	router.POST(options.BaseURL+"/v1/admin/jobs/:jobId/run", wrapper.RunAdminJob)
+	router.GET(options.BaseURL+"/v1/admin/jobs/:jobId/history", wrapper.ListAdminJobHistory)
 	router.DELETE(options.BaseURL+"/v1/adverts/:advertId/urgent", wrapper.DeactivateAdvertUrgent)
 	router.PUT(options.BaseURL+"/v1/adverts/:advertId/urgent", wrapper.ActivateAdvertUrgent)
 }

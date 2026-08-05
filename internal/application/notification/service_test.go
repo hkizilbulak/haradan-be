@@ -42,8 +42,8 @@ func newFixture(t *testing.T) *fixture {
 	seed := []domainnotification.NotificationTemplate{
 		{
 			ID:                 uuid.MustParse("b0000000-0000-4000-8000-000000000001"),
-			EventType:          domainnotification.TemplateEventTypeAdvancedAdvertPublished,
-			Name:               "Advanced advert published placeholder",
+			EventType:          domainnotification.TemplateEventTypePackageAdvertPublished,
+			Name:               "Package advert published placeholder",
 			InAppTitleTemplate: "Yeni ilan", InAppBodyTemplate: "Yeni bir ilan yayınlandı.",
 			Version: 1, CreatedAt: now, UpdatedAt: now,
 		},
@@ -56,15 +56,15 @@ func newFixture(t *testing.T) *fixture {
 		},
 		{
 			ID:                 uuid.MustParse("b0000000-0000-4000-8000-000000000003"),
-			EventType:          domainnotification.TemplateEventTypePackageExpiry10Days,
-			Name:               "Package expiry 10 days placeholder",
+			EventType:          domainnotification.TemplateEventTypePackageExpiry5Days,
+			Name:               "Package expiry 5 days placeholder",
 			InAppTitleTemplate: "Paket süresi", InAppBodyTemplate: "Paket süreniz yakında dolacak.",
 			Version: 1, CreatedAt: now, UpdatedAt: now,
 		},
 		{
 			ID:                 uuid.MustParse("b0000000-0000-4000-8000-000000000004"),
-			EventType:          domainnotification.TemplateEventTypePackageExpiry3Days,
-			Name:               "Package expiry 3 days placeholder",
+			EventType:          domainnotification.TemplateEventTypePackageExpiry1Day,
+			Name:               "Package expiry 1 day placeholder",
 			InAppTitleTemplate: "Paket süresi", InAppBodyTemplate: "Paket süreniz yakında dolacak.",
 			Version: 1, CreatedAt: now, UpdatedAt: now,
 		},
@@ -103,7 +103,7 @@ func TestListAndGetTemplates(t *testing.T) {
 	if len(items) != 4 {
 		t.Fatalf("len=%d", len(items))
 	}
-	if items[0].EventType != domainnotification.TemplateEventTypeAdvancedAdvertPublished {
+	if items[0].EventType != domainnotification.TemplateEventTypePackageAdvertPublished {
 		t.Fatalf("order: %s", items[0].EventType)
 	}
 
@@ -119,13 +119,13 @@ func TestListAndGetTemplates(t *testing.T) {
 func TestUpdateTemplateSuccessStaleAndBlank(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
-	et := domainnotification.TemplateEventTypePackageExpiry10Days
+	et := domainnotification.TemplateEventTypePackageExpiry5Days
 
 	resend := "tmpl_abc"
 	active := true
 	updated, err := f.svc.UpdateTemplate(ctx, appnotification.UpdateTemplateInput{
 		ActorUserID: f.admin.ID, EventType: et, ExpectedVersion: 1,
-		Name: strPtr("Expiry 10d"), InAppTitleTemplate: strPtr("Süre doluyor"), InAppBodyTemplate: strPtr("10 gün kaldı."),
+		Name: strPtr("Expiry 5d"), InAppTitleTemplate: strPtr("Süre doluyor"), InAppBodyTemplate: strPtr("5 gün kaldı."),
 		ResendTemplateIDSet: true, ResendTemplateID: &resend, IsActive: &active,
 	})
 	if err != nil {

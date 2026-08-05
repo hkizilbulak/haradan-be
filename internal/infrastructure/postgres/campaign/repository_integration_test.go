@@ -67,6 +67,35 @@ func TestCampaignCRUDOptimisticIntegration(t *testing.T) {
 		_, _ = pool.Exec(context.Background(), `DELETE FROM hrd_users WHERE id = $1`, admin.ID)
 	})
 
+	targetCode := "ADVANCED"
+	var existingID uuid.UUID
+	lookupErr := pool.QueryRow(ctx, `SELECT id FROM hrd_packages WHERE code = $1`, targetCode).Scan(&existingID)
+	if lookupErr != nil {
+		pkgID := uuid.New()
+		if _, err := pool.Exec(ctx, `
+INSERT INTO hrd_packages (
+    id, code, display_name, description, badge_text, benefits,
+    display_price_amount_minor, currency_code, default_duration_days,
+    allows_urgent, showcase_eligible, search_priority, broadcast_on_publish,
+    is_active, sort_order, version, created_at, updated_at
+) VALUES (
+    $1, $2, 'Advanced', NULL, NULL, '[]'::jsonb,
+    NULL, 'TRY', NULL,
+    true, true, 100, true,
+    true, 30, 1, $3, $3
+)`, pkgID, targetCode, now); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			_, _ = pool.Exec(context.Background(), `
+DELETE FROM hrd_packages WHERE id = $1 AND NOT EXISTS (
+  SELECT 1 FROM hrd_advert_package_assignments a WHERE a.package_id = $1
+) AND NOT EXISTS (
+  SELECT 1 FROM hrd_campaigns c WHERE c.source_package_id = $1 OR c.target_package_id = $1
+)`, pkgID)
+		})
+	}
+
 	svc, err := appcampaign.NewPostgresService(
 		pool,
 		appcampaign.NewPostgresPackageLookup(pool),
@@ -78,7 +107,7 @@ func TestCampaignCRUDOptimisticIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	target := "ADVANCED"
+	target := targetCode
 	created, err := svc.CreateCampaign(ctx, appcampaign.CreateCampaignInput{
 		ActorUserID:       admin.ID,
 		Code:              "c-" + uuid.NewString()[:8],

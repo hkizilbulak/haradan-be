@@ -17,7 +17,7 @@ func TestDecodeUpdatePackageNullClears(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest("PATCH", "/", bytes.NewReader([]byte(body)))
 	c.Request.Header.Set("Content-Type", "application/json")
-	in, err := decodeUpdatePackageInput(c, uuid.New(), domainpackaging.PackageCodeStarter)
+	in, err := decodeUpdatePackageInput(c, uuid.New(), domainpackaging.PackageCode("STARTER"))
 	if err != nil {
 		t.Fatal(err)
 	}

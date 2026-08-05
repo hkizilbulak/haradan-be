@@ -3,6 +3,7 @@ package tjk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -23,7 +24,9 @@ type WorkerRepository interface {
 	ClaimTJKJob(context.Context, string, time.Time, time.Time) (uuid.UUID, domain.Run, bool, error)
 	ApplyTJKPage(context.Context, uuid.UUID, domain.Run, []domain.HorseInput, string, time.Time) error
 	FinishTJKRun(context.Context, uuid.UUID, domain.Run, time.Time) error
-	FailTJKJob(context.Context, uuid.UUID, string, time.Time) error
+	// FailTJKJob marks the job failed. When retryable is true and attempts remain
+	// (attempt_count < max_attempts), the job is requeued with backoff.
+	FailTJKJob(context.Context, uuid.UUID, string, time.Time, bool) error
 }
 
 type Worker struct {
@@ -39,6 +42,7 @@ func NewWorker(repo WorkerRepository, fetcher PageFetcher, workerID string) (*Wo
 	}
 	return &Worker{repo: repo, fetcher: fetcher, workerID: workerID, now: func() time.Time { return time.Now().UTC() }}, nil
 }
+
 func (w *Worker) ProcessOnce(ctx context.Context, lease time.Duration) (bool, error) {
 	now := w.now()
 	jobID, run, ok, err := w.repo.ClaimTJKJob(ctx, w.workerID, now, now.Add(lease))
@@ -51,7 +55,8 @@ func (w *Worker) ProcessOnce(ctx context.Context, lease time.Duration) (bool, er
 	page := checkpointPage(run.Checkpoint)
 	horses, err := w.fetcher.FetchPage(ctx, strconv.Itoa(page))
 	if err != nil {
-		_ = w.repo.FailTJKJob(ctx, jobID, "TJK sayfası alınamadı", now)
+		retryable := isRetryable(err)
+		_ = w.repo.FailTJKJob(ctx, jobID, "TJK sayfası alınamadı", now, retryable)
 		return true, err
 	}
 	if len(horses) == 0 {
@@ -59,22 +64,40 @@ func (w *Worker) ProcessOnce(ctx context.Context, lease time.Duration) (bool, er
 	}
 	return true, w.repo.ApplyTJKPage(ctx, jobID, run, horses, strconv.Itoa(page+1), now)
 }
+
+type retryableError interface {
+	Retryable() bool
+}
+
+func isRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var r retryableError
+	return errors.As(err, &r) && r.Retryable()
+}
+
+// checkpointPage returns the legacy 0-based TJK PageNumber stored in the run
+// checkpoint. Missing/invalid checkpoints start at page 0.
 func checkpointPage(raw json.RawMessage) int {
 	var v struct {
 		Page json.RawMessage `json:"page"`
 	}
 	if json.Unmarshal(raw, &v) != nil {
-		return 1
+		return 0
 	}
 	var page int
-	if json.Unmarshal(v.Page, &page) == nil && page > 0 {
+	if json.Unmarshal(v.Page, &page) == nil && page >= 0 {
 		return page
 	}
 	var text string
 	if json.Unmarshal(v.Page, &text) == nil {
-		if n, err := strconv.Atoi(text); err == nil && n > 0 {
+		if n, err := strconv.Atoi(text); err == nil && n >= 0 {
 			return n
 		}
 	}
-	return 1
+	return 0
 }

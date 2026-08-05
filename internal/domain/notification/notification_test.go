@@ -11,10 +11,10 @@ import (
 
 func TestTemplateEventTypeParseAndValid(t *testing.T) {
 	for _, raw := range []string{
-		"ADVANCED_ADVERT_PUBLISHED",
+		"PACKAGE_ADVERT_PUBLISHED",
 		"URGENT_ADVERT_ACTIVATED",
-		"PACKAGE_EXPIRY_10_DAYS",
-		"PACKAGE_EXPIRY_3_DAYS",
+		"PACKAGE_EXPIRY_5_DAYS",
+		"PACKAGE_EXPIRY_1_DAY",
 	} {
 		et, ok := domainnotification.ParseTemplateEventType(raw)
 		if !ok || !et.Valid() {
@@ -23,6 +23,12 @@ func TestTemplateEventTypeParseAndValid(t *testing.T) {
 	}
 	if domainnotification.TemplateEventType("PACKAGE_RENEWAL").Valid() {
 		t.Fatal("PACKAGE_RENEWAL is not a template event")
+	}
+	if domainnotification.TemplateEventType("ADVANCED_ADVERT_PUBLISHED").Valid() {
+		t.Fatal("ADVANCED_ADVERT_PUBLISHED is not valid for new writes")
+	}
+	if domainnotification.TemplateEventType("PACKAGE_EXPIRY_10_DAYS").Valid() {
+		t.Fatal("10_DAYS is not valid for new writes")
 	}
 }
 
@@ -33,16 +39,16 @@ func TestEventKeysAndEmailIdempotencyLength(t *testing.T) {
 	userID := uuid.MustParse("5f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5f")
 	nID := uuid.MustParse("6f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c50")
 
-	advKey := domainnotification.AdvancedAdvertPublishedEventKey(advertID, asgID)
-	if advKey != "ADVANCED_ADVERT_PUBLISHED:"+advertID.String()+":"+asgID.String() {
-		t.Fatalf("advanced key=%q", advKey)
+	advKey := domainnotification.PackageAdvertPublishedEventKey(advertID, asgID)
+	if advKey != "PACKAGE_ADVERT_PUBLISHED:"+advertID.String()+":"+asgID.String() {
+		t.Fatalf("package key=%q", advKey)
 	}
 	urgKey := domainnotification.UrgentAdvertActivatedEventKey(advertID, 3)
 	if urgKey != "URGENT_ADVERT_ACTIVATED:"+advertID.String()+":3" {
 		t.Fatalf("urgent key=%q", urgKey)
 	}
 	ends := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
-	expKey := domainnotification.PackageExpiryEventKey(asgID, ends, domainnotification.PackageExpiryDayOffset10D)
+	expKey := domainnotification.PackageExpiryEventKey(asgID, ends, domainnotification.PackageExpiryDayOffset5D)
 	if len(expKey) > 255 {
 		t.Fatalf("expiry event key too long: %d", len(expKey))
 	}
@@ -54,19 +60,19 @@ func TestEventKeysAndEmailIdempotencyLength(t *testing.T) {
 
 func TestRenderTemplateRejectsUnknownAndHTML(t *testing.T) {
 	t.Parallel()
-	allow := domainnotification.AllowlistedTemplateVars(domainnotification.TemplateEventTypeAdvancedAdvertPublished)
+	allow := domainnotification.AllowlistedTemplateVars(domainnotification.TemplateEventTypePackageAdvertPublished)
 	vars := domainnotification.TemplateVars{
 		"advertId": "id", "advertTitle": "Title", "packageCode": "ADVANCED", "packageDisplayName": "Advanced",
 		"isUrgent": "false", "frontendUrl": "https://example.invalid",
 	}
-	if _, err := domainnotification.RenderTitle(domainnotification.TemplateEventTypeAdvancedAdvertPublished, "{{.advertTitle}}", vars); err != nil {
+	if _, err := domainnotification.RenderTitle(domainnotification.TemplateEventTypePackageAdvertPublished, "{{.advertTitle}}", vars); err != nil {
 		t.Fatal(err)
 	}
 	badVars := domainnotification.TemplateVars{
 		"advertId": "id", "advertTitle": "<b>x</b>", "packageCode": "ADVANCED", "packageDisplayName": "P",
 		"isUrgent": "false", "frontendUrl": "https://example.invalid",
 	}
-	if _, err := domainnotification.RenderTitle(domainnotification.TemplateEventTypeAdvancedAdvertPublished, "{{.advertTitle}}", badVars); err == nil {
+	if _, err := domainnotification.RenderTitle(domainnotification.TemplateEventTypePackageAdvertPublished, "{{.advertTitle}}", badVars); err == nil {
 		t.Fatal("html should be rejected")
 	}
 	extra := domainnotification.TemplateVars{
@@ -85,7 +91,7 @@ func TestAllowlistedTemplateVarsProductSet(t *testing.T) {
 	t.Parallel()
 	advertKeys := []string{"advertId", "advertTitle", "packageCode", "packageDisplayName", "isUrgent", "frontendUrl"}
 	for _, et := range []domainnotification.TemplateEventType{
-		domainnotification.TemplateEventTypeAdvancedAdvertPublished,
+		domainnotification.TemplateEventTypePackageAdvertPublished,
 		domainnotification.TemplateEventTypeUrgentAdvertActivated,
 	} {
 		allow := domainnotification.AllowlistedTemplateVars(et)
@@ -104,8 +110,8 @@ func TestAllowlistedTemplateVarsProductSet(t *testing.T) {
 		"campaignTitle", "campaignDescription", "campaignCtaLabel", "campaignCtaUrl", "frontendUrl",
 	}
 	for _, et := range []domainnotification.TemplateEventType{
-		domainnotification.TemplateEventTypePackageExpiry10Days,
-		domainnotification.TemplateEventTypePackageExpiry3Days,
+		domainnotification.TemplateEventTypePackageExpiry5Days,
+		domainnotification.TemplateEventTypePackageExpiry1Day,
 	} {
 		allow := domainnotification.AllowlistedTemplateVars(et)
 		if len(allow) != len(expiryKeys) {
@@ -125,10 +131,10 @@ func TestPackageExpiryIstanbulCalendarDays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	endsAt := time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC)
+	endsAt := time.Date(2026, 8, 10, 10, 0, 0, 0, time.UTC)
 	now := time.Date(2026, 8, 5, 10, 0, 0, 0, time.UTC)
-	if got := domainnotification.CalendarDaysUntil(endsAt, now, loc); got != 10 {
-		t.Fatalf("calendar days=%d want 10", got)
+	if got := domainnotification.CalendarDaysUntil(endsAt, now, loc); got != 5 {
+		t.Fatalf("calendar days=%d want 5", got)
 	}
 }
 

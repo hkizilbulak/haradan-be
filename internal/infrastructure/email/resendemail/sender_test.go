@@ -29,13 +29,14 @@ const (
 
 func testConfig(baseURL string) Config {
 	return Config{
-		APIKey:      testAPIKey,
-		BaseURL:     baseURL,
-		HTTPTimeout: 5 * time.Second,
-		FromEmail:   testFromEmail,
-		FromName:    testFromName,
-		FrontendURL: testFrontendURL,
-		TemplateID:  testTemplateID,
+		APIKey:                  testAPIKey,
+		BaseURL:                 baseURL,
+		HTTPTimeout:             5 * time.Second,
+		FromEmail:               testFromEmail,
+		FromName:                testFromName,
+		FrontendURL:             testFrontendURL,
+		WelcomeTemplateID:       testTemplateID,
+		ResetPasswordTemplateID: "reset-password",
 	}
 }
 
@@ -43,13 +44,14 @@ func TestNewValidatesWithoutNetwork(t *testing.T) {
 	t.Parallel()
 
 	_, err := New(Config{
-		APIKey:      "",
-		BaseURL:     "https://api.example.invalid",
-		HTTPTimeout: time.Second,
-		FromEmail:   testFromEmail,
-		FromName:    testFromName,
-		FrontendURL: testFrontendURL,
-		TemplateID:  testTemplateID,
+		APIKey:                  "",
+		BaseURL:                 "https://api.example.invalid",
+		HTTPTimeout:             time.Second,
+		FromEmail:               testFromEmail,
+		FromName:                testFromName,
+		FrontendURL:             testFrontendURL,
+		WelcomeTemplateID:       testTemplateID,
+		ResetPasswordTemplateID: "reset-password",
 	})
 	if err == nil {
 		t.Fatal("expected missing key error")
@@ -59,13 +61,14 @@ func TestNewValidatesWithoutNetwork(t *testing.T) {
 	}
 
 	_, err = New(Config{
-		APIKey:      testAPIKey,
-		BaseURL:     "http://api.example.invalid",
-		HTTPTimeout: time.Second,
-		FromEmail:   testFromEmail,
-		FromName:    testFromName,
-		FrontendURL: testFrontendURL,
-		TemplateID:  testTemplateID,
+		APIKey:                  testAPIKey,
+		BaseURL:                 "http://api.example.invalid",
+		HTTPTimeout:             time.Second,
+		FromEmail:               testFromEmail,
+		FromName:                testFromName,
+		FrontendURL:             testFrontendURL,
+		WelcomeTemplateID:       testTemplateID,
+		ResetPasswordTemplateID: "reset-password",
 	})
 	if err == nil {
 		t.Fatal("expected http base URL error")
@@ -136,6 +139,9 @@ func TestSendRegistrationVerificationSuccessContract(t *testing.T) {
 	if !ok {
 		t.Fatalf("variables=%v", tmpl["variables"])
 	}
+	if vars["verificationUrl"] != testFrontendURL+"/verify-email?token="+testToken {
+		t.Fatalf("verificationUrl=%v", vars["verificationUrl"])
+	}
 	if vars["verificationToken"] != testToken {
 		t.Fatalf("verificationToken mismatch")
 	}
@@ -144,6 +150,9 @@ func TestSendRegistrationVerificationSuccessContract(t *testing.T) {
 	}
 	if vars["frontendUrl"] != testFrontendURL {
 		t.Fatalf("frontendUrl=%v", vars["frontendUrl"])
+	}
+	if _, ok := vars["fullName"]; !ok {
+		t.Fatal("fullName variable missing")
 	}
 }
 

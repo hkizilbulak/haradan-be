@@ -1,4 +1,5 @@
-// Package notification holds notification template aggregates aligned with migration 00009.
+// Package notification holds notification template aggregates aligned with
+// migrations 00009/00011.
 package notification
 
 import (
@@ -18,22 +19,22 @@ import (
 type TemplateEventType string
 
 const (
-	TemplateEventTypeAdvancedAdvertPublished TemplateEventType = "ADVANCED_ADVERT_PUBLISHED"
-	TemplateEventTypeUrgentAdvertActivated   TemplateEventType = "URGENT_ADVERT_ACTIVATED"
-	TemplateEventTypePackageExpiry10Days     TemplateEventType = "PACKAGE_EXPIRY_10_DAYS"
-	TemplateEventTypePackageExpiry3Days      TemplateEventType = "PACKAGE_EXPIRY_3_DAYS"
+	TemplateEventTypePackageAdvertPublished TemplateEventType = "PACKAGE_ADVERT_PUBLISHED"
+	TemplateEventTypeUrgentAdvertActivated  TemplateEventType = "URGENT_ADVERT_ACTIVATED"
+	TemplateEventTypePackageExpiry5Days     TemplateEventType = "PACKAGE_EXPIRY_5_DAYS"
+	TemplateEventTypePackageExpiry1Day      TemplateEventType = "PACKAGE_EXPIRY_1_DAY"
 )
 
 // EventType is the notification event_type CHECK set (same values as TemplateEventType).
 type EventType = TemplateEventType
 
-// Valid reports whether t is a known template event type.
+// Valid reports whether t is a known template event type used for new writes.
 func (t TemplateEventType) Valid() bool {
 	switch t {
-	case TemplateEventTypeAdvancedAdvertPublished,
+	case TemplateEventTypePackageAdvertPublished,
 		TemplateEventTypeUrgentAdvertActivated,
-		TemplateEventTypePackageExpiry10Days,
-		TemplateEventTypePackageExpiry3Days:
+		TemplateEventTypePackageExpiry5Days,
+		TemplateEventTypePackageExpiry1Day:
 		return true
 	}
 	return false
@@ -49,14 +50,14 @@ func ParseTemplateEventType(v string) (TemplateEventType, bool) {
 type PackageExpiryDayOffset string
 
 const (
-	PackageExpiryDayOffset10D PackageExpiryDayOffset = "10D"
-	PackageExpiryDayOffset3D  PackageExpiryDayOffset = "3D"
+	PackageExpiryDayOffset5D PackageExpiryDayOffset = "5D"
+	PackageExpiryDayOffset1D PackageExpiryDayOffset = "1D"
 )
 
 // Valid reports whether o is a known expiry offset label.
 func (o PackageExpiryDayOffset) Valid() bool {
 	switch o {
-	case PackageExpiryDayOffset10D, PackageExpiryDayOffset3D:
+	case PackageExpiryDayOffset5D, PackageExpiryDayOffset1D:
 		return true
 	}
 	return false
@@ -65,10 +66,10 @@ func (o PackageExpiryDayOffset) Valid() bool {
 // EventTypeForExpiryOffset maps a day offset to the notification event type.
 func EventTypeForExpiryOffset(offset PackageExpiryDayOffset) (EventType, bool) {
 	switch offset {
-	case PackageExpiryDayOffset10D:
-		return TemplateEventTypePackageExpiry10Days, true
-	case PackageExpiryDayOffset3D:
-		return TemplateEventTypePackageExpiry3Days, true
+	case PackageExpiryDayOffset5D:
+		return TemplateEventTypePackageExpiry5Days, true
+	case PackageExpiryDayOffset1D:
+		return TemplateEventTypePackageExpiry1Day, true
 	default:
 		return "", false
 	}
@@ -181,9 +182,9 @@ func NonBlankBodyTemplate(body string) bool {
 	return strings.TrimSpace(body) != ""
 }
 
-// AdvancedAdvertPublishedEventKey builds the dedup event key for advanced publish.
-func AdvancedAdvertPublishedEventKey(advertID, assignmentID uuid.UUID) string {
-	return string(TemplateEventTypeAdvancedAdvertPublished) + ":" + advertID.String() + ":" + assignmentID.String()
+// PackageAdvertPublishedEventKey builds the dedup event key for package publish broadcast.
+func PackageAdvertPublishedEventKey(advertID, assignmentID uuid.UUID) string {
+	return string(TemplateEventTypePackageAdvertPublished) + ":" + advertID.String() + ":" + assignmentID.String()
 }
 
 // UrgentAdvertActivatedEventKey builds the dedup event key for urgent activation.
@@ -219,12 +220,12 @@ type TemplateVars map[string]string
 // AllowlistedTemplateVars returns the variable names permitted for an event type.
 func AllowlistedTemplateVars(eventType EventType) map[string]struct{} {
 	switch eventType {
-	case TemplateEventTypeAdvancedAdvertPublished, TemplateEventTypeUrgentAdvertActivated:
+	case TemplateEventTypePackageAdvertPublished, TemplateEventTypeUrgentAdvertActivated:
 		return map[string]struct{}{
 			"advertId": {}, "advertTitle": {}, "packageCode": {}, "packageDisplayName": {},
 			"isUrgent": {}, "frontendUrl": {},
 		}
-	case TemplateEventTypePackageExpiry10Days, TemplateEventTypePackageExpiry3Days:
+	case TemplateEventTypePackageExpiry5Days, TemplateEventTypePackageExpiry1Day:
 		return map[string]struct{}{
 			"advertId": {}, "advertTitle": {}, "packageCode": {}, "packageDisplayName": {},
 			"endsAt": {}, "daysRemaining": {},
@@ -327,10 +328,10 @@ func PackageExpiryTargetDay(nowUTC time.Time, loc *time.Location, offset Package
 	if loc == nil {
 		loc = time.UTC
 	}
-	days := 10
+	days := 5
 	switch offset {
-	case PackageExpiryDayOffset3D:
-		days = 3
+	case PackageExpiryDayOffset1D:
+		days = 1
 	}
 	local := nowUTC.In(loc)
 	today := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)

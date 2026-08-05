@@ -1,25 +1,33 @@
 // Package tjk implements the bounded, redirect-free HTTP adapter for the
-// public TJK horse pages. The HTML layout is not an API contract, so parsing is
-// deliberately isolated behind Parser and kept tolerant of extra columns.
+// public TJK horse pages. Paths and query parameters mirror the legacy
+// Haradan TjkUrlType contract relative to a configurable base host.
 package tjk
 
 import (
+	"bytes"
 	"context"
-	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"golang.org/x/net/html"
+	"golang.org/x/net/html/charset"
 )
 
-const defaultMaxBodyBytes int64 = 2 << 20
+const (
+	defaultMaxBodyBytes int64 = 2 << 20
+	defaultUserAgent          = "HaradanTJKClient/1.0"
 
-var ErrUnconfigured = errors.New("tjk adapter is not configured")
+	pathBulkSummary = "/TR/YarisSever/Query/DataRows/Atlar"
+	pathDetail      = "/TR/YarisSever/Query/ConnectedPage/AtKosuBilgileri"
+	pathPedigree    = "/TR/YarisSever/Query/Pedigri/Pedigri"
+	pathSibling     = "/TR/YarisSever/Query/Kardes/Kardes"
+)
 
+var ErrUnconfigured = permanentErr("tjk adapter is not configured", 0)
+
+// Horse is a bulk-summary row from DataRows/Atlar.
 type Horse struct {
 	Number string
 	Name   string
@@ -28,42 +36,104 @@ type Horse struct {
 	Dam    string
 }
 
-// Parser permits fixture-driven tests and future TJK markup adaptations.
-type Parser interface {
-	Parse(io.Reader) ([]Horse, error)
+// Detail holds typed fields and race statistics from AtKosuBilgileri.
+type Detail struct {
+	Name          string
+	AgeText       string
+	BirthDate     string
+	HandicapPoint string
+	Sire          string
+	Dam           string
+	Owner         string
+	Grower        string
+	Statistics    []RaceStatistic
 }
 
+// RaceStatistic is one statistics table row.
+type RaceStatistic struct {
+	YearLabel string
+	RaceCount string
+	First     string
+	Second    string
+	Third     string
+	Fourth    string
+	Fifth     string
+	Earning   string
+}
+
+// PedigreeEntry is one father/mother pair from the Pedigri table.
+type PedigreeEntry struct {
+	Father string
+	Mother string
+}
+
+// Sibling is one Kardes table row.
+type Sibling struct {
+	Name       string
+	FatherName string
+	RaceCount  string
+	First      string
+	Second     string
+	Third      string
+	Fourth     string
+	Earning    string
+}
+
+// DetailDocument is the controlled subset of horse.detail JSONB keys that this
+// adapter can populate from pedigree/sibling/statistics responses.
+type DetailDocument struct {
+	Pedigree   []PedigreeEntry `json:"pedigree,omitempty"`
+	Siblings   []Sibling       `json:"siblings,omitempty"`
+	Statistics []RaceStatistic `json:"statistics,omitempty"`
+}
+
+// BuildDetailDocument maps supported client results into the horse detail object.
+func BuildDetailDocument(pedigree []PedigreeEntry, siblings []Sibling, stats []RaceStatistic) DetailDocument {
+	return DetailDocument{
+		Pedigree:   pedigree,
+		Siblings:   siblings,
+		Statistics: stats,
+	}
+}
+
+// Config configures the TJK HTTP client. BaseURL is the host origin
+// (for example https://www.tjk.org); legacy paths are appended.
 type Config struct {
 	BaseURL      string
 	HTTPTimeout  time.Duration
 	MaxBodyBytes int64
+	UserAgent    string
 	HTTPClient   *http.Client
-	Parser       Parser
 }
 
+// Client fetches and parses TJK pages without following redirects.
 type Client struct {
-	baseURL *url.URL
-	http    *http.Client
-	maxBody int64
-	parser  Parser
+	baseURL   *url.URL
+	http      *http.Client
+	maxBody   int64
+	userAgent string
 }
 
+// NewClient validates configuration and returns a redirect-blocking client.
 func NewClient(cfg Config) (*Client, error) {
 	if strings.TrimSpace(cfg.BaseURL) == "" {
 		return nil, ErrUnconfigured
 	}
 	u, err := url.Parse(strings.TrimSpace(cfg.BaseURL))
 	if err != nil || u.Scheme == "" || u.Host == "" || u.User != nil {
-		return nil, fmt.Errorf("invalid TJK base URL")
+		return nil, permanentErr("invalid TJK base URL", 0)
 	}
+	// Keep scheme+host(+port) only; paths are always legacy-absolute.
+	u.Path, u.RawPath, u.RawQuery, u.Fragment = "", "", "", ""
 	if cfg.HTTPTimeout <= 0 {
-		return nil, fmt.Errorf("TJK HTTP timeout must be greater than zero")
+		return nil, permanentErr("TJK HTTP timeout must be greater than zero", 0)
 	}
 	if cfg.MaxBodyBytes <= 0 {
 		cfg.MaxBodyBytes = defaultMaxBodyBytes
 	}
-	if cfg.Parser == nil {
-		cfg.Parser = HTMLTableParser{}
+	ua := strings.TrimSpace(cfg.UserAgent)
+	if ua == "" {
+		ua = defaultUserAgent
 	}
 	hc := cfg.HTTPClient
 	if hc == nil {
@@ -74,129 +144,117 @@ func NewClient(cfg Config) (*Client, error) {
 	copyClient.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	return &Client{baseURL: u, http: &copyClient, maxBody: cfg.MaxBodyBytes, parser: cfg.Parser}, nil
+	return &Client{baseURL: u, http: &copyClient, maxBody: cfg.MaxBodyBytes, userAgent: ua}, nil
 }
 
-// FetchPage requests the configured query page. Cursor is emitted as the
-// page query parameter; deployments may point BaseURL at a test-compatible
-// endpoint without changing code.
+// FetchPage requests legacy bulk summary DataRows/Atlar for a 0-based PageNumber.
+// An empty cursor is treated as page 0. Empty result means end of listing.
 func (c *Client) FetchPage(ctx context.Context, cursor string) ([]Horse, error) {
+	page := strings.TrimSpace(cursor)
+	if page == "" {
+		page = "0"
+	}
+	q := url.Values{}
+	q.Set("PageNumber", page)
+	q.Set("Sort", "AtIsmi")
+	q.Set("X-Requested-With", "XMLHttpRequest")
+	body, err := c.get(ctx, pathBulkSummary, q)
+	if err != nil {
+		return nil, err
+	}
+	return parseBulkSummary(body)
+}
+
+// FetchDetail requests AtKosuBilgileri for the given AtId.
+func (c *Client) FetchDetail(ctx context.Context, atID string) (Detail, error) {
+	atID = strings.TrimSpace(atID)
+	if atID == "" {
+		return Detail{}, permanentErr("TJK AtId is required", 0)
+	}
+	q := url.Values{}
+	q.Set("1", "1")
+	q.Set("QueryParameter_AtId", atID)
+	body, err := c.get(ctx, pathDetail, q)
+	if err != nil {
+		return Detail{}, err
+	}
+	return parseDetail(body)
+}
+
+// FetchPedigree requests Pedigri for the given Atkodu.
+func (c *Client) FetchPedigree(ctx context.Context, atID string) ([]PedigreeEntry, error) {
+	atID = strings.TrimSpace(atID)
+	if atID == "" {
+		return nil, permanentErr("TJK Atkodu is required", 0)
+	}
+	q := url.Values{}
+	q.Set("Atkodu", atID)
+	body, err := c.get(ctx, pathPedigree, q)
+	if err != nil {
+		return nil, err
+	}
+	return parsePedigree(body)
+}
+
+// FetchSiblings requests Kardes for the given Atkodu.
+func (c *Client) FetchSiblings(ctx context.Context, atID string) ([]Sibling, error) {
+	atID = strings.TrimSpace(atID)
+	if atID == "" {
+		return nil, permanentErr("TJK Atkodu is required", 0)
+	}
+	q := url.Values{}
+	q.Set("Atkodu", atID)
+	body, err := c.get(ctx, pathSibling, q)
+	if err != nil {
+		return nil, err
+	}
+	return parseSiblings(body)
+}
+
+func (c *Client) get(ctx context.Context, path string, query url.Values) ([]byte, error) {
 	if c == nil || c.baseURL == nil {
 		return nil, ErrUnconfigured
 	}
-	u := *c.baseURL
-	q := u.Query()
-	if cursor != "" {
-		q.Set("page", cursor)
-	}
-	u.RawQuery = q.Encode()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	ref := &url.URL{Path: path, RawQuery: query.Encode()}
+	reqURL := c.baseURL.ResolveReference(ref).String()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create TJK request: %w", err)
+		return nil, permanentErr("create TJK request failed", 0)
 	}
+	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
+
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request TJK: %w", err)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, mapTransportError(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("TJK returned HTTP %d", resp.StatusCode)
+
+	if err := mapHTTPStatus(resp.StatusCode); err != nil {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, c.maxBody))
+		return nil, err
 	}
-	return c.parser.Parse(io.LimitReader(resp.Body, c.maxBody+1))
-}
 
-// HTMLTableParser parses row-oriented TJK markup. It obtains the permanent
-// identity exclusively from AtId links, never from the displayed order.
-type HTMLTableParser struct{}
-
-func (HTMLTableParser) Parse(r io.Reader) ([]Horse, error) {
-	doc, err := html.Parse(io.LimitReader(r, defaultMaxBodyBytes+1))
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, c.maxBody+1))
 	if err != nil {
-		return nil, fmt.Errorf("parse TJK HTML: %w", err)
-	}
-	var out []Horse
-	var walk func(*html.Node)
-	walk = func(n *html.Node) {
-		if n.Type == html.ElementNode && n.Data == "tr" {
-			if h, ok := parseRow(n); ok {
-				out = append(out, h)
-			}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
-		for child := n.FirstChild; child != nil; child = child.NextSibling {
-			walk(child)
-		}
+		return nil, mapTransportError(err)
 	}
-	walk(doc)
-	if len(out) == 0 {
-		return nil, fmt.Errorf("TJK HTML contains no recognizable horse rows")
+	if int64(len(raw)) > c.maxBody {
+		return nil, permanentErr("TJK response exceeds body limit", 0)
 	}
-	return out, nil
-}
-
-func parseRow(row *html.Node) (Horse, bool) {
-	var cells []string
-	var number string
-	var visit func(*html.Node)
-	visit = func(n *html.Node) {
-		if n.Type == html.ElementNode && n.Data == "td" {
-			cells = append(cells, normalizedText(n))
-		}
-		if n.Type == html.ElementNode && n.Data == "a" {
-			for _, a := range n.Attr {
-				if a.Key == "href" {
-					if id := atID(a.Val); id != "" {
-						number = id
-					}
-				}
-			}
-		}
-		for child := n.FirstChild; child != nil; child = child.NextSibling {
-			visit(child)
-		}
-	}
-	visit(row)
-	if number == "" || len(cells) < 2 {
-		return Horse{}, false
-	}
-	// Known TJK DataRows commonly place name/race/father/mother after the ID
-	// cell. Extra leading cells are tolerated, and parents remain optional.
-	h := Horse{Number: number, Name: cells[1]}
-	if len(cells) > 2 {
-		h.Race = cells[2]
-	}
-	if len(cells) > 3 {
-		h.Sire = cells[3]
-	}
-	if len(cells) > 4 {
-		h.Dam = cells[4]
-	}
-	return h, h.Name != ""
-}
-
-func atID(href string) string {
-	u, err := url.Parse(href)
+	decoded, err := charset.NewReader(bytes.NewReader(raw), resp.Header.Get("Content-Type"))
 	if err != nil {
-		return ""
+		return raw, nil
 	}
-	for key, values := range u.Query() {
-		if strings.EqualFold(key, "AtId") && len(values) > 0 {
-			return strings.TrimSpace(values[0])
-		}
+	data, err := io.ReadAll(decoded)
+	if err != nil {
+		return raw, nil
 	}
-	return ""
-}
-
-func normalizedText(n *html.Node) string {
-	var b strings.Builder
-	var walk func(*html.Node)
-	walk = func(x *html.Node) {
-		if x.Type == html.TextNode {
-			b.WriteString(x.Data)
-		}
-		for c := x.FirstChild; c != nil; c = c.NextSibling {
-			walk(c)
-		}
-	}
-	walk(n)
-	return strings.Join(strings.Fields(b.String()), " ")
+	return data, nil
 }

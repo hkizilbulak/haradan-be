@@ -89,10 +89,10 @@ func TestNotificationEventKeyUniqueness(t *testing.T) {
 	repo := pgnotification.NewRepository(pool)
 	now := time.Now().UTC()
 	id1 := uuid.New()
-	eventKey := "ADVANCED_ADVERT_PUBLISHED:" + uuid.NewString() + ":" + uuid.NewString()
+	eventKey := domainnotification.PackageAdvertPublishedEventKey(uuid.New(), uuid.New())
 	n := domainnotification.Notification{
 		ID:        id1,
-		EventType: domainnotification.TemplateEventTypeAdvancedAdvertPublished,
+		EventType: domainnotification.TemplateEventTypePackageAdvertPublished,
 		EventKey:  eventKey,
 		Title:     "t",
 		Body:      "b",

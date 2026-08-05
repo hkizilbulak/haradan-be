@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
+	"net/url"
 	"strings"
 
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
@@ -12,9 +13,10 @@ import (
 
 // Sender implements appauth.EmailSender via the Resend HTTP API.
 type Sender struct {
-	client      *resendClient
-	templateID  string
-	frontendURL string
+	client                  *resendClient
+	welcomeTemplateID       string
+	resetPasswordTemplateID string
+	frontendURL             string
 }
 
 var _ appauth.EmailSender = (*Sender)(nil)
@@ -46,8 +48,9 @@ func New(cfg Config) (*Sender, error) {
 			http:    httpClient,
 			from:    formatFromHeader(fromName, fromEmail),
 		},
-		templateID:  strings.TrimSpace(cfg.TemplateID),
-		frontendURL: strings.TrimSpace(cfg.FrontendURL),
+		welcomeTemplateID:       cfg.resolvedWelcomeTemplateID(),
+		resetPasswordTemplateID: cfg.resolvedResetPasswordTemplateID(),
+		frontendURL:             strings.TrimSpace(cfg.FrontendURL),
 	}, nil
 }
 
@@ -72,8 +75,9 @@ func newWithHTTPClient(cfg Config, doer httpDoer) (*Sender, error) {
 			http:    doer,
 			from:    formatFromHeader(fromName, fromEmail),
 		},
-		templateID:  strings.TrimSpace(cfg.TemplateID),
-		frontendURL: strings.TrimSpace(cfg.FrontendURL),
+		welcomeTemplateID:       cfg.resolvedWelcomeTemplateID(),
+		resetPasswordTemplateID: cfg.resolvedResetPasswordTemplateID(),
+		frontendURL:             strings.TrimSpace(cfg.FrontendURL),
 	}, nil
 }
 
@@ -81,12 +85,31 @@ func formatFromHeader(name, email string) string {
 	return (&mail.Address{Name: name, Address: email}).String()
 }
 
-// SendRegistrationVerification delivers the registration verification template email.
+// SendRegistrationVerification delivers the welcome/verification template email.
+// Variables: fullName (optional empty), verificationUrl. Fails closed when the
+// welcome template id is unset rather than reusing the reset-password template.
 func (s *Sender) SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken string) error {
+	return s.sendAuthTemplate(ctx, toEmail, plaintextToken, s.welcomeTemplateID, "verificationUrl", "/verify-email")
+}
+
+// SendPasswordReset delivers the reset-password template. Variables: fullName
+// (optional empty), resetUrl. Never reuses the registration/welcome template.
+func (s *Sender) SendPasswordReset(ctx context.Context, toEmail, plaintextToken string) error {
+	return s.sendAuthTemplate(ctx, toEmail, plaintextToken, s.resetPasswordTemplateID, "resetUrl", "/reset-password")
+}
+
+func (s *Sender) sendAuthTemplate(
+	ctx context.Context,
+	toEmail, plaintextToken, templateID, urlVar, path string,
+) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if s == nil || s.client == nil {
+		return dependencyError()
+	}
+	tmplID := strings.TrimSpace(templateID)
+	if tmplID == "" {
 		return dependencyError()
 	}
 
@@ -102,15 +125,43 @@ func (s *Sender) SendRegistrationVerification(ctx context.Context, toEmail, plai
 		return validationToken(invalidTokenMessage)
 	}
 
-	variables := map[string]any{
-		"verificationToken": token,
-		"recipientEmail":    recipient,
-		"frontendUrl":       s.frontendURL,
+	link, err := buildFrontendLink(s.frontendURL, path, token)
+	if err != nil {
+		return dependencyError()
 	}
-	if err := s.client.sendTemplate(ctx, recipient, s.templateID, variables); err != nil {
+
+	variables := map[string]any{
+		"fullName":       "",
+		urlVar:           link,
+		"frontendUrl":    s.frontendURL,
+		"recipientEmail": recipient,
+	}
+	// Keep the raw token available for templates that still expect it.
+	if urlVar == "verificationUrl" {
+		variables["verificationToken"] = token
+	} else {
+		variables["resetToken"] = token
+	}
+
+	if err := s.client.sendTemplate(ctx, recipient, tmplID, variables); err != nil {
 		return sanitizeErr(err)
 	}
 	return nil
+}
+
+func buildFrontendLink(frontendURL, path, token string) (string, error) {
+	base := strings.TrimRight(strings.TrimSpace(frontendURL), "/")
+	if base == "" || path == "" || token == "" {
+		return "", fmt.Errorf("invalid link inputs")
+	}
+	u, err := url.Parse(base + path)
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	q.Set("token", token)
+	u.RawQuery = q.Encode()
+	return u.String(), nil
 }
 
 func normalizeRecipient(raw string) (string, error) {

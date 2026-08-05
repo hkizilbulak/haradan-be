@@ -67,11 +67,14 @@ func NewEventWriter(cfg EventWriterConfig) (*EventWriter, error) {
 	}, nil
 }
 
-// WriteAdvancedAdvertPublishedInput carries advanced publish event data.
-type WriteAdvancedAdvertPublishedInput struct {
+// WritePackageAdvertPublishedInput carries package publish broadcast event data.
+type WritePackageAdvertPublishedInput struct {
 	AdvertID     uuid.UUID
 	AssignmentID uuid.UUID
 }
+
+// WriteAdvancedAdvertPublishedInput is a historical alias for WritePackageAdvertPublishedInput.
+type WriteAdvancedAdvertPublishedInput = WritePackageAdvertPublishedInput
 
 // WriteUrgentAdvertActivatedInput carries urgent activation event data.
 type WriteUrgentAdvertActivatedInput struct {
@@ -92,10 +95,16 @@ type WritePackageExpiryInput struct {
 	OwnerEmailVerified bool
 }
 
-// WriteAdvancedAdvertPublished creates an advanced advert notification in tx (no-op when template inactive).
+// WritePackageAdvertPublished creates a package advert published notification in tx
+// (no-op when template inactive). New fan-out jobs use NOTIFICATION_FANOUT_PACKAGE_ADVERT.
+func (w *EventWriter) WritePackageAdvertPublished(ctx context.Context, tx pgx.Tx, in WritePackageAdvertPublishedInput) error {
+	return w.writeAdvertEvent(ctx, tx, domainnotification.TemplateEventTypePackageAdvertPublished,
+		in.AdvertID, in.AssignmentID, nil, domainmedia.JobNotificationFanoutPackageAdvert)
+}
+
+// WriteAdvancedAdvertPublished is a historical alias for WritePackageAdvertPublished.
 func (w *EventWriter) WriteAdvancedAdvertPublished(ctx context.Context, tx pgx.Tx, in WriteAdvancedAdvertPublishedInput) error {
-	return w.writeAdvertEvent(ctx, tx, domainnotification.TemplateEventTypeAdvancedAdvertPublished,
-		in.AdvertID, in.AssignmentID, nil, domainmedia.JobNotificationFanoutAdvancedAdvert)
+	return w.WritePackageAdvertPublished(ctx, tx, in)
 }
 
 // WriteUrgentAdvertActivated creates an urgent activation notification in tx.
@@ -139,7 +148,7 @@ func (w *EventWriter) writeAdvertEvent(
 	// URGENT_ADVERT_ACTIVATED is itself the urgent event; the row it refers to
 	// is created earlier in this same (uncommitted) transaction, so it must not
 	// be re-read through the non-tx packages snapshot reader (it would not be
-	// visible yet). ADVANCED_ADVERT_PUBLISHED may safely check whether URGENT
+	// visible yet). PACKAGE_ADVERT_PUBLISHED may safely check whether URGENT
 	// is already active, since that activation (if any) was committed in a
 	// prior transaction.
 	isUrgent := eventType == domainnotification.TemplateEventTypeUrgentAdvertActivated
@@ -171,8 +180,8 @@ func (w *EventWriter) writeAdvertEvent(
 
 	var eventKey string
 	switch eventType {
-	case domainnotification.TemplateEventTypeAdvancedAdvertPublished:
-		eventKey = domainnotification.AdvancedAdvertPublishedEventKey(advertID, assignmentID)
+	case domainnotification.TemplateEventTypePackageAdvertPublished:
+		eventKey = domainnotification.PackageAdvertPublishedEventKey(advertID, assignmentID)
 	case domainnotification.TemplateEventTypeUrgentAdvertActivated:
 		if activationVersion == nil {
 			return fmt.Errorf("urgent activation version is required")
@@ -260,9 +269,9 @@ func (w *EventWriter) WritePackageExpiryReminder(ctx context.Context, tx pgx.Tx,
 		return err
 	}
 
-	daysRemaining := "10"
-	if in.Offset == domainnotification.PackageExpiryDayOffset3D {
-		daysRemaining = "3"
+	daysRemaining := "5"
+	if in.Offset == domainnotification.PackageExpiryDayOffset1D {
+		daysRemaining = "1"
 	}
 	endsAtStr := in.EndsAt.UTC().Format(time.RFC3339Nano)
 	vars := domainnotification.TemplateVars{
@@ -383,8 +392,9 @@ func (w *EventWriter) WritePackageExpiryReminder(ctx context.Context, tx pgx.Tx,
 	})
 }
 
-// EffectiveAdvancedAssignment returns the effective ADVANCED assignment at now, if any.
-func EffectiveAdvancedAssignment(ctx context.Context, packages PackageSnapshotReader, advertID uuid.UUID, now time.Time) (PackageAssignmentSnapshot, domainpackaging.Package, bool, error) {
+// EffectiveBroadcastAssignment returns the effective assignment at now whose
+// package has broadcast_on_publish enabled, if any.
+func EffectiveBroadcastAssignment(ctx context.Context, packages PackageSnapshotReader, advertID uuid.UUID, now time.Time) (PackageAssignmentSnapshot, domainpackaging.Package, bool, error) {
 	asg, err := packages.GetEffectiveAssignment(ctx, advertID, now)
 	if err != nil {
 		if isNotFoundErr(err) {
@@ -396,10 +406,15 @@ func EffectiveAdvancedAssignment(ctx context.Context, packages PackageSnapshotRe
 	if err != nil {
 		return PackageAssignmentSnapshot{}, domainpackaging.Package{}, false, err
 	}
-	if pkg.Code != domainpackaging.PackageCodeAdvanced {
+	if !pkg.EmitsPublishBroadcast() {
 		return PackageAssignmentSnapshot{}, domainpackaging.Package{}, false, nil
 	}
 	return asg, pkg, true, nil
+}
+
+// EffectiveAdvancedAssignment is a historical alias for EffectiveBroadcastAssignment.
+func EffectiveAdvancedAssignment(ctx context.Context, packages PackageSnapshotReader, advertID uuid.UUID, now time.Time) (PackageAssignmentSnapshot, domainpackaging.Package, bool, error) {
+	return EffectiveBroadcastAssignment(ctx, packages, advertID, now)
 }
 
 // fanoutPageDedupKey is the deterministic dedup key for one fan-out page job:

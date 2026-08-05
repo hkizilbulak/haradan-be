@@ -75,11 +75,15 @@ func TestLifecycleAndJobEnumsAreClosed(t *testing.T) {
 		t.Fatal("known job values must be valid")
 	}
 	if !domainmedia.JobNotificationFanoutAdvancedAdvert.Valid() ||
+		!domainmedia.JobNotificationFanoutPackageAdvert.Valid() ||
 		!domainmedia.JobEmailSendPackageExpiryReminder.Valid() {
 		t.Fatal("notification job types must be valid")
 	}
+	if domainmedia.JobNotificationFanoutPackageAdvert.IsNotificationJob() != true {
+		t.Fatal("package fanout job must be notification job")
+	}
 	if domainmedia.JobNotificationFanoutAdvancedAdvert.IsNotificationJob() != true {
-		t.Fatal("fanout job must be notification job")
+		t.Fatal("historical advanced fanout job must remain a notification job")
 	}
 	if domainmedia.JobValidateAndNormalize.IsNotificationJob() {
 		t.Fatal("media validate must not be notification job")
@@ -126,6 +130,30 @@ func TestRequiredTransformProfiles(t *testing.T) {
 	}
 	if domainmedia.IsKnownTransformProfile("THUMBNAIL") {
 		t.Fatal("unknown profiles must be rejected")
+	}
+	if !domainmedia.IsKnownDeliveryProfile(domainmedia.ProfileBanner) {
+		t.Fatal("BANNER must be a delivery profile")
+	}
+	dims, ok := domainmedia.DefaultProfileDimensions(domainmedia.ProfileHomepage)
+	if !ok || dims.Width != 340 || dims.Height != 268 {
+		t.Fatalf("HOMEPAGE dims=%+v", dims)
+	}
+	dims, ok = domainmedia.DefaultProfileDimensions(domainmedia.ProfileDetail)
+	if !ok || dims.Width != 368 || dims.Height != 290 {
+		t.Fatalf("DETAIL dims=%+v", dims)
+	}
+	dims, ok = domainmedia.DefaultProfileDimensions(domainmedia.ProfileSearch)
+	if !ok || dims.Width != 100 || dims.Height != 79 {
+		t.Fatalf("SEARCH dims=%+v", dims)
+	}
+	if domainmedia.MaxUploadBytes != 67108864 {
+		t.Fatalf("MaxUploadBytes=%d", domainmedia.MaxUploadBytes)
+	}
+	assetID := uuid.MustParse("3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d")
+	got := domainmedia.PublicDeliveryURL(assetID, domainmedia.ProfileDetail)
+	wantURL := "/v1/media/" + assetID.String() + "/DETAIL"
+	if got != wantURL {
+		t.Fatalf("PublicDeliveryURL=%q want %q", got, wantURL)
 	}
 }
 

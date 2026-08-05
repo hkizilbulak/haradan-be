@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 )
 
 const (
@@ -77,6 +78,7 @@ func validateDeclaredContentType(allowed []string, declared *string) (string, er
 
 // validateDeclaredByteSize checks the client size hint against the ceiling.
 func validateDeclaredByteSize(maxByteSize int64, declared *int64) error {
+	ceiling := effectiveMaxByteSize(maxByteSize)
 	if declared == nil {
 		return nil
 	}
@@ -86,7 +88,7 @@ func validateDeclaredByteSize(maxByteSize int64, declared *int64) error {
 			Message: "Dosya boyutu sıfırdan büyük olmalıdır.",
 		})
 	}
-	if *declared > maxByteSize {
+	if *declared > ceiling {
 		return apperr.Validation(invalidRequest, apperr.FieldError{
 			Field:   "declaredByteSize",
 			Message: "Dosya izin verilen boyuttan büyük.",
@@ -95,12 +97,22 @@ func validateDeclaredByteSize(maxByteSize int64, declared *int64) error {
 	return nil
 }
 
+// effectiveMaxByteSize applies the 64 MiB security ceiling. A non-positive
+// configured limit falls back to MaxUploadBytes.
+func effectiveMaxByteSize(configured int64) int64 {
+	if configured <= 0 || configured > domainmedia.MaxUploadBytes {
+		return domainmedia.MaxUploadBytes
+	}
+	return configured
+}
+
 // validateStoredObject enforces provider-reported object metadata against the
 // configured allowlist and byte ceiling. Client-declared hints are never used
 // here; an empty ContentType is deferred to the worker, which re-derives type
 // from bytes. Checksum comparison is not available until a real storage
 // adapter exposes it.
 func validateStoredObject(allowed []string, maxByteSize int64, info ObjectInfo) error {
+	ceiling := effectiveMaxByteSize(maxByteSize)
 	if !info.Exists {
 		return apperr.InvalidState(uploadNotCompletedMessage)
 	}
@@ -110,7 +122,7 @@ func validateStoredObject(allowed []string, maxByteSize int64, info ObjectInfo) 
 			Message: "Yüklenen dosya boş.",
 		})
 	}
-	if info.ByteSize > maxByteSize {
+	if info.ByteSize > ceiling {
 		return apperr.Validation(invalidRequest, apperr.FieldError{
 			Field:   "byteSize",
 			Message: "Dosya izin verilen boyuttan büyük.",

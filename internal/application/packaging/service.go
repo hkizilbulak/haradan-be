@@ -31,12 +31,14 @@ const (
 	invalidDateRangeMessage     = "Başlangıç ve bitiş tarihleri geçersiz."
 	advertTerminalMessage       = "Bu ilan durumunda paket ataması yapılamaz."
 	urgentAdvertStateMessage    = "Bu ilan durumunda URGENT açılamaz."
-	urgentRequiresAdvancedMsg   = "URGENT yalnız ADVANCED paket ile açılabilir."
+	urgentRequiresCapabilityMsg = "URGENT yalnız izin verilen paket ile açılabilir."
 	packageLossUrgentReason     = "PACKAGE_ASSIGNMENT_CHANGED"
 	packageUrgentDisabledReason = "PACKAGE_URGENT_DISABLED"
 	stalePackageVersionMessage  = "Paket başka bir işlem tarafından güncellendi."
 	invalidCursorMessage        = "Geçersiz sayfalama imleci."
 	assignmentNotFoundMessage   = "Aktif paket ataması bulunamadı."
+	packageCodeConflictMessage  = "Bu paket kodu zaten kullanılıyor."
+	defaultPackageCurrency      = "TRY"
 )
 
 var currencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
@@ -105,6 +107,25 @@ type CancelAdvertPackageInput struct {
 	Reason      *string
 }
 
+// CreatePackageInput is the admin package catalog create request.
+type CreatePackageInput struct {
+	ActorUserID             uuid.UUID
+	Code                    domainpackaging.PackageCode
+	DisplayName             string
+	Description             *string
+	BadgeText               *string
+	Benefits                []string
+	DisplayPriceAmountMinor *int64
+	CurrencyCode            string
+	DefaultDurationDays     *int
+	AllowsUrgent            bool
+	ShowcaseEligible        bool
+	SearchPriority          int
+	BroadcastOnPublish      bool
+	IsActive                bool
+	SortOrder               int
+}
+
 // UpdatePackageInput is the admin package catalog patch.
 type UpdatePackageInput struct {
 	ActorUserID             uuid.UUID
@@ -124,6 +145,7 @@ type UpdatePackageInput struct {
 	AllowsUrgent            *bool
 	ShowcaseEligible        *bool
 	SearchPriority          *int
+	BroadcastOnPublish      *bool
 	IsActive                *bool
 	SortOrder               *int
 }
@@ -167,6 +189,74 @@ func (s *Service) GetPackageByCode(
 		return domainpackaging.Package{}, apperr.Validation("Geçersiz paket kodu.")
 	}
 	return s.packages.FindByCode(ctx, code)
+}
+
+// CreatePackage inserts a new catalog package for an ACTIVE ADMIN.
+func (s *Service) CreatePackage(ctx context.Context, in CreatePackageInput) (domainpackaging.Package, error) {
+	if err := s.requireAdmin(ctx, in.ActorUserID); err != nil {
+		return domainpackaging.Package{}, err
+	}
+	code := domainpackaging.NormalizePackageCode(string(in.Code))
+	if !code.Valid() {
+		return domainpackaging.Package{}, apperr.Validation("Geçersiz paket kodu.")
+	}
+	name := strings.TrimSpace(in.DisplayName)
+	if name == "" {
+		return domainpackaging.Package{}, apperr.Validation("Görünen ad boş olamaz.")
+	}
+	currency := strings.TrimSpace(in.CurrencyCode)
+	if currency == "" {
+		currency = defaultPackageCurrency
+	}
+	if !currencyPattern.MatchString(currency) {
+		return domainpackaging.Package{}, apperr.Validation("Geçersiz para birimi.")
+	}
+	if in.DisplayPriceAmountMinor != nil && *in.DisplayPriceAmountMinor < 0 {
+		return domainpackaging.Package{}, apperr.Validation("Fiyat negatif olamaz.")
+	}
+	if in.DefaultDurationDays != nil && *in.DefaultDurationDays <= 0 {
+		return domainpackaging.Package{}, apperr.Validation("Varsayılan süre pozitif olmalıdır.")
+	}
+	if in.SearchPriority < 0 {
+		return domainpackaging.Package{}, apperr.Validation("Arama önceliği negatif olamaz.")
+	}
+	if in.SortOrder < 0 {
+		return domainpackaging.Package{}, apperr.Validation("Sıra negatif olamaz.")
+	}
+	benefits := in.Benefits
+	if benefits == nil {
+		benefits = []string{}
+	}
+	rawBenefits, err := json.Marshal(benefits)
+	if err != nil {
+		return domainpackaging.Package{}, apperr.Internal(fmt.Errorf("marshal benefits: %w", err))
+	}
+
+	now := s.clock.Now().UTC()
+	created := domainpackaging.Package{
+		ID:                      uuid.New(),
+		Code:                    code,
+		DisplayName:             name,
+		Description:             trimOptional(in.Description),
+		BadgeText:               trimOptional(in.BadgeText),
+		BenefitsJSON:            rawBenefits,
+		DisplayPriceAmountMinor: in.DisplayPriceAmountMinor,
+		CurrencyCode:            currency,
+		DefaultDurationDays:     in.DefaultDurationDays,
+		AllowsUrgent:            in.AllowsUrgent,
+		ShowcaseEligible:        in.ShowcaseEligible,
+		SearchPriority:          in.SearchPriority,
+		BroadcastOnPublish:      in.BroadcastOnPublish,
+		IsActive:                in.IsActive,
+		SortOrder:               in.SortOrder,
+		Version:                 1,
+		CreatedAt:               now,
+		UpdatedAt:               now,
+	}
+	if err := s.packages.Create(ctx, created); err != nil {
+		return domainpackaging.Package{}, err
+	}
+	return created, nil
 }
 
 // UpdatePackage applies an optimistic catalog update for an ACTIVE ADMIN.
@@ -288,13 +378,13 @@ func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackag
 		// ADVANCED→ADVANCED also deactivated on supersede so URGENT cannot
 		// remain linked to a superseded assignment row.
 		out = AssignmentView{Assignment: created, Package: pkg}
-		if s.notifications != nil && pkg.Code == domainpackaging.PackageCodeAdvanced {
+		if s.notifications != nil && pkg.EmitsPublishBroadcast() {
 			advert, err := s.adverts.FindByID(ctx, in.AdvertID)
 			if err != nil {
 				return err
 			}
 			if advert.Status == domainadvert.StatusPublished {
-				if err := s.notifications.OnAdvancedAssignedWhilePublished(ctx, tx, in.AdvertID, created.ID); err != nil {
+				if err := s.notifications.OnPackageAssignedWhilePublished(ctx, tx, in.AdvertID, created.ID); err != nil {
 					return err
 				}
 			}
@@ -448,7 +538,7 @@ func (s *Service) ActivateUrgent(ctx context.Context, actorUserID, advertID uuid
 		assignment, err := assignments.LockActiveByAdvertID(ctx, advertID)
 		if err != nil {
 			if isNotFound(err) {
-				return apperr.InvalidState(urgentRequiresAdvancedMsg)
+				return apperr.InvalidState(urgentRequiresCapabilityMsg)
 			}
 			return err
 		}
@@ -457,14 +547,14 @@ func (s *Service) ActivateUrgent(ctx context.Context, actorUserID, advertID uuid
 		}
 		now := s.clock.Now().UTC()
 		if !assignment.IsEffectiveAt(now) {
-			return apperr.InvalidState(urgentRequiresAdvancedMsg)
+			return apperr.InvalidState(urgentRequiresCapabilityMsg)
 		}
 		pkg, err := s.packages.FindByID(ctx, assignment.PackageID)
 		if err != nil {
 			return err
 		}
 		if !pkg.AllowsUrgentFeature() {
-			return apperr.InvalidState(urgentRequiresAdvancedMsg)
+			return apperr.InvalidState(urgentRequiresCapabilityMsg)
 		}
 
 		// Advert + assignment row locks serialize activation_version generation
@@ -651,6 +741,9 @@ func applyPackagePatch(current domainpackaging.Package, in UpdatePackageInput) (
 			return domainpackaging.Package{}, apperr.Validation("Arama önceliği negatif olamaz.")
 		}
 		out.SearchPriority = *in.SearchPriority
+	}
+	if in.BroadcastOnPublish != nil {
+		out.BroadcastOnPublish = *in.BroadcastOnPublish
 	}
 	if in.IsActive != nil {
 		out.IsActive = *in.IsActive

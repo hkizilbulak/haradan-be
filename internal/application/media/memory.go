@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -916,6 +917,23 @@ func (f *FakeStorage) GetObject(_ context.Context, objectKey string) ([]byte, st
 		return nil, "", apperr.NotFound("Nesne bulunamadı.")
 	}
 	return append([]byte(nil), obj.body...), obj.contentType, nil
+}
+
+// OpenObject returns a streaming reader over a copy of the fake object body.
+func (f *FakeStorage) OpenObject(_ context.Context, objectKey string) (ObjectReader, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	obj, ok := f.objects[objectKey]
+	if !ok {
+		return ObjectReader{}, apperr.NotFound("Nesne bulunamadı.")
+	}
+	body := append([]byte(nil), obj.body...)
+	return ObjectReader{
+		Body:        io.NopCloser(bytes.NewReader(body)),
+		ContentType: obj.contentType,
+		ByteSize:    int64(len(body)),
+		ETag:        `"fake-` + objectKey + `"`,
+	}, nil
 }
 
 // DeleteObject is idempotent for test parity with object storage.

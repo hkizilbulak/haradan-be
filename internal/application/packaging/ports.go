@@ -26,6 +26,7 @@ type PackageRepository interface {
 	FindByCode(ctx context.Context, code domainpackaging.PackageCode) (domainpackaging.Package, error)
 	LockByCode(ctx context.Context, code domainpackaging.PackageCode) (domainpackaging.Package, error)
 	List(ctx context.Context, includeInactive bool) ([]domainpackaging.Package, error)
+	Create(ctx context.Context, p domainpackaging.Package) error
 	UpdateOptimistic(ctx context.Context, p domainpackaging.Package, expectedVersion int) (domainpackaging.Package, error)
 }
 

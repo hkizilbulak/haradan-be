@@ -15,9 +15,11 @@ import (
 	appbanner "github.com/hkizilbulak/haradan-be/internal/application/banner"
 	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
+	appemail "github.com/hkizilbulak/haradan-be/internal/application/email"
 	appfavorite "github.com/hkizilbulak/haradan-be/internal/application/favorite"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
 	apphorse "github.com/hkizilbulak/haradan-be/internal/application/horse"
+	appjobadmin "github.com/hkizilbulak/haradan-be/internal/application/jobadmin"
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	appnotification "github.com/hkizilbulak/haradan-be/internal/application/notification"
 	apppackaging "github.com/hkizilbulak/haradan-be/internal/application/packaging"
@@ -31,6 +33,7 @@ import (
 	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
 	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
 	pghorse "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/horse"
+	pgjobdef "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/jobdef"
 	pgmedia "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/media"
 	pgtjk "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/tjk"
 	pguser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/user"
@@ -90,23 +93,27 @@ func run() error {
 		return fmt.Errorf("token manager: %w", err)
 	}
 	var emailSender appauth.EmailSender = appauth.NoopEmailSender{}
+	var emailDiscovery appemail.TemplateDiscovery
 	switch cfg.EmailProvider {
 	case config.EmailProviderUnconfigured:
 		// keep NoopEmailSender
 	case config.EmailProviderResend:
 		sender, err := resendemail.New(resendemail.Config{
-			APIKey:      cfg.ResendAPIKey,
-			BaseURL:     cfg.ResendBaseURL,
-			HTTPTimeout: cfg.EmailHTTPTimeout,
-			FromEmail:   cfg.FromEmail,
-			FromName:    cfg.FromName,
-			FrontendURL: cfg.FrontendURL,
-			TemplateID:  cfg.ResendRegistrationVerificationTemplateID,
+			APIKey:                  cfg.ResendAPIKey,
+			BaseURL:                 cfg.ResendBaseURL,
+			HTTPTimeout:             cfg.EmailHTTPTimeout,
+			FromEmail:               cfg.FromEmail,
+			FromName:                cfg.FromName,
+			FrontendURL:             cfg.FrontendURL,
+			WelcomeTemplateID:       cfg.ResendWelcomeTemplateID,
+			ResetPasswordTemplateID: cfg.ResendResetPasswordTemplateID,
+			TemplateID:              cfg.ResendRegistrationVerificationTemplateID,
 		})
 		if err != nil {
 			return fmt.Errorf("email sender: %w", err)
 		}
 		emailSender = sender
+		emailDiscovery = resendemail.Discovery{Sender: sender}
 	default:
 		return fmt.Errorf("email provider is not supported")
 	}
@@ -232,14 +239,27 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("TJK service: %w", err)
 	}
+	jobAdminSvc, err := appjobadmin.NewService(appjobadmin.Config{
+		Repo:  pgjobdef.NewRepository(db.Pool()),
+		Users: userRepo,
+		Caps: appjobadmin.ProviderCapabilities{
+			TJKEnabled: cfg.TJKEnabled,
+			B2Enabled:  cfg.StorageProvider == config.StorageProviderB2,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("job admin service: %w", err)
+	}
 
 	srvHandler := handler.NewServer(
 		log, db, geoSvc, catalogSvc, horseSvc, advertSvc, mediaSvc, favoriteSvc,
 		packagingSvc, campaignSvc, campaignPackages, notificationSvc, authSvc, notificationInboxSvc,
-	).WithPublicMediaBaseURL(cfg.MediaPublicBaseURL).
-		WithBannerService(bannerSvc, mediaRepo, cfg.MediaPublicBaseURL).
+	).WithPublicMediaDelivery(mediaSvc).
+		WithBannerService(bannerSvc, mediaRepo).
 		WithAdminUserService(adminUserSvc).
-		WithTJKService(tjkSvc)
+		WithTJKService(tjkSvc).
+		WithEmailTemplateDiscovery(emailDiscovery).
+		WithJobAdminService(jobAdminSvc)
 	engine := router.New(srvHandler, log, router.Options{AuthService: authSvc})
 
 	httpServer := &http.Server{

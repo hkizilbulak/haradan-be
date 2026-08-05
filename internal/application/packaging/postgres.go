@@ -39,6 +39,10 @@ func (r pgPackageRepo) List(ctx context.Context, includeInactive bool) ([]domain
 	return r.ListPackages(ctx, includeInactive)
 }
 
+func (r pgPackageRepo) Create(ctx context.Context, p domainpackaging.Package) error {
+	return r.CreatePackage(ctx, p)
+}
+
 func (r pgPackageRepo) UpdateOptimistic(
 	ctx context.Context,
 	p domainpackaging.Package,

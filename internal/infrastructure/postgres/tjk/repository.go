@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -141,7 +142,7 @@ func scanRun(row interface{ Scan(...any) error }) (domain.Run, error) {
 
 func (r *Repository) ClaimTJKJob(ctx context.Context, owner string, now, leaseUntil time.Time) (uuid.UUID, domain.Run, bool, error) {
 	const q = `WITH next AS (
- SELECT id FROM hrd_background_jobs WHERE job_type='TJK_SYNC_BATCH' AND status='QUEUED' AND available_at <= $1
+ SELECT id FROM hrd_background_jobs WHERE job_type='TJK_SYNC_BATCH' AND status='QUEUED' AND available_at <= $1 AND attempt_count < max_attempts
  ORDER BY available_at,id FOR UPDATE SKIP LOCKED LIMIT 1
 ), claimed AS (
  UPDATE hrd_background_jobs j SET status='LEASED',lease_owner=$2,leased_until=$3,attempt_count=attempt_count+1,version=version+1,updated_at=$1
@@ -171,19 +172,58 @@ func (r *Repository) ClaimTJKJob(ctx context.Context, owner string, now, leaseUn
 }
 
 func (r *Repository) ApplyTJKPage(ctx context.Context, jobID uuid.UUID, run domain.Run, horses []domain.HorseInput, nextCursor string, now time.Time) error {
+	applied := 0
 	for _, h := range horses {
 		if h.Number == "" || h.Name == "" {
-			return apperr.Validation("TJK kaydı geçersiz.")
+			// Malformed summary rows are skipped; they must not abort the page.
+			continue
 		}
-		_, err := r.db.Exec(ctx, `INSERT INTO hrd_horses (id,tjk_number,original_name,name_normalized,sire_name,dam_name,detail,last_synced_at,last_seen_at,created_at,updated_at)
-VALUES ($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,''),'{}',$7,$7,$7,$7)
-ON CONFLICT (tjk_number) DO UPDATE SET original_name=EXCLUDED.original_name,name_normalized=EXCLUDED.name_normalized,sire_name=COALESCE(EXCLUDED.sire_name,hrd_horses.sire_name),dam_name=COALESCE(EXCLUDED.dam_name,hrd_horses.dam_name),last_synced_at=$7,last_seen_at=$7,updated_at=$7`, uuid.New(), h.Number, h.Name, textnorm.TurkishFold(h.Name), h.Sire, h.Dam, now)
+		detail := h.Detail
+		if len(detail) == 0 {
+			detail = json.RawMessage(`{}`)
+		}
+		breed := strings.TrimSpace(h.Race)
+		var gender any
+		if h.Gender != nil {
+			g := strings.TrimSpace(*h.Gender)
+			if g != "" {
+				gender = g
+			}
+		}
+		_, err := r.db.Exec(ctx, `
+INSERT INTO hrd_horses (
+  id, tjk_number, original_name, name_normalized,
+  birth_year, sire_name, dam_name, breed, gender,
+  detail, last_synced_at, last_seen_at, created_at, updated_at
+) VALUES (
+  $1,$2,$3,$4,$5,NULLIF($6,''),NULLIF($7,''),NULLIF($8,''),$9,
+  $10::jsonb,$11,$11,$11,$11
+)
+ON CONFLICT (tjk_number) DO UPDATE SET
+  original_name = EXCLUDED.original_name,
+  name_normalized = EXCLUDED.name_normalized,
+  birth_year = COALESCE(EXCLUDED.birth_year, hrd_horses.birth_year),
+  sire_name = COALESCE(EXCLUDED.sire_name, hrd_horses.sire_name),
+  dam_name = COALESCE(EXCLUDED.dam_name, hrd_horses.dam_name),
+  breed = COALESCE(EXCLUDED.breed, hrd_horses.breed),
+  gender = COALESCE(EXCLUDED.gender, hrd_horses.gender),
+  detail = CASE
+    WHEN EXCLUDED.detail = '{}'::jsonb THEN hrd_horses.detail
+    ELSE COALESCE(hrd_horses.detail, '{}'::jsonb) || EXCLUDED.detail
+  END,
+  last_synced_at = $11,
+  last_seen_at = $11,
+  updated_at = $11`,
+			uuid.New(), h.Number, h.Name, textnorm.TurkishFold(h.Name),
+			h.BirthYear, h.Sire, h.Dam, breed, gender,
+			[]byte(detail), now)
 		if err != nil {
 			return apperr.Internal(fmt.Errorf("upsert TJK horse: %w", err))
 		}
+		applied++
 	}
 	cp, _ := json.Marshal(map[string]any{"page": nextCursor})
-	_, err := r.db.Exec(ctx, `UPDATE hrd_tjk_sync_runs SET checkpoint=$2::jsonb,total_count=total_count+$3,updated_count=updated_count+$3,version=version+1,updated_at=$4 WHERE id=$1 AND cancel_requested_at IS NULL`, run.ID, cp, len(horses), now)
+	_, err := r.db.Exec(ctx, `UPDATE hrd_tjk_sync_runs SET checkpoint=$2::jsonb,total_count=total_count+$3,updated_count=updated_count+$3,version=version+1,updated_at=$4 WHERE id=$1 AND cancel_requested_at IS NULL`, run.ID, cp, applied, now)
 	if err != nil {
 		return apperr.Internal(err)
 	}
@@ -212,8 +252,39 @@ func (r *Repository) FinishTJKRun(ctx context.Context, jobID uuid.UUID, run doma
 	}
 	return nil
 }
-func (r *Repository) FailTJKJob(ctx context.Context, jobID uuid.UUID, message string, now time.Time) error {
-	_, err := r.db.Exec(ctx, `UPDATE hrd_background_jobs SET status='FAILED',last_error=$2,lease_owner=NULL,leased_until=NULL,completed_at=$3,updated_at=$3 WHERE id=$1`, jobID, message, now)
+
+// FailTJKJob terminates or requeues a LEASED TJK batch job. When retryable is
+// true and attempt_count < max_attempts, the job returns to QUEUED with a short
+// backoff; otherwise it becomes FAILED (permanent) or DEAD (attempts exhausted).
+func (r *Repository) FailTJKJob(ctx context.Context, jobID uuid.UUID, message string, now time.Time, retryable bool) error {
+	if retryable {
+		_, err := r.db.Exec(ctx, `
+UPDATE hrd_background_jobs SET
+  status = CASE WHEN attempt_count >= max_attempts THEN 'DEAD' ELSE 'QUEUED' END,
+  completed_at = CASE WHEN attempt_count >= max_attempts THEN $2 ELSE NULL END,
+  available_at = CASE
+    WHEN attempt_count >= max_attempts THEN available_at
+    ELSE $2 + INTERVAL '5 seconds'
+  END,
+  lease_owner = NULL,
+  leased_until = NULL,
+  last_error = $3,
+  updated_at = $2
+WHERE id = $1`, jobID, now, message)
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		return nil
+	}
+	_, err := r.db.Exec(ctx, `
+UPDATE hrd_background_jobs SET
+  status='FAILED',
+  last_error=$2,
+  lease_owner=NULL,
+  leased_until=NULL,
+  completed_at=$3,
+  updated_at=$3
+WHERE id=$1`, jobID, message, now)
 	if err != nil {
 		return apperr.Internal(err)
 	}

@@ -8,15 +8,23 @@ import (
 	"time"
 )
 
+const (
+	defaultWelcomeTemplateID       = "welcome-email"
+	defaultResetPasswordTemplateID = "reset-password"
+)
+
 // Config holds Resend adapter settings. Values come from process configuration.
 type Config struct {
-	APIKey      string
-	BaseURL     string
-	HTTPTimeout time.Duration
-	FromEmail   string
-	FromName    string
-	FrontendURL string
-	TemplateID  string
+	APIKey                  string
+	BaseURL                 string
+	HTTPTimeout             time.Duration
+	FromEmail               string
+	FromName                string
+	FrontendURL             string
+	WelcomeTemplateID       string
+	ResetPasswordTemplateID string
+	// TemplateID is a legacy alias for WelcomeTemplateID (registration verification).
+	TemplateID string
 }
 
 func (c Config) validate() error {
@@ -59,14 +67,41 @@ func (c Config) validate() error {
 	if err := validateFrontendURL(frontend); err != nil {
 		return err
 	}
-	templateID := strings.TrimSpace(c.TemplateID)
-	if templateID == "" {
-		return fmt.Errorf("registration verification template ID must not be empty")
+	welcome := c.resolvedWelcomeTemplateID()
+	if welcome == "" {
+		return fmt.Errorf("welcome email template ID must not be empty")
 	}
-	if containsCRLF(templateID) {
-		return fmt.Errorf("registration verification template ID must not contain CR or LF")
+	if containsCRLF(welcome) {
+		return fmt.Errorf("welcome email template ID must not contain CR or LF")
+	}
+	reset := c.resolvedResetPasswordTemplateID()
+	if reset == "" {
+		return fmt.Errorf("reset password template ID must not be empty")
+	}
+	if containsCRLF(reset) {
+		return fmt.Errorf("reset password template ID must not contain CR or LF")
+	}
+	if welcome == reset {
+		return fmt.Errorf("welcome and reset password template IDs must differ")
 	}
 	return nil
+}
+
+func (c Config) resolvedWelcomeTemplateID() string {
+	if v := strings.TrimSpace(c.WelcomeTemplateID); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(c.TemplateID); v != "" {
+		return v
+	}
+	return defaultWelcomeTemplateID
+}
+
+func (c Config) resolvedResetPasswordTemplateID() string {
+	if v := strings.TrimSpace(c.ResetPasswordTemplateID); v != "" {
+		return v
+	}
+	return defaultResetPasswordTemplateID
 }
 
 func parseBaseURL(raw string) (*url.URL, error) {

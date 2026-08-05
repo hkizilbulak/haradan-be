@@ -116,7 +116,7 @@ func (w *Worker) ProcessValidateAndNormalize(ctx context.Context, assetID uuid.U
 		); err != nil {
 			return err
 		}
-		for _, profile := range domainmedia.RequiredTransformProfiles() {
+		for _, profile := range domainmedia.GeneratedTransformProfiles() {
 			if _, err := repo.UpsertPendingVariant(ctx, domainmedia.Variant{
 				ID:                uuid.New(),
 				AssetID:           assetID,
@@ -232,7 +232,7 @@ func (w *Worker) ProcessDeleteObjects(ctx context.Context, payload []byte) error
 			return apperr.Validation("Geçersiz medya temizleme işi.")
 		}
 		keys = append(keys, domainmedia.RawObjectKey(id), domainmedia.MasterObjectKey(id))
-		for _, profile := range domainmedia.RequiredTransformProfiles() {
+		for _, profile := range domainmedia.GeneratedTransformProfiles() {
 			keys = append(keys, domainmedia.VariantObjectKey(id, profile))
 		}
 	}

@@ -40,13 +40,13 @@ func newPackagingEngine(t *testing.T) *packagingTestEnv {
 	dur := 30
 	pkgStore.PutPackage(domainpackaging.Package{
 		ID:   uuid.MustParse("a0000000-0000-4000-8000-000000000001"),
-		Code: domainpackaging.PackageCodeStarter, DisplayName: "Starter",
+		Code: domainpackaging.PackageCode("STARTER"), DisplayName: "Starter",
 		CurrencyCode: "TRY", IsActive: true, SortOrder: 10, Version: 1,
 		BenefitsJSON: []byte(`["a"]`), CreatedAt: now, UpdatedAt: now,
 	})
 	pkgStore.PutPackage(domainpackaging.Package{
 		ID:   uuid.MustParse("a0000000-0000-4000-8000-000000000003"),
-		Code: domainpackaging.PackageCodeAdvanced, DisplayName: "Advanced",
+		Code: domainpackaging.PackageCode("ADVANCED"), DisplayName: "Advanced",
 		CurrencyCode: "TRY", DefaultDurationDays: &dur, AllowsUrgent: true,
 		ShowcaseEligible: true, SearchPriority: 100, IsActive: true, SortOrder: 30,
 		Version: 1, BenefitsJSON: []byte(`[]`), CreatedAt: now, UpdatedAt: now,
@@ -197,7 +197,7 @@ func TestPackagingAssignGetCancelUrgentHTTP(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &assigned); err != nil {
 		t.Fatal(err)
 	}
-	if assigned.PackageCode != generated.ADVANCED || assigned.Status != generated.PackageAssignmentStatusACTIVE {
+	if assigned.PackageCode != "ADVANCED" || assigned.Status != generated.PackageAssignmentStatusACTIVE {
 		t.Fatalf("%+v", assigned)
 	}
 

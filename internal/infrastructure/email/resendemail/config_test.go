@@ -10,13 +10,14 @@ func TestConfigValidate(t *testing.T) {
 	t.Parallel()
 
 	valid := Config{
-		APIKey:      "unit-test-api-key-not-real",
-		BaseURL:     "https://api.resend.com",
-		HTTPTimeout: time.Second,
-		FromEmail:   "noreply@example.com",
-		FromName:    "Haradan",
-		FrontendURL: "https://app.example.com",
-		TemplateID:  "tmpl_registration_verify",
+		APIKey:                  "unit-test-api-key-not-real",
+		BaseURL:                 "https://api.resend.com",
+		HTTPTimeout:             time.Second,
+		FromEmail:               "noreply@example.com",
+		FromName:                "Haradan",
+		FrontendURL:             "https://app.example.com",
+		WelcomeTemplateID:       "welcome-email",
+		ResetPasswordTemplateID: "reset-password",
 	}
 	if err := valid.validate(); err != nil {
 		t.Fatalf("valid config: %v", err)
@@ -44,8 +45,16 @@ func TestConfigValidate(t *testing.T) {
 		{name: "empty frontend", mut: func(c *Config) { c.FrontendURL = "" }, want: "frontend"},
 		{name: "bad frontend scheme", mut: func(c *Config) { c.FrontendURL = "ftp://app.example.com" }, want: "http or https"},
 		{name: "frontend userinfo", mut: func(c *Config) { c.FrontendURL = "https://u:p@app.example.com" }, want: "userinfo"},
-		{name: "empty template", mut: func(c *Config) { c.TemplateID = "" }, want: "template"},
-		{name: "crlf template", mut: func(c *Config) { c.TemplateID = "tmpl\nid" }, want: "CR or LF"},
+		{name: "empty welcome", mut: func(c *Config) {
+			c.WelcomeTemplateID = ""
+			c.TemplateID = ""
+			c.ResetPasswordTemplateID = "reset-password"
+		}, want: ""}, // defaults fill welcome-email
+		{name: "same templates", mut: func(c *Config) {
+			c.WelcomeTemplateID = "same"
+			c.ResetPasswordTemplateID = "same"
+		}, want: "differ"},
+		{name: "crlf welcome", mut: func(c *Config) { c.WelcomeTemplateID = "tmpl\nid" }, want: "CR or LF"},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -54,13 +63,19 @@ func TestConfigValidate(t *testing.T) {
 			cfg := valid
 			tc.mut(&cfg)
 			err := cfg.validate()
+			if tc.name == "empty welcome" {
+				if err != nil {
+					t.Fatalf("defaults should fill welcome: %v", err)
+				}
+				return
+			}
 			if err == nil {
 				t.Fatal("expected error")
 			}
 			if strings.Contains(err.Error(), "unit-test-api-key") {
 				t.Fatalf("error leaked api key: %v", err)
 			}
-			if !strings.Contains(strings.ToLower(err.Error()), strings.ToLower(tc.want)) &&
+			if tc.want != "" && !strings.Contains(strings.ToLower(err.Error()), strings.ToLower(tc.want)) &&
 				!strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error=%v want substring %q", err, tc.want)
 			}

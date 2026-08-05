@@ -32,7 +32,7 @@ func (s *Server) SearchPublishedAdverts(c *gin.Context, params generated.SearchP
 		respondError(c, s.logger, err)
 		return
 	}
-	c.JSON(http.StatusOK, mapPublicPage(out, s.publicMediaBaseURL))
+	c.JSON(http.StatusOK, mapPublicPage(out))
 }
 
 func (s *Server) GetPublishedAdvertDetail(c *gin.Context, advertID generated.AdvertIdPath) {
@@ -45,7 +45,7 @@ func (s *Server) GetPublishedAdvertDetail(c *gin.Context, advertID generated.Adv
 		respondError(c, s.logger, err)
 		return
 	}
-	c.JSON(http.StatusOK, mapPublicDetail(out, s.publicMediaBaseURL))
+	c.JSON(http.StatusOK, mapPublicDetail(out))
 }
 
 func (s *Server) ListHomepageNewAdverts(c *gin.Context, params generated.ListHomepageNewAdvertsParams) {
@@ -58,7 +58,7 @@ func (s *Server) ListHomepageNewAdverts(c *gin.Context, params generated.ListHom
 		respondError(c, s.logger, err)
 		return
 	}
-	c.JSON(http.StatusOK, mapPublicPage(out, s.publicMediaBaseURL))
+	c.JSON(http.StatusOK, mapPublicPage(out))
 }
 
 func (s *Server) ListHomepageShowcase(c *gin.Context, params generated.ListHomepageShowcaseParams) {
@@ -73,7 +73,7 @@ func (s *Server) ListHomepageShowcase(c *gin.Context, params generated.ListHomep
 	}
 	items := make([]generated.PublishedAdvertCard, 0, len(out.Items))
 	for _, item := range out.Items {
-		items = append(items, mapPublicCard(item, s.publicMediaBaseURL))
+		items = append(items, mapPublicCard(item))
 	}
 	c.JSON(http.StatusOK, generated.HomepageShowcaseResponse{Items: items, Seed: out.Seed})
 }
@@ -91,24 +91,24 @@ func publicActor(c *gin.Context) *uuid.UUID {
 	return &id
 }
 
-func mapPublicPage(v appadvert.PublicSearchResult, base string) generated.PublishedAdvertSearchResponse {
+func mapPublicPage(v appadvert.PublicSearchResult) generated.PublishedAdvertSearchResponse {
 	items := make([]generated.PublishedAdvertCard, 0, len(v.Items))
 	for _, item := range v.Items {
-		items = append(items, mapPublicCard(item, base))
+		items = append(items, mapPublicCard(item))
 	}
 	return generated.PublishedAdvertSearchResponse{Items: items, HasMore: v.HasMore, NextCursor: v.NextCursor}
 }
-func mapPublicCard(v domainadvert.PublicCard, base string) generated.PublishedAdvertCard {
+func mapPublicCard(v domainadvert.PublicCard) generated.PublishedAdvertCard {
 	return generated.PublishedAdvertCard{Id: v.ID, CategoryId: v.CategoryID, DistrictId: v.DistrictID, ProvinceId: v.ProvinceID,
-		HorseId: v.HorseID, Title: v.Title, Price: mapPublicMoney(v.Price), PublishedAt: v.PublishedAt, Cover: mapPublicMedia(v.Cover, base),
+		HorseId: v.HorseID, Title: v.Title, Price: mapPublicMoney(v.Price), PublishedAt: v.PublishedAt, Cover: mapPublicMedia(v.Cover),
 		PackageCode: mapPackageCode(v.PackageCode), PackageDisplayName: v.PackageDisplayName, PackageBadgeText: v.PackageBadgeText,
 		IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt, IsFavorite: v.IsFavorite}
 }
-func mapPublicDetail(v domainadvert.PublicDetail, base string) generated.PublishedAdvertDetailResponse {
+func mapPublicDetail(v domainadvert.PublicDetail) generated.PublishedAdvertDetailResponse {
 	media := make([]generated.PublicMediaItem, 0, len(v.Media))
 	for i := range v.Media {
 		m := v.Media[i]
-		media = append(media, *mapPublicMedia(&m, base))
+		media = append(media, *mapPublicMedia(&m))
 	}
 	props := make([]generated.PublicPropertyValue, 0, len(v.Properties))
 	for _, p := range v.Properties {
@@ -124,11 +124,15 @@ func mapPublicDetail(v domainadvert.PublicDetail, base string) generated.Publish
 		Horse:    horse, Media: media, Properties: props, PackageCode: mapPackageCode(v.PackageCode), PackageDisplayName: v.PackageDisplayName,
 		PackageBadgeText: v.PackageBadgeText, IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt, IsFavorite: v.IsFavorite}
 }
-func mapPublicMedia(v *domainadvert.PublicMedia, base string) *generated.PublicMediaItem {
+func mapPublicMedia(v *domainadvert.PublicMedia) *generated.PublicMediaItem {
 	if v == nil {
 		return nil
 	}
-	url := domainmedia.PublicURL(base, v.ObjectKey)
+	profile := domainmedia.ProfileDetail
+	if v.Usage != nil && domainmedia.IsKnownDeliveryProfile(*v.Usage) {
+		profile = *v.Usage
+	}
+	url := domainmedia.PublicDeliveryURL(v.AssetID, profile)
 	return &generated.PublicMediaItem{AssetId: v.AssetID, DisplayOrder: v.DisplayOrder, IsCover: v.IsCover, PublicUrl: url, Usage: v.Usage}
 }
 func mapPublicMoney(v *domainadvert.Money) *generated.Money {

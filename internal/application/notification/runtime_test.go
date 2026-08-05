@@ -41,7 +41,7 @@ func TestEventWriterDedupAndInactiveTemplateNoOp(t *testing.T) {
 	store.PutAdvert(appnotification.AdvertSnapshot{
 		ID: advertID, OwnerUserID: uuid.New(), Title: "Test Horse", Status: "PUBLISHED",
 	})
-	store.PutPackage(domainpackaging.Package{ID: pkgID, Code: domainpackaging.PackageCodeAdvanced, DisplayName: "Advanced"})
+	store.PutPackage(domainpackaging.Package{ID: pkgID, Code: domainpackaging.PackageCode("ADVANCED"), DisplayName: "Advanced", BroadcastOnPublish: true})
 	store.PutAssignment(domainpackaging.AdvertPackageAssignment{
 		ID: asgID, AdvertID: advertID, PackageID: pkgID, Status: domainpackaging.AssignmentStatusActive,
 		StartsAt: now.Add(-time.Hour),
@@ -59,8 +59,8 @@ func TestEventWriterDedupAndInactiveTemplateNoOp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	in := appnotification.WriteAdvancedAdvertPublishedInput{AdvertID: advertID, AssignmentID: asgID}
-	if err := writer.WriteAdvancedAdvertPublished(context.Background(), tx, in); err != nil {
+	in := appnotification.WritePackageAdvertPublishedInput{AdvertID: advertID, AssignmentID: asgID}
+	if err := writer.WritePackageAdvertPublished(context.Background(), tx, in); err != nil {
 		t.Fatalf("inactive template should no-op: %v", err)
 	}
 	if len(store.Notifications()) != 0 {
@@ -68,15 +68,15 @@ func TestEventWriterDedupAndInactiveTemplateNoOp(t *testing.T) {
 	}
 
 	store.PutTemplate(domainnotification.NotificationTemplate{
-		ID: uuid.New(), EventType: domainnotification.TemplateEventTypeAdvancedAdvertPublished,
+		ID: uuid.New(), EventType: domainnotification.TemplateEventTypePackageAdvertPublished,
 		Name: "T", InAppTitleTemplate: "{{.advertTitle}}", InAppBodyTemplate: "{{.advertTitle}}",
 		IsActive: true, Version: 1,
 	})
 
-	if err := writer.WriteAdvancedAdvertPublished(context.Background(), tx, in); err != nil {
+	if err := writer.WritePackageAdvertPublished(context.Background(), tx, in); err != nil {
 		t.Fatal(err)
 	}
-	if err := writer.WriteAdvancedAdvertPublished(context.Background(), tx, in); err != nil {
+	if err := writer.WritePackageAdvertPublished(context.Background(), tx, in); err != nil {
 		t.Fatal(err)
 	}
 	if len(store.Notifications()) != 1 {
@@ -100,13 +100,13 @@ func TestFanoutInsertsEligibleUsersAndSkipsSentEmail(t *testing.T) {
 
 	nID := uuid.New()
 	store.PutTemplate(domainnotification.NotificationTemplate{
-		ID: uuid.New(), EventType: domainnotification.TemplateEventTypeAdvancedAdvertPublished,
+		ID: uuid.New(), EventType: domainnotification.TemplateEventTypePackageAdvertPublished,
 		Name: "T", InAppTitleTemplate: "x", InAppBodyTemplate: "y",
 		ResendTemplateID: strPtr("tmpl_test"), IsActive: true, Version: 1,
 	})
 	repo := store.RuntimeRepo()
 	_, _ = repo.CreateNotificationEventIdempotent(context.Background(), domainnotification.Notification{
-		ID: nID, EventType: domainnotification.TemplateEventTypeAdvancedAdvertPublished,
+		ID: nID, EventType: domainnotification.TemplateEventTypePackageAdvertPublished,
 		EventKey: "k", Title: "T", Body: "B", Payload: appnotification.EmptyPayload(), CreatedAt: now,
 	})
 	// u2 already has a SENT state from an earlier run; the fanout insert must
@@ -128,7 +128,7 @@ func TestFanoutInsertsEligibleUsersAndSkipsSentEmail(t *testing.T) {
 	}
 
 	payload := []byte(`{"notificationId":"` + nID.String() + `"}`)
-	if err := svc.ProcessAdvertFanout(context.Background(), domainmedia.JobNotificationFanoutAdvancedAdvert, payload); err != nil {
+	if err := svc.ProcessAdvertFanout(context.Background(), domainmedia.JobNotificationFanoutPackageAdvert, payload); err != nil {
 		t.Fatal(err)
 	}
 	chunkPayload := findJobPayload(t, store, domainmedia.JobEmailSendAdvertNotificationChunk)
@@ -157,13 +157,13 @@ func TestFanoutQueuesVerifiedSkipsUnverified(t *testing.T) {
 
 	nID := uuid.New()
 	store.PutTemplate(domainnotification.NotificationTemplate{
-		ID: uuid.New(), EventType: domainnotification.TemplateEventTypeAdvancedAdvertPublished,
+		ID: uuid.New(), EventType: domainnotification.TemplateEventTypePackageAdvertPublished,
 		Name: "T", InAppTitleTemplate: "x", InAppBodyTemplate: "y",
 		ResendTemplateID: strPtr("tmpl_test"), IsActive: true, Version: 1,
 	})
 	repo := store.RuntimeRepo()
 	_, _ = repo.CreateNotificationEventIdempotent(context.Background(), domainnotification.Notification{
-		ID: nID, EventType: domainnotification.TemplateEventTypeAdvancedAdvertPublished,
+		ID: nID, EventType: domainnotification.TemplateEventTypePackageAdvertPublished,
 		EventKey: "k", Title: "T", Body: "B", Payload: appnotification.EmptyPayload(), CreatedAt: now,
 	})
 
@@ -175,7 +175,7 @@ func TestFanoutQueuesVerifiedSkipsUnverified(t *testing.T) {
 		t.Fatal(err)
 	}
 	payload := []byte(`{"notificationId":"` + nID.String() + `"}`)
-	if err := svc.ProcessAdvertFanout(context.Background(), domainmedia.JobNotificationFanoutAdvancedAdvert, payload); err != nil {
+	if err := svc.ProcessAdvertFanout(context.Background(), domainmedia.JobNotificationFanoutPackageAdvert, payload); err != nil {
 		t.Fatal(err)
 	}
 
@@ -224,7 +224,7 @@ func TestExpireDueAssignmentsDeactivatesUrgent(t *testing.T) {
 	ownerID := uuid.New()
 	pastEndsAt := now.Add(-time.Hour)
 	store.PutAdvert(appnotification.AdvertSnapshot{ID: advertID, OwnerUserID: ownerID, Title: "Test Horse", Status: "PUBLISHED"})
-	store.PutPackage(domainpackaging.Package{ID: pkgID, Code: domainpackaging.PackageCodeAdvanced, DisplayName: "Advanced"})
+	store.PutPackage(domainpackaging.Package{ID: pkgID, Code: domainpackaging.PackageCode("ADVANCED"), DisplayName: "Advanced", BroadcastOnPublish: true})
 	store.PutAssignment(domainpackaging.AdvertPackageAssignment{
 		ID: asgID, AdvertID: advertID, PackageID: pkgID, Status: domainpackaging.AssignmentStatusActive,
 		StartsAt: now.Add(-48 * time.Hour), EndsAt: &pastEndsAt,
@@ -277,13 +277,13 @@ func TestPackageExpiryUsesIstanbulCalendarDays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	endsAt := time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC)
+	endsAt := time.Date(2026, 8, 10, 10, 0, 0, 0, time.UTC)
 	now := time.Date(2026, 8, 5, 10, 0, 0, 0, time.UTC)
-	if got := domainnotification.CalendarDaysUntil(endsAt, now, loc); got != 10 {
-		t.Fatalf("calendar days=%d want 10", got)
+	if got := domainnotification.CalendarDaysUntil(endsAt, now, loc); got != 5 {
+		t.Fatalf("calendar days=%d want 5", got)
 	}
-	target := domainnotification.PackageExpiryTargetDay(now, loc, domainnotification.PackageExpiryDayOffset10D)
-	if target.In(loc).Day() != 15 {
+	target := domainnotification.PackageExpiryTargetDay(now, loc, domainnotification.PackageExpiryDayOffset5D)
+	if target.In(loc).Day() != 10 {
 		t.Fatalf("target day=%v", target.In(loc))
 	}
 }
@@ -301,7 +301,7 @@ func TestFindBestActiveCampaignPrefersSpecificPackage(t *testing.T) {
 	store.PutCampaign(specific)
 
 	got, ok, err := store.RuntimeRepo().FindBestActiveCampaignForExpiry(
-		context.Background(), domainnotification.TemplateEventTypePackageExpiry10Days, pkgID, now,
+		context.Background(), domainnotification.TemplateEventTypePackageExpiry5Days, pkgID, now,
 	)
 	if err != nil || !ok {
 		t.Fatalf("err=%v ok=%v", err, ok)
@@ -326,9 +326,9 @@ func TestListUserNotificationsCursorOrdersByEventCreatedAt(t *testing.T) {
 	oldest := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	middle := time.Date(2026, 8, 3, 10, 0, 0, 0, time.UTC)
 	newest := time.Date(2026, 8, 5, 10, 0, 0, 0, time.UTC)
-	n1 := domainnotification.Notification{ID: uuid.New(), EventType: domainnotification.TemplateEventTypeAdvancedAdvertPublished, EventKey: "k1", Title: "1", Body: "b", Payload: appnotification.EmptyPayload(), CreatedAt: oldest}
-	n2 := domainnotification.Notification{ID: uuid.New(), EventType: domainnotification.TemplateEventTypeAdvancedAdvertPublished, EventKey: "k2", Title: "2", Body: "b", Payload: appnotification.EmptyPayload(), CreatedAt: middle}
-	n3 := domainnotification.Notification{ID: uuid.New(), EventType: domainnotification.TemplateEventTypeAdvancedAdvertPublished, EventKey: "k3", Title: "3", Body: "b", Payload: appnotification.EmptyPayload(), CreatedAt: newest}
+	n1 := domainnotification.Notification{ID: uuid.New(), EventType: domainnotification.TemplateEventTypePackageAdvertPublished, EventKey: "k1", Title: "1", Body: "b", Payload: appnotification.EmptyPayload(), CreatedAt: oldest}
+	n2 := domainnotification.Notification{ID: uuid.New(), EventType: domainnotification.TemplateEventTypePackageAdvertPublished, EventKey: "k2", Title: "2", Body: "b", Payload: appnotification.EmptyPayload(), CreatedAt: middle}
+	n3 := domainnotification.Notification{ID: uuid.New(), EventType: domainnotification.TemplateEventTypePackageAdvertPublished, EventKey: "k3", Title: "3", Body: "b", Payload: appnotification.EmptyPayload(), CreatedAt: newest}
 	for _, n := range []domainnotification.Notification{n1, n2, n3} {
 		if _, err := repo.CreateNotificationEventIdempotent(context.Background(), n); err != nil {
 			t.Fatal(err)
@@ -380,7 +380,7 @@ func (r *recordingEmailSender) SendTemplateEmail(context.Context, string, string
 
 func domaincampaignFixture(now time.Time, source *uuid.UUID) domaincampaign.Campaign {
 	return domaincampaign.Campaign{
-		ID: uuid.New(), Code: "GENERIC", Name: "N", EventType: domaincampaign.CampaignEventTypePackageExpiry10Days,
+		ID: uuid.New(), Code: "GENERIC", Name: "N", EventType: domaincampaign.CampaignEventTypePackageExpiry5Days,
 		SourcePackageID: source, Title: "Campaign", IsActive: true, CreatedByUserID: uuid.New(),
 		CurrencyCode: "TRY", StartsAt: now.Add(-time.Hour), Version: 1, CreatedAt: now, UpdatedAt: now,
 	}

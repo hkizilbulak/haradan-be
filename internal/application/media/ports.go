@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,9 +15,21 @@ import (
 // ObjectInfo is the provider's own view of a stored object. Client-declared
 // metadata is never canonical; only what the provider reports counts.
 type ObjectInfo struct {
-	ContentType string
-	ByteSize    int64
-	Exists      bool
+	ContentType  string
+	ByteSize     int64
+	ETag         string
+	LastModified time.Time
+	Exists       bool
+}
+
+// ObjectReader is a streaming object body plus provider metadata. Callers must
+// Close Body; canceling ctx should close the underlying provider stream.
+type ObjectReader struct {
+	Body         io.ReadCloser
+	ContentType  string
+	ByteSize     int64
+	ETag         string
+	LastModified time.Time
 }
 
 // ObjectPage is one bounded provider listing page. Cursor is opaque to callers.
@@ -60,6 +73,10 @@ type Storage interface {
 
 	// GetObject reads an object back for processing.
 	GetObject(ctx context.Context, objectKey string) ([]byte, string, error)
+
+	// OpenObject opens a streaming object read for public delivery. The caller
+	// owns Body and must Close it. Missing objects surface as NotFound.
+	OpenObject(ctx context.Context, objectKey string) (ObjectReader, error)
 
 	// DeleteObject removes an object. Deleting a missing object succeeds.
 	DeleteObject(ctx context.Context, objectKey string) error
@@ -246,6 +263,11 @@ func (UnconfiguredStorage) PutObject(context.Context, string, string, []byte) er
 // GetObject reports the storage dependency as unavailable.
 func (UnconfiguredStorage) GetObject(context.Context, string) ([]byte, string, error) {
 	return nil, "", apperr.DependencyUnavailable(storageNotConfiguredMessage)
+}
+
+// OpenObject reports the storage dependency as unavailable.
+func (UnconfiguredStorage) OpenObject(context.Context, string) (ObjectReader, error) {
+	return ObjectReader{}, apperr.DependencyUnavailable(storageNotConfiguredMessage)
 }
 
 func (UnconfiguredStorage) DeleteObject(context.Context, string) error {

@@ -46,6 +46,9 @@ func TestTriggerCreatesManualQueuedRun(t *testing.T) {
 	if !repo.enqueued || out.Status != domain.RunQueued || out.CreatedAt != now {
 		t.Fatalf("unexpected run: %#v", out)
 	}
+	if string(out.Checkpoint) != `{"page":0}` {
+		t.Fatalf("checkpoint = %s", out.Checkpoint)
+	}
 }
 func TestTriggerRejectsUnknownAdapter(t *testing.T) {
 	svc, _ := NewService(&fakeRepo{})

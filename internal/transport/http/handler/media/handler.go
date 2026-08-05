@@ -249,15 +249,15 @@ func mapInitiateView(v appmedia.InitiateView) generated.InitiateMediaUploadRespo
 	}
 }
 
-// mapProcessingView projects MEDIA-02/03 output. PublicUrl always stays nil:
-// the public URL strategy is undecided and object keys are never exposed.
+// mapProcessingView projects MEDIA-02/03 output. READY variants expose
+// PublicDeliveryURL relative paths; object keys are never exposed.
 func mapProcessingView(v appmedia.ProcessingView) generated.MediaProcessingState {
 	variants := make([]generated.MediaVariantStatusItem, 0, len(v.Variants))
 	for _, item := range v.Variants {
 		variants = append(variants, generated.MediaVariantStatusItem{
 			TransformProfile: item.TransformProfile,
 			LifecycleStatus:  generated.MediaVariantLifecycle(item.LifecycleStatus),
-			PublicUrl:        nil,
+			PublicUrl:        item.PublicURL,
 			Usage:            item.Usage,
 		})
 	}

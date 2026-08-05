@@ -68,14 +68,48 @@ func (l VariantLifecycle) Valid() bool {
 // hrd_media_assets.provider column default.
 const ProviderB2 = "B2"
 
-// Transform profile names come from the media decision document. Pixel sizes,
-// crop behaviour and compression quality are configuration, not domain values,
-// and are deliberately absent here.
+// Transform profile names come from the media decision document. Pixel sizes
+// for advert variants are fixed production defaults; BANNER is compress-only
+// and has no resize dimensions.
 const (
 	ProfileDetail   = "DETAIL"
 	ProfileHomepage = "HOMEPAGE"
 	ProfileSearch   = "SEARCH"
+	ProfileBanner   = "BANNER"
 )
+
+// MaxUploadBytes is the server-side security ceiling for uploads (64 MiB).
+const MaxUploadBytes int64 = 67108864
+
+// Fixed advert transform dimensions (fit / aspect ratio preserved).
+const (
+	ProfileHomepageWidth  = 340
+	ProfileHomepageHeight = 268
+	ProfileDetailWidth    = 368
+	ProfileDetailHeight   = 290
+	ProfileSearchWidth    = 100
+	ProfileSearchHeight   = 79
+)
+
+// ProfileDimensions holds width×height for a transform profile.
+type ProfileDimensions struct {
+	Width  int
+	Height int
+}
+
+// DefaultProfileDimensions returns the fixed dimensions for known advert profiles.
+func DefaultProfileDimensions(profile string) (ProfileDimensions, bool) {
+	switch profile {
+	case ProfileHomepage:
+		return ProfileDimensions{Width: ProfileHomepageWidth, Height: ProfileHomepageHeight}, true
+	case ProfileDetail:
+		return ProfileDimensions{Width: ProfileDetailWidth, Height: ProfileDetailHeight}, true
+	case ProfileSearch:
+		return ProfileDimensions{Width: ProfileSearchWidth, Height: ProfileSearchHeight}, true
+	default:
+		return ProfileDimensions{}, false
+	}
+}
 
 // RequiredTransformProfiles lists the profiles generated from every canonical
 // master. Each profile succeeds or fails independently.
@@ -83,13 +117,45 @@ func RequiredTransformProfiles() []string {
 	return []string{ProfileDetail, ProfileHomepage, ProfileSearch}
 }
 
-// IsKnownTransformProfile reports whether profile is a phase-one profile name.
+// IsKnownTransformProfile reports whether profile is a generated variant profile.
+// BANNER is compress-only (no resize bounds); advert profiles use fit resize.
 func IsKnownTransformProfile(profile string) bool {
 	switch profile {
-	case ProfileDetail, ProfileHomepage, ProfileSearch:
+	case ProfileDetail, ProfileHomepage, ProfileSearch, ProfileBanner:
 		return true
 	}
 	return false
+}
+
+// IsKnownDeliveryProfile reports whether profile may appear in a public delivery URL.
+func IsKnownDeliveryProfile(profile string) bool {
+	return IsKnownTransformProfile(profile)
+}
+
+// IsSoftDeletedAssetLifecycle reports whether the asset must not be publicly served.
+func IsSoftDeletedAssetLifecycle(l AssetLifecycle) bool {
+	switch l {
+	case AssetCleanupCandidate, AssetDeleting, AssetPhysicallyDeleted:
+		return true
+	}
+	return false
+}
+
+// IsOwnedVariantObjectKey reports whether objectKey is the Haradan-owned variant
+// key for assetID/profile (never raw or master).
+func IsOwnedVariantObjectKey(assetID uuid.UUID, profile, objectKey string) bool {
+	if assetID == uuid.Nil || !IsKnownDeliveryProfile(profile) {
+		return false
+	}
+	want := VariantObjectKey(assetID, profile)
+	key := strings.TrimSpace(objectKey)
+	return key == want
+}
+
+// GeneratedTransformProfiles lists every variant enqueued after MASTER_READY:
+// advert fit profiles plus the compress-only BANNER profile.
+func GeneratedTransformProfiles() []string {
+	return []string{ProfileDetail, ProfileHomepage, ProfileSearch, ProfileBanner}
 }
 
 // RawObjectKey returns the quarantine key for the client-uploaded file. Object
@@ -186,7 +252,8 @@ const (
 	JobDeleteObjects        JobType = "MEDIA_DELETE_OBJECTS"
 	JobReconcile            JobType = "MEDIA_RECONCILE"
 
-	JobNotificationFanoutAdvancedAdvert JobType = "NOTIFICATION_FANOUT_ADVANCED_ADVERT"
+	JobNotificationFanoutPackageAdvert  JobType = "NOTIFICATION_FANOUT_PACKAGE_ADVERT"
+	JobNotificationFanoutAdvancedAdvert JobType = "NOTIFICATION_FANOUT_ADVANCED_ADVERT" // historical
 	JobNotificationFanoutUrgentAdvert   JobType = "NOTIFICATION_FANOUT_URGENT_ADVERT"
 	JobEmailSendAdvertNotificationChunk JobType = "EMAIL_SEND_ADVERT_NOTIFICATION_CHUNK"
 	JobPackageExpiryReminderScan        JobType = "PACKAGE_EXPIRY_REMINDER_SCAN"
@@ -197,7 +264,8 @@ const (
 func (t JobType) Valid() bool {
 	switch t {
 	case JobValidateAndNormalize, JobGenerateVariant, JobDeleteObjects, JobReconcile,
-		JobNotificationFanoutAdvancedAdvert, JobNotificationFanoutUrgentAdvert,
+		JobNotificationFanoutPackageAdvert, JobNotificationFanoutAdvancedAdvert,
+		JobNotificationFanoutUrgentAdvert,
 		JobEmailSendAdvertNotificationChunk, JobPackageExpiryReminderScan,
 		JobEmailSendPackageExpiryReminder:
 		return true
@@ -208,7 +276,8 @@ func (t JobType) Valid() bool {
 // IsNotificationJob reports whether t is a notification/email fan-out job type.
 func (t JobType) IsNotificationJob() bool {
 	switch t {
-	case JobNotificationFanoutAdvancedAdvert, JobNotificationFanoutUrgentAdvert,
+	case JobNotificationFanoutPackageAdvert, JobNotificationFanoutAdvancedAdvert,
+		JobNotificationFanoutUrgentAdvert,
 		JobEmailSendAdvertNotificationChunk, JobPackageExpiryReminderScan,
 		JobEmailSendPackageExpiryReminder:
 		return true
@@ -298,8 +367,19 @@ func IsAttachableAssetLifecycle(l AssetLifecycle) bool {
 // EmptyMetadata returns the canonical empty technical metadata object.
 func EmptyMetadata() json.RawMessage { return json.RawMessage(`{}`) }
 
+// PublicDeliveryURL returns the stable same-origin media delivery path for an
+// asset profile. Object keys are never part of the public URL.
+func PublicDeliveryURL(assetID uuid.UUID, profile string) string {
+	profile = strings.TrimSpace(profile)
+	if assetID == uuid.Nil || profile == "" {
+		return ""
+	}
+	return "/v1/media/" + assetID.String() + "/" + profile
+}
+
 // PublicURL joins a validated public media origin with a generated object key.
 // Invalid origins and traversal-shaped keys are rejected rather than projected.
+// Prefer PublicDeliveryURL for client projections.
 func PublicURL(baseURL, objectKey string) string {
 	base := strings.TrimSpace(baseURL)
 	key := strings.TrimSpace(objectKey)

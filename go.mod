@@ -14,6 +14,7 @@ require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/oapi-codegen/runtime v1.6.0
 	github.com/pressly/goose/v3 v3.27.3
+	github.com/robfig/cron/v3 v3.0.1
 	golang.org/x/crypto v0.54.0
 	golang.org/x/image v0.44.0
 	golang.org/x/net v0.57.0

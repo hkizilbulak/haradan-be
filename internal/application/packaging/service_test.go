@@ -67,17 +67,17 @@ func newFixture(t *testing.T) *fixture {
 	middleID := uuid.MustParse("a0000000-0000-4000-8000-000000000002")
 	advancedID := uuid.MustParse("a0000000-0000-4000-8000-000000000003")
 	starter := domainpackaging.Package{
-		ID: starterID, Code: domainpackaging.PackageCodeStarter, DisplayName: "Starter",
+		ID: starterID, Code: domainpackaging.PackageCode("STARTER"), DisplayName: "Starter",
 		CurrencyCode: "TRY", IsActive: true, SortOrder: 10, Version: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	middle := domainpackaging.Package{
-		ID: middleID, Code: domainpackaging.PackageCodeMiddle, DisplayName: "Middle",
+		ID: middleID, Code: domainpackaging.PackageCode("MIDDLE"), DisplayName: "Middle",
 		CurrencyCode: "TRY", ShowcaseEligible: true, IsActive: true, SortOrder: 20, Version: 1,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	dur := 30
 	advanced := domainpackaging.Package{
-		ID: advancedID, Code: domainpackaging.PackageCodeAdvanced, DisplayName: "Advanced",
+		ID: advancedID, Code: domainpackaging.PackageCode("ADVANCED"), DisplayName: "Advanced", BroadcastOnPublish: true,
 		CurrencyCode: "TRY", DefaultDurationDays: &dur, AllowsUrgent: true, ShowcaseEligible: true,
 		SearchPriority: 100, IsActive: true, SortOrder: 30, Version: 1, CreatedAt: now, UpdatedAt: now,
 	}
@@ -116,9 +116,9 @@ func TestListPackagesSortOrder(t *testing.T) {
 	if len(items) != 3 {
 		t.Fatalf("len=%d", len(items))
 	}
-	if items[0].Code != domainpackaging.PackageCodeStarter ||
-		items[1].Code != domainpackaging.PackageCodeMiddle ||
-		items[2].Code != domainpackaging.PackageCodeAdvanced {
+	if items[0].Code != domainpackaging.PackageCode("STARTER") ||
+		items[1].Code != domainpackaging.PackageCode("MIDDLE") ||
+		items[2].Code != domainpackaging.PackageCode("ADVANCED") {
 		t.Fatalf("unexpected order: %+v", items)
 	}
 }
@@ -128,7 +128,7 @@ func TestAssignAdvertPackageAdminSuccessAndHistory(t *testing.T) {
 	ctx := context.Background()
 
 	view, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("ADVANCED"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +149,7 @@ func TestAssignAdvertPackageAdminSuccessAndHistory(t *testing.T) {
 
 	f.clock.Advance(time.Minute)
 	_, err = f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeMiddle,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("MIDDLE"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -174,7 +174,7 @@ func TestAssignAdvertPackageAdminSuccessAndHistory(t *testing.T) {
 func TestAssignNonAdminForbidden(t *testing.T) {
 	f := newFixture(t)
 	_, err := f.svc.AssignAdvertPackage(context.Background(), apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.owner.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.owner.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("STARTER"),
 	})
 	requireKind(t, err, apperr.KindForbidden)
 }
@@ -183,15 +183,20 @@ func TestAssignPackageNotFoundAndInactive(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("NOPE"),
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("bad code"),
 	})
 	requireKind(t, err, apperr.KindValidation)
+
+	_, err = f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("NOPE"),
+	})
+	requireKind(t, err, apperr.KindNotFound)
 
 	inactive := f.starter
 	inactive.IsActive = false
 	f.store.PutPackage(inactive)
 	_, err = f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("STARTER"),
 	})
 	requireKind(t, err, apperr.KindConflict)
 }
@@ -200,7 +205,7 @@ func TestAssignAdvertNotFoundAndTerminal(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: uuid.New(), PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.admin.ID, AdvertID: uuid.New(), PackageCode: domainpackaging.PackageCode("STARTER"),
 	})
 	requireKind(t, err, apperr.KindNotFound)
 
@@ -209,7 +214,7 @@ func TestAssignAdvertNotFoundAndTerminal(t *testing.T) {
 	sold.Status = domainadvert.StatusSold
 	f.store.PutAdvert(sold)
 	_, err = f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: sold.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.admin.ID, AdvertID: sold.ID, PackageCode: domainpackaging.PackageCode("STARTER"),
 	})
 	requireKind(t, err, apperr.KindConflict)
 }
@@ -220,13 +225,13 @@ func TestAssignInvalidDateRangeAndNullDuration(t *testing.T) {
 	start := f.clock.Now()
 	end := start.Add(-time.Hour)
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("STARTER"),
 		StartsAt: &start, EndsAt: &end,
 	})
 	requireKind(t, err, apperr.KindValidation)
 
 	view, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("STARTER"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -240,13 +245,13 @@ func TestAssignIdempotentSamePackageAndDates(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	first, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("STARTER"),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	second, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("STARTER"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -269,7 +274,7 @@ func TestAssignDeactivatesUrgentOnPackageChange(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("ADVANCED"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -283,7 +288,7 @@ func TestAssignDeactivatesUrgentOnPackageChange(t *testing.T) {
 	}
 
 	_, err = f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeMiddle,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("MIDDLE"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -298,7 +303,7 @@ func TestAssignDeactivatesUrgentOnPackageChange(t *testing.T) {
 
 	// ADVANCED → ADVANCED also deactivates so URGENT cannot stay on superseded assignment.
 	_, err = f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("ADVANCED"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -311,7 +316,7 @@ func TestAssignDeactivatesUrgentOnPackageChange(t *testing.T) {
 		t.Fatalf("version did not increase: %d <= %d", act2.ActivationVersion, act.ActivationVersion)
 	}
 	_, err = f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("ADVANCED"),
 		StartsAt: ptrTime(f.clock.Now().Add(time.Minute)),
 	})
 	if err != nil {
@@ -330,8 +335,8 @@ func TestAssignConcurrentOnlyOneActive(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make(chan error, 2)
 	codes := []domainpackaging.PackageCode{
-		domainpackaging.PackageCodeStarter,
-		domainpackaging.PackageCodeMiddle,
+		domainpackaging.PackageCode("STARTER"),
+		domainpackaging.PackageCode("MIDDLE"),
 	}
 	for i := 0; i < 2; i++ {
 		wg.Add(1)
@@ -369,7 +374,7 @@ func TestUrgentOwnerAdminAndForbidden(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("ADVANCED"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -392,14 +397,14 @@ func TestAssignNilStartsAtSamePackageIdempotentAcrossClock(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	first, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("STARTER"),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	f.clock.Advance(2 * time.Hour)
 	second, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("STARTER"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -418,7 +423,7 @@ func TestAssignExplicitChangedDatesCreatesNew(t *testing.T) {
 	start1 := f.clock.Now()
 	end1 := start1.Add(24 * time.Hour)
 	first, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("STARTER"),
 		StartsAt: &start1, EndsAt: &end1,
 	})
 	if err != nil {
@@ -427,7 +432,7 @@ func TestAssignExplicitChangedDatesCreatesNew(t *testing.T) {
 	start2 := start1.Add(time.Hour)
 	end2 := end1.Add(time.Hour)
 	second, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("STARTER"),
 		StartsAt: &start2, EndsAt: &end2,
 	})
 	if err != nil {
@@ -445,7 +450,7 @@ func TestAssignDisabledAdminForbidden(t *testing.T) {
 	disabled.Status = domainuser.StatusDisabled
 	f.store.PutUser(disabled)
 	_, err := f.svc.AssignAdvertPackage(context.Background(), apppackaging.AssignAdvertPackageInput{
-		ActorUserID: disabled.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: disabled.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("STARTER"),
 	})
 	requireKind(t, err, apperr.KindForbidden)
 }
@@ -454,7 +459,7 @@ func TestUrgentLifecycleDraftPendingPublishedAllowed(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("ADVANCED"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -487,7 +492,7 @@ func TestUrgentLifecycleTerminalRejected(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("ADVANCED"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -518,7 +523,7 @@ func TestUrgentRequiresAdvancedAndAllowsUrgent(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeMiddle,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("MIDDLE"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -531,7 +536,7 @@ func TestUrgentRequiresAdvancedAndAllowsUrgent(t *testing.T) {
 	f.store.PutPackage(advNoUrgent)
 	f.advanced = advNoUrgent
 	_, err = f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("ADVANCED"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -545,7 +550,7 @@ func TestUrgentFutureAssignmentRejected(t *testing.T) {
 	ctx := context.Background()
 	start := f.clock.Now().Add(24 * time.Hour)
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("ADVANCED"),
 		StartsAt: &start,
 	})
 	if err != nil {
@@ -559,7 +564,7 @@ func TestUrgentDisabledAdminForbidden(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("ADVANCED"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -578,7 +583,7 @@ func TestGetAdvertPackageIgnoresExpiredActiveWindow(t *testing.T) {
 	start := f.clock.Now().Add(-48 * time.Hour)
 	end := f.clock.Now().Add(-time.Hour)
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("STARTER"),
 		StartsAt: &start, EndsAt: &end,
 	})
 	if err != nil {
@@ -597,7 +602,7 @@ func TestUrgentIdempotentAndVersionBump(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("ADVANCED"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -650,7 +655,7 @@ func TestHistoryForbiddenForNonAdmin(t *testing.T) {
 func TestErrorsDoNotLeakSQL(t *testing.T) {
 	f := newFixture(t)
 	_, err := f.svc.AssignAdvertPackage(context.Background(), apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: uuid.New(), PackageCode: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.admin.ID, AdvertID: uuid.New(), PackageCode: domainpackaging.PackageCode("STARTER"),
 	})
 	if err == nil {
 		t.Fatal("expected error")
@@ -682,7 +687,7 @@ func TestUpdatePackageOptimisticAndAllowsUrgentFalse(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("ADVANCED"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -693,7 +698,7 @@ func TestUpdatePackageOptimisticAndAllowsUrgentFalse(t *testing.T) {
 	name := "Advanced Plus"
 	falseVal := false
 	updated, err := f.svc.UpdatePackage(ctx, apppackaging.UpdatePackageInput{
-		ActorUserID: f.admin.ID, Code: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, Code: domainpackaging.PackageCode("ADVANCED"),
 		ExpectedVersion: 1, DisplayName: &name, AllowsUrgent: &falseVal,
 	})
 	if err != nil {
@@ -713,7 +718,7 @@ func TestUpdatePackageOptimisticAndAllowsUrgentFalse(t *testing.T) {
 		t.Fatal("allowsUrgent false must deactivate active URGENT")
 	}
 	_, err = f.svc.UpdatePackage(ctx, apppackaging.UpdatePackageInput{
-		ActorUserID: f.admin.ID, Code: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, Code: domainpackaging.PackageCode("ADVANCED"),
 		ExpectedVersion: 1, DisplayName: &name,
 	})
 	requireKind(t, err, apperr.KindConflict)
@@ -728,7 +733,7 @@ func TestCancelAdvertPackageIdempotentAndDeactivatesUrgent(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCodeAdvanced,
+		ActorUserID: f.admin.ID, AdvertID: f.advert.ID, PackageCode: domainpackaging.PackageCode("ADVANCED"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -761,7 +766,7 @@ func TestUpdatePackageNonAdminForbidden(t *testing.T) {
 	f := newFixture(t)
 	name := "x"
 	_, err := f.svc.UpdatePackage(context.Background(), apppackaging.UpdatePackageInput{
-		ActorUserID: f.owner.ID, Code: domainpackaging.PackageCodeStarter,
+		ActorUserID: f.owner.ID, Code: domainpackaging.PackageCode("STARTER"),
 		ExpectedVersion: 1, DisplayName: &name,
 	})
 	requireKind(t, err, apperr.KindForbidden)
@@ -775,7 +780,7 @@ func TestUpdatePackageNullableOmitNullValue(t *testing.T) {
 	price := int64(1000)
 	dur := 14
 	updated, err := f.svc.UpdatePackage(ctx, apppackaging.UpdatePackageInput{
-		ActorUserID: f.admin.ID, Code: domainpackaging.PackageCodeStarter, ExpectedVersion: 1,
+		ActorUserID: f.admin.ID, Code: domainpackaging.PackageCode("STARTER"), ExpectedVersion: 1,
 		DescriptionSet: true, Description: &desc,
 		BadgeTextSet: true, BadgeText: &badge,
 		DisplayPriceSet: true, DisplayPriceAmountMinor: &price,
@@ -786,7 +791,7 @@ func TestUpdatePackageNullableOmitNullValue(t *testing.T) {
 	}
 	// omit keeps
 	kept, err := f.svc.UpdatePackage(ctx, apppackaging.UpdatePackageInput{
-		ActorUserID: f.admin.ID, Code: domainpackaging.PackageCodeStarter, ExpectedVersion: updated.Version,
+		ActorUserID: f.admin.ID, Code: domainpackaging.PackageCode("STARTER"), ExpectedVersion: updated.Version,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -798,7 +803,7 @@ func TestUpdatePackageNullableOmitNullValue(t *testing.T) {
 	}
 	// null clears
 	cleared, err := f.svc.UpdatePackage(ctx, apppackaging.UpdatePackageInput{
-		ActorUserID: f.admin.ID, Code: domainpackaging.PackageCodeStarter, ExpectedVersion: kept.Version,
+		ActorUserID: f.admin.ID, Code: domainpackaging.PackageCode("STARTER"), ExpectedVersion: kept.Version,
 		DescriptionSet: true, Description: nil,
 		BadgeTextSet: true, BadgeText: nil,
 		DisplayPriceSet: true, DisplayPriceAmountMinor: nil,

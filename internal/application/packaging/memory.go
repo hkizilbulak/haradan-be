@@ -149,6 +149,21 @@ func (m memoryPackages) List(_ context.Context, includeInactive bool) ([]domainp
 	return out, nil
 }
 
+func (m memoryPackages) Create(_ context.Context, p domainpackaging.Package) error {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	for _, existing := range m.store.packages {
+		if existing.Code == p.Code {
+			return apperr.Conflict(packageCodeConflictMessage)
+		}
+		if existing.ID == p.ID {
+			return apperr.Conflict(packageCodeConflictMessage)
+		}
+	}
+	m.store.packages[p.ID] = p
+	return nil
+}
+
 func (m memoryPackages) UpdateOptimistic(
 	_ context.Context,
 	p domainpackaging.Package,

@@ -49,9 +49,10 @@ type Clock interface {
 	Now() time.Time
 }
 
-// EmailSender delivers verification emails after register commit.
+// EmailSender delivers verification and password-reset emails after commit.
 type EmailSender interface {
 	SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken string) error
+	SendPasswordReset(ctx context.Context, toEmail, plaintextToken string) error
 }
 
 // NoopEmailSender acknowledges delivery without sending.
@@ -61,10 +62,19 @@ func (NoopEmailSender) SendRegistrationVerification(context.Context, string, str
 	return nil
 }
 
-// EmailSenderFunc adapts a function to EmailSender.
+func (NoopEmailSender) SendPasswordReset(context.Context, string, string) error {
+	return nil
+}
+
+// EmailSenderFunc adapts a function to EmailSender (registration path only).
+// Prefer a concrete fake when password-reset coverage is needed.
 type EmailSenderFunc func(ctx context.Context, toEmail, plaintextToken string) error
 
 func (f EmailSenderFunc) SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken string) error {
+	return f(ctx, toEmail, plaintextToken)
+}
+
+func (f EmailSenderFunc) SendPasswordReset(ctx context.Context, toEmail, plaintextToken string) error {
 	return f(ctx, toEmail, plaintextToken)
 }
 
@@ -486,7 +496,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, in RequestPasswordRe
 	}); err != nil {
 		return ResendVerificationResult{}, err
 	}
-	if err := s.email.SendRegistrationVerification(ctx, user.Email, plain); err != nil {
+	if err := s.email.SendPasswordReset(ctx, user.Email, plain); err != nil {
 		return ResendVerificationResult{}, apperr.DependencyUnavailable("E-posta servisi şu anda kullanılamıyor.")
 	}
 	return ResendVerificationResult{Message: resendSuccessMessage}, nil

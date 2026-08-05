@@ -21,6 +21,7 @@ func mapPackageAdminView(p domainpackaging.Package) generated.PackageAdminView {
 		AllowsUrgent:        p.AllowsUrgent,
 		ShowcaseEligible:    p.ShowcaseEligible,
 		SearchPriority:      p.SearchPriority,
+		BroadcastOnPublish:  p.BroadcastOnPublish,
 		IsActive:            p.IsActive,
 		SortOrder:           p.SortOrder,
 		Version:             p.Version,

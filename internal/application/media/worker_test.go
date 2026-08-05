@@ -74,8 +74,8 @@ func TestWorkerValidateAndNormalizeReachesMasterReadyAndEnqueuesVariantJobs(t *t
 
 	// A ready master implies pending, not ready, variants.
 	variants := f.store.Variants(assetID)
-	if len(variants) != len(domainmedia.RequiredTransformProfiles()) {
-		t.Fatalf("want %d variants, got %d", len(domainmedia.RequiredTransformProfiles()), len(variants))
+	if len(variants) != len(domainmedia.GeneratedTransformProfiles()) {
+		t.Fatalf("want %d variants, got %d", len(domainmedia.GeneratedTransformProfiles()), len(variants))
 	}
 	for _, v := range variants {
 		if v.LifecycleStatus != domainmedia.VariantPending {
@@ -87,11 +87,11 @@ func TestWorkerValidateAndNormalizeReachesMasterReadyAndEnqueuesVariantJobs(t *t
 	}
 
 	jobs := f.store.JobsByType(domainmedia.JobGenerateVariant)
-	if len(jobs) != 3 {
-		t.Fatalf("want 3 variant jobs, got %d", len(jobs))
+	if len(jobs) != len(domainmedia.GeneratedTransformProfiles()) {
+		t.Fatalf("want %d variant jobs, got %d", len(domainmedia.GeneratedTransformProfiles()), len(jobs))
 	}
 	wantKeys := map[string]bool{}
-	for _, profile := range domainmedia.RequiredTransformProfiles() {
+	for _, profile := range domainmedia.GeneratedTransformProfiles() {
 		wantKeys[domainmedia.VariantJobDedupKey(assetID, profile)] = true
 	}
 	for _, job := range jobs {
@@ -108,10 +108,11 @@ func TestWorkerValidateAndNormalizeReachesMasterReadyAndEnqueuesVariantJobs(t *t
 	if err := w.ProcessValidateAndNormalize(ctx, assetID); err != nil {
 		t.Fatalf("second validate run: %v", err)
 	}
-	if jobs := f.store.JobsByType(domainmedia.JobGenerateVariant); len(jobs) != 3 {
+	wantCount := len(domainmedia.GeneratedTransformProfiles())
+	if jobs := f.store.JobsByType(domainmedia.JobGenerateVariant); len(jobs) != wantCount {
 		t.Fatalf("variant jobs duplicated: %d", len(jobs))
 	}
-	if variants := f.store.Variants(assetID); len(variants) != 3 {
+	if variants := f.store.Variants(assetID); len(variants) != wantCount {
 		t.Fatalf("variants duplicated: %d", len(variants))
 	}
 }
@@ -125,7 +126,7 @@ func TestWorkerGenerateVariantMarksVariantReady(t *testing.T) {
 		t.Fatalf("validate and normalize: %v", err)
 	}
 
-	for _, profile := range domainmedia.RequiredTransformProfiles() {
+	for _, profile := range domainmedia.GeneratedTransformProfiles() {
 		if err := w.ProcessGenerateVariant(ctx, assetID, profile); err != nil {
 			t.Fatalf("generate %s: %v", profile, err)
 		}

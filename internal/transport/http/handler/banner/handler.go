@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -21,15 +20,14 @@ import (
 
 type ErrorResponder func(*gin.Context, *slog.Logger, error)
 type Handler struct {
-	svc        *appbanner.Service
-	media      appbanner.MediaReader
-	logger     *slog.Logger
-	respond    ErrorResponder
-	publicBase string
+	svc     *appbanner.Service
+	media   appbanner.MediaReader
+	logger  *slog.Logger
+	respond ErrorResponder
 }
 
-func NewHandler(svc *appbanner.Service, media appbanner.MediaReader, logger *slog.Logger, respond ErrorResponder, publicBase string) *Handler {
-	return &Handler{svc, media, logger, respond, publicBase}
+func NewHandler(svc *appbanner.Service, media appbanner.MediaReader, logger *slog.Logger, respond ErrorResponder) *Handler {
+	return &Handler{svc, media, logger, respond}
 }
 func (h *Handler) ListBannersAdmin(c *gin.Context, p generated.ListBannersAdminParams) {
 	id, ok := h.admin(c)
@@ -167,19 +165,17 @@ func (h *Handler) adminView(ctx context.Context, b domainbanner.Banner) (generat
 	return generated.AdminBannerDetailResponse{Id: b.ID, Placement: generated.BannerPlacement(b.Placement), Status: generated.BannerStatus(b.Status), AssetId: b.AssetID, SortOrder: b.SortOrder, Version: b.Version, Title: b.Title, AltText: b.AltText, TargetUrl: b.TargetURL, AssetLifecycleStatus: generated.MediaAssetLifecycle(a.LifecycleStatus)}, nil
 }
 func (h *Handler) imageURL(ctx context.Context, b domainbanner.Banner) (string, error) {
-	if strings.TrimSpace(h.publicBase) == "" {
-		return "", apperr.DependencyUnavailable("MEDIA_PUBLIC_BASE_URL is required for public banner URLs")
-	}
 	vs, e := h.media.ListVariantsByAsset(ctx, b.AssetID)
 	if e != nil {
 		return "", e
 	}
-	profile := map[domainbanner.Placement]string{domainbanner.PlacementHomepage: domainmedia.ProfileHomepage, domainbanner.PlacementListingDetail: domainmedia.ProfileDetail, domainbanner.PlacementSearch: domainmedia.ProfileSearch}[b.Placement]
 	for _, v := range vs {
-		if v.TransformProfile == profile && v.LifecycleStatus == domainmedia.VariantReady && v.ObjectKey != nil {
-			if u := domainmedia.PublicURL(h.publicBase, *v.ObjectKey); u != "" {
-				return u, nil
+		if v.TransformProfile == domainmedia.ProfileBanner && v.LifecycleStatus == domainmedia.VariantReady {
+			url := domainmedia.PublicDeliveryURL(b.AssetID, domainmedia.ProfileBanner)
+			if url == "" {
+				break
 			}
+			return url, nil
 		}
 	}
 	return "", apperr.DependencyUnavailable("active banner has no public READY variant")

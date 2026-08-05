@@ -62,6 +62,10 @@ tags:
   description: BO campaign management
 - name: AdminNotificationTemplates
   description: BO notification template management
+- name: AdminEmailTemplates
+  description: BO provider email template discovery
+- name: AdminJobs
+  description: BO scheduled job definition management
 - name: AdvertsUrgent
   description: Owner or admin URGENT feature activation
 paths:
@@ -4438,6 +4442,87 @@ paths:
         - NOT_FOUND
         '500':
         - INTERNAL_ERROR
+  "/v1/media/{assetId}/{profile}":
+    get:
+      operationId: GetPublicMedia
+      summary: GetPublicMedia
+      description: |-
+        Exposure PUBLIC. Actor: Anonymous. Streams a READY delivery profile for
+        the asset. Object keys and storage credentials never appear.
+        HEAD is registered outside OpenAPI (same handler) because gin-server
+        generation for HEAD binary responses is awkward; clients may use HEAD
+        for cache validators without a body.
+      tags:
+      - Media
+      x-function-id: MEDIA-PUBLIC-01
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Binary image bytes
+          headers:
+            Content-Type:
+              schema:
+                type: string
+            Content-Length:
+              schema:
+                type: string
+            ETag:
+              schema:
+                type: string
+            Last-Modified:
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+            Content-Disposition:
+              schema:
+                type: string
+                example: inline
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: Not Modified
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+      parameters:
+      - "$ref": "#/components/parameters/AssetIdPath"
+      - name: profile
+        in: path
+        required: true
+        schema:
+          "$ref": "#/components/schemas/MediaDeliveryProfile"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
   "/v1/media/assets/{assetId}":
     get:
       operationId: GetMediaProcessingStatus
@@ -4715,6 +4800,60 @@ paths:
         '403':
         - FORBIDDEN
         - ACCOUNT_INACTIVE
+        '500':
+        - INTERNAL_ERROR
+    post:
+      operationId: CreateAdminPackage
+      summary: CreateAdminPackage
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Creates a new package
+        catalog row. Code is immutable after create. Requires role=admin and session
+        clientContext=ADMIN_BO.'
+      tags:
+      - AdminPackages
+      x-function-id: PACKAGE-ADMIN-08
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PackageAdminView"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/CreatePackageRequest"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '409':
+        - CONFLICT
+        - DUPLICATE
+        '422':
+        - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
   "/v1/admin/packages/{packageCode}":
@@ -5416,6 +5555,348 @@ paths:
         - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
+  "/v1/admin/email-templates/provider":
+    get:
+      operationId: ListAdminProviderEmailTemplates
+      summary: ListAdminProviderEmailTemplates
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Lists Resend provider
+        templates for BO mapping. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminEmailTemplates
+      x-function-id: EMAIL-TEMPLATE-ADMIN-01
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ProviderEmailTemplateListResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '500':
+        - INTERNAL_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
+  "/v1/admin/email-templates/provider/{templateId}/variables":
+    get:
+      operationId: GetAdminProviderEmailTemplateVariables
+      summary: GetAdminProviderEmailTemplateVariables
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Returns variable names
+        for a provider template id or alias. Requires role=admin and session
+        clientContext=ADMIN_BO.'
+      tags:
+      - AdminEmailTemplates
+      x-function-id: EMAIL-TEMPLATE-ADMIN-02
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ProviderEmailTemplateVariablesResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/ProviderEmailTemplateIdPath"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
+  "/v1/admin/jobs":
+    get:
+      operationId: ListAdminJobs
+      summary: ListAdminJobs
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Lists scheduled job
+        definitions ordered by key ASC. Requires role=admin and session
+        clientContext=ADMIN_BO.'
+      tags:
+      - AdminJobs
+      x-function-id: JOB-ADMIN-01
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/JobAdminListResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/jobs/{jobId}":
+    get:
+      operationId: GetAdminJob
+      summary: GetAdminJob
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminJobs
+      x-function-id: JOB-ADMIN-02
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/JobAdminView"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/JobIdPath"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+    patch:
+      operationId: UpdateAdminJob
+      summary: UpdateAdminJob
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. expectedVersion optimistic
+        concurrency. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminJobs
+      x-function-id: JOB-ADMIN-03
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/JobAdminView"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/JobIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/UpdateJobRequest"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - STALE_VERSION
+        - INVALID_STATE
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/jobs/{jobId}/run":
+    post:
+      operationId: RunAdminJob
+      summary: RunAdminJob
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Enqueues a manual run.
+        Optional referenceDate for jobs that support it. Requires role=admin and
+        session clientContext=ADMIN_BO.'
+      tags:
+      - AdminJobs
+      x-function-id: JOB-ADMIN-04
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/JobRunAcceptedResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/JobIdPath"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RunJobRequest"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        - CONFLICT
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/jobs/{jobId}/history":
+    get:
+      operationId: ListAdminJobHistory
+      summary: ListAdminJobHistory
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Cursor pagination ordered
+        by createdAt DESC, id DESC. Requires role=admin and session
+        clientContext=ADMIN_BO.'
+      tags:
+      - AdminJobs
+      x-function-id: JOB-ADMIN-05
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/JobHistoryPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/JobIdPath"
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
   "/v1/adverts/{advertId}/urgent":
     put:
       operationId: ActivateAdvertUrgent
@@ -5658,6 +6139,20 @@ components:
       required: true
       schema:
         "$ref": "#/components/schemas/NotificationEventType"
+    ProviderEmailTemplateIdPath:
+      name: templateId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    JobIdPath:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
 
   schemas:
     AdvertStatus:
@@ -7797,10 +8292,9 @@ components:
             type: string
     PackageCode:
       type: string
-      enum:
-      - STARTER
-      - MIDDLE
-      - ADVANCED
+      pattern: '^[A-Z0-9][A-Z0-9_-]{1,63}$'
+      minLength: 2
+      maxLength: 64
     PackageAssignmentStatus:
       type: string
       enum:
@@ -7816,17 +8310,24 @@ components:
     CampaignEventType:
       type: string
       enum:
-      - PACKAGE_EXPIRY_10_DAYS
-      - PACKAGE_EXPIRY_3_DAYS
+      - PACKAGE_EXPIRY_5_DAYS
+      - PACKAGE_EXPIRY_1_DAY
       - PACKAGE_RENEWAL
       - PACKAGE_UPGRADE
     NotificationEventType:
       type: string
       enum:
-      - ADVANCED_ADVERT_PUBLISHED
+      - PACKAGE_ADVERT_PUBLISHED
       - URGENT_ADVERT_ACTIVATED
-      - PACKAGE_EXPIRY_10_DAYS
-      - PACKAGE_EXPIRY_3_DAYS
+      - PACKAGE_EXPIRY_5_DAYS
+      - PACKAGE_EXPIRY_1_DAY
+    MediaDeliveryProfile:
+      type: string
+      enum:
+      - HOMEPAGE
+      - DETAIL
+      - SEARCH
+      - BANNER
     PackageAdminView:
       type: object
       additionalProperties: false
@@ -7838,6 +8339,7 @@ components:
       - allowsUrgent
       - showcaseEligible
       - searchPriority
+      - broadcastOnPublish
       - isActive
       - sortOrder
       - version
@@ -7877,6 +8379,8 @@ components:
         searchPriority:
           type: integer
           minimum: 0
+        broadcastOnPublish:
+          type: boolean
         isActive:
           type: boolean
         sortOrder:
@@ -7901,6 +8405,61 @@ components:
           type: array
           items:
             "$ref": "#/components/schemas/PackageAdminView"
+    CreatePackageRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - displayName
+      - benefits
+      - currencyCode
+      - allowsUrgent
+      - showcaseEligible
+      - searchPriority
+      - broadcastOnPublish
+      - isActive
+      - sortOrder
+      properties:
+        code:
+          "$ref": "#/components/schemas/PackageCode"
+        displayName:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        badgeText:
+          type: string
+          nullable: true
+        benefits:
+          type: array
+          items:
+            type: string
+        displayPrice:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/Money"
+        currencyCode:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        defaultDurationDays:
+          type: integer
+          minimum: 1
+          nullable: true
+        allowsUrgent:
+          type: boolean
+        showcaseEligible:
+          type: boolean
+        searchPriority:
+          type: integer
+          minimum: 0
+        broadcastOnPublish:
+          type: boolean
+        isActive:
+          type: boolean
+        sortOrder:
+          type: integer
+          minimum: 0
     UpdatePackageRequest:
       type: object
       additionalProperties: false
@@ -7941,6 +8500,8 @@ components:
         searchPriority:
           type: integer
           minimum: 0
+        broadcastOnPublish:
+          type: boolean
         isActive:
           type: boolean
         sortOrder:
@@ -8645,6 +9206,238 @@ components:
         updatedCount:
           type: integer
           minimum: 0
+    ProviderEmailTemplateSummary:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - name
+      properties:
+        id:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          nullable: true
+        alias:
+          type: string
+          nullable: true
+    ProviderEmailTemplateListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ProviderEmailTemplateSummary"
+    ProviderEmailTemplateVariablesResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - variables
+      properties:
+        variables:
+          type: array
+          items:
+            type: string
+    JobType:
+      type: string
+      enum:
+      - TJK_SYNC
+      - PACKAGE_EXPIRY_SCAN
+      - MEDIA_RECONCILE
+    JobRunStatus:
+      type: string
+      enum:
+      - QUEUED
+      - LEASED
+      - SUCCEEDED
+      - FAILED
+      - CANCELLED
+      - DEAD
+    JobAdminView:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - key
+      - name
+      - jobType
+      - cronExpression
+      - isActive
+      - timeoutSeconds
+      - supportsReferenceDate
+      - version
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        jobType:
+          "$ref": "#/components/schemas/JobType"
+        cronExpression:
+          type: string
+          minLength: 1
+        isActive:
+          type: boolean
+        timeoutSeconds:
+          type: integer
+          minimum: 1
+        supportsReferenceDate:
+          type: boolean
+        version:
+          type: integer
+          minimum: 1
+        lastRunAt:
+          type: string
+          format: date-time
+          nullable: true
+        nextRunAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastStatus:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/JobRunStatus"
+        lastDurationMs:
+          type: integer
+          minimum: 0
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    JobAdminListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/JobAdminView"
+    UpdateJobRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - expectedVersion
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        cronExpression:
+          type: string
+          minLength: 1
+        isActive:
+          type: boolean
+        timeoutSeconds:
+          type: integer
+          minimum: 1
+    RunJobRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        referenceDate:
+          type: string
+          format: date
+          nullable: true
+    JobRunAcceptedResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - jobId
+      - runId
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        runId:
+          type: string
+          format: uuid
+    JobHistoryItem:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - jobId
+      - status
+      - executionType
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        jobId:
+          type: string
+          format: uuid
+        status:
+          "$ref": "#/components/schemas/JobRunStatus"
+        executionType:
+          type: string
+          enum:
+          - SCHEDULED
+          - MANUAL
+        referenceDate:
+          type: string
+          format: date
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        durationMs:
+          type: integer
+          minimum: 0
+          nullable: true
+        lastError:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    JobHistoryPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/JobHistoryItem"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
 
   responses:
     BadRequest:

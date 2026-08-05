@@ -25,6 +25,7 @@ var updatePackageAllowed = map[string]struct{}{
 	"allowsUrgent":        {},
 	"showcaseEligible":    {},
 	"searchPriority":      {},
+	"broadcastOnPublish":  {},
 	"isActive":            {},
 	"sortOrder":           {},
 }
@@ -151,6 +152,16 @@ func decodeUpdatePackageInput(
 			return apppackaging.UpdatePackageInput{}, apperr.BadRequest(apperr.CodeValidation, bind.MalformedBodyMessage)
 		}
 		in.SearchPriority = &n
+	}
+	if v, ok := raw["broadcastOnPublish"]; ok {
+		if bind.IsJSONNull(v) {
+			return apppackaging.UpdatePackageInput{}, apperr.Validation("broadcastOnPublish null olamaz.")
+		}
+		var b bool
+		if err := json.Unmarshal(v, &b); err != nil {
+			return apppackaging.UpdatePackageInput{}, apperr.BadRequest(apperr.CodeValidation, bind.MalformedBodyMessage)
+		}
+		in.BroadcastOnPublish = &b
 	}
 	if v, ok := raw["isActive"]; ok {
 		if bind.IsJSONNull(v) {

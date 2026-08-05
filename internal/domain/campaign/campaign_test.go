@@ -9,8 +9,8 @@ import (
 
 func TestCampaignEventTypeParseAndValid(t *testing.T) {
 	for _, raw := range []string{
-		"PACKAGE_EXPIRY_10_DAYS",
-		"PACKAGE_EXPIRY_3_DAYS",
+		"PACKAGE_EXPIRY_5_DAYS",
+		"PACKAGE_EXPIRY_1_DAY",
 		"PACKAGE_RENEWAL",
 		"PACKAGE_UPGRADE",
 	} {
@@ -21,6 +21,9 @@ func TestCampaignEventTypeParseAndValid(t *testing.T) {
 	}
 	if domaincampaign.CampaignEventType("PAYMENT").Valid() {
 		t.Fatal("PAYMENT must be invalid")
+	}
+	if domaincampaign.CampaignEventType("PACKAGE_EXPIRY_10_DAYS").Valid() {
+		t.Fatal("10_DAYS must be invalid")
 	}
 	if _, ok := domaincampaign.ParseCampaignEventType("  PACKAGE_RENEWAL "); !ok {
 		t.Fatal("trim parse")

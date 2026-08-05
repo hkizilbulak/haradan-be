@@ -23,6 +23,15 @@ func (s *Server) ListAdminPackages(c *gin.Context) {
 	s.packaging.ListAdminPackages(c)
 }
 
+// CreateAdminPackage implements packaging admin create.
+func (s *Server) CreateAdminPackage(c *gin.Context) {
+	if s.packaging == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.packaging.CreateAdminPackage(c)
+}
+
 // GetAdminPackage implements packaging admin get-by-code.
 func (s *Server) GetAdminPackage(c *gin.Context, packageCode generated.PackageCodePath) {
 	if s.packaging == nil {
@@ -160,4 +169,67 @@ func (s *Server) UpdateAdminNotificationTemplate(c *gin.Context, eventType gener
 		return
 	}
 	s.notification.UpdateAdminNotificationTemplate(c, eventType)
+}
+
+// ListAdminProviderEmailTemplates implements provider email template list.
+func (s *Server) ListAdminProviderEmailTemplates(c *gin.Context) {
+	if s.emailtpl == nil {
+		s.respondDependencyUnavailable(c, "E-posta sağlayıcı yapılandırılmamış.")
+		return
+	}
+	s.emailtpl.ListAdminProviderEmailTemplates(c)
+}
+
+// GetAdminProviderEmailTemplateVariables implements provider template variables.
+func (s *Server) GetAdminProviderEmailTemplateVariables(c *gin.Context, templateId generated.ProviderEmailTemplateIdPath) {
+	if s.emailtpl == nil {
+		s.respondDependencyUnavailable(c, "E-posta sağlayıcı yapılandırılmamış.")
+		return
+	}
+	s.emailtpl.GetAdminProviderEmailTemplateVariables(c, templateId)
+}
+
+// ListAdminJobs implements job admin list.
+func (s *Server) ListAdminJobs(c *gin.Context) {
+	if s.jobadmin == nil {
+		s.respondDependencyUnavailable(c, "İş tanımı servisi henüz hazır değil.")
+		return
+	}
+	s.jobadmin.ListAdminJobs(c)
+}
+
+// GetAdminJob implements job admin get.
+func (s *Server) GetAdminJob(c *gin.Context, jobId generated.JobIdPath) {
+	if s.jobadmin == nil {
+		s.respondDependencyUnavailable(c, "İş tanımı servisi henüz hazır değil.")
+		return
+	}
+	s.jobadmin.GetAdminJob(c, jobId)
+}
+
+// UpdateAdminJob implements job admin update.
+func (s *Server) UpdateAdminJob(c *gin.Context, jobId generated.JobIdPath) {
+	if s.jobadmin == nil {
+		s.respondDependencyUnavailable(c, "İş tanımı servisi henüz hazır değil.")
+		return
+	}
+	s.jobadmin.UpdateAdminJob(c, jobId)
+}
+
+// RunAdminJob implements job admin manual run.
+func (s *Server) RunAdminJob(c *gin.Context, jobId generated.JobIdPath) {
+	if s.jobadmin == nil {
+		s.respondDependencyUnavailable(c, "İş tanımı servisi henüz hazır değil.")
+		return
+	}
+	s.jobadmin.RunAdminJob(c, jobId)
+}
+
+// ListAdminJobHistory implements job admin history.
+func (s *Server) ListAdminJobHistory(c *gin.Context, jobId generated.JobIdPath, params generated.ListAdminJobHistoryParams) {
+	if s.jobadmin == nil {
+		s.respondDependencyUnavailable(c, "İş tanımı servisi henüz hazır değil.")
+		return
+	}
+	s.jobadmin.ListAdminJobHistory(c, jobId, params)
 }

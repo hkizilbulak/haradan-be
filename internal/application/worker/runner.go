@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -246,7 +247,8 @@ func (r *Runner) processClaimed(jobRoot, claimCtx context.Context, job domainmed
 		}
 	}()
 
-	jobCtx, cancel := context.WithTimeout(jobRoot, r.cfg.JobTimeout)
+	jobTimeout := r.cfg.JobTimeout
+	jobCtx, cancel := context.WithTimeout(jobRoot, jobTimeout)
 	defer cancel()
 
 	err := r.dispatch(jobCtx, job)
@@ -346,7 +348,7 @@ func (r *Runner) retryOrDead(
 
 func (r *Runner) dispatch(ctx context.Context, job domainmedia.BackgroundJob) error {
 	switch job.JobType {
-	case domainmedia.JobNotificationFanoutAdvancedAdvert, domainmedia.JobNotificationFanoutUrgentAdvert:
+	case domainmedia.JobNotificationFanoutPackageAdvert, domainmedia.JobNotificationFanoutAdvancedAdvert, domainmedia.JobNotificationFanoutUrgentAdvert:
 		if r.cfg.NotificationHandler == nil {
 			return apperr.Validation(safeUnsupportedJobMessage)
 		}
@@ -392,4 +394,27 @@ func (r *Runner) sleep(ctx context.Context, d time.Duration) {
 	case <-ctx.Done():
 	case <-t.C:
 	}
+}
+
+// effectiveJobTimeout applies an optional payload timeoutSeconds when it is
+// shorter than the worker ceiling (lease-safe JobTimeout). Longer definition
+// timeouts remain capped by the worker config.
+func effectiveJobTimeout(ceiling time.Duration, payload []byte) time.Duration {
+	if ceiling <= 0 {
+		return ceiling
+	}
+	if len(payload) == 0 {
+		return ceiling
+	}
+	var in struct {
+		TimeoutSeconds int `json:"timeoutSeconds"`
+	}
+	if err := json.Unmarshal(payload, &in); err != nil || in.TimeoutSeconds < 1 {
+		return ceiling
+	}
+	requested := time.Duration(in.TimeoutSeconds) * time.Second
+	if requested < ceiling {
+		return requested
+	}
+	return ceiling
 }

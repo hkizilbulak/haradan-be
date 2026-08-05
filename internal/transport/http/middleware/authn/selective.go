@@ -102,6 +102,7 @@ var TJKAdminProtectedRoutes = []ProtectedRoute{
 // PackagingAdminProtectedRoutes are packaging/campaign/notification-template BO_AUTH routes.
 var PackagingAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/packages"},
+	{Method: "POST", Path: "/api/v1/admin/packages"},
 	{Method: "GET", Path: "/api/v1/admin/packages/:packageCode"},
 	{Method: "PATCH", Path: "/api/v1/admin/packages/:packageCode"},
 	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId/package"},
@@ -115,6 +116,13 @@ var PackagingAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/notification-templates"},
 	{Method: "GET", Path: "/api/v1/admin/notification-templates/:eventType"},
 	{Method: "PATCH", Path: "/api/v1/admin/notification-templates/:eventType"},
+	{Method: "GET", Path: "/api/v1/admin/email-templates/provider"},
+	{Method: "GET", Path: "/api/v1/admin/email-templates/provider/:templateId/variables"},
+	{Method: "GET", Path: "/api/v1/admin/jobs"},
+	{Method: "GET", Path: "/api/v1/admin/jobs/:jobId"},
+	{Method: "PATCH", Path: "/api/v1/admin/jobs/:jobId"},
+	{Method: "POST", Path: "/api/v1/admin/jobs/:jobId/run"},
+	{Method: "GET", Path: "/api/v1/admin/jobs/:jobId/history"},
 }
 
 // BannerAdminProtectedRoutes are banner management BO_AUTH routes.

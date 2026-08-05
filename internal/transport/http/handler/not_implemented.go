@@ -387,3 +387,39 @@ func (NotImplementedServer) GetAdminNotificationTemplate(c *gin.Context, eventTy
 func (NotImplementedServer) UpdateAdminNotificationTemplate(c *gin.Context, eventType generated.NotificationEventTypePath) {
 	respondNotImplemented(c)
 }
+
+func (NotImplementedServer) CreateAdminPackage(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetPublicMedia(c *gin.Context, assetId generated.AssetIdPath, profile generated.MediaDeliveryProfile) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ListAdminProviderEmailTemplates(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetAdminProviderEmailTemplateVariables(c *gin.Context, templateId generated.ProviderEmailTemplateIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ListAdminJobs(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetAdminJob(c *gin.Context, jobId generated.JobIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) UpdateAdminJob(c *gin.Context, jobId generated.JobIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) RunAdminJob(c *gin.Context, jobId generated.JobIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ListAdminJobHistory(c *gin.Context, jobId generated.JobIdPath, params generated.ListAdminJobHistoryParams) {
+	respondNotImplemented(c)
+}
