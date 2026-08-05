@@ -43,6 +43,16 @@ func (c *resendClient) sendTemplate(
 	templateID string,
 	variables map[string]any,
 ) error {
+	return c.sendTemplateWithIdempotency(ctx, toAddress, templateID, variables, "")
+}
+
+func (c *resendClient) sendTemplateWithIdempotency(
+	ctx context.Context,
+	toAddress string,
+	templateID string,
+	variables map[string]any,
+	idempotencyKey string,
+) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -68,6 +78,9 @@ func (c *resendClient) sendTemplate(
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	if idempotencyKey != "" {
+		req.Header.Set("Idempotency-Key", idempotencyKey)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -76,6 +89,10 @@ func (c *resendClient) sendTemplate(
 	defer drainAndClose(resp.Body)
 
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
+		return nil
+	}
+	if resp.StatusCode == 409 {
+		// Duplicate idempotency key: treat as success per provider contract.
 		return nil
 	}
 	_ = readErrorBody(resp.Body)

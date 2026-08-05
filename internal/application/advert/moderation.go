@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
@@ -157,7 +158,7 @@ func (s *Service) adminTransition(
 
 	var updated domainadvert.Advert
 	now := s.clock.Now()
-	err := s.withTx(ctx, func(ctx context.Context, repo Repository) error {
+	err := s.withTx(ctx, func(ctx context.Context, repo Repository, tx pgx.Tx) error {
 		current, err := repo.FindByIDForUpdate(ctx, advertID)
 		if err != nil {
 			return err
@@ -184,7 +185,7 @@ func (s *Service) adminTransition(
 			return err
 		}
 		fromStatus := from
-		return repo.InsertHistory(ctx, domainadvert.StatusHistory{
+		if err := repo.InsertHistory(ctx, domainadvert.StatusHistory{
 			ID:          uuid.New(),
 			AdvertID:    advertID,
 			FromStatus:  &fromStatus,
@@ -193,7 +194,13 @@ func (s *Service) adminTransition(
 			IsSystem:    false,
 			Reason:      reason,
 			CreatedAt:   now,
-		})
+		}); err != nil {
+			return err
+		}
+		if s.notifications != nil && to == domainadvert.StatusPublished {
+			return s.notifications.OnAdvertPublished(ctx, tx, advertID)
+		}
+		return nil
 	})
 	if err != nil {
 		return domainadvert.ModerationDetailView{}, err

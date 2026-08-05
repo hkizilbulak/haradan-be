@@ -6,6 +6,14 @@ import (
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 )
 
+func (s *Server) ListPublicPackages(c *gin.Context) {
+	if s.packaging == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.packaging.ListPublicPackages(c)
+}
+
 // ListAdminPackages implements packaging admin list.
 func (s *Server) ListAdminPackages(c *gin.Context) {
 	if s.packaging == nil {

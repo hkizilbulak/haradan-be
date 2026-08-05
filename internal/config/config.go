@@ -93,6 +93,14 @@ type Config struct {
 	WorkerRetryBaseDelay        time.Duration
 	WorkerRetryMaxDelay         time.Duration
 	WorkerLeaseRecoveryInterval time.Duration
+
+	NotificationFanoutBatchSize    int
+	NotificationEmailChunkSize     int
+	PackageExpiryTimezone          string
+	PackageExpiryScanHour          int
+	PackageExpirySchedulerInterval time.Duration
+	PackageExpiryScanBatchSize     int
+	MediaPublicBaseURL             string
 }
 
 // Supported STORAGE_PROVIDER values after normalization.
@@ -334,6 +342,33 @@ func Load() (Config, error) {
 	}
 	if err := validateWorkerConfig(cfg); err != nil {
 		return Config{}, err
+	}
+
+	if cfg.NotificationFanoutBatchSize, err = intEnv("NOTIFICATION_FANOUT_BATCH_SIZE", 100); err != nil {
+		return Config{}, err
+	}
+	if cfg.NotificationEmailChunkSize, err = intEnv("NOTIFICATION_EMAIL_CHUNK_SIZE", 25); err != nil {
+		return Config{}, err
+	}
+	cfg.PackageExpiryTimezone = getenvDefault("PACKAGE_EXPIRY_TIMEZONE", "Europe/Istanbul")
+	if cfg.PackageExpiryScanHour, err = intEnv("PACKAGE_EXPIRY_SCAN_HOUR", 9); err != nil {
+		return Config{}, err
+	}
+	if cfg.PackageExpirySchedulerInterval, err = durationEnv("PACKAGE_EXPIRY_SCHEDULER_INTERVAL", time.Hour); err != nil {
+		return Config{}, err
+	}
+	if cfg.PackageExpiryScanBatchSize, err = intEnv("PACKAGE_EXPIRY_SCAN_BATCH_SIZE", 100); err != nil {
+		return Config{}, err
+	}
+	cfg.MediaPublicBaseURL = strings.TrimSpace(os.Getenv("MEDIA_PUBLIC_BASE_URL"))
+	if cfg.NotificationFanoutBatchSize < 1 || cfg.NotificationEmailChunkSize < 1 || cfg.PackageExpiryScanBatchSize < 1 {
+		return Config{}, fmt.Errorf("notification batch sizes must be greater than zero")
+	}
+	if cfg.PackageExpiryScanHour < 0 || cfg.PackageExpiryScanHour > 23 {
+		return Config{}, fmt.Errorf("PACKAGE_EXPIRY_SCAN_HOUR must be between 0 and 23")
+	}
+	if _, err := time.LoadLocation(cfg.PackageExpiryTimezone); err != nil {
+		return Config{}, fmt.Errorf("PACKAGE_EXPIRY_TIMEZONE is not valid")
 	}
 
 	return cfg, nil

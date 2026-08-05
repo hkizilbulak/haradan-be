@@ -9,6 +9,7 @@ package media
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -183,12 +184,32 @@ const (
 	JobGenerateVariant      JobType = "MEDIA_GENERATE_VARIANT"
 	JobDeleteObjects        JobType = "MEDIA_DELETE_OBJECTS"
 	JobReconcile            JobType = "MEDIA_RECONCILE"
+
+	JobNotificationFanoutAdvancedAdvert JobType = "NOTIFICATION_FANOUT_ADVANCED_ADVERT"
+	JobNotificationFanoutUrgentAdvert   JobType = "NOTIFICATION_FANOUT_URGENT_ADVERT"
+	JobEmailSendAdvertNotificationChunk JobType = "EMAIL_SEND_ADVERT_NOTIFICATION_CHUNK"
+	JobPackageExpiryReminderScan        JobType = "PACKAGE_EXPIRY_REMINDER_SCAN"
+	JobEmailSendPackageExpiryReminder   JobType = "EMAIL_SEND_PACKAGE_EXPIRY_REMINDER"
 )
 
-// Valid reports whether t is a known media job type.
+// Valid reports whether t is a known background job type owned by the media package.
 func (t JobType) Valid() bool {
 	switch t {
-	case JobValidateAndNormalize, JobGenerateVariant, JobDeleteObjects, JobReconcile:
+	case JobValidateAndNormalize, JobGenerateVariant, JobDeleteObjects, JobReconcile,
+		JobNotificationFanoutAdvancedAdvert, JobNotificationFanoutUrgentAdvert,
+		JobEmailSendAdvertNotificationChunk, JobPackageExpiryReminderScan,
+		JobEmailSendPackageExpiryReminder:
+		return true
+	}
+	return false
+}
+
+// IsNotificationJob reports whether t is a notification/email fan-out job type.
+func (t JobType) IsNotificationJob() bool {
+	switch t {
+	case JobNotificationFanoutAdvancedAdvert, JobNotificationFanoutUrgentAdvert,
+		JobEmailSendAdvertNotificationChunk, JobPackageExpiryReminderScan,
+		JobEmailSendPackageExpiryReminder:
 		return true
 	}
 	return false
@@ -275,3 +296,15 @@ func IsAttachableAssetLifecycle(l AssetLifecycle) bool {
 
 // EmptyMetadata returns the canonical empty technical metadata object.
 func EmptyMetadata() json.RawMessage { return json.RawMessage(`{}`) }
+
+// PublicURL joins a configured public media base URL with an object key.
+// It never invents a host: an empty baseURL or objectKey yields "" so callers
+// must not fabricate a fake host when the base URL is unconfigured.
+func PublicURL(baseURL, objectKey string) string {
+	base := strings.TrimSpace(baseURL)
+	key := strings.TrimSpace(objectKey)
+	if base == "" || key == "" {
+		return ""
+	}
+	return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(key, "/")
+}

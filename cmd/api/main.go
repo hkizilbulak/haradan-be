@@ -123,11 +123,6 @@ func run() error {
 	geoSvc := appgeo.NewService(geoRepo)
 	catalogSvc := appcatalog.NewService(catalogRepo)
 	horseSvc := apphorse.NewService(horseRepo)
-	advertSvc, err := appadvert.NewPostgresService(db.Pool(), appadvert.Config{})
-	if err != nil {
-		return fmt.Errorf("advert service: %w", err)
-	}
-
 	// Storage uses B2 when STORAGE_PROVIDER=b2; otherwise UnconfiguredStorage.
 	// ImageProcessor uses Tinify when IMAGE_PROCESSOR_PROVIDER=tinify; otherwise Unconfigured.
 	var mediaStorage appmedia.Storage = appmedia.UnconfiguredStorage{}
@@ -194,7 +189,17 @@ func run() error {
 	mediaRepo := pgmedia.NewRepository(db.Pool())
 	campaignPackages := appcampaign.NewPostgresPackageLookup(db.Pool())
 
-	packagingSvc, err := apppackaging.NewPostgresService(db.Pool(), advertRepo, userRepo, nil)
+	notificationEmitter, err := appnotification.NewPostgresEmitter(db.Pool(), cfg.FrontendURL, nil)
+	if err != nil {
+		return fmt.Errorf("notification emitter: %w", err)
+	}
+	advertSvc, err := appadvert.NewPostgresService(db.Pool(), appadvert.Config{
+		Notifications: notificationEmitter,
+	})
+	if err != nil {
+		return fmt.Errorf("advert service: %w", err)
+	}
+	packagingSvc, err := apppackaging.NewPostgresService(db.Pool(), advertRepo, userRepo, nil, notificationEmitter)
 	if err != nil {
 		return fmt.Errorf("packaging service: %w", err)
 	}
@@ -206,11 +211,15 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("notification service: %w", err)
 	}
+	notificationInboxSvc, err := appnotification.NewPostgresUserNotificationService(db.Pool(), nil)
+	if err != nil {
+		return fmt.Errorf("notification inbox service: %w", err)
+	}
 
 	srvHandler := handler.NewServer(
 		log, db, geoSvc, catalogSvc, horseSvc, advertSvc, mediaSvc, favoriteSvc,
-		packagingSvc, campaignSvc, campaignPackages, notificationSvc, authSvc,
-	)
+		packagingSvc, campaignSvc, campaignPackages, notificationSvc, authSvc, notificationInboxSvc,
+	).WithPublicMediaBaseURL(cfg.MediaPublicBaseURL)
 	engine := router.New(srvHandler, log, router.Options{AuthService: authSvc})
 
 	httpServer := &http.Server{

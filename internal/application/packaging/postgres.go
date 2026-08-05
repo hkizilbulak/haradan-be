@@ -155,18 +155,24 @@ func NewPostgresService(
 	adverts AdvertReader,
 	users UserReader,
 	clock Clock,
+	notifications ...NotificationEmitter,
 ) (*Service, error) {
 	if pool == nil {
 		return nil, fmt.Errorf("postgres pool is required")
 	}
 	repo := pgpackaging.NewRepository(pool)
+	var emitter NotificationEmitter
+	if len(notifications) > 0 {
+		emitter = notifications[0]
+	}
 	return NewService(Config{
-		Packages:    pgPackageRepo{repo},
-		Assignments: pgAssignmentRepo{repo},
-		Features:    pgFeatureRepo{repo},
-		Adverts:     adverts,
-		Users:       users,
-		Clock:       clock,
+		Packages:      pgPackageRepo{repo},
+		Assignments:   pgAssignmentRepo{repo},
+		Features:      pgFeatureRepo{repo},
+		Adverts:       adverts,
+		Users:         users,
+		Clock:         clock,
+		Notifications: emitter,
 	})
 }
 

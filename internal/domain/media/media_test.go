@@ -74,6 +74,16 @@ func TestLifecycleAndJobEnumsAreClosed(t *testing.T) {
 	if !domainmedia.JobValidateAndNormalize.Valid() || !domainmedia.JobQueued.Valid() {
 		t.Fatal("known job values must be valid")
 	}
+	if !domainmedia.JobNotificationFanoutAdvancedAdvert.Valid() ||
+		!domainmedia.JobEmailSendPackageExpiryReminder.Valid() {
+		t.Fatal("notification job types must be valid")
+	}
+	if domainmedia.JobNotificationFanoutAdvancedAdvert.IsNotificationJob() != true {
+		t.Fatal("fanout job must be notification job")
+	}
+	if domainmedia.JobValidateAndNormalize.IsNotificationJob() {
+		t.Fatal("media validate must not be notification job")
+	}
 	if domainmedia.JobType("TJK_SYNC_BATCH").Valid() {
 		t.Fatal("TJK job type does not belong to the media domain")
 	}

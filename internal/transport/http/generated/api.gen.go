@@ -1173,6 +1173,14 @@ type HealthResponse struct {
 // HealthResponseStatus defines model for HealthResponse.Status.
 type HealthResponseStatus string
 
+// HomepageShowcaseResponse defines model for HomepageShowcaseResponse.
+type HomepageShowcaseResponse struct {
+	Items []PublishedAdvertCard `json:"items"`
+
+	// Seed Echoes the request seed, or the server-generated seed when omitted; same seed on a later call reproduces the same order
+	Seed string `json:"seed"`
+}
+
 // HorsePublicDetailResponse defines model for HorsePublicDetailResponse.
 type HorsePublicDetailResponse struct {
 	BirthYear *int    `json:"birthYear,omitempty"`
@@ -1224,6 +1232,11 @@ type LoginRequest struct {
 	ClientContext ClientContext       `json:"clientContext"`
 	Email         openapi_types.Email `json:"email"`
 	Password      string              `json:"password"`
+}
+
+// MarkAllNotificationsReadResponse defines model for MarkAllNotificationsReadResponse.
+type MarkAllNotificationsReadResponse struct {
+	UpdatedCount int `json:"updatedCount"`
 }
 
 // MediaAssetLifecycle defines model for MediaAssetLifecycle.
@@ -1294,6 +1307,26 @@ type Money struct {
 	Currency    string `json:"currency"`
 }
 
+// MyNotificationPage defines model for MyNotificationPage.
+type MyNotificationPage struct {
+	HasMore    bool                 `json:"hasMore"`
+	Items      []MyNotificationView `json:"items"`
+	NextCursor *string              `json:"nextCursor,omitempty"`
+}
+
+// MyNotificationView defines model for MyNotificationView.
+type MyNotificationView struct {
+	Body      string                `json:"body"`
+	CreatedAt time.Time             `json:"createdAt"`
+	EventType NotificationEventType `json:"eventType"`
+	Id        openapi_types.UUID    `json:"id"`
+
+	// Payload Snapshot rendered at event creation time
+	Payload map[string]interface{} `json:"payload"`
+	ReadAt  *time.Time             `json:"readAt"`
+	Title   string                 `json:"title"`
+}
+
 // MyProfileResponse defines model for MyProfileResponse.
 type MyProfileResponse struct {
 	Email         string             `json:"email"`
@@ -1328,6 +1361,11 @@ type NotificationTemplateAdminView struct {
 	UpdatedAt            time.Time             `json:"updatedAt"`
 	UpdatedByUserId      *openapi_types.UUID   `json:"updatedByUserId,omitempty"`
 	Version              int                   `json:"version"`
+}
+
+// NotificationUnreadCount defines model for NotificationUnreadCount.
+type NotificationUnreadCount struct {
+	UnreadCount int `json:"unreadCount"`
 }
 
 // OwnerAdvertListResponse defines model for OwnerAdvertListResponse.
@@ -1437,6 +1475,26 @@ type PublicMediaItem struct {
 	Usage        *string            `json:"usage,omitempty"`
 }
 
+// PublicPackage Buyer-facing active catalog fields; internal version/audit and isActive are omitted
+type PublicPackage struct {
+	AllowsUrgent        bool        `json:"allowsUrgent"`
+	BadgeText           *string     `json:"badgeText,omitempty"`
+	Benefits            []string    `json:"benefits"`
+	Code                PackageCode `json:"code"`
+	DefaultDurationDays *int        `json:"defaultDurationDays,omitempty"`
+	Description         *string     `json:"description,omitempty"`
+	DisplayName         string      `json:"displayName"`
+	DisplayPrice        *Money      `json:"displayPrice,omitempty"`
+	SearchPriority      int         `json:"searchPriority"`
+	ShowcaseEligible    bool        `json:"showcaseEligible"`
+	SortOrder           int         `json:"sortOrder"`
+}
+
+// PublicPackageListResponse defines model for PublicPackageListResponse.
+type PublicPackageListResponse struct {
+	Items []PublicPackage `json:"items"`
+}
+
 // PublicPropertyValue defines model for PublicPropertyValue.
 type PublicPropertyValue struct {
 	Code         string      `json:"code"`
@@ -1454,11 +1512,20 @@ type PublishedAdvertCard struct {
 	Id         openapi_types.UUID  `json:"id"`
 
 	// IsFavorite Present when optional auth; null/omitted semantics: always present as nullable for anonymous=false enrichment path — anonymous callers get null
-	IsFavorite  *bool              `json:"isFavorite"`
-	Price       *Money             `json:"price"`
-	ProvinceId  openapi_types.UUID `json:"provinceId"`
-	PublishedAt time.Time          `json:"publishedAt"`
-	Title       string             `json:"title"`
+	IsFavorite *bool `json:"isFavorite"`
+
+	// IsUrgent True while an ACTIVE URGENT feature activation exists
+	IsUrgent         bool    `json:"isUrgent"`
+	PackageBadgeText *string `json:"packageBadgeText,omitempty"`
+
+	// PackageCode Effective ACTIVE package at read time; null if none assigned
+	PackageCode        *PackageCode       `json:"packageCode,omitempty"`
+	PackageDisplayName *string            `json:"packageDisplayName,omitempty"`
+	Price              *Money             `json:"price"`
+	ProvinceId         openapi_types.UUID `json:"provinceId"`
+	PublishedAt        time.Time          `json:"publishedAt"`
+	Title              string             `json:"title"`
+	UrgentActivatedAt  *time.Time         `json:"urgentActivatedAt,omitempty"`
 }
 
 // PublishedAdvertDetailResponse defines model for PublishedAdvertDetailResponse.
@@ -1468,12 +1535,21 @@ type PublishedAdvertDetailResponse struct {
 	Horse       *HorseSelectionItem   `json:"horse"`
 	Id          openapi_types.UUID    `json:"id"`
 	IsFavorite  *bool                 `json:"isFavorite"`
-	Location    PublicLocationSummary `json:"location"`
-	Media       []PublicMediaItem     `json:"media"`
-	Price       *Money                `json:"price"`
-	Properties  []PublicPropertyValue `json:"properties"`
-	PublishedAt time.Time             `json:"publishedAt"`
-	Title       string                `json:"title"`
+
+	// IsUrgent True while an ACTIVE URGENT feature activation exists
+	IsUrgent         bool                  `json:"isUrgent"`
+	Location         PublicLocationSummary `json:"location"`
+	Media            []PublicMediaItem     `json:"media"`
+	PackageBadgeText *string               `json:"packageBadgeText,omitempty"`
+
+	// PackageCode Effective ACTIVE package at read time; null if none assigned
+	PackageCode        *PackageCode          `json:"packageCode,omitempty"`
+	PackageDisplayName *string               `json:"packageDisplayName,omitempty"`
+	Price              *Money                `json:"price"`
+	Properties         []PublicPropertyValue `json:"properties"`
+	PublishedAt        time.Time             `json:"publishedAt"`
+	Title              string                `json:"title"`
+	UrgentActivatedAt  *time.Time            `json:"urgentActivatedAt,omitempty"`
 }
 
 // PublishedAdvertSearchResponse defines model for PublishedAdvertSearchResponse.
@@ -1862,6 +1938,9 @@ type Limit = int
 // NotificationEventTypePath defines model for NotificationEventTypePath.
 type NotificationEventTypePath = NotificationEventType
 
+// NotificationIdPath defines model for NotificationIdPath.
+type NotificationIdPath = openapi_types.UUID
+
 // PackageCodePath defines model for PackageCodePath.
 type PackageCodePath = PackageCode
 
@@ -2017,6 +2096,21 @@ type SearchDistrictsParams struct {
 	Limit      *Limit              `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListHomepageNewAdvertsParams defines parameters for ListHomepageNewAdverts.
+type ListHomepageNewAdvertsParams struct {
+	// Cursor Opaque cursor
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListHomepageShowcaseParams defines parameters for ListHomepageShowcase.
+type ListHomepageShowcaseParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Seed Opaque; omit to get a server-generated seed back in the response
+	Seed *string `form:"seed,omitempty" json:"seed,omitempty"`
+}
+
 // SearchHorsesForSelectionParams defines parameters for SearchHorsesForSelection.
 type SearchHorsesForSelectionParams struct {
 	Q         *string `form:"q,omitempty" json:"q,omitempty"`
@@ -2044,6 +2138,13 @@ type DetachMediaFromAdvertParams struct {
 
 // ListMyFavoritesParams defines parameters for ListMyFavorites.
 type ListMyFavoritesParams struct {
+	// Cursor Opaque cursor
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListMyNotificationsParams defines parameters for ListMyNotifications.
+type ListMyNotificationsParams struct {
 	// Cursor Opaque cursor
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
@@ -2433,6 +2534,12 @@ type ServerInterface interface {
 	// SearchDistricts SearchDistricts
 	// (GET /v1/districts/search)
 	SearchDistricts(c *gin.Context, params SearchDistrictsParams)
+	// ListHomepageNewAdverts ListHomepageNewAdverts
+	// (GET /v1/homepage/new-adverts)
+	ListHomepageNewAdverts(c *gin.Context, params ListHomepageNewAdvertsParams)
+	// ListHomepageShowcase ListHomepageShowcase
+	// (GET /v1/homepage/showcase)
+	ListHomepageShowcase(c *gin.Context, params ListHomepageShowcaseParams)
 	// SearchHorsesForSelection SearchHorsesForSelection
 	// (GET /v1/horses)
 	SearchHorsesForSelection(c *gin.Context, params SearchHorsesForSelectionParams)
@@ -2502,6 +2609,18 @@ type ServerInterface interface {
 	// AddFavorite AddFavorite
 	// (PUT /v1/me/favorites/{advertId})
 	AddFavorite(c *gin.Context, advertId AdvertIdPath)
+	// ListMyNotifications ListMyNotifications
+	// (GET /v1/me/notifications)
+	ListMyNotifications(c *gin.Context, params ListMyNotificationsParams)
+	// MarkAllMyNotificationsRead MarkAllMyNotificationsRead
+	// (PUT /v1/me/notifications/read-all)
+	MarkAllMyNotificationsRead(c *gin.Context)
+	// GetMyNotificationUnreadCount GetMyNotificationUnreadCount
+	// (GET /v1/me/notifications/unread-count)
+	GetMyNotificationUnreadCount(c *gin.Context)
+	// MarkMyNotificationRead MarkMyNotificationRead
+	// (PUT /v1/me/notifications/{notificationId}/read)
+	MarkMyNotificationRead(c *gin.Context, notificationId NotificationIdPath)
 	// ChangePassword ChangePassword
 	// (POST /v1/me/password)
 	ChangePassword(c *gin.Context)
@@ -2520,6 +2639,9 @@ type ServerInterface interface {
 	// InitiateMediaUpload InitiateMediaUpload
 	// (POST /v1/media/uploads)
 	InitiateMediaUpload(c *gin.Context)
+	// ListPublicPackages ListPublicPackages
+	// (GET /v1/packages)
+	ListPublicPackages(c *gin.Context)
 	// ListActiveProvinces ListActiveProvinces
 	// (GET /v1/provinces)
 	ListActiveProvinces(c *gin.Context)
@@ -4421,6 +4543,76 @@ func (siw *ServerInterfaceWrapper) SearchDistricts(c *gin.Context) {
 	siw.Handler.SearchDistricts(c, params)
 }
 
+// ListHomepageNewAdverts operation middleware
+func (siw *ServerInterfaceWrapper) ListHomepageNewAdverts(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListHomepageNewAdvertsParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", c.Request.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cursor: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListHomepageNewAdverts(c, params)
+}
+
+// ListHomepageShowcase operation middleware
+func (siw *ServerInterfaceWrapper) ListHomepageShowcase(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListHomepageShowcaseParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "seed" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "seed", c.Request.URL.Query(), &params.Seed, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter seed: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListHomepageShowcase(c, params)
+}
+
 // SearchHorsesForSelection operation middleware
 func (siw *ServerInterfaceWrapper) SearchHorsesForSelection(c *gin.Context) {
 
@@ -5025,6 +5217,92 @@ func (siw *ServerInterfaceWrapper) AddFavorite(c *gin.Context) {
 	siw.Handler.AddFavorite(c, advertId)
 }
 
+// ListMyNotifications operation middleware
+func (siw *ServerInterfaceWrapper) ListMyNotifications(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListMyNotificationsParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", c.Request.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cursor: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListMyNotifications(c, params)
+}
+
+// MarkAllMyNotificationsRead operation middleware
+func (siw *ServerInterfaceWrapper) MarkAllMyNotificationsRead(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MarkAllMyNotificationsRead(c)
+}
+
+// GetMyNotificationUnreadCount operation middleware
+func (siw *ServerInterfaceWrapper) GetMyNotificationUnreadCount(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMyNotificationUnreadCount(c)
+}
+
+// MarkMyNotificationRead operation middleware
+func (siw *ServerInterfaceWrapper) MarkMyNotificationRead(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "notificationId" -------------
+	var notificationId NotificationIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "notificationId", c.Param("notificationId"), &notificationId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter notificationId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MarkMyNotificationRead(c, notificationId)
+}
+
 // ChangePassword operation middleware
 func (siw *ServerInterfaceWrapper) ChangePassword(c *gin.Context) {
 
@@ -5159,6 +5437,19 @@ func (siw *ServerInterfaceWrapper) InitiateMediaUpload(c *gin.Context) {
 	}
 
 	siw.Handler.InitiateMediaUpload(c)
+}
+
+// ListPublicPackages operation middleware
+func (siw *ServerInterfaceWrapper) ListPublicPackages(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListPublicPackages(c)
 }
 
 // ListActiveProvinces operation middleware
@@ -5303,6 +5594,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/v1/admin/users/:userId/status", wrapper.ChangeUserStatus)
 	router.GET(options.BaseURL+"/v1/adverts", wrapper.SearchPublishedAdverts)
 	router.GET(options.BaseURL+"/v1/adverts/:advertId", wrapper.GetPublishedAdvertDetail)
+	router.GET(options.BaseURL+"/v1/packages", wrapper.ListPublicPackages)
+	router.GET(options.BaseURL+"/v1/homepage/new-adverts", wrapper.ListHomepageNewAdverts)
+	router.GET(options.BaseURL+"/v1/homepage/showcase", wrapper.ListHomepageShowcase)
 	router.POST(options.BaseURL+"/v1/auth/email/confirm", wrapper.ConfirmEmailChange)
 	router.POST(options.BaseURL+"/v1/auth/login", wrapper.Login)
 	router.POST(options.BaseURL+"/v1/auth/logout", wrapper.LogoutCurrentSession)
@@ -5340,6 +5634,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/me/favorites", wrapper.ListMyFavorites)
 	router.DELETE(options.BaseURL+"/v1/me/favorites/:advertId", wrapper.RemoveFavorite)
 	router.PUT(options.BaseURL+"/v1/me/favorites/:advertId", wrapper.AddFavorite)
+	router.GET(options.BaseURL+"/v1/me/notifications", wrapper.ListMyNotifications)
+	router.GET(options.BaseURL+"/v1/me/notifications/unread-count", wrapper.GetMyNotificationUnreadCount)
+	router.PUT(options.BaseURL+"/v1/me/notifications/read-all", wrapper.MarkAllMyNotificationsRead)
+	router.PUT(options.BaseURL+"/v1/me/notifications/:notificationId/read", wrapper.MarkMyNotificationRead)
 	router.POST(options.BaseURL+"/v1/me/password", wrapper.ChangePassword)
 	router.GET(options.BaseURL+"/v1/me/sessions", wrapper.ListMySessions)
 	router.DELETE(options.BaseURL+"/v1/me/sessions/:sessionId", wrapper.RevokeMySession)

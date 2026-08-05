@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
@@ -42,22 +43,24 @@ var currencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
 
 // Service implements package catalog, assignment, and URGENT use cases.
 type Service struct {
-	packages    PackageRepository
-	assignments AssignmentRepository
-	features    FeatureRepository
-	adverts     AdvertReader
-	users       UserReader
-	clock       Clock
+	packages      PackageRepository
+	assignments   AssignmentRepository
+	features      FeatureRepository
+	adverts       AdvertReader
+	users         UserReader
+	clock         Clock
+	notifications NotificationEmitter
 }
 
 // Config wires packaging application dependencies.
 type Config struct {
-	Packages    PackageRepository
-	Assignments AssignmentRepository
-	Features    FeatureRepository
-	Adverts     AdvertReader
-	Users       UserReader
-	Clock       Clock
+	Packages      PackageRepository
+	Assignments   AssignmentRepository
+	Features      FeatureRepository
+	Adverts       AdvertReader
+	Users         UserReader
+	Clock         Clock
+	Notifications NotificationEmitter
 }
 
 // NewService constructs the packaging application service.
@@ -71,12 +74,13 @@ func NewService(cfg Config) (*Service, error) {
 		clock = systemClock{}
 	}
 	return &Service{
-		packages:    cfg.Packages,
-		assignments: cfg.Assignments,
-		features:    cfg.Features,
-		adverts:     cfg.Adverts,
-		users:       cfg.Users,
-		clock:       clock,
+		packages:      cfg.Packages,
+		assignments:   cfg.Assignments,
+		features:      cfg.Features,
+		adverts:       cfg.Adverts,
+		users:         cfg.Users,
+		clock:         clock,
+		notifications: cfg.Notifications,
 	}, nil
 }
 
@@ -232,7 +236,7 @@ func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackag
 	}
 
 	var out AssignmentView
-	err = s.withTx(ctx, func(ctx context.Context, assignments AssignmentRepository, features FeatureRepository) error {
+	err = s.withTx(ctx, func(ctx context.Context, assignments AssignmentRepository, features FeatureRepository, tx pgx.Tx) error {
 		advert, err := s.adverts.FindByIDForUpdate(ctx, in.AdvertID)
 		if err != nil {
 			return err
@@ -284,6 +288,17 @@ func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackag
 		// ADVANCED→ADVANCED also deactivated on supersede so URGENT cannot
 		// remain linked to a superseded assignment row.
 		out = AssignmentView{Assignment: created, Package: pkg}
+		if s.notifications != nil && pkg.Code == domainpackaging.PackageCodeAdvanced {
+			advert, err := s.adverts.FindByID(ctx, in.AdvertID)
+			if err != nil {
+				return err
+			}
+			if advert.Status == domainadvert.StatusPublished {
+				if err := s.notifications.OnAdvancedAssignedWhilePublished(ctx, tx, in.AdvertID, created.ID); err != nil {
+					return err
+				}
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -336,7 +351,7 @@ func (s *Service) CancelAdvertPackage(ctx context.Context, in CancelAdvertPackag
 	if err := s.requireAdmin(ctx, in.ActorUserID); err != nil {
 		return err
 	}
-	return s.withTx(ctx, func(ctx context.Context, assignments AssignmentRepository, features FeatureRepository) error {
+	return s.withTx(ctx, func(ctx context.Context, assignments AssignmentRepository, features FeatureRepository, _ pgx.Tx) error {
 		if _, err := s.adverts.FindByIDForUpdate(ctx, in.AdvertID); err != nil {
 			return err
 		}
@@ -418,7 +433,7 @@ func (s *Service) ActivateUrgent(ctx context.Context, actorUserID, advertID uuid
 	}
 
 	var out domainpackaging.AdvertFeatureActivation
-	err = s.withTx(ctx, func(ctx context.Context, assignments AssignmentRepository, features FeatureRepository) error {
+	err = s.withTx(ctx, func(ctx context.Context, assignments AssignmentRepository, features FeatureRepository, tx pgx.Tx) error {
 		advert, err := s.adverts.FindByIDForUpdate(ctx, advertID)
 		if err != nil {
 			return err
@@ -495,6 +510,11 @@ func (s *Service) ActivateUrgent(ctx context.Context, actorUserID, advertID uuid
 			return err
 		}
 		out = created
+		if s.notifications != nil {
+			if err := s.notifications.OnUrgentActivated(ctx, tx, advertID, assignment.ID, created.ActivationVersion); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	return out, err
@@ -507,7 +527,7 @@ func (s *Service) DeactivateUrgent(ctx context.Context, actorUserID, advertID uu
 		return err
 	}
 
-	return s.withTx(ctx, func(ctx context.Context, _ AssignmentRepository, features FeatureRepository) error {
+	return s.withTx(ctx, func(ctx context.Context, _ AssignmentRepository, features FeatureRepository, _ pgx.Tx) error {
 		advert, err := s.adverts.FindByIDForUpdate(ctx, advertID)
 		if err != nil {
 			return err
@@ -538,7 +558,7 @@ func deactivateUrgentForPackageLoss(
 
 func (s *Service) withTx(
 	ctx context.Context,
-	fn func(context.Context, AssignmentRepository, FeatureRepository) error,
+	fn func(context.Context, AssignmentRepository, FeatureRepository, pgx.Tx) error,
 ) error {
 	tx, err := s.assignments.BeginTx(ctx)
 	if err != nil {
@@ -548,7 +568,7 @@ func (s *Service) withTx(
 
 	assignments := s.assignments.WithTx(tx)
 	features := s.features.WithTx(tx)
-	if err := fn(ctx, assignments, features); err != nil {
+	if err := fn(ctx, assignments, features, tx); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {

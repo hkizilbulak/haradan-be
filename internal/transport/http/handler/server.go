@@ -24,6 +24,7 @@ import (
 	geohandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/geo"
 	horsehandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/horse"
 	mediahandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/media"
+	notificationinboxhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/notificationinbox"
 	notificationtplhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/notificationtpl"
 	packaginghandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/packaging"
 )
@@ -36,19 +37,28 @@ type DependencyChecker interface {
 // Server is the HTTP transport adapter for OpenAPI operations.
 type Server struct {
 	NotImplementedServer
-	logger       *slog.Logger
-	deps         DependencyChecker
-	geo          *geohandler.Handler
-	catalog      *cataloghandler.Handler
-	horse        *horsehandler.Handler
-	advert       *adverthandler.Handler
-	media        *mediahandler.Handler
-	favorite     *favoritehandler.Handler
-	packaging    *packaginghandler.Handler
-	campaign     *campaignhandler.Handler
-	notification *notificationtplhandler.Handler
-	auth         *authhandler.Handler
-	account      *accounthandler.Handler
+	logger             *slog.Logger
+	deps               DependencyChecker
+	geo                *geohandler.Handler
+	catalog            *cataloghandler.Handler
+	horse              *horsehandler.Handler
+	advert             *adverthandler.Handler
+	media              *mediahandler.Handler
+	favorite           *favoritehandler.Handler
+	packaging          *packaginghandler.Handler
+	campaign           *campaignhandler.Handler
+	notification       *notificationtplhandler.Handler
+	inbox              *notificationinboxhandler.Handler
+	auth               *authhandler.Handler
+	account            *accounthandler.Handler
+	publicMediaBaseURL string
+}
+
+// WithPublicMediaBaseURL sets the configured public media origin used only for
+// buyer-facing projections. Object keys remain internal regardless of config.
+func (s *Server) WithPublicMediaBaseURL(baseURL string) *Server {
+	s.publicMediaBaseURL = baseURL
+	return s
 }
 
 // NewServer constructs the HTTP server implementation.
@@ -66,6 +76,7 @@ func NewServer(
 	campaignPackages appcampaign.PackageLookup,
 	notificationSvc *appnotification.Service,
 	authSvc *appauth.Service,
+	inboxSvcs ...*appnotification.UserNotificationService,
 ) *Server {
 	s := &Server{logger: logger, deps: deps}
 	if geoSvc != nil {
@@ -94,6 +105,9 @@ func NewServer(
 	}
 	if notificationSvc != nil {
 		s.notification = notificationtplhandler.NewHandler(notificationSvc, logger, respondError)
+	}
+	if len(inboxSvcs) > 0 && inboxSvcs[0] != nil {
+		s.inbox = notificationinboxhandler.NewHandler(inboxSvcs[0], logger, respondError)
 	}
 	if authSvc != nil {
 		s.auth = authhandler.NewHandler(authSvc, logger, respondError)

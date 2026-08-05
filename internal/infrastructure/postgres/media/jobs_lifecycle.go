@@ -64,7 +64,7 @@ SET
   last_error = NULL
 FROM cte
 WHERE j.id = cte.id
-RETURNING ` + jobColumns
+RETURNING ` + jobColumnsQualified
 
 	job, err := scanJob(r.db.QueryRow(ctx, q, now, supportedTypes, leaseOwner, leaseUntil))
 	if errors.Is(err, pgx.ErrNoRows) {

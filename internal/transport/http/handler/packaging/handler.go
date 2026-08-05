@@ -35,6 +35,21 @@ func NewHandler(svc *apppackaging.Service, logger *slog.Logger, respond ErrorRes
 	return &Handler{svc: svc, logger: logger, respond: respond}
 }
 
+// ListPublicPackages handles GET /v1/packages and deliberately exposes only
+// active, buyer-facing package fields.
+func (h *Handler) ListPublicPackages(c *gin.Context) {
+	items, err := h.svc.ListPackages(c.Request.Context(), false)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	out := make([]generated.PublicPackage, 0, len(items))
+	for _, item := range items {
+		out = append(out, mapPublicPackage(item))
+	}
+	c.JSON(http.StatusOK, generated.PublicPackageListResponse{Items: out})
+}
+
 // ListAdminPackages handles GET /v1/admin/packages.
 func (h *Handler) ListAdminPackages(c *gin.Context) {
 	actorID, ok := h.requireAdminBO(c)

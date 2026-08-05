@@ -30,10 +30,16 @@ tags:
   description: Public horse selection/detail
 - name: AdvertsPublic
   description: Public published advert search/detail
+- name: PackagesPublic
+  description: Public active package catalog
+- name: Homepage
+  description: Public homepage new-adverts and showcase feeds
 - name: AdvertsOwner
   description: Owner advert lifecycle
 - name: Favorites
   description: User favorites
+- name: NotificationsMe
+  description: Authenticated user notification inbox
 - name: Media
   description: User media upload and advert attachments
 - name: BannersPublic
@@ -520,6 +526,8 @@ paths:
             schema:
               "$ref": "#/components/schemas/CreateBannerRequest"
       x-error-codes:
+        '400':
+        - VALIDATION_ERROR
         '401':
         - UNAUTHENTICATED
         - SESSION_REVOKED
@@ -2189,7 +2197,10 @@ paths:
       operationId: SearchPublishedAdverts
       summary: SearchPublishedAdverts
       description: 'Exposure PUBLIC. Actor: Anonymous or ACTIVE. Optional auth favorite
-        Optional BearerAuth for favorite enrichment.'
+        Optional BearerAuth for favorite enrichment. Default/sort=newest orders by
+        effective package search_priority DESC, then publishedAt DESC, id DESC —
+        higher-priority packages still surface first within the newest ordering.
+        Cursor carries priority+publishedAt+id.'
       tags:
       - AdvertsPublic
       x-function-id: ADVERT-PUBLIC-01
@@ -2270,7 +2281,9 @@ paths:
       operationId: GetPublishedAdvertDetail
       summary: GetPublishedAdvertDetail
       description: 'Exposure PUBLIC. Actor: Anonymous or ACTIVE. Optional auth favorite
-        Optional BearerAuth for favorite enrichment.'
+        Optional BearerAuth for favorite enrichment. Returns the effective package
+        and URGENT projection alongside the advert; NotFound for anything not
+        currently PUBLISHED (never distinguishes missing from non-published).'
       tags:
       - AdvertsPublic
       x-function-id: ADVERT-PUBLIC-02
@@ -2299,6 +2312,118 @@ paths:
         - VALIDATION_ERROR
         '404':
         - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+  "/v1/packages":
+    get:
+      operationId: ListPublicPackages
+      summary: ListPublicPackages
+      description: 'Exposure PUBLIC. Actor: Anonymous. Active packages only, sort_order
+        ASC then code ASC; buyer-facing display fields only'
+      tags:
+      - PackagesPublic
+      x-function-id: PACKAGE-PUBLIC-01
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PublicPackageListResponse"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      x-error-codes:
+        '500':
+        - INTERNAL_ERROR
+  "/v1/homepage/new-adverts":
+    get:
+      operationId: ListHomepageNewAdverts
+      summary: ListHomepageNewAdverts
+      description: 'Exposure PUBLIC. Actor: Anonymous or ACTIVE. Optional BearerAuth
+        for favorite enrichment. published_at DESC, id DESC only — package
+        search_priority never affects this feed'
+      tags:
+      - Homepage
+      x-function-id: HOMEPAGE-01
+      x-exposure: PUBLIC
+      x-actor: Anonymous or ACTIVE
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PublishedAdvertSearchResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - {}
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/homepage/showcase":
+    get:
+      operationId: ListHomepageShowcase
+      summary: ListHomepageShowcase
+      description: 'Exposure PUBLIC. Actor: Anonymous or ACTIVE. Optional BearerAuth
+        for favorite enrichment. showcase_eligible effective package only; SQL hash
+        order by md5(advert id || seed), never ORDER BY random(); same seed
+        reproduces the same order; no cursor, bounded limit'
+      tags:
+      - Homepage
+      x-function-id: HOMEPAGE-02
+      x-exposure: PUBLIC
+      x-actor: Anonymous or ACTIVE
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HomepageShowcaseResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - {}
+      - BearerAuth: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+      - name: seed
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Opaque; omit to get a server-generated seed back in the response
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '422':
+        - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
   "/v1/auth/email/confirm":
@@ -4027,6 +4152,162 @@ paths:
         - ACCOUNT_INACTIVE
         '500':
         - INTERNAL_ERROR
+  "/v1/me/notifications":
+    get:
+      operationId: ListMyNotifications
+      summary: ListMyNotifications
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user. Own inbox only; ordered
+        by notification created_at DESC, id DESC'
+      tags:
+      - NotificationsMe
+      x-function-id: NOTIFICATION-ME-01
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MyNotificationPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/notifications/unread-count":
+    get:
+      operationId: GetMyNotificationUnreadCount
+      summary: GetMyNotificationUnreadCount
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user.'
+      tags:
+      - NotificationsMe
+      x-function-id: NOTIFICATION-ME-02
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/NotificationUnreadCount"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/notifications/read-all":
+    put:
+      operationId: MarkAllMyNotificationsRead
+      summary: MarkAllMyNotificationsRead
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user. Idempotent; returns 0
+        when nothing was unread'
+      tags:
+      - NotificationsMe
+      x-function-id: NOTIFICATION-ME-04
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MarkAllNotificationsReadResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/notifications/{notificationId}/read":
+    put:
+      operationId: MarkMyNotificationRead
+      summary: MarkMyNotificationRead
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user. Own notification only;
+        NotFound when state missing; already-read is an idempotent success'
+      tags:
+      - NotificationsMe
+      x-function-id: NOTIFICATION-ME-03
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      responses:
+        '204':
+          description: Success
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/NotificationIdPath"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
   "/v1/me/password":
     post:
       operationId: ChangePassword
@@ -5288,6 +5569,13 @@ components:
       schema:
         type: string
         format: uuid
+    NotificationIdPath:
+      name: notificationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     SessionIdPath:
       name: sessionId
       in: path
@@ -6086,6 +6374,7 @@ components:
       - price
       - cover
       - isFavorite
+      - isUrgent
       properties:
         id:
           type: string
@@ -6122,6 +6411,24 @@ components:
           description: 'Present when optional auth; null/omitted semantics: always
             present as nullable for anonymous=false enrichment path — anonymous callers
             get null'
+        packageCode:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/PackageCode"
+          description: Effective ACTIVE package at read time; null if none assigned
+        packageDisplayName:
+          type: string
+          nullable: true
+        packageBadgeText:
+          type: string
+          nullable: true
+        isUrgent:
+          type: boolean
+          description: True while an ACTIVE URGENT feature activation exists
+        urgentActivatedAt:
+          type: string
+          format: date-time
+          nullable: true
     PublishedAdvertSearchResponse:
       type: object
       additionalProperties: false
@@ -6153,6 +6460,7 @@ components:
       - properties
       - media
       - isFavorite
+      - isUrgent
       properties:
         id:
           type: string
@@ -6186,6 +6494,24 @@ components:
             "$ref": "#/components/schemas/PublicMediaItem"
         isFavorite:
           type: boolean
+          nullable: true
+        packageCode:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/PackageCode"
+          description: Effective ACTIVE package at read time; null if none assigned
+        packageDisplayName:
+          type: string
+          nullable: true
+        packageBadgeText:
+          type: string
+          nullable: true
+        isUrgent:
+          type: boolean
+          description: True while an ACTIVE URGENT feature activation exists
+        urgentActivatedAt:
+          type: string
+          format: date-time
           nullable: true
     OwnerAdvertResponse:
       type: object
@@ -8183,6 +8509,142 @@ components:
         updatedAt:
           type: string
           format: date-time
+    PublicPackage:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - displayName
+      - benefits
+      - allowsUrgent
+      - showcaseEligible
+      - searchPriority
+      - sortOrder
+      properties:
+        code:
+          "$ref": "#/components/schemas/PackageCode"
+        displayName:
+          type: string
+        description:
+          type: string
+          nullable: true
+        badgeText:
+          type: string
+          nullable: true
+        benefits:
+          type: array
+          items:
+            type: string
+        displayPrice:
+          nullable: true
+          allOf:
+          - "$ref": "#/components/schemas/Money"
+        defaultDurationDays:
+          type: integer
+          nullable: true
+        allowsUrgent:
+          type: boolean
+        showcaseEligible:
+          type: boolean
+        searchPriority:
+          type: integer
+          minimum: 0
+        sortOrder:
+          type: integer
+          minimum: 0
+      description: Buyer-facing active catalog fields; internal version/audit and
+        isActive are omitted
+    PublicPackageListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/PublicPackage"
+    HomepageShowcaseResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - seed
+      - items
+      properties:
+        seed:
+          type: string
+          description: Echoes the request seed, or the server-generated seed when
+            omitted; same seed on a later call reproduces the same order
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/PublishedAdvertCard"
+    MyNotificationView:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - eventType
+      - title
+      - body
+      - payload
+      - createdAt
+      - readAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventType:
+          "$ref": "#/components/schemas/NotificationEventType"
+        title:
+          type: string
+        body:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+          description: Snapshot rendered at event creation time
+        createdAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+    MyNotificationPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/MyNotificationView"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    NotificationUnreadCount:
+      type: object
+      additionalProperties: false
+      required:
+      - unreadCount
+      properties:
+        unreadCount:
+          type: integer
+          minimum: 0
+    MarkAllNotificationsReadResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - updatedCount
+      properties:
+        updatedCount:
+          type: integer
+          minimum: 0
 
   responses:
     BadRequest:

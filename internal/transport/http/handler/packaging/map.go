@@ -29,6 +29,22 @@ func mapPackageAdminView(p domainpackaging.Package) generated.PackageAdminView {
 	}
 }
 
+func mapPublicPackage(p domainpackaging.Package) generated.PublicPackage {
+	return generated.PublicPackage{
+		Code:                generated.PackageCode(p.Code),
+		DisplayName:         p.DisplayName,
+		Description:         p.Description,
+		BadgeText:           p.BadgeText,
+		Benefits:            mapBenefits(p.BenefitsJSON),
+		DisplayPrice:        mapDisplayPrice(p.DisplayPriceAmountMinor, p.CurrencyCode),
+		DefaultDurationDays: p.DefaultDurationDays,
+		AllowsUrgent:        p.AllowsUrgent,
+		ShowcaseEligible:    p.ShowcaseEligible,
+		SearchPriority:      p.SearchPriority,
+		SortOrder:           p.SortOrder,
+	}
+}
+
 func mapBenefits(raw []byte) []string {
 	if len(raw) == 0 {
 		return []string{}

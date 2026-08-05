@@ -101,6 +101,16 @@ type Repository interface {
 	) (domainadvert.Advert, error)
 }
 
+// PublicRepository returns denormalized buyer-facing projections. It is kept
+// separate from Repository because public reads deliberately join package,
+// media, geography, and favorite state in one query.
+type PublicRepository interface {
+	SearchPublished(ctx context.Context, q domainadvert.PublicSearchQuery) ([]domainadvert.PublicCard, error)
+	ListHomepageNew(ctx context.Context, q domainadvert.HomepageNewQuery) ([]domainadvert.PublicCard, error)
+	ListHomepageShowcase(ctx context.Context, seed string, limit int, actorUserID *uuid.UUID) ([]domainadvert.PublicCard, error)
+	GetPublishedDetail(ctx context.Context, advertID uuid.UUID, actorUserID *uuid.UUID) (domainadvert.PublicDetail, error)
+}
+
 // CatalogReader reads the category metadata the advert core depends on.
 type CatalogReader interface {
 	GetActiveCategory(ctx context.Context, id uuid.UUID) (domaincatalog.Category, error)

@@ -59,6 +59,14 @@ var FavoritesProtectedRoutes = []ProtectedRoute{
 	{Method: "DELETE", Path: "/api/v1/me/favorites/:advertId"},
 }
 
+// NotificationInboxProtectedRoutes are authenticated ACTIVE-user inbox routes.
+var NotificationInboxProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/me/notifications"},
+	{Method: "GET", Path: "/api/v1/me/notifications/unread-count"},
+	{Method: "PUT", Path: "/api/v1/me/notifications/read-all"},
+	{Method: "PUT", Path: "/api/v1/me/notifications/:notificationId/read"},
+}
+
 // AdvertModerationProtectedRoutes are ADVERT-ADMIN-01..06 BO_AUTH routes.
 // Admin media/banner/user management routes are intentionally excluded.
 var AdvertModerationProtectedRoutes = []ProtectedRoute{

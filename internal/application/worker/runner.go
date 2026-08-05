@@ -20,6 +20,16 @@ type MediaJobHandler interface {
 	ProcessGenerateVariant(ctx context.Context, assetID uuid.UUID, profile string) error
 }
 
+// NotificationJobHandler owns notification runtime job dispatch. It remains
+// separate from MediaJobHandler so workers can claim in-app fan-out jobs when
+// media/email providers are unavailable.
+type NotificationJobHandler interface {
+	ProcessAdvertFanout(ctx context.Context, jobType domainmedia.JobType, payload []byte) error
+	ProcessAdvertEmailChunk(ctx context.Context, payload []byte) error
+	ProcessExpiryScan(ctx context.Context, payload []byte) error
+	ProcessPackageExpiryEmail(ctx context.Context, payload []byte) error
+}
+
 // Config configures the media background job runner.
 type Config struct {
 	WorkerID              string
@@ -34,11 +44,12 @@ type Config struct {
 	SupportedJobTypes     []domainmedia.JobType
 	RecoveryBatchSize     int
 
-	Queue   appmedia.JobQueue
-	Handler MediaJobHandler
-	Logger  *slog.Logger
-	Clock   func() time.Time
-	Backoff Backoff
+	Queue               appmedia.JobQueue
+	Handler             MediaJobHandler
+	NotificationHandler NotificationJobHandler
+	Logger              *slog.Logger
+	Clock               func() time.Time
+	Backoff             Backoff
 }
 
 // Runner polls, claims, and processes media background jobs.
@@ -332,6 +343,28 @@ func (r *Runner) retryOrDead(
 }
 
 func (r *Runner) dispatch(ctx context.Context, job domainmedia.BackgroundJob) error {
+	switch job.JobType {
+	case domainmedia.JobNotificationFanoutAdvancedAdvert, domainmedia.JobNotificationFanoutUrgentAdvert:
+		if r.cfg.NotificationHandler == nil {
+			return apperr.Validation(safeUnsupportedJobMessage)
+		}
+		return r.cfg.NotificationHandler.ProcessAdvertFanout(ctx, job.JobType, []byte(job.Payload))
+	case domainmedia.JobEmailSendAdvertNotificationChunk:
+		if r.cfg.NotificationHandler == nil {
+			return apperr.Validation(safeUnsupportedJobMessage)
+		}
+		return r.cfg.NotificationHandler.ProcessAdvertEmailChunk(ctx, []byte(job.Payload))
+	case domainmedia.JobPackageExpiryReminderScan:
+		if r.cfg.NotificationHandler == nil {
+			return apperr.Validation(safeUnsupportedJobMessage)
+		}
+		return r.cfg.NotificationHandler.ProcessExpiryScan(ctx, []byte(job.Payload))
+	case domainmedia.JobEmailSendPackageExpiryReminder:
+		if r.cfg.NotificationHandler == nil {
+			return apperr.Validation(safeUnsupportedJobMessage)
+		}
+		return r.cfg.NotificationHandler.ProcessPackageExpiryEmail(ctx, []byte(job.Payload))
+	}
 	parsed, err := parseMediaJob(job.JobType, job.Payload)
 	if err != nil {
 		return err

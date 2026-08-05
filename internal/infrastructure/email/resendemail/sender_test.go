@@ -417,6 +417,64 @@ func TestSenderImplementsEmailSender(t *testing.T) {
 	var _ appauth.EmailSender = (*Sender)(nil)
 }
 
+func TestSendTemplateEmailSetsIdempotencyKey(t *testing.T) {
+	t.Parallel()
+	var gotKey string
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotKey = r.Header.Get("Idempotency-Key")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	sender, err := newWithHTTPClient(testConfig(srv.URL), srv.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := strings.Repeat("k", 256)
+	if err := sender.SendTemplateEmail(context.Background(), testRecipient, "tmpl_notify", nil, map[string]string{"title": "Hi"}, key); err != nil {
+		t.Fatal(err)
+	}
+	if gotKey != key {
+		t.Fatalf("idempotency key mismatch")
+	}
+}
+
+func TestSendTemplateEmailTreats409AsSuccess(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusConflict)
+	}))
+	defer srv.Close()
+
+	sender, err := newWithHTTPClient(testConfig(srv.URL), srv.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sender.SendTemplateEmail(context.Background(), testRecipient, "tmpl_notify", nil, map[string]string{"title": "Hi"}, "dup-key"); err != nil {
+		t.Fatalf("409 should be success: %v", err)
+	}
+}
+
+func TestSendTemplateEmailRejectsInvalidKeyWithoutLeak(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("provider must not be called")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	sender, err := newWithHTTPClient(testConfig(srv.URL), srv.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = sender.SendTemplateEmail(context.Background(), testRecipient, "tmpl_notify", nil, map[string]string{"title": "Hi"}, "")
+	if err == nil {
+		t.Fatal("expected invalid key error")
+	}
+	assertNoSensitiveLeak(t, err)
+}
+
 func assertNoSensitiveLeak(t *testing.T, err error) {
 	t.Helper()
 	if err == nil {

@@ -24,7 +24,9 @@ func NewPostgresService(pool *pgxpool.Pool, cfg Config) (*Service, error) {
 	if pool == nil {
 		return nil, fmt.Errorf("postgres pool is required")
 	}
-	cfg.Repo = pgAdvertRepo{pgadvert.NewRepository(pool)}
+	repo := pgadvert.NewRepository(pool)
+	cfg.Repo = pgAdvertRepo{repo}
+	cfg.Public = repo
 	cfg.Catalog = pgcatalog.NewRepository(pool)
 	cfg.Geo = pggeo.NewRepository(pool)
 	cfg.Horses = pghorse.NewRepository(pool)

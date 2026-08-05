@@ -10,9 +10,11 @@ import (
 	"github.com/google/uuid"
 
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
+	appnotification "github.com/hkizilbulak/haradan-be/internal/application/notification"
 	appworker "github.com/hkizilbulak/haradan-be/internal/application/worker"
 	"github.com/hkizilbulak/haradan-be/internal/config"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
+	"github.com/hkizilbulak/haradan-be/internal/infrastructure/email/resendemail"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/imageprocessor/tinifyprocessor"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/storage/s3storage"
 	"github.com/hkizilbulak/haradan-be/internal/platform/database"
@@ -100,6 +102,38 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("job queue: %w", err)
 	}
+	var notificationEmail appnotification.NotificationEmailSender
+	emailJobsEnabled := false
+	if cfg.EmailProvider == config.EmailProviderResend {
+		sender, err := resendemail.New(resendemail.Config{
+			APIKey: cfg.ResendAPIKey, BaseURL: cfg.ResendBaseURL, HTTPTimeout: cfg.EmailHTTPTimeout,
+			FromEmail: cfg.FromEmail, FromName: cfg.FromName, FrontendURL: cfg.FrontendURL,
+			TemplateID: cfg.ResendRegistrationVerificationTemplateID,
+		})
+		if err != nil {
+			return fmt.Errorf("notification email sender: %w", err)
+		}
+		notificationEmail = sender
+		emailJobsEnabled = true
+	}
+	notificationWorker, err := appnotification.NewPostgresRuntimeWorker(db.Pool(), notificationEmail, cfg.FrontendURL, nil)
+	if err != nil {
+		return fmt.Errorf("notification runtime: %w", err)
+	}
+	scheduler, err := notificationWorker.NewExpiryScheduler(cfg.PackageExpirySchedulerInterval, log)
+	if err != nil {
+		return fmt.Errorf("notification expiry scheduler: %w", err)
+	}
+	supported := []domainmedia.JobType{
+		domainmedia.JobValidateAndNormalize,
+		domainmedia.JobGenerateVariant,
+		domainmedia.JobNotificationFanoutAdvancedAdvert,
+		domainmedia.JobNotificationFanoutUrgentAdvert,
+		domainmedia.JobPackageExpiryReminderScan,
+	}
+	if emailJobsEnabled {
+		supported = append(supported, domainmedia.JobEmailSendAdvertNotificationChunk, domainmedia.JobEmailSendPackageExpiryReminder)
+	}
 
 	runner, err := appworker.NewRunner(appworker.Config{
 		WorkerID:              workerID,
@@ -111,13 +145,11 @@ func run() error {
 		RetryBaseDelay:        cfg.WorkerRetryBaseDelay,
 		RetryMaxDelay:         cfg.WorkerRetryMaxDelay,
 		LeaseRecoveryInterval: cfg.WorkerLeaseRecoveryInterval,
-		SupportedJobTypes: []domainmedia.JobType{
-			domainmedia.JobValidateAndNormalize,
-			domainmedia.JobGenerateVariant,
-		},
-		Queue:   queue,
-		Handler: mediaWorker,
-		Logger:  log,
+		SupportedJobTypes:     supported,
+		Queue:                 queue,
+		Handler:               mediaWorker,
+		NotificationHandler:   notificationWorker,
+		Logger:                log,
 		Backoff: appworker.Backoff{
 			Base: cfg.WorkerRetryBaseDelay,
 			Max:  cfg.WorkerRetryMaxDelay,
@@ -129,10 +161,12 @@ func run() error {
 
 	runCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	go scheduler.Run(runCtx)
 
 	if err := runner.Run(runCtx); err != nil {
 		return fmt.Errorf("runner: %w", err)
 	}
+	scheduler.Wait()
 	log.Info("worker stopped", "workerId", workerID)
 	return nil
 }

@@ -20,6 +20,10 @@ const jobColumns = `id, job_type, status, payload, deduplication_key, attempt_co
 available_at, leased_until, lease_owner, last_error, cancel_requested_at, version, created_at,
 updated_at, completed_at`
 
+const jobColumnsQualified = `j.id, j.job_type, j.status, j.payload, j.deduplication_key, j.attempt_count, j.max_attempts,
+j.available_at, j.leased_until, j.lease_owner, j.last_error, j.cancel_requested_at, j.version, j.created_at,
+j.updated_at, j.completed_at`
+
 const jobNotFoundMessage = "İş kaydı bulunamadı."
 
 // EnqueueJob inserts a durable job. tjk_sync_run_id is always NULL because the
