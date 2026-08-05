@@ -3,6 +3,7 @@ package jobdef
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/robfig/cron/v3"
 )
@@ -34,4 +35,22 @@ func ParseCronSchedule(expr string) (cron.Schedule, error) {
 		return nil, fmt.Errorf("cron expression is required")
 	}
 	return cronParser.Parse(trimmed)
+}
+
+// NextRunAt returns the next cron fire time after now for an active definition.
+// Inactive definitions and invalid cron expressions yield nil.
+func NextRunAt(def JobDefinition, now time.Time) *time.Time {
+	if !def.IsActive {
+		return nil
+	}
+	sched, err := ParseCronSchedule(def.CronExpression)
+	if err != nil {
+		return nil
+	}
+	next := sched.Next(now.In(Istanbul()))
+	if next.IsZero() {
+		return nil
+	}
+	utc := next.UTC()
+	return &utc
 }

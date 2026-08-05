@@ -53,6 +53,7 @@ type Repository interface {
 	GetDefinition(ctx context.Context, id uuid.UUID) (domainjobdef.JobDefinition, error)
 	UpdateDefinitionOptimistic(ctx context.Context, def domainjobdef.JobDefinition, expectedVersion int) (domainjobdef.JobDefinition, error)
 	ListHistory(ctx context.Context, definitionID uuid.UUID, f HistoryFilter) ([]domainjobdef.JobExecution, error)
+	ListLastRuns(ctx context.Context, definitionIDs []uuid.UUID) (map[uuid.UUID]domainjobdef.LastRunSummary, error)
 	Enqueue(ctx context.Context, req EnqueueRequest) (EnqueueResult, error)
 }
 

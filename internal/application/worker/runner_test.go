@@ -16,8 +16,9 @@ import (
 )
 
 type stubHandler struct {
-	validate func(context.Context, uuid.UUID) error
-	variant  func(context.Context, uuid.UUID, string) error
+	validate  func(context.Context, uuid.UUID) error
+	variant   func(context.Context, uuid.UUID, string) error
+	reconcile func(context.Context, []byte) error
 }
 
 func (s stubHandler) ProcessValidateAndNormalize(ctx context.Context, id uuid.UUID) error {
@@ -35,7 +36,12 @@ func (s stubHandler) ProcessGenerateVariant(ctx context.Context, id uuid.UUID, p
 }
 
 func (s stubHandler) ProcessDeleteObjects(context.Context, []byte) error { return nil }
-func (s stubHandler) ProcessReconcile(context.Context, []byte) error     { return nil }
+func (s stubHandler) ProcessReconcile(ctx context.Context, payload []byte) error {
+	if s.reconcile != nil {
+		return s.reconcile(ctx, payload)
+	}
+	return nil
+}
 
 func enqueueValidate(t *testing.T, store *appmedia.MemoryStore, assetID uuid.UUID, now time.Time) {
 	t.Helper()
@@ -249,6 +255,247 @@ func TestRunnerPanicRecovery(t *testing.T) {
 		select {
 		case <-deadline:
 			t.Fatal("panic did not recover into retry/dead")
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+}
+
+func TestRunnerDefinitionTimeoutCancelsSlowHandler(t *testing.T) {
+	store := appmedia.NewMemoryStore()
+	now := time.Now().UTC()
+	key := "timeout-def-" + uuid.NewString()
+	payload, _ := json.Marshal(map[string]any{"timeoutSeconds": 1})
+	job := domainmedia.BackgroundJob{
+		ID:               uuid.New(),
+		JobType:          domainmedia.JobReconcile,
+		Status:           domainmedia.JobQueued,
+		Payload:          payload,
+		DeduplicationKey: &key,
+		MaxAttempts:      1,
+		AvailableAt:      now,
+		Version:          1,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := store.Repo().EnqueueJob(context.Background(), job); err != nil {
+		t.Fatal(err)
+	}
+
+	var sawCancel atomic.Bool
+	handler := stubHandler{
+		reconcile: func(ctx context.Context, _ []byte) error {
+			select {
+			case <-ctx.Done():
+				sawCancel.Store(true)
+				return ctx.Err()
+			case <-time.After(5 * time.Second):
+				return nil
+			}
+		},
+	}
+
+	runner, err := appworker.NewRunner(appworker.Config{
+		WorkerID:              "timeout-worker",
+		Concurrency:           1,
+		PollInterval:          10 * time.Millisecond,
+		LeaseDuration:         3 * time.Hour,
+		JobTimeout:            60 * time.Second, // global default must not win over payload=1s
+		MaxJobTimeout:         2 * time.Hour,
+		ShutdownTimeout:       time.Second,
+		RetryBaseDelay:        time.Millisecond,
+		RetryMaxDelay:         time.Millisecond,
+		LeaseRecoveryInterval: time.Hour,
+		SupportedJobTypes:     []domainmedia.JobType{domainmedia.JobReconcile},
+		Queue:                 store.JobQueue(),
+		Handler:               handler,
+		Clock:                 func() time.Time { return time.Now().UTC() },
+		Backoff:               appworker.Backoff{Base: time.Millisecond, Max: time.Millisecond, Float63: func() float64 { return 1 }},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(ctx) }()
+
+	deadline := time.After(4 * time.Second)
+	for {
+		for _, j := range store.Jobs() {
+			if j.AttemptCount > 0 && (j.Status == domainmedia.JobDead || j.Status == domainmedia.JobFailed || j.Status == domainmedia.JobQueued) {
+				cancel()
+				<-done
+				if !sawCancel.Load() {
+					t.Fatal("handler context was not cancelled by definition timeout")
+				}
+				return
+			}
+		}
+		select {
+		case <-deadline:
+			cancel()
+			<-done
+			t.Fatalf("definition timeout did not finalize job: %+v", store.Jobs())
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+}
+
+func TestRunnerEventDrivenUsesGlobalDefaultTimeout(t *testing.T) {
+	store := appmedia.NewMemoryStore()
+	now := time.Now().UTC()
+	key := "timeout-event-" + uuid.NewString()
+	payload := domainmedia.EmptyMetadata()
+	job := domainmedia.BackgroundJob{
+		ID:               uuid.New(),
+		JobType:          domainmedia.JobReconcile,
+		Status:           domainmedia.JobQueued,
+		Payload:          payload,
+		DeduplicationKey: &key,
+		MaxAttempts:      1,
+		AvailableAt:      now,
+		Version:          1,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := store.Repo().EnqueueJob(context.Background(), job); err != nil {
+		t.Fatal(err)
+	}
+
+	var sawCancel atomic.Bool
+	handler := stubHandler{
+		reconcile: func(ctx context.Context, _ []byte) error {
+			select {
+			case <-ctx.Done():
+				sawCancel.Store(true)
+				return ctx.Err()
+			case <-time.After(5 * time.Second):
+				return nil
+			}
+		},
+	}
+
+	runner, err := appworker.NewRunner(appworker.Config{
+		WorkerID:              "event-timeout-worker",
+		Concurrency:           1,
+		PollInterval:          10 * time.Millisecond,
+		LeaseDuration:         5 * time.Second,
+		JobTimeout:            100 * time.Millisecond,
+		MaxJobTimeout:         2 * time.Second,
+		ShutdownTimeout:       time.Second,
+		RetryBaseDelay:        time.Millisecond,
+		RetryMaxDelay:         time.Millisecond,
+		LeaseRecoveryInterval: time.Hour,
+		SupportedJobTypes:     []domainmedia.JobType{domainmedia.JobReconcile},
+		Queue:                 store.JobQueue(),
+		Handler:               handler,
+		Clock:                 func() time.Time { return time.Now().UTC() },
+		Backoff:               appworker.Backoff{Base: time.Millisecond, Max: time.Millisecond, Float63: func() float64 { return 1 }},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(ctx) }()
+
+	deadline := time.After(2 * time.Second)
+	for {
+		for _, j := range store.Jobs() {
+			if j.AttemptCount > 0 && (j.Status == domainmedia.JobDead || j.Status == domainmedia.JobFailed || j.Status == domainmedia.JobQueued) {
+				cancel()
+				<-done
+				if !sawCancel.Load() {
+					t.Fatal("event-driven job must cancel on global JobTimeout")
+				}
+				return
+			}
+		}
+		select {
+		case <-deadline:
+			cancel()
+			<-done
+			t.Fatalf("event-driven timeout did not finalize: %+v", store.Jobs())
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}
+
+func TestRunnerLongerDefinitionTimeoutNotClampedToGlobalDefault(t *testing.T) {
+	store := appmedia.NewMemoryStore()
+	now := time.Now().UTC()
+	key := "timeout-long-" + uuid.NewString()
+	// Representative of seeded 1800s: payload timeout longer than global default.
+	payload, _ := json.Marshal(map[string]any{"timeoutSeconds": 2})
+	job := domainmedia.BackgroundJob{
+		ID:               uuid.New(),
+		JobType:          domainmedia.JobReconcile,
+		Status:           domainmedia.JobQueued,
+		Payload:          payload,
+		DeduplicationKey: &key,
+		MaxAttempts:      1,
+		AvailableAt:      now,
+		Version:          1,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := store.Repo().EnqueueJob(context.Background(), job); err != nil {
+		t.Fatal(err)
+	}
+
+	handler := stubHandler{
+		reconcile: func(ctx context.Context, _ []byte) error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(200 * time.Millisecond):
+				return nil
+			}
+		},
+	}
+
+	runner, err := appworker.NewRunner(appworker.Config{
+		WorkerID:              "long-timeout-worker",
+		Concurrency:           1,
+		PollInterval:          10 * time.Millisecond,
+		LeaseDuration:         10 * time.Second,
+		JobTimeout:            50 * time.Millisecond, // would cut short if wrongly used as ceiling
+		MaxJobTimeout:         5 * time.Second,
+		ShutdownTimeout:       time.Second,
+		RetryBaseDelay:        time.Millisecond,
+		RetryMaxDelay:         time.Millisecond,
+		LeaseRecoveryInterval: time.Hour,
+		SupportedJobTypes:     []domainmedia.JobType{domainmedia.JobReconcile},
+		Queue:                 store.JobQueue(),
+		Handler:               handler,
+		Clock:                 func() time.Time { return time.Now().UTC() },
+		Backoff:               appworker.Backoff{Base: time.Millisecond, Max: time.Millisecond, Float63: func() float64 { return 1 }},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(ctx) }()
+
+	deadline := time.After(3 * time.Second)
+	for {
+		for _, j := range store.Jobs() {
+			if j.Status == domainmedia.JobSucceeded {
+				cancel()
+				<-done
+				return
+			}
+			if j.Status == domainmedia.JobDead || j.Status == domainmedia.JobFailed {
+				cancel()
+				<-done
+				t.Fatalf("definition timeout must not clamp to global default; job=%+v", j)
+			}
+		}
+		select {
+		case <-deadline:
+			cancel()
+			<-done
+			t.Fatalf("job did not succeed: %+v", store.Jobs())
 		case <-time.After(20 * time.Millisecond):
 		}
 	}

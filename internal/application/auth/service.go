@@ -50,32 +50,38 @@ type Clock interface {
 }
 
 // EmailSender delivers verification and password-reset emails after commit.
+// fullName is a trimmed display name; empty means the sender must omit fullName
+// from template variables rather than sending an empty string.
 type EmailSender interface {
-	SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken string) error
-	SendPasswordReset(ctx context.Context, toEmail, plaintextToken string) error
+	SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken, fullName string) error
+	SendPasswordReset(ctx context.Context, toEmail, plaintextToken, fullName string) error
 }
 
 // NoopEmailSender acknowledges delivery without sending.
 type NoopEmailSender struct{}
 
-func (NoopEmailSender) SendRegistrationVerification(context.Context, string, string) error {
+func (NoopEmailSender) SendRegistrationVerification(context.Context, string, string, string) error {
 	return nil
 }
 
-func (NoopEmailSender) SendPasswordReset(context.Context, string, string) error {
+func (NoopEmailSender) SendPasswordReset(context.Context, string, string, string) error {
 	return nil
 }
 
 // EmailSenderFunc adapts a function to EmailSender (registration path only).
 // Prefer a concrete fake when password-reset coverage is needed.
-type EmailSenderFunc func(ctx context.Context, toEmail, plaintextToken string) error
+type EmailSenderFunc func(ctx context.Context, toEmail, plaintextToken, fullName string) error
 
-func (f EmailSenderFunc) SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken string) error {
-	return f(ctx, toEmail, plaintextToken)
+func (f EmailSenderFunc) SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken, fullName string) error {
+	return f(ctx, toEmail, plaintextToken, fullName)
 }
 
-func (f EmailSenderFunc) SendPasswordReset(ctx context.Context, toEmail, plaintextToken string) error {
-	return f(ctx, toEmail, plaintextToken)
+func (f EmailSenderFunc) SendPasswordReset(ctx context.Context, toEmail, plaintextToken, fullName string) error {
+	return f(ctx, toEmail, plaintextToken, fullName)
+}
+
+func displayFullName(firstName, lastName string) string {
+	return strings.TrimSpace(strings.TrimSpace(firstName) + " " + strings.TrimSpace(lastName))
 }
 
 // Service implements AUTH-01/02/03/04/05/06 use cases.
@@ -325,7 +331,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResul
 		return RegisterResult{}, err
 	}
 
-	if err := s.email.SendRegistrationVerification(ctx, email, verifyPlain); err != nil {
+	if err := s.email.SendRegistrationVerification(ctx, email, verifyPlain, displayFullName(first, last)); err != nil {
 		return RegisterResult{}, apperr.DependencyUnavailable("E-posta servisi şu anda kullanılamıyor.")
 	}
 	return RegisterResult{Message: registerSuccessMessage}, nil
@@ -460,7 +466,7 @@ func (s *Service) ResendVerification(ctx context.Context, in ResendVerificationI
 		return ResendVerificationResult{Message: resendSuccessMessage}, nil
 	}
 
-	if err := s.email.SendRegistrationVerification(ctx, user.Email, verifyPlain); err != nil {
+	if err := s.email.SendRegistrationVerification(ctx, user.Email, verifyPlain, displayFullName(user.FirstName, user.LastName)); err != nil {
 		return ResendVerificationResult{}, apperr.DependencyUnavailable("E-posta servisi şu anda kullanılamıyor.")
 	}
 	return ResendVerificationResult{Message: resendSuccessMessage}, nil
@@ -496,7 +502,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, in RequestPasswordRe
 	}); err != nil {
 		return ResendVerificationResult{}, err
 	}
-	if err := s.email.SendPasswordReset(ctx, user.Email, plain); err != nil {
+	if err := s.email.SendPasswordReset(ctx, user.Email, plain, displayFullName(user.FirstName, user.LastName)); err != nil {
 		return ResendVerificationResult{}, apperr.DependencyUnavailable("E-posta servisi şu anda kullanılamıyor.")
 	}
 	return ResendVerificationResult{Message: resendSuccessMessage}, nil
@@ -582,7 +588,7 @@ func (s *Service) RequestEmailChange(ctx context.Context, in RequestEmailChangeI
 	}); err != nil {
 		return LogoutResult{}, err
 	}
-	if err := s.email.SendRegistrationVerification(ctx, email, plain); err != nil {
+	if err := s.email.SendRegistrationVerification(ctx, email, plain, displayFullName(user.FirstName, user.LastName)); err != nil {
 		return LogoutResult{}, apperr.DependencyUnavailable("E-posta servisi şu anda kullanılamıyor.")
 	}
 	return LogoutResult{Message: resendSuccessMessage}, nil

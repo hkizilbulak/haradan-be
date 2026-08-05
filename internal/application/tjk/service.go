@@ -22,19 +22,36 @@ type Repository interface {
 	SetItemErrorStatus(context.Context, uuid.UUID, string, time.Time) (domain.ItemError, error)
 }
 
-type Service struct {
-	repo Repository
-	now  func() time.Time
+// Config wires the admin TJK sync API service.
+type Config struct {
+	Repo    Repository
+	Enabled bool
+	Now     func() time.Time
 }
 
-func NewService(repo Repository) (*Service, error) {
-	if repo == nil {
+type Service struct {
+	repo    Repository
+	enabled bool
+	now     func() time.Time
+}
+
+func NewService(cfg Config) (*Service, error) {
+	if cfg.Repo == nil {
 		return nil, fmt.Errorf("TJK repository is required")
 	}
-	return &Service{repo: repo, now: func() time.Time { return time.Now().UTC() }}, nil
+	now := cfg.Now
+	if now == nil {
+		now = func() time.Time { return time.Now().UTC() }
+	}
+	return &Service{repo: cfg.Repo, enabled: cfg.Enabled, now: now}, nil
 }
 
+const tjkDisabledMessage = "TJK senkronizasyonu şu anda kullanılamıyor."
+
 func (s *Service) Trigger(ctx context.Context, actorID uuid.UUID, mode, source string) (domain.Run, error) {
+	if !s.enabled {
+		return domain.Run{}, apperr.DependencyUnavailable(tjkDisabledMessage)
+	}
 	mode, source = strings.ToUpper(strings.TrimSpace(mode)), strings.TrimSpace(source)
 	if mode != "FULL" && mode != "INCREMENTAL" && mode != "RECONCILIATION" {
 		return domain.Run{}, apperr.Validation("Geçersiz TJK senkronizasyon modu.")

@@ -4447,16 +4447,18 @@ paths:
       operationId: GetPublicMedia
       summary: GetPublicMedia
       description: |-
-        Exposure PUBLIC. Actor: Anonymous. Streams a READY delivery profile for
-        the asset. Object keys and storage credentials never appear.
-        HEAD is registered outside OpenAPI (same handler) because gin-server
-        generation for HEAD binary responses is awkward; clients may use HEAD
-        for cache validators without a body.
+        Exposure PUBLIC. Actor: Anonymous or ACTIVE owner/admin preview.
+        Streams a READY delivery profile only when the asset is publicly
+        attached (published advert media or active banner) or the optional
+        Bearer grants owner/admin preview of an attached non-public asset.
+        Object keys and storage credentials never appear. Soft-deleted,
+        replaced, orphan READY, and raw/master objects collapse to the same
+        enumeration-safe 404. Clients may use HEAD for cache validators.
       tags:
       - Media
       x-function-id: MEDIA-PUBLIC-01
       x-exposure: PUBLIC
-      x-actor: Anonymous
+      x-actor: Anonymous or ACTIVE
       responses:
         '200':
           description: Binary image bytes
@@ -4507,6 +4509,73 @@ paths:
           "$ref": "#/components/responses/InternalError"
         '503':
           "$ref": "#/components/responses/DependencyUnavailable"
+      security:
+      - {}
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AssetIdPath"
+      - name: profile
+        in: path
+        required: true
+        schema:
+          "$ref": "#/components/schemas/MediaDeliveryProfile"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
+    head:
+      operationId: HeadPublicMedia
+      summary: HeadPublicMedia
+      description: |-
+        Exposure PUBLIC. Actor: Anonymous or ACTIVE owner/admin preview.
+        Same visibility and cache-validator headers as GetPublicMedia without
+        a response body. Object keys and storage credentials never appear.
+      tags:
+      - Media
+      x-function-id: MEDIA-PUBLIC-01
+      x-exposure: PUBLIC
+      x-actor: Anonymous or ACTIVE
+      responses:
+        '200':
+          description: Headers only; no body
+          headers:
+            Content-Type:
+              schema:
+                type: string
+            Content-Length:
+              schema:
+                type: string
+            ETag:
+              schema:
+                type: string
+            Last-Modified:
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+            Content-Disposition:
+              schema:
+                type: string
+                example: inline
+        '304':
+          description: Not Modified
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+      security:
+      - {}
+      - BearerAuth: []
       parameters:
       - "$ref": "#/components/parameters/AssetIdPath"
       - name: profile

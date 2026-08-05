@@ -526,8 +526,11 @@ func TestLoadWorkerDefaultsAndValidation(t *testing.T) {
 	if cfg.WorkerConcurrency != 2 || cfg.WorkerPollInterval != time.Second {
 		t.Fatalf("defaults concurrency=%d poll=%v", cfg.WorkerConcurrency, cfg.WorkerPollInterval)
 	}
-	if cfg.WorkerLeaseDuration != 2*time.Minute || cfg.WorkerJobTimeout != 60*time.Second {
+	if cfg.WorkerLeaseDuration != 2*time.Hour+5*time.Minute || cfg.WorkerJobTimeout != 60*time.Second {
 		t.Fatalf("lease=%v timeout=%v", cfg.WorkerLeaseDuration, cfg.WorkerJobTimeout)
+	}
+	if cfg.WorkerMaxJobTimeout != 2*time.Hour {
+		t.Fatalf("maxJobTimeout=%v", cfg.WorkerMaxJobTimeout)
 	}
 	if cfg.WorkerID != "" {
 		t.Fatalf("WorkerID should default empty, got %q", cfg.WorkerID)
@@ -543,9 +546,19 @@ func TestLoadWorkerDefaultsAndValidation(t *testing.T) {
 	clearConfigEnv(t)
 	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
 	t.Setenv("WORKER_JOB_TIMEOUT", "3m")
+	t.Setenv("WORKER_MAX_JOB_TIMEOUT", "3m")
 	t.Setenv("WORKER_LEASE_DURATION", "2m")
 	if _, err := config.Load(); err == nil {
-		t.Fatal("expected job timeout < lease validation")
+		t.Fatal("expected lease > max job timeout validation")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("WORKER_JOB_TIMEOUT", "2m")
+	t.Setenv("WORKER_MAX_JOB_TIMEOUT", "1m")
+	t.Setenv("WORKER_LEASE_DURATION", "5m")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected max >= job timeout validation")
 	}
 
 	clearConfigEnv(t)

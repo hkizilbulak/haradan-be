@@ -60,6 +60,20 @@ type JobDefinition struct {
 	Version               int
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+
+	// Optional BO list/detail enrichment (not persisted on hrd_job_definitions).
+	LastRunAt      *time.Time
+	LastStatus     *string
+	LastDurationMs *int
+	NextRunAt      *time.Time
+}
+
+// LastRunSummary is the latest linked background job for a definition.
+type LastRunSummary struct {
+	DefinitionID   uuid.UUID
+	LastRunAt      time.Time
+	LastStatus     string
+	LastDurationMs *int
 }
 
 // JobExecution is the BO-safe history projection of a hrd_background_jobs row

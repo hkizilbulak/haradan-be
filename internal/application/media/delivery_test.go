@@ -9,31 +9,51 @@ import (
 
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domainbanner "github.com/hkizilbulak/haradan-be/internal/domain/banner"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
+	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
 )
 
-func TestResolvePublicDeliveryReadyVariant(t *testing.T) {
-	f := newFixture(t)
-	ctx := context.Background()
-
-	assetID := f.seedAsset(f.owner, domainmedia.AssetMasterReady)
-	key := domainmedia.VariantObjectKey(assetID, domainmedia.ProfileDetail)
+func seedReadyVariant(t *testing.T, f *fixture, assetID uuid.UUID, profile string, body string) string {
+	t.Helper()
+	key := domainmedia.VariantObjectKey(assetID, profile)
 	ct := "image/png"
-	size := int64(12)
+	size := int64(len(body))
 	f.store.PutVariant(domainmedia.Variant{
 		ID:               uuid.New(),
 		AssetID:          assetID,
-		TransformProfile: domainmedia.ProfileDetail,
+		TransformProfile: profile,
 		ObjectKey:        &key,
 		LifecycleStatus:  domainmedia.VariantReady,
 		ContentType:      &ct,
 		ByteSize:         &size,
 	})
-	if err := f.storage.PutObject(ctx, key, ct, []byte("variant-body")); err != nil {
+	if err := f.storage.PutObject(context.Background(), key, ct, []byte(body)); err != nil {
 		t.Fatal(err)
 	}
+	return key
+}
 
-	delivery, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileDetail)
+func attachAdvert(t *testing.T, f *fixture, advertID, assetID uuid.UUID) {
+	t.Helper()
+	now := f.clock.Now()
+	if err := f.store.Repo().AttachAdvertMedia(context.Background(), domainmedia.AdvertMediaRelation{
+		ID: uuid.New(), AdvertID: advertID, AssetID: assetID, DisplayOrder: 0, CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestResolvePublicDeliveryReadyVariantOnPublishedAdvert(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	assetID := f.seedAsset(f.owner, domainmedia.AssetMasterReady)
+	key := seedReadyVariant(t, f, assetID, domainmedia.ProfileDetail, "variant-body")
+	advertID := f.seedAdvert(f.owner, "PUBLISHED", 1)
+	attachAdvert(t, f, advertID, assetID)
+
+	delivery, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileDetail, appmedia.PublicDeliveryViewer{})
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
@@ -52,7 +72,7 @@ func TestResolvePublicDeliveryReadyVariant(t *testing.T) {
 	}
 }
 
-func TestResolvePublicDeliveryDeniesRawMasterAndMissing(t *testing.T) {
+func TestResolvePublicDeliveryDeniesOrphanAndRawMaster(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 
@@ -62,50 +82,128 @@ func TestResolvePublicDeliveryDeniesRawMasterAndMissing(t *testing.T) {
 		ID:               uuid.New(),
 		AssetID:          assetID,
 		TransformProfile: domainmedia.ProfileDetail,
-		ObjectKey:        &raw, // wrong key — must not be delivered
+		ObjectKey:        &raw,
 		LifecycleStatus:  domainmedia.VariantReady,
 	})
+	// READY owned key but not attached → orphan.
+	seedReadyVariant(t, f, assetID, domainmedia.ProfileHomepage, "orphan")
 
-	_, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileDetail)
+	_, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileDetail, appmedia.PublicDeliveryViewer{})
 	if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
 		t.Fatalf("want not found for raw key, got %v", err)
 	}
+	_, err = f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileHomepage, appmedia.PublicDeliveryViewer{})
+	if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
+		t.Fatalf("want not found for orphan, got %v", err)
+	}
 
-	_, err = f.svc.ResolvePublicDelivery(ctx, uuid.New(), domainmedia.ProfileDetail)
+	_, err = f.svc.ResolvePublicDelivery(ctx, uuid.New(), domainmedia.ProfileDetail, appmedia.PublicDeliveryViewer{})
 	if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
 		t.Fatalf("want not found for missing asset, got %v", err)
 	}
 
 	deleted := f.seedAsset(f.owner, domainmedia.AssetCleanupCandidate)
-	_, err = f.svc.ResolvePublicDelivery(ctx, deleted, domainmedia.ProfileBanner)
+	_, err = f.svc.ResolvePublicDelivery(ctx, deleted, domainmedia.ProfileBanner, appmedia.PublicDeliveryViewer{})
 	if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
 		t.Fatalf("want not found for soft-deleted, got %v", err)
 	}
 }
 
-func TestResolvePublicDeliveryBannerProfile(t *testing.T) {
+func TestResolvePublicDeliveryDeniesDraftAdvertAnonymously(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 
 	assetID := f.seedAsset(f.owner, domainmedia.AssetMasterReady)
-	key := domainmedia.VariantObjectKey(assetID, domainmedia.ProfileBanner)
-	ct := "image/jpeg"
-	f.store.PutVariant(domainmedia.Variant{
-		ID:               uuid.New(),
-		AssetID:          assetID,
-		TransformProfile: domainmedia.ProfileBanner,
-		ObjectKey:        &key,
-		LifecycleStatus:  domainmedia.VariantReady,
-		ContentType:      &ct,
-	})
+	seedReadyVariant(t, f, assetID, domainmedia.ProfileDetail, "draft")
+	advertID := f.seedAdvert(f.owner, "DRAFT", 1)
+	attachAdvert(t, f, advertID, assetID)
 
-	delivery, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileBanner)
-	if err != nil {
-		t.Fatalf("resolve banner: %v", err)
+	_, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileDetail, appmedia.PublicDeliveryViewer{})
+	if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
+		t.Fatalf("want not found for anonymous draft, got %v", err)
 	}
-	wantURL := domainmedia.PublicDeliveryURL(assetID, domainmedia.ProfileBanner)
-	if wantURL == "" || delivery.Profile != domainmedia.ProfileBanner {
-		t.Fatalf("delivery=%+v wantURL=%q", delivery, wantURL)
+}
+
+func TestResolvePublicDeliveryOwnerPreviewDraft(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	assetID := f.seedAsset(f.owner, domainmedia.AssetMasterReady)
+	seedReadyVariant(t, f, assetID, domainmedia.ProfileSearch, "preview")
+	advertID := f.seedAdvert(f.owner, "DRAFT", 1)
+	attachAdvert(t, f, advertID, assetID)
+
+	viewer := appmedia.PublicDeliveryViewer{UserID: f.owner, Role: string(domainuser.RoleUser)}
+	if _, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileSearch, viewer); err != nil {
+		t.Fatalf("owner preview: %v", err)
+	}
+
+	stranger := appmedia.PublicDeliveryViewer{UserID: f.stranger, Role: string(domainuser.RoleUser)}
+	_, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileSearch, stranger)
+	if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
+		t.Fatalf("want not found for stranger, got %v", err)
+	}
+}
+
+func TestResolvePublicDeliveryAdminPreviewPending(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	assetID := f.seedAsset(f.owner, domainmedia.AssetMasterReady)
+	seedReadyVariant(t, f, assetID, domainmedia.ProfileHomepage, "admin")
+	advertID := f.seedAdvert(f.owner, "PENDING_REVIEW", 1)
+	attachAdvert(t, f, advertID, assetID)
+
+	adminID := uuid.New()
+	viewer := appmedia.PublicDeliveryViewer{UserID: adminID, Role: string(domainuser.RoleAdmin)}
+	if _, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileHomepage, viewer); err != nil {
+		t.Fatalf("admin preview: %v", err)
+	}
+}
+
+func TestResolvePublicDeliveryBannerLifecycle(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	assetID := f.seedAsset(f.owner, domainmedia.AssetMasterReady)
+	seedReadyVariant(t, f, assetID, domainmedia.ProfileBanner, "banner")
+
+	_, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileBanner, appmedia.PublicDeliveryViewer{})
+	if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
+		t.Fatalf("want not found without banner attachment, got %v", err)
+	}
+
+	f.store.PutBanner(appmedia.MemoryBanner{
+		ID: uuid.New(), AssetID: assetID, Status: string(domainbanner.StatusInactive),
+	})
+	_, err = f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileBanner, appmedia.PublicDeliveryViewer{})
+	if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
+		t.Fatalf("want not found for inactive banner, got %v", err)
+	}
+
+	f.store.PutBanner(appmedia.MemoryBanner{
+		ID: uuid.New(), AssetID: assetID, Status: string(domainbanner.StatusActive),
+	})
+	delivery, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileBanner, appmedia.PublicDeliveryViewer{})
+	if err != nil {
+		t.Fatalf("active banner: %v", err)
+	}
+	if delivery.Profile != domainmedia.ProfileBanner {
+		t.Fatalf("delivery=%+v", delivery)
+	}
+
+	inactiveAsset := f.seedAsset(f.owner, domainmedia.AssetMasterReady)
+	seedReadyVariant(t, f, inactiveAsset, domainmedia.ProfileBanner, "inactive")
+	f.store.PutBanner(appmedia.MemoryBanner{
+		ID: uuid.New(), AssetID: inactiveAsset, Status: string(domainbanner.StatusInactive),
+	})
+	admin := appmedia.PublicDeliveryViewer{UserID: uuid.New(), Role: string(domainuser.RoleAdmin)}
+	if _, err := f.svc.ResolvePublicDelivery(ctx, inactiveAsset, domainmedia.ProfileBanner, admin); err != nil {
+		t.Fatalf("admin inactive banner preview: %v", err)
+	}
+	_, err = f.svc.ResolvePublicDelivery(ctx, inactiveAsset, domainmedia.ProfileBanner, appmedia.PublicDeliveryViewer{})
+	if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
+		t.Fatalf("anonymous inactive banner must 404, got %v", err)
 	}
 }
 

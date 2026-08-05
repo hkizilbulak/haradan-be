@@ -374,9 +374,8 @@ func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackag
 		if err := assignments.Create(ctx, created); err != nil {
 			return err
 		}
-		// ADVANCED→non-ADVANCED already deactivated above on supersede.
-		// ADVANCED→ADVANCED also deactivated on supersede so URGENT cannot
-		// remain linked to a superseded assignment row.
+		// Urgent feature activations are always deactivated on supersede,
+		// including when the replacement package also allows urgent listings.
 		out = AssignmentView{Assignment: created, Package: pkg}
 		if s.notifications != nil && pkg.EmitsPublishBroadcast() {
 			advert, err := s.adverts.FindByID(ctx, in.AdvertID)

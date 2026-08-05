@@ -8,7 +8,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domainbanner "github.com/hkizilbulak/haradan-be/internal/domain/banner"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
+	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
 )
 
 const (
@@ -18,8 +20,8 @@ const (
 	variantCacheControl = "public, max-age=31536000, immutable"
 )
 
-// PublicDelivery describes a READY public variant that may be streamed or headed
-// anonymously. Object keys never leave the application layer.
+// PublicDelivery describes a READY public variant that may be streamed or headed.
+// Object keys never leave the application layer.
 type PublicDelivery struct {
 	AssetID      uuid.UUID
 	Profile      string
@@ -31,10 +33,19 @@ type PublicDelivery struct {
 	CacheControl string
 }
 
-// ResolvePublicDelivery locates a READY, Haradan-owned variant for anonymous
-// delivery. Missing, soft-deleted, non-READY, raw/master and foreign keys all
-// collapse to the same NOT_FOUND response (enumeration-safe).
-func (s *Service) ResolvePublicDelivery(ctx context.Context, assetID uuid.UUID, profile string) (PublicDelivery, error) {
+// PublicDeliveryViewer is an optional authenticated principal for owner/admin
+// preview of attached non-public assets. Anonymous delivery uses a zero value.
+type PublicDeliveryViewer struct {
+	UserID uuid.UUID
+	Role   string
+}
+
+// ResolvePublicDelivery locates a READY, Haradan-owned variant that the viewer
+// may access. Anonymous callers require a current public attachment; owners may
+// preview attached draft/pending advert assets; active admins may preview
+// attached listing/banner assets. Missing, soft-deleted, non-READY, raw/master,
+// orphan, and unauthorized access all collapse to the same NOT_FOUND response.
+func (s *Service) ResolvePublicDelivery(ctx context.Context, assetID uuid.UUID, profile string, viewer PublicDeliveryViewer) (PublicDelivery, error) {
 	profile = strings.TrimSpace(profile)
 	if assetID == uuid.Nil || !domainmedia.IsKnownDeliveryProfile(profile) {
 		return PublicDelivery{}, apperr.NotFound(publicMediaNotFoundMessage)
@@ -48,6 +59,14 @@ func (s *Service) ResolvePublicDelivery(ctx context.Context, assetID uuid.UUID, 
 		return PublicDelivery{}, err
 	}
 	if domainmedia.IsSoftDeletedAssetLifecycle(asset.LifecycleStatus) {
+		return PublicDelivery{}, apperr.NotFound(publicMediaNotFoundMessage)
+	}
+
+	allowed, err := s.publicDeliveryAllowed(ctx, assetID, profile, viewer)
+	if err != nil {
+		return PublicDelivery{}, err
+	}
+	if !allowed {
 		return PublicDelivery{}, apperr.NotFound(publicMediaNotFoundMessage)
 	}
 
@@ -88,6 +107,80 @@ func (s *Service) ResolvePublicDelivery(ctx context.Context, assetID uuid.UUID, 
 		out.ByteSize = &size
 	}
 	return out, nil
+}
+
+func (s *Service) publicDeliveryAllowed(
+	ctx context.Context,
+	assetID uuid.UUID,
+	profile string,
+	viewer PublicDeliveryViewer,
+) (bool, error) {
+	switch profile {
+	case domainmedia.ProfileHomepage, domainmedia.ProfileDetail, domainmedia.ProfileSearch:
+		return s.advertDeliveryAllowed(ctx, assetID, viewer)
+	case domainmedia.ProfileBanner:
+		return s.bannerDeliveryAllowed(ctx, assetID, viewer)
+	default:
+		return false, nil
+	}
+}
+
+func (s *Service) advertDeliveryAllowed(ctx context.Context, assetID uuid.UUID, viewer PublicDeliveryViewer) (bool, error) {
+	rows, err := s.repo.FindAdvertMediaAccessByAsset(ctx, assetID)
+	if err != nil {
+		return false, err
+	}
+	isAdmin := viewer.UserID != uuid.Nil && viewer.Role == string(domainuser.RoleAdmin)
+	for _, row := range rows {
+		if row.DeletedAt != nil {
+			continue
+		}
+		if row.Status == "PUBLISHED" {
+			return true, nil
+		}
+		if isAdmin {
+			return true, nil
+		}
+		if viewer.UserID != uuid.Nil && viewer.UserID == row.OwnerUserID && ownerPreviewAdvertStatus(row.Status) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (s *Service) bannerDeliveryAllowed(ctx context.Context, assetID uuid.UUID, viewer PublicDeliveryViewer) (bool, error) {
+	rows, err := s.repo.FindBannerMediaAccessByAsset(ctx, assetID)
+	if err != nil {
+		return false, err
+	}
+	isAdmin := viewer.UserID != uuid.Nil && viewer.Role == string(domainuser.RoleAdmin)
+	now := s.clock.Now().UTC()
+	for _, row := range rows {
+		if domainbanner.Status(row.Status) == domainbanner.StatusActive && bannerPubliclyDisplayable(row, now) {
+			return true, nil
+		}
+		if isAdmin {
+			// BO preview: any attached banner asset, including inactive.
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// bannerPubliclyDisplayable applies the existing banner lifecycle rule: ACTIVE
+// status. StartsAt/EndsAt windows are not modeled on hrd_banners today; the
+// clock is accepted so a future window can plug in without changing callers.
+func bannerPubliclyDisplayable(_ domainmedia.BannerMediaAccess, _ time.Time) bool {
+	return true
+}
+
+func ownerPreviewAdvertStatus(status string) bool {
+	switch status {
+	case "DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED":
+		return true
+	default:
+		return false
+	}
 }
 
 // HeadPublicObject returns provider metadata for a resolved delivery key.

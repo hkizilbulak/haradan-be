@@ -2876,6 +2876,9 @@ type ServerInterface interface {
 	// GetPublicMedia GetPublicMedia
 	// (GET /v1/media/{assetId}/{profile})
 	GetPublicMedia(c *gin.Context, assetId AssetIdPath, profile MediaDeliveryProfile)
+	// HeadPublicMedia HeadPublicMedia
+	// (HEAD /v1/media/{assetId}/{profile})
+	HeadPublicMedia(c *gin.Context, assetId AssetIdPath, profile MediaDeliveryProfile)
 	// ListPublicPackages ListPublicPackages
 	// (GET /v1/packages)
 	ListPublicPackages(c *gin.Context)
@@ -5893,6 +5896,40 @@ func (siw *ServerInterfaceWrapper) GetPublicMedia(c *gin.Context) {
 	siw.Handler.GetPublicMedia(c, assetId, profile)
 }
 
+// HeadPublicMedia operation middleware
+func (siw *ServerInterfaceWrapper) HeadPublicMedia(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "assetId" -------------
+	var assetId AssetIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "assetId", c.Param("assetId"), &assetId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter assetId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "profile" -------------
+	var profile MediaDeliveryProfile
+
+	err = runtime.BindStyledParameterWithOptions("simple", "profile", c.Param("profile"), &profile, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter profile: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HeadPublicMedia(c, assetId, profile)
+}
+
 // ListPublicPackages operation middleware
 func (siw *ServerInterfaceWrapper) ListPublicPackages(c *gin.Context) {
 
@@ -6096,6 +6133,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/me/sessions", wrapper.ListMySessions)
 	router.DELETE(options.BaseURL+"/v1/me/sessions/:sessionId", wrapper.RevokeMySession)
 	router.GET(options.BaseURL+"/v1/media/:assetId/:profile", wrapper.GetPublicMedia)
+	router.HEAD(options.BaseURL+"/v1/media/:assetId/:profile", wrapper.HeadPublicMedia)
 	router.GET(options.BaseURL+"/v1/media/assets/:assetId", wrapper.GetMediaProcessingStatus)
 	router.POST(options.BaseURL+"/v1/media/assets/:assetId/confirm", wrapper.ConfirmMediaUpload)
 	router.POST(options.BaseURL+"/v1/media/uploads", wrapper.InitiateMediaUpload)

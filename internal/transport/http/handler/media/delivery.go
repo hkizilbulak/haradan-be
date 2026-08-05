@@ -10,27 +10,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domainauth "github.com/hkizilbulak/haradan-be/internal/domain/auth"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
+	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authctx"
+	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authn"
 )
-
-// DeliverPublicMedia handles anonymous GET|HEAD /v1/media/{assetId}/{profile}.
-//
-// Range requests are intentionally not implemented yet; clients receive the
-// full object. Object keys and storage credentials never appear in responses.
-func (h *Handler) DeliverPublicMedia(c *gin.Context) {
-	assetID, err := uuid.Parse(strings.TrimSpace(c.Param("assetId")))
-	if err != nil || assetID == uuid.Nil {
-		h.respond(c, h.logger, apperr.NotFound(assetNotFoundPublic))
-		return
-	}
-	profile := strings.TrimSpace(c.Param("profile"))
-	h.deliverPublicMedia(c, assetID, profile)
-}
 
 // GetPublicMedia handles OpenAPI GET /v1/media/{assetId}/{profile}.
 func (h *Handler) GetPublicMedia(c *gin.Context, assetID generated.AssetIdPath, profile generated.MediaDeliveryProfile) {
+	h.deliverPublicMedia(c, assetID, string(profile))
+}
+
+// HeadPublicMedia handles OpenAPI HEAD /v1/media/{assetId}/{profile}.
+func (h *Handler) HeadPublicMedia(c *gin.Context, assetID generated.AssetIdPath, profile generated.MediaDeliveryProfile) {
 	h.deliverPublicMedia(c, assetID, string(profile))
 }
 
@@ -40,7 +35,8 @@ func (h *Handler) deliverPublicMedia(c *gin.Context, assetID uuid.UUID, profile 
 		return
 	}
 
-	delivery, err := h.svc.ResolvePublicDelivery(c.Request.Context(), assetID, profile)
+	viewer := h.resolvePublicDeliveryViewer(c)
+	delivery, err := h.svc.ResolvePublicDelivery(c.Request.Context(), assetID, profile, viewer)
 	if err != nil {
 		h.respond(c, h.logger, err)
 		return
@@ -117,6 +113,30 @@ func (h *Handler) deliverPublicMedia(c *gin.Context, assetID uuid.UUID, profile 
 }
 
 const assetNotFoundPublic = "Görsel bulunamadı."
+
+// resolvePublicDeliveryViewer soft-authenticates an optional Bearer token.
+// Absent or invalid tokens stay anonymous (enumeration-safe; never 401 here).
+func (h *Handler) resolvePublicDeliveryViewer(c *gin.Context) appmedia.PublicDeliveryViewer {
+	if p, ok := authctx.PrincipalFromContext(c.Request.Context()); ok {
+		return appmedia.PublicDeliveryViewer{UserID: p.UserID, Role: p.Role}
+	}
+	if h.auth == nil {
+		return appmedia.PublicDeliveryViewer{}
+	}
+	tok, ok := authn.ExtractBearer(c.GetHeader("Authorization"))
+	if !ok {
+		return appmedia.PublicDeliveryViewer{}
+	}
+	principal, err := h.auth.AuthenticateAccessToken(c.Request.Context(), tok)
+	if err != nil {
+		return appmedia.PublicDeliveryViewer{}
+	}
+	return viewerFromPrincipal(principal)
+}
+
+func viewerFromPrincipal(p domainauth.Principal) appmedia.PublicDeliveryViewer {
+	return appmedia.PublicDeliveryViewer{UserID: p.UserID, Role: p.Role}
+}
 
 func checkNotModified(r *http.Request, etag string, lastMod time.Time) bool {
 	if etag != "" {

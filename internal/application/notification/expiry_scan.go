@@ -83,14 +83,25 @@ func NewExpiryScanService(cfg ExpiryScanConfig) (*ExpiryScanService, error) {
 // invocation (no offset/cursor in the payload) also expires assignments whose
 // ends_at has passed and deactivates any URGENT feature they were carrying,
 // before dispatching the 5D/1D reminder scans.
+//
+// Optional payload.referenceDate (YYYY-MM-DD) sets the logical "today" used for
+// PackageExpiryTargetDay / scanOffset only. ExpireDueAssignments always uses
+// the real clock so historical backfills cannot reverse-expire or reactivate.
 func (s *ExpiryScanService) ProcessExpiryScan(ctx context.Context, payload json.RawMessage) error {
 	var in struct {
 		Offset            string `json:"offset"`
 		AfterAssignmentID string `json:"afterAssignmentId,omitempty"`
+		ReferenceDate     string `json:"referenceDate,omitempty"`
 	}
 	if len(payload) > 0 {
 		_ = json.Unmarshal(payload, &in)
 	}
+
+	logicalToday, refDateStr, err := s.resolveLogicalToday(in.ReferenceDate)
+	if err != nil {
+		return err
+	}
+
 	offset := domainnotification.PackageExpiryDayOffset(in.Offset)
 	if !offset.Valid() {
 		if err := s.ExpireDueAssignments(ctx); err != nil {
@@ -100,7 +111,7 @@ func (s *ExpiryScanService) ProcessExpiryScan(ctx context.Context, payload json.
 			domainnotification.PackageExpiryDayOffset5D,
 			domainnotification.PackageExpiryDayOffset1D,
 		} {
-			if err := s.scanOffset(ctx, off, nil); err != nil {
+			if err := s.scanOffset(ctx, off, nil, logicalToday, refDateStr); err != nil {
 				return err
 			}
 		}
@@ -114,7 +125,22 @@ func (s *ExpiryScanService) ProcessExpiryScan(ctx context.Context, payload json.
 		}
 		after = &id
 	}
-	return s.scanOffset(ctx, offset, after)
+	return s.scanOffset(ctx, offset, after, logicalToday, refDateStr)
+}
+
+func (s *ExpiryScanService) resolveLogicalToday(referenceDate string) (time.Time, *string, error) {
+	raw := strings.TrimSpace(referenceDate)
+	if raw == "" {
+		now := s.clock.Now().In(s.loc)
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, s.loc)
+		return today, nil, nil
+	}
+	parsed, err := time.ParseInLocation("2006-01-02", raw, s.loc)
+	if err != nil {
+		return time.Time{}, nil, fmt.Errorf("invalid referenceDate")
+	}
+	formatted := parsed.Format("2006-01-02")
+	return parsed, &formatted, nil
 }
 
 // ExpireDueAssignments expires ACTIVE assignments whose ends_at has passed and
@@ -162,9 +188,14 @@ func (s *ExpiryScanService) expireDueAssignmentsBatch(ctx context.Context, now t
 	return len(assignments), nil
 }
 
-func (s *ExpiryScanService) scanOffset(ctx context.Context, offset domainnotification.PackageExpiryDayOffset, after *uuid.UUID) error {
-	now := s.clock.Now().UTC()
-	targetDay := domainnotification.PackageExpiryTargetDay(now, s.loc, offset)
+func (s *ExpiryScanService) scanOffset(
+	ctx context.Context,
+	offset domainnotification.PackageExpiryDayOffset,
+	after *uuid.UUID,
+	logicalToday time.Time,
+	refDateStr *string,
+) error {
+	targetDay := domainnotification.PackageExpiryTargetDay(logicalToday, s.loc, offset)
 	assignments, err := s.repo.ListAssignmentsExpiringOnLocalDay(ctx, targetDay, s.loc, after, s.batchSize+1)
 	if err != nil {
 		return err
@@ -209,10 +240,14 @@ func (s *ExpiryScanService) scanOffset(ctx context.Context, offset domainnotific
 
 	if hasMore {
 		last := assignments[len(assignments)-1]
-		contPayload, err := json.Marshal(map[string]string{
+		cont := map[string]string{
 			"offset":            string(offset),
 			"afterAssignmentId": last.ID.String(),
-		})
+		}
+		if refDateStr != nil {
+			cont["referenceDate"] = *refDateStr
+		}
+		contPayload, err := json.Marshal(cont)
 		if err != nil {
 			return err
 		}

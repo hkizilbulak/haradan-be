@@ -78,22 +78,13 @@ func (s *Server) WithTJKService(svc *apptjk.Service) *Server {
 	return s
 }
 
-// WithPublicMediaDelivery wires anonymous GET|HEAD /v1/media/{assetId}/{profile}.
+// WithPublicMediaDelivery wires GET|HEAD /v1/media/{assetId}/{profile}.
 // The media handler is already constructed in NewServer when mediaSvc is non-nil.
 func (s *Server) WithPublicMediaDelivery(svc *appmedia.Service) *Server {
 	if svc != nil && s.media == nil {
 		s.media = mediahandler.NewHandler(svc, s.logger, respondError)
 	}
 	return s
-}
-
-// DeliverPublicMedia handles anonymous public media streaming (HEAD outside OpenAPI).
-func (s *Server) DeliverPublicMedia(c *gin.Context) {
-	if s.media == nil {
-		respondNotImplemented(c)
-		return
-	}
-	s.media.DeliverPublicMedia(c)
 }
 
 // GetPublicMedia implements OpenAPI GET /v1/media/{assetId}/{profile}.
@@ -103,6 +94,15 @@ func (s *Server) GetPublicMedia(c *gin.Context, assetId generated.AssetIdPath, p
 		return
 	}
 	s.media.GetPublicMedia(c, assetId, profile)
+}
+
+// HeadPublicMedia implements OpenAPI HEAD /v1/media/{assetId}/{profile}.
+func (s *Server) HeadPublicMedia(c *gin.Context, assetId generated.AssetIdPath, profile generated.MediaDeliveryProfile) {
+	if s.media == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.media.HeadPublicMedia(c, assetId, profile)
 }
 
 // WithEmailTemplateDiscovery wires Resend provider template discovery.
@@ -192,6 +192,9 @@ func NewServer(
 	if authSvc != nil {
 		s.auth = authhandler.NewHandler(authSvc, logger, respondError)
 		s.account = accounthandler.NewHandler(authSvc, logger, respondError)
+		if s.media != nil {
+			s.media.WithAccessAuthenticator(authSvc)
+		}
 	}
 	return s
 }

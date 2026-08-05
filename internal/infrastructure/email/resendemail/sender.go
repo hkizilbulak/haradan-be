@@ -86,21 +86,23 @@ func formatFromHeader(name, email string) string {
 }
 
 // SendRegistrationVerification delivers the welcome/verification template email.
-// Variables: fullName (optional empty), verificationUrl. Fails closed when the
-// welcome template id is unset rather than reusing the reset-password template.
-func (s *Sender) SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken string) error {
-	return s.sendAuthTemplate(ctx, toEmail, plaintextToken, s.welcomeTemplateID, "verificationUrl", "/verify-email")
+// Variables: verificationUrl; fullName only when non-empty after trim. Fails
+// closed when the welcome template id is unset rather than reusing the
+// reset-password template.
+func (s *Sender) SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken, fullName string) error {
+	return s.sendAuthTemplate(ctx, toEmail, plaintextToken, fullName, s.welcomeTemplateID, "verificationUrl", "/verify-email")
 }
 
-// SendPasswordReset delivers the reset-password template. Variables: fullName
-// (optional empty), resetUrl. Never reuses the registration/welcome template.
-func (s *Sender) SendPasswordReset(ctx context.Context, toEmail, plaintextToken string) error {
-	return s.sendAuthTemplate(ctx, toEmail, plaintextToken, s.resetPasswordTemplateID, "resetUrl", "/reset-password")
+// SendPasswordReset delivers the reset-password template. Variables: resetUrl;
+// fullName only when non-empty after trim. Never reuses the registration/welcome
+// template.
+func (s *Sender) SendPasswordReset(ctx context.Context, toEmail, plaintextToken, fullName string) error {
+	return s.sendAuthTemplate(ctx, toEmail, plaintextToken, fullName, s.resetPasswordTemplateID, "resetUrl", "/reset-password")
 }
 
 func (s *Sender) sendAuthTemplate(
 	ctx context.Context,
-	toEmail, plaintextToken, templateID, urlVar, path string,
+	toEmail, plaintextToken, fullName, templateID, urlVar, path string,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -131,10 +133,12 @@ func (s *Sender) sendAuthTemplate(
 	}
 
 	variables := map[string]any{
-		"fullName":       "",
 		urlVar:           link,
 		"frontendUrl":    s.frontendURL,
 		"recipientEmail": recipient,
+	}
+	if name := strings.TrimSpace(fullName); name != "" {
+		variables["fullName"] = name
 	}
 	// Keep the raw token available for templates that still expect it.
 	if urlVar == "verificationUrl" {

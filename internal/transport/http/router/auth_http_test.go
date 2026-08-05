@@ -191,7 +191,7 @@ func TestAuthVerifyAndResendHTTP(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	var lastToken string
 	var mu sync.Mutex
-	sender := appauth.EmailSenderFunc(func(_ context.Context, _, plaintext string) error {
+	sender := appauth.EmailSenderFunc(func(_ context.Context, _, plaintext, _ string) error {
 		mu.Lock()
 		lastToken = plaintext
 		mu.Unlock()

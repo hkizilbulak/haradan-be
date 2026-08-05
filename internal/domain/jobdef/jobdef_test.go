@@ -42,6 +42,29 @@ func TestParseCronScheduleAcceptsSeedExpressions(t *testing.T) {
 	}
 }
 
+func TestNextRunAtActiveOnly(t *testing.T) {
+	t.Parallel()
+	loc := domainjobdef.Istanbul()
+	now := time.Date(2026, 8, 5, 8, 0, 0, 0, loc)
+	active := domainjobdef.JobDefinition{
+		IsActive: true, CronExpression: "0 0 9 * * *",
+	}
+	next := domainjobdef.NextRunAt(active, now)
+	if next == nil {
+		t.Fatal("expected next run")
+	}
+	want := time.Date(2026, 8, 5, 9, 0, 0, 0, loc).UTC()
+	if !next.Equal(want) {
+		t.Fatalf("got %v want %v", next, want)
+	}
+
+	inactive := active
+	inactive.IsActive = false
+	if domainjobdef.NextRunAt(inactive, now) != nil {
+		t.Fatal("inactive must yield nil nextRun")
+	}
+}
+
 func TestScheduledOccurrenceDedupKey(t *testing.T) {
 	t.Parallel()
 	loc := domainjobdef.Istanbul()

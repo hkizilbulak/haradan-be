@@ -235,7 +235,10 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("notification inbox service: %w", err)
 	}
-	tjkSvc, err := apptjk.NewService(pgtjk.NewRepository(db.Pool()))
+	tjkSvc, err := apptjk.NewService(apptjk.Config{
+		Repo:    pgtjk.NewRepository(db.Pool()),
+		Enabled: cfg.TJKEnabled,
+	})
 	if err != nil {
 		return fmt.Errorf("TJK service: %w", err)
 	}

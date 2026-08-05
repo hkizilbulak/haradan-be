@@ -172,6 +172,7 @@ func run() error {
 		PollInterval:          cfg.WorkerPollInterval,
 		LeaseDuration:         cfg.WorkerLeaseDuration,
 		JobTimeout:            cfg.WorkerJobTimeout,
+		MaxJobTimeout:         cfg.WorkerMaxJobTimeout,
 		ShutdownTimeout:       cfg.WorkerShutdownTimeout,
 		RetryBaseDelay:        cfg.WorkerRetryBaseDelay,
 		RetryMaxDelay:         cfg.WorkerRetryMaxDelay,

@@ -163,7 +163,7 @@ func (h *Handler) requireAdminBO(c *gin.Context) (uuid.UUID, bool) {
 }
 
 func mapJobView(v domainjobdef.JobDefinition) generated.JobAdminView {
-	return generated.JobAdminView{
+	out := generated.JobAdminView{
 		Id:                    v.ID,
 		Key:                   v.JobKey,
 		Name:                  v.Name,
@@ -176,7 +176,15 @@ func mapJobView(v domainjobdef.JobDefinition) generated.JobAdminView {
 		Version:               v.Version,
 		CreatedAt:             v.CreatedAt,
 		UpdatedAt:             v.UpdatedAt,
+		LastRunAt:             v.LastRunAt,
+		LastDurationMs:        v.LastDurationMs,
+		NextRunAt:             v.NextRunAt,
 	}
+	if v.LastStatus != nil {
+		st := generated.JobRunStatus(*v.LastStatus)
+		out.LastStatus = &st
+	}
+	return out
 }
 
 func mapHistoryItem(jobID uuid.UUID, v domainjobdef.JobExecution) generated.JobHistoryItem {

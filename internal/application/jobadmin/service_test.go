@@ -90,6 +90,60 @@ func TestListAndGetRequireAdmin(t *testing.T) {
 	}
 }
 
+func TestListJobsEnrichesLastRunAndNextRun(t *testing.T) {
+	store := appjobadmin.NewMemoryStore()
+	def := seedDef(store, nil)
+	inactive := seedDef(store, func(d *domainjobdef.JobDefinition) {
+		d.ID = uuid.New()
+		d.JobKey = "MEDIA_RECONCILE"
+		d.JobType = domainjobdef.JobTypeMediaReconcile
+		d.IsActive = false
+		d.SupportsReferenceDate = false
+	})
+	admin := seedAdmin(store)
+	started := time.Date(2026, 8, 4, 9, 0, 0, 0, time.UTC)
+	completed := started.Add(2 * time.Second)
+	defID := def.ID
+	store.SeedExecution(domainjobdef.JobExecution{
+		ID: uuid.New(), JobDefinitionID: &defID, Status: "SUCCEEDED",
+		StartedAt: &started, CompletedAt: &completed,
+		CreatedAt: started, UpdatedAt: completed,
+	})
+
+	svc := newSvc(t, store, appjobadmin.ProviderCapabilities{B2Enabled: true})
+	list, err := svc.ListJobs(context.Background(), admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byKey := map[string]domainjobdef.JobDefinition{}
+	for _, item := range list {
+		byKey[item.JobKey] = item
+	}
+	active := byKey[def.JobKey]
+	if active.LastRunAt == nil || !active.LastRunAt.Equal(started) {
+		t.Fatalf("lastRunAt=%v", active.LastRunAt)
+	}
+	if active.LastStatus == nil || *active.LastStatus != "SUCCEEDED" {
+		t.Fatalf("lastStatus=%v", active.LastStatus)
+	}
+	if active.LastDurationMs == nil || *active.LastDurationMs != 2000 {
+		t.Fatalf("lastDurationMs=%v", active.LastDurationMs)
+	}
+	if active.NextRunAt == nil {
+		t.Fatal("expected nextRunAt for active job")
+	}
+	// Clock is 2026-08-05 12:00 UTC = 15:00 Istanbul → next daily 09:00 Istanbul is Aug 6.
+	wantNext := time.Date(2026, 8, 6, 9, 0, 0, 0, domainjobdef.Istanbul()).UTC()
+	if !active.NextRunAt.Equal(wantNext) {
+		t.Fatalf("nextRunAt=%v want %v", active.NextRunAt, wantNext)
+	}
+
+	off := byKey[inactive.JobKey]
+	if off.NextRunAt != nil || off.LastRunAt != nil {
+		t.Fatalf("inactive never-run should have null last/next: %#v", off)
+	}
+}
+
 func TestUpdateOptimisticConflictAndCronValidation(t *testing.T) {
 	store := appjobadmin.NewMemoryStore()
 	def := seedDef(store, nil)
@@ -278,6 +332,9 @@ func (r *historySecretRepo) ListHistory(ctx context.Context, definitionID uuid.U
 		rows[0].LastError = &sec
 	}
 	return rows, nil
+}
+func (r *historySecretRepo) ListLastRuns(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]domainjobdef.LastRunSummary, error) {
+	return r.inner.ListLastRuns(ctx, ids)
 }
 
 func intPtr(v int) *int { return &v }

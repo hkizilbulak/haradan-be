@@ -113,7 +113,7 @@ func TestSendRegistrationVerificationSuccessContract(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	if err := sender.SendRegistrationVerification(ctx, "  "+testRecipient+"  ", testToken); err != nil {
+	if err := sender.SendRegistrationVerification(ctx, "  "+testRecipient+"  ", testToken, "Ada Lovelace"); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 
@@ -151,8 +151,91 @@ func TestSendRegistrationVerificationSuccessContract(t *testing.T) {
 	if vars["frontendUrl"] != testFrontendURL {
 		t.Fatalf("frontendUrl=%v", vars["frontendUrl"])
 	}
-	if _, ok := vars["fullName"]; !ok {
-		t.Fatal("fullName variable missing")
+	if vars["fullName"] != "Ada Lovelace" {
+		t.Fatalf("fullName=%v", vars["fullName"])
+	}
+}
+
+func TestSendOmitsEmptyFullName(t *testing.T) {
+	t.Parallel()
+
+	var gotBody map[string]any
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"msg_test"}`))
+	}))
+	defer srv.Close()
+
+	sender, err := New(testConfig(srv.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := srv.Client()
+	client.Timeout = sender.client.http.(*http.Client).Timeout
+	client.CheckRedirect = sender.client.http.(*http.Client).CheckRedirect
+	sender.client.http = client
+
+	if err := sender.SendRegistrationVerification(context.Background(), testRecipient, testToken, "  "); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	tmpl, ok := gotBody["template"].(map[string]any)
+	if !ok {
+		t.Fatalf("template=%v", gotBody["template"])
+	}
+	vars, ok := tmpl["variables"].(map[string]any)
+	if !ok {
+		t.Fatalf("variables=%v", tmpl["variables"])
+	}
+	if _, present := vars["fullName"]; present {
+		t.Fatalf("empty fullName must be omitted, got %v", vars["fullName"])
+	}
+	if vars["verificationUrl"] != testFrontendURL+"/verify-email?token="+testToken {
+		t.Fatalf("verificationUrl=%v", vars["verificationUrl"])
+	}
+}
+
+func TestSendPasswordResetVariablesOmitEmptyFullName(t *testing.T) {
+	t.Parallel()
+
+	var gotBody map[string]any
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"msg_reset"}`))
+	}))
+	defer srv.Close()
+
+	sender, err := New(testConfig(srv.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := srv.Client()
+	client.Timeout = sender.client.http.(*http.Client).Timeout
+	client.CheckRedirect = sender.client.http.(*http.Client).CheckRedirect
+	sender.client.http = client
+
+	if err := sender.SendPasswordReset(context.Background(), testRecipient, testToken, ""); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	tmpl, ok := gotBody["template"].(map[string]any)
+	if !ok {
+		t.Fatalf("template=%v", gotBody["template"])
+	}
+	vars, ok := tmpl["variables"].(map[string]any)
+	if !ok {
+		t.Fatalf("variables=%v", tmpl["variables"])
+	}
+	if _, present := vars["fullName"]; present {
+		t.Fatalf("empty fullName must be omitted, got %v", vars["fullName"])
+	}
+	if vars["resetUrl"] != testFrontendURL+"/reset-password?token="+testToken {
+		t.Fatalf("resetUrl=%v", vars["resetUrl"])
+	}
+	if vars["resetToken"] != testToken {
+		t.Fatalf("resetToken mismatch")
 	}
 }
 
@@ -188,7 +271,7 @@ func TestSendRejectsInvalidRecipientsAndToken(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			err := sender.SendRegistrationVerification(context.Background(), tc.email, tc.token)
+			err := sender.SendRegistrationVerification(context.Background(), tc.email, tc.token, "")
 			ae, ok := apperr.As(err)
 			if !ok || ae.Kind != apperr.KindValidation {
 				t.Fatalf("err=%v", err)
@@ -228,7 +311,7 @@ func TestSendMapsProviderStatuses(t *testing.T) {
 			}
 			sender.client.http = srv.Client()
 
-			err = sender.SendRegistrationVerification(context.Background(), testRecipient, testToken)
+			err = sender.SendRegistrationVerification(context.Background(), testRecipient, testToken, "")
 			ae, ok := apperr.As(err)
 			if !ok || ae.Code != apperr.CodeDependencyUnavailable {
 				t.Fatalf("err=%v", err)
@@ -258,7 +341,7 @@ func TestSendContextCanceledAndDeadline(t *testing.T) {
 
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	err = sender.SendRegistrationVerification(canceled, testRecipient, testToken)
+	err = sender.SendRegistrationVerification(canceled, testRecipient, testToken, "")
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled err=%v", err)
 	}
@@ -266,7 +349,7 @@ func TestSendContextCanceledAndDeadline(t *testing.T) {
 	deadline, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
 	defer cancel()
 	time.Sleep(time.Millisecond)
-	err = sender.SendRegistrationVerification(deadline, testRecipient, testToken)
+	err = sender.SendRegistrationVerification(deadline, testRecipient, testToken, "")
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("deadline err=%v", err)
 	}
@@ -284,7 +367,7 @@ func TestSendNetworkError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = sender.SendRegistrationVerification(context.Background(), testRecipient, testToken)
+	err = sender.SendRegistrationVerification(context.Background(), testRecipient, testToken, "")
 	ae, ok := apperr.As(err)
 	if !ok || ae.Code != apperr.CodeDependencyUnavailable {
 		t.Fatalf("err=%v", err)
@@ -308,7 +391,7 @@ func TestSendAcceptsNonOK2xx(t *testing.T) {
 		t.Fatal(err)
 	}
 	sender.client.http = srv.Client()
-	if err := sender.SendRegistrationVerification(context.Background(), testRecipient, testToken); err != nil {
+	if err := sender.SendRegistrationVerification(context.Background(), testRecipient, testToken, ""); err != nil {
 		t.Fatalf("202 should succeed: %v", err)
 	}
 }
@@ -333,7 +416,7 @@ func TestSendLargeErrorBodyLimited(t *testing.T) {
 		t.Fatal(err)
 	}
 	sender.client.http = srv.Client()
-	err = sender.SendRegistrationVerification(context.Background(), testRecipient, testToken)
+	err = sender.SendRegistrationVerification(context.Background(), testRecipient, testToken, "")
 	ae, ok := apperr.As(err)
 	if !ok || ae.Code != apperr.CodeDependencyUnavailable {
 		t.Fatalf("err=%v", err)
@@ -368,7 +451,7 @@ func TestSendDoesNotFollowRedirectWithCredentials(t *testing.T) {
 	client.CheckRedirect = sender.client.http.(*http.Client).CheckRedirect
 	sender.client.http = client
 
-	err = sender.SendRegistrationVerification(context.Background(), testRecipient, testToken)
+	err = sender.SendRegistrationVerification(context.Background(), testRecipient, testToken, "")
 	ae, ok := apperr.As(err)
 	if !ok || ae.Code != apperr.CodeDependencyUnavailable {
 		t.Fatalf("err=%v", err)
@@ -396,7 +479,7 @@ func TestSendReusesHTTPClient(t *testing.T) {
 	sender.client.http = client
 
 	for i := 0; i < 3; i++ {
-		if err := sender.SendRegistrationVerification(context.Background(), testRecipient, testToken); err != nil {
+		if err := sender.SendRegistrationVerification(context.Background(), testRecipient, testToken, ""); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -39,6 +39,14 @@ type MemoryAdvert struct {
 	DeletedAt    *time.Time
 }
 
+// MemoryBanner is the banner state media public delivery needs for attachment
+// checks (status ACTIVE/INACTIVE).
+type MemoryBanner struct {
+	ID      uuid.UUID
+	AssetID uuid.UUID
+	Status  string
+}
+
 // MemoryStore holds in-memory media state for tests.
 type MemoryStore struct {
 	mu   sync.Mutex
@@ -48,6 +56,7 @@ type MemoryStore struct {
 	variants  map[uuid.UUID]map[string]domainmedia.Variant
 	relations map[uuid.UUID][]domainmedia.AdvertMediaRelation
 	adverts   map[uuid.UUID]MemoryAdvert
+	banners   map[uuid.UUID]MemoryBanner
 	jobs      []domainmedia.BackgroundJob
 	dedup     map[string]struct{}
 }
@@ -59,6 +68,7 @@ func NewMemoryStore() *MemoryStore {
 		variants:  map[uuid.UUID]map[string]domainmedia.Variant{},
 		relations: map[uuid.UUID][]domainmedia.AdvertMediaRelation{},
 		adverts:   map[uuid.UUID]MemoryAdvert{},
+		banners:   map[uuid.UUID]MemoryBanner{},
 		dedup:     map[string]struct{}{},
 	}
 }
@@ -91,6 +101,13 @@ func (s *MemoryStore) Advert(id uuid.UUID) (MemoryAdvert, bool) {
 	defer s.mu.Unlock()
 	a, ok := s.adverts[id]
 	return a, ok
+}
+
+// PutBanner seeds or replaces a banner attachment used by public delivery tests.
+func (s *MemoryStore) PutBanner(b MemoryBanner) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.banners[b.ID] = b
 }
 
 // PutVariant seeds or replaces a variant.
@@ -449,6 +466,44 @@ func (r MemoryRepository) CountAdvertMediaByAdvert(_ context.Context, advertID u
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 	return len(r.store.relations[advertID]), nil
+}
+
+// FindAdvertMediaAccessByAsset returns advert attachment rows for public delivery.
+func (r MemoryRepository) FindAdvertMediaAccessByAsset(_ context.Context, assetID uuid.UUID) ([]AdvertMediaAccess, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	var out []AdvertMediaAccess
+	for advertID, relations := range r.store.relations {
+		for _, rel := range relations {
+			if rel.AssetID != assetID {
+				continue
+			}
+			advert, ok := r.store.adverts[advertID]
+			if !ok {
+				continue
+			}
+			out = append(out, AdvertMediaAccess{
+				OwnerUserID: advert.OwnerUserID,
+				Status:      advert.Status,
+				DeletedAt:   advert.DeletedAt,
+			})
+		}
+	}
+	return out, nil
+}
+
+// FindBannerMediaAccessByAsset returns banner attachment rows for public delivery.
+func (r MemoryRepository) FindBannerMediaAccessByAsset(_ context.Context, assetID uuid.UUID) ([]BannerMediaAccess, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	var out []BannerMediaAccess
+	for _, b := range r.store.banners {
+		if b.AssetID != assetID {
+			continue
+		}
+		out = append(out, BannerMediaAccess{Status: b.Status})
+	}
+	return out, nil
 }
 
 // AttachAdvertMedia inserts a relation, rejecting a duplicate asset or a taken

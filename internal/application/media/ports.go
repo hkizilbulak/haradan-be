@@ -109,8 +109,10 @@ type ImageProcessor interface {
 // aliases rather than local structs so the postgres repository can satisfy this
 // interface without importing the application package.
 type (
-	AdvertRef   = domainmedia.AdvertRef
-	RelationRow = domainmedia.RelationWithAsset
+	AdvertRef         = domainmedia.AdvertRef
+	RelationRow       = domainmedia.RelationWithAsset
+	AdvertMediaAccess = domainmedia.AdvertMediaAccess
+	BannerMediaAccess = domainmedia.BannerMediaAccess
 )
 
 // Repository persists media assets, variants, advert relations and the durable
@@ -192,6 +194,13 @@ type Repository interface {
 	ListAdvertMediaByAdvert(ctx context.Context, advertID uuid.UUID) ([]RelationRow, error)
 	CountAdvertMediaByAdvert(ctx context.Context, advertID uuid.UUID) (int, error)
 	AttachAdvertMedia(ctx context.Context, rel domainmedia.AdvertMediaRelation) error
+
+	// FindAdvertMediaAccessByAsset returns advert attachment rows for public
+	// delivery authorization (indexed by hrd_advert_media.asset_id).
+	FindAdvertMediaAccessByAsset(ctx context.Context, assetID uuid.UUID) ([]AdvertMediaAccess, error)
+	// FindBannerMediaAccessByAsset returns banner attachment rows for public
+	// delivery authorization (indexed by hrd_banners.asset_id).
+	FindBannerMediaAccessByAsset(ctx context.Context, assetID uuid.UUID) ([]BannerMediaAccess, error)
 
 	// DetachAdvertMedia removes the relation and reports whether a row was
 	// removed and whether that row was the cover.

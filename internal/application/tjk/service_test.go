@@ -36,7 +36,7 @@ func (*fakeRepo) SetItemErrorStatus(context.Context, uuid.UUID, string, time.Tim
 
 func TestTriggerCreatesManualQueuedRun(t *testing.T) {
 	repo := &fakeRepo{}
-	svc, _ := NewService(repo)
+	svc, _ := NewService(Config{Repo: repo, Enabled: true})
 	now := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	svc.now = func() time.Time { return now }
 	out, err := svc.Trigger(context.Background(), uuid.New(), "full", "TJK_HTTP")
@@ -50,8 +50,28 @@ func TestTriggerCreatesManualQueuedRun(t *testing.T) {
 		t.Fatalf("checkpoint = %s", out.Checkpoint)
 	}
 }
+
+func TestTriggerDisabledDoesNotEnqueue(t *testing.T) {
+	repo := &fakeRepo{}
+	svc, err := NewService(Config{Repo: repo, Enabled: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.Trigger(context.Background(), uuid.New(), "FULL", "TJK_HTTP")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	ae, ok := apperr.As(err)
+	if !ok || ae.Kind != apperr.KindDependencyUnavailable {
+		t.Fatalf("got %#v", err)
+	}
+	if repo.enqueued || repo.created.ID != uuid.Nil {
+		t.Fatalf("disabled Trigger must not CreateRun/Enqueue: created=%#v enqueued=%v", repo.created, repo.enqueued)
+	}
+}
+
 func TestTriggerRejectsUnknownAdapter(t *testing.T) {
-	svc, _ := NewService(&fakeRepo{})
+	svc, _ := NewService(Config{Repo: &fakeRepo{}, Enabled: true})
 	_, err := svc.Trigger(context.Background(), uuid.New(), "FULL", "OTHER")
 	if err == nil {
 		t.Fatal("expected error")

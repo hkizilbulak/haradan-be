@@ -73,7 +73,11 @@ func (s *Service) ListJobs(ctx context.Context, actorUserID uuid.UUID) ([]domain
 	if err := s.requireAdmin(ctx, actorUserID); err != nil {
 		return nil, err
 	}
-	return s.repo.ListDefinitions(ctx)
+	defs, err := s.repo.ListDefinitions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.enrichDefinitions(ctx, defs)
 }
 
 // GetJob returns one job definition (ACTIVE ADMIN).
@@ -81,7 +85,15 @@ func (s *Service) GetJob(ctx context.Context, actorUserID, id uuid.UUID) (domain
 	if err := s.requireAdmin(ctx, actorUserID); err != nil {
 		return domainjobdef.JobDefinition{}, err
 	}
-	return s.repo.GetDefinition(ctx, id)
+	def, err := s.repo.GetDefinition(ctx, id)
+	if err != nil {
+		return domainjobdef.JobDefinition{}, err
+	}
+	out, err := s.enrichDefinitions(ctx, []domainjobdef.JobDefinition{def})
+	if err != nil {
+		return domainjobdef.JobDefinition{}, err
+	}
+	return out[0], nil
 }
 
 // UpdateJobInput is the optimistic patch for a job definition.
@@ -130,7 +142,15 @@ func (s *Service) UpdateJob(ctx context.Context, in UpdateJobInput) (domainjobde
 		current.TimeoutSeconds = *in.TimeoutSeconds
 	}
 	current.UpdatedAt = s.clock.Now().UTC()
-	return s.repo.UpdateDefinitionOptimistic(ctx, current, in.ExpectedVersion)
+	updated, err := s.repo.UpdateDefinitionOptimistic(ctx, current, in.ExpectedVersion)
+	if err != nil {
+		return domainjobdef.JobDefinition{}, err
+	}
+	out, err := s.enrichDefinitions(ctx, []domainjobdef.JobDefinition{updated})
+	if err != nil {
+		return domainjobdef.JobDefinition{}, err
+	}
+	return out[0], nil
 }
 
 // RunJobInput is a manual job trigger request.
@@ -269,6 +289,32 @@ func (s *Service) requireAdmin(ctx context.Context, actorUserID uuid.UUID) error
 		return apperr.Forbidden(apperr.CodeForbidden, forbiddenMessage)
 	}
 	return nil
+}
+
+func (s *Service) enrichDefinitions(ctx context.Context, defs []domainjobdef.JobDefinition) ([]domainjobdef.JobDefinition, error) {
+	if len(defs) == 0 {
+		return defs, nil
+	}
+	ids := make([]uuid.UUID, len(defs))
+	for i := range defs {
+		ids[i] = defs[i].ID
+	}
+	lastRuns, err := s.repo.ListLastRuns(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	now := s.clock.Now()
+	for i := range defs {
+		if lr, ok := lastRuns[defs[i].ID]; ok {
+			at := lr.LastRunAt
+			status := lr.LastStatus
+			defs[i].LastRunAt = &at
+			defs[i].LastStatus = &status
+			defs[i].LastDurationMs = lr.LastDurationMs
+		}
+		defs[i].NextRunAt = domainjobdef.NextRunAt(defs[i], now)
+	}
+	return defs, nil
 }
 
 func parseReferenceDate(v string, loc *time.Location) (time.Time, error) {

@@ -134,6 +134,47 @@ func (m *MemoryStore) ListHistory(_ context.Context, definitionID uuid.UUID, f H
 	return out, nil
 }
 
+// ListLastRuns returns the latest linked background job per definition (batch).
+func (m *MemoryStore) ListLastRuns(_ context.Context, definitionIDs []uuid.UUID) (map[uuid.UUID]domainjobdef.LastRunSummary, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	wanted := make(map[uuid.UUID]struct{}, len(definitionIDs))
+	for _, id := range definitionIDs {
+		wanted[id] = struct{}{}
+	}
+	out := make(map[uuid.UUID]domainjobdef.LastRunSummary)
+	for _, h := range m.history {
+		if h.JobDefinitionID == nil {
+			continue
+		}
+		defID := *h.JobDefinitionID
+		if _, ok := wanted[defID]; !ok {
+			continue
+		}
+		if _, seen := out[defID]; seen {
+			continue
+		}
+		runAt := h.CreatedAt
+		if h.StartedAt != nil {
+			runAt = *h.StartedAt
+		}
+		summary := domainjobdef.LastRunSummary{
+			DefinitionID: defID,
+			LastRunAt:    runAt,
+			LastStatus:   h.Status,
+		}
+		if h.StartedAt != nil && h.CompletedAt != nil {
+			ms := int(h.CompletedAt.Sub(*h.StartedAt).Milliseconds())
+			if ms < 0 {
+				ms = 0
+			}
+			summary.LastDurationMs = &ms
+		}
+		out[defID] = summary
+	}
+	return out, nil
+}
+
 // Enqueue implements Repository.
 func (m *MemoryStore) Enqueue(_ context.Context, req EnqueueRequest) (EnqueueResult, error) {
 	m.mu.Lock()
@@ -171,6 +212,13 @@ func (m *MemoryStore) Enqueue(_ context.Context, req EnqueueRequest) (EnqueueRes
 		UpdatedAt:         req.Now,
 	}}, m.history...)
 	return EnqueueResult{BackgroundJobID: jobID, TJKSyncRunID: tjkRunID}, nil
+}
+
+// SeedExecution inserts a history row (newest-first prepend).
+func (m *MemoryStore) SeedExecution(exec domainjobdef.JobExecution) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.history = append([]domainjobdef.JobExecution{exec}, m.history...)
 }
 
 // History returns recorded executions (test helper).

@@ -396,6 +396,10 @@ func (NotImplementedServer) GetPublicMedia(c *gin.Context, assetId generated.Ass
 	respondNotImplemented(c)
 }
 
+func (NotImplementedServer) HeadPublicMedia(c *gin.Context, assetId generated.AssetIdPath, profile generated.MediaDeliveryProfile) {
+	respondNotImplemented(c)
+}
+
 func (NotImplementedServer) ListAdminProviderEmailTemplates(c *gin.Context) {
 	respondNotImplemented(c)
 }

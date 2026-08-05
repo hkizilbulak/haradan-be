@@ -40,6 +40,7 @@ type Config struct {
 	PollInterval          time.Duration
 	LeaseDuration         time.Duration
 	JobTimeout            time.Duration
+	MaxJobTimeout         time.Duration
 	ShutdownTimeout       time.Duration
 	RetryBaseDelay        time.Duration
 	RetryMaxDelay         time.Duration
@@ -76,8 +77,14 @@ func NewRunner(cfg Config) (*Runner, error) {
 	if cfg.PollInterval <= 0 || cfg.LeaseDuration <= 0 || cfg.JobTimeout <= 0 {
 		return nil, fmt.Errorf("poll, lease and job timeout durations must be greater than zero")
 	}
-	if cfg.JobTimeout >= cfg.LeaseDuration {
-		return nil, fmt.Errorf("job timeout must be less than lease duration")
+	if cfg.MaxJobTimeout <= 0 {
+		cfg.MaxJobTimeout = cfg.JobTimeout
+	}
+	if cfg.MaxJobTimeout < cfg.JobTimeout {
+		return nil, fmt.Errorf("max job timeout must be greater than or equal to job timeout")
+	}
+	if cfg.LeaseDuration <= cfg.MaxJobTimeout {
+		return nil, fmt.Errorf("lease duration must be greater than max job timeout")
 	}
 	if cfg.ShutdownTimeout <= 0 || cfg.LeaseRecoveryInterval <= 0 {
 		return nil, fmt.Errorf("shutdown and lease recovery intervals must be greater than zero")
@@ -247,7 +254,7 @@ func (r *Runner) processClaimed(jobRoot, claimCtx context.Context, job domainmed
 		}
 	}()
 
-	jobTimeout := r.cfg.JobTimeout
+	jobTimeout := effectiveJobTimeout(r.cfg.JobTimeout, r.cfg.MaxJobTimeout, job.Payload)
 	jobCtx, cancel := context.WithTimeout(jobRoot, jobTimeout)
 	defer cancel()
 
@@ -396,25 +403,29 @@ func (r *Runner) sleep(ctx context.Context, d time.Duration) {
 	}
 }
 
-// effectiveJobTimeout applies an optional payload timeoutSeconds when it is
-// shorter than the worker ceiling (lease-safe JobTimeout). Longer definition
-// timeouts remain capped by the worker config.
-func effectiveJobTimeout(ceiling time.Duration, payload []byte) time.Duration {
-	if ceiling <= 0 {
-		return ceiling
+// effectiveJobTimeout resolves the per-job context deadline.
+// When payload timeoutSeconds >= 1, uses min(requested, maxCeiling).
+// Otherwise (missing/invalid) uses defaultTimeout (event-driven default).
+// Never returns a non-positive duration.
+func effectiveJobTimeout(defaultTimeout, maxCeiling time.Duration, payload []byte) time.Duration {
+	timeout := defaultTimeout
+	if len(payload) > 0 {
+		var in struct {
+			TimeoutSeconds int `json:"timeoutSeconds"`
+		}
+		if err := json.Unmarshal(payload, &in); err == nil && in.TimeoutSeconds >= 1 {
+			requested := time.Duration(in.TimeoutSeconds) * time.Second
+			if maxCeiling > 0 && requested > maxCeiling {
+				requested = maxCeiling
+			}
+			timeout = requested
+		}
 	}
-	if len(payload) == 0 {
-		return ceiling
+	if timeout <= 0 {
+		if maxCeiling > 0 {
+			return maxCeiling
+		}
+		return time.Second
 	}
-	var in struct {
-		TimeoutSeconds int `json:"timeoutSeconds"`
-	}
-	if err := json.Unmarshal(payload, &in); err != nil || in.TimeoutSeconds < 1 {
-		return ceiling
-	}
-	requested := time.Duration(in.TimeoutSeconds) * time.Second
-	if requested < ceiling {
-		return requested
-	}
-	return ceiling
+	return timeout
 }

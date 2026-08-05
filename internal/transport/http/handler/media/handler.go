@@ -2,6 +2,7 @@
 package media
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/hkizilbulak/haradan-be/internal/application/authz"
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domainauth "github.com/hkizilbulak/haradan-be/internal/domain/auth"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler/bind"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authctx"
@@ -19,11 +21,18 @@ import (
 // ErrorResponder maps application errors to HTTP responses.
 type ErrorResponder func(c *gin.Context, logger *slog.Logger, err error)
 
+// AccessAuthenticator soft-authenticates optional Bearer tokens on public media
+// routes. Invalid tokens must not surface as 401 on those routes.
+type AccessAuthenticator interface {
+	AuthenticateAccessToken(ctx context.Context, accessToken string) (domainauth.Principal, error)
+}
+
 // Handler exposes the owner-scoped media OpenAPI operations. Identity comes
 // exclusively from the authenticated principal; object keys and the storage
 // provider are never part of any response this handler produces.
 type Handler struct {
 	svc     *appmedia.Service
+	auth    AccessAuthenticator
 	logger  *slog.Logger
 	respond ErrorResponder
 }
@@ -31,6 +40,14 @@ type Handler struct {
 // NewHandler constructs a media owner HTTP handler.
 func NewHandler(svc *appmedia.Service, logger *slog.Logger, respond ErrorResponder) *Handler {
 	return &Handler{svc: svc, logger: logger, respond: respond}
+}
+
+// WithAccessAuthenticator wires optional Bearer soft-auth for public media delivery.
+func (h *Handler) WithAccessAuthenticator(auth AccessAuthenticator) *Handler {
+	if h != nil {
+		h.auth = auth
+	}
+	return h
 }
 
 // InitiateMediaUpload handles POST /v1/media/uploads (MEDIA-01).

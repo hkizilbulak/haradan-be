@@ -34,7 +34,7 @@ func TestSendPasswordResetUsesSeparateTemplate(t *testing.T) {
 	client.CheckRedirect = sender.client.http.(*http.Client).CheckRedirect
 	sender.client.http = client
 
-	if err := sender.SendPasswordReset(context.Background(), testRecipient, testToken); err != nil {
+	if err := sender.SendPasswordReset(context.Background(), testRecipient, testToken, ""); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	tmpl, ok := gotBody["template"].(map[string]any)

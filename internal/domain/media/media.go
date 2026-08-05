@@ -9,7 +9,6 @@ package media
 
 import (
 	"encoding/json"
-	"net/url"
 	"strings"
 	"time"
 
@@ -232,6 +231,20 @@ type AdvertRef struct {
 	DeletedAt    *time.Time
 }
 
+// AdvertMediaAccess is the advert attachment slice used for public delivery
+// authorization (owner, status, soft-delete).
+type AdvertMediaAccess struct {
+	OwnerUserID uuid.UUID
+	Status      string
+	DeletedAt   *time.Time
+}
+
+// BannerMediaAccess is the banner attachment slice used for public delivery
+// authorization. Status mirrors hrd_banners.status (ACTIVE/INACTIVE).
+type BannerMediaAccess struct {
+	Status string
+}
+
 // IsDeleted reports whether the advert is soft-deleted.
 func (a AdvertRef) IsDeleted() bool { return a.DeletedAt != nil }
 
@@ -375,28 +388,4 @@ func PublicDeliveryURL(assetID uuid.UUID, profile string) string {
 		return ""
 	}
 	return "/v1/media/" + assetID.String() + "/" + profile
-}
-
-// PublicURL joins a validated public media origin with a generated object key.
-// Invalid origins and traversal-shaped keys are rejected rather than projected.
-// Prefer PublicDeliveryURL for client projections.
-func PublicURL(baseURL, objectKey string) string {
-	base := strings.TrimSpace(baseURL)
-	key := strings.TrimSpace(objectKey)
-	if base == "" || key == "" {
-		return ""
-	}
-	u, err := url.Parse(base)
-	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" ||
-		u.RawQuery != "" || u.Fragment != "" || strings.HasPrefix(key, "/") ||
-		strings.Contains(key, `\`) || strings.Contains(key, "..") {
-		return ""
-	}
-	for _, segment := range strings.Split(key, "/") {
-		if segment == "" || segment == "." || segment == ".." {
-			return ""
-		}
-	}
-	u.Path = strings.TrimRight(u.Path, "/") + "/" + key
-	return u.String()
 }

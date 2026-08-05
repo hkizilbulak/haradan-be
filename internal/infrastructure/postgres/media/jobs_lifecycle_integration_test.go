@@ -185,3 +185,156 @@ func TestJobQueueConcurrentClaimIntegrationOptIn(t *testing.T) {
 		t.Fatalf("want exactly one concurrent winner, got %d", winners)
 	}
 }
+
+func TestJobQueueFailedDeadReenqueueIntegrationOptIn(t *testing.T) {
+	pool := requireJobQueueIntegration(t)
+	ctx := context.Background()
+	repo := pgmedia.NewRepository(pool)
+	queue, err := appmedia.NewPostgresJobQueue(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	key := "itest-reenqueue-" + uuid.NewString()
+	job := domainmedia.BackgroundJob{
+		ID:               uuid.New(),
+		JobType:          domainmedia.JobValidateAndNormalize,
+		Status:           domainmedia.JobQueued,
+		Payload:          domainmedia.EmptyMetadata(),
+		DeduplicationKey: &key,
+		MaxAttempts:      1,
+		AvailableAt:      now,
+		Version:          1,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := repo.EnqueueJob(ctx, job); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM hrd_background_jobs WHERE deduplication_key = $1`, key)
+	})
+
+	claimed, ok, err := queue.ClaimNextJob(ctx, appmedia.ClaimJobParams{
+		LeaseOwner:     "itest-fail",
+		Now:            now,
+		LeaseUntil:     now.Add(2 * time.Minute),
+		SupportedTypes: []domainmedia.JobType{domainmedia.JobValidateAndNormalize},
+	})
+	if err != nil || !ok {
+		t.Fatalf("claim ok=%v err=%v", ok, err)
+	}
+	if err := queue.MarkJobFailed(ctx, appmedia.JobLeaseGuard{
+		JobID: claimed.ID, LeaseOwner: "itest-fail", Version: claimed.Version,
+	}, now, "boom"); err != nil {
+		t.Fatalf("mark failed: %v", err)
+	}
+
+	// Active duplicate of a FAILED row must be allowed (new row, same occurrence key).
+	retry := job
+	retry.ID = uuid.New()
+	retry.CreatedAt = now.Add(time.Second)
+	retry.UpdatedAt = retry.CreatedAt
+	retry.AvailableAt = retry.CreatedAt
+	if err := repo.EnqueueJob(ctx, retry); err != nil {
+		t.Fatalf("FAILED terminal must allow re-enqueue: %v", err)
+	}
+
+	// Duplicate active (QUEUED) still blocked.
+	dupActive := retry
+	dupActive.ID = uuid.New()
+	if err := repo.EnqueueJob(ctx, dupActive); err == nil {
+		t.Fatal("duplicate active dedup key must fail")
+	} else if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeConflict {
+		t.Fatalf("want CONFLICT, got %v", err)
+	}
+
+	claimed2, ok, err := queue.ClaimNextJob(ctx, appmedia.ClaimJobParams{
+		LeaseOwner:     "itest-dead",
+		Now:            now.Add(2 * time.Second),
+		LeaseUntil:     now.Add(4 * time.Minute),
+		SupportedTypes: []domainmedia.JobType{domainmedia.JobValidateAndNormalize},
+	})
+	if err != nil || !ok {
+		t.Fatalf("claim retry ok=%v err=%v", ok, err)
+	}
+	if claimed2.ID != retry.ID {
+		t.Fatalf("claimed retry id=%s want %s", claimed2.ID, retry.ID)
+	}
+	if err := queue.RetryOrDeadLetterJob(ctx, appmedia.RetryJobParams{
+		JobLeaseGuard: appmedia.JobLeaseGuard{
+			JobID: claimed2.ID, LeaseOwner: "itest-dead", Version: claimed2.Version,
+		},
+		Now:             now.Add(2 * time.Second),
+		NextAvailableAt: now.Add(2 * time.Second),
+		LastError:       "dead",
+		AttemptCount:    claimed2.AttemptCount,
+		MaxAttempts:     claimed2.MaxAttempts,
+	}); err != nil {
+		t.Fatalf("dead-letter: %v", err)
+	}
+
+	afterDead := job
+	afterDead.ID = uuid.New()
+	afterDead.CreatedAt = now.Add(3 * time.Second)
+	afterDead.UpdatedAt = afterDead.CreatedAt
+	afterDead.AvailableAt = afterDead.CreatedAt
+	if err := repo.EnqueueJob(ctx, afterDead); err != nil {
+		t.Fatalf("DEAD terminal must allow re-enqueue: %v", err)
+	}
+}
+
+func TestJobQueueSucceededBlocksSameDedupIntegrationOptIn(t *testing.T) {
+	pool := requireJobQueueIntegration(t)
+	ctx := context.Background()
+	repo := pgmedia.NewRepository(pool)
+	queue, err := appmedia.NewPostgresJobQueue(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	key := "itest-succeeded-" + uuid.NewString()
+	job := domainmedia.BackgroundJob{
+		ID:               uuid.New(),
+		JobType:          domainmedia.JobValidateAndNormalize,
+		Status:           domainmedia.JobQueued,
+		Payload:          domainmedia.EmptyMetadata(),
+		DeduplicationKey: &key,
+		MaxAttempts:      3,
+		AvailableAt:      now,
+		Version:          1,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := repo.EnqueueJob(ctx, job); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM hrd_background_jobs WHERE deduplication_key = $1`, key)
+	})
+
+	claimed, ok, err := queue.ClaimNextJob(ctx, appmedia.ClaimJobParams{
+		LeaseOwner:     "itest-ok",
+		Now:            now,
+		LeaseUntil:     now.Add(2 * time.Minute),
+		SupportedTypes: []domainmedia.JobType{domainmedia.JobValidateAndNormalize},
+	})
+	if err != nil || !ok {
+		t.Fatalf("claim ok=%v err=%v", ok, err)
+	}
+	if err := queue.MarkJobSucceeded(ctx, appmedia.JobLeaseGuard{
+		JobID: claimed.ID, LeaseOwner: "itest-ok", Version: claimed.Version,
+	}, now); err != nil {
+		t.Fatalf("mark succeeded: %v", err)
+	}
+
+	dup := job
+	dup.ID = uuid.New()
+	if err := repo.EnqueueJob(ctx, dup); err == nil {
+		t.Fatal("SUCCEEDED occurrence must still block same dedup key")
+	} else if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeConflict {
+		t.Fatalf("want CONFLICT, got %v", err)
+	}
+}

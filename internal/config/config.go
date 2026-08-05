@@ -89,6 +89,7 @@ type Config struct {
 	WorkerPollInterval          time.Duration
 	WorkerLeaseDuration         time.Duration
 	WorkerJobTimeout            time.Duration
+	WorkerMaxJobTimeout         time.Duration
 	WorkerID                    string
 	WorkerShutdownTimeout       time.Duration
 	WorkerRetryBaseDelay        time.Duration
@@ -343,10 +344,15 @@ func Load() (Config, error) {
 	if cfg.WorkerPollInterval, err = durationEnv("WORKER_POLL_INTERVAL", time.Second); err != nil {
 		return Config{}, err
 	}
-	if cfg.WorkerLeaseDuration, err = durationEnv("WORKER_LEASE_DURATION", 2*time.Minute); err != nil {
+	// Lease must outlive the max job timeout so long definition runs (e.g. 1800s/3600s)
+	// are not reclaimable mid-flight. Defaults: max 2h, lease 2h+5m.
+	if cfg.WorkerLeaseDuration, err = durationEnv("WORKER_LEASE_DURATION", 2*time.Hour+5*time.Minute); err != nil {
 		return Config{}, err
 	}
 	if cfg.WorkerJobTimeout, err = durationEnv("WORKER_JOB_TIMEOUT", 60*time.Second); err != nil {
+		return Config{}, err
+	}
+	if cfg.WorkerMaxJobTimeout, err = durationEnv("WORKER_MAX_JOB_TIMEOUT", 2*time.Hour); err != nil {
 		return Config{}, err
 	}
 	if v, ok := os.LookupEnv("WORKER_ID"); ok {
@@ -826,8 +832,11 @@ func validateWorkerConfig(cfg Config) error {
 	if cfg.WorkerJobTimeout <= 0 {
 		return fmt.Errorf("WORKER_JOB_TIMEOUT must be greater than zero")
 	}
-	if cfg.WorkerJobTimeout >= cfg.WorkerLeaseDuration {
-		return fmt.Errorf("WORKER_JOB_TIMEOUT must be less than WORKER_LEASE_DURATION")
+	if cfg.WorkerMaxJobTimeout < cfg.WorkerJobTimeout {
+		return fmt.Errorf("WORKER_MAX_JOB_TIMEOUT must be greater than or equal to WORKER_JOB_TIMEOUT")
+	}
+	if cfg.WorkerLeaseDuration <= cfg.WorkerMaxJobTimeout {
+		return fmt.Errorf("WORKER_LEASE_DURATION must be greater than WORKER_MAX_JOB_TIMEOUT")
 	}
 	if cfg.WorkerShutdownTimeout <= 0 {
 		return fmt.Errorf("WORKER_SHUTDOWN_TIMEOUT must be greater than zero")

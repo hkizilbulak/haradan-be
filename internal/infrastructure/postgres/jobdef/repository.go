@@ -164,6 +164,53 @@ LIMIT $4`
 	return out, nil
 }
 
+// ListLastRuns returns the newest background job per definition in one query.
+func (r *Repository) ListLastRuns(
+	ctx context.Context,
+	definitionIDs []uuid.UUID,
+) (map[uuid.UUID]domainjobdef.LastRunSummary, error) {
+	out := make(map[uuid.UUID]domainjobdef.LastRunSummary)
+	if len(definitionIDs) == 0 {
+		return out, nil
+	}
+	const q = `
+SELECT DISTINCT ON (job_definition_id)
+       job_definition_id,
+       COALESCE(started_at, created_at) AS last_run_at,
+       status,
+       CASE
+         WHEN started_at IS NOT NULL AND completed_at IS NOT NULL
+         THEN GREATEST(0, (EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000)::bigint)
+         ELSE NULL
+       END AS last_duration_ms
+FROM hrd_background_jobs
+WHERE job_definition_id = ANY($1)
+ORDER BY job_definition_id, created_at DESC, id DESC`
+	rows, err := r.db.Query(ctx, q, definitionIDs)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list job last runs: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			summary    domainjobdef.LastRunSummary
+			durationMs *int64
+		)
+		if err := rows.Scan(&summary.DefinitionID, &summary.LastRunAt, &summary.LastStatus, &durationMs); err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan job last run: %w", pg.SanitizeErr(err)))
+		}
+		if durationMs != nil {
+			ms := int(*durationMs)
+			summary.LastDurationMs = &ms
+		}
+		out[summary.DefinitionID] = summary
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("iterate job last runs: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
+}
+
 // Enqueue inserts a durable background job (and TJK sync run when needed).
 func (r *Repository) Enqueue(ctx context.Context, req appjobadmin.EnqueueRequest) (appjobadmin.EnqueueResult, error) {
 	if r.pool == nil {
