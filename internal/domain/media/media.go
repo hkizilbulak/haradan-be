@@ -9,6 +9,7 @@ package media
 
 import (
 	"encoding/json"
+	"net/url"
 	"strings"
 	"time"
 
@@ -297,14 +298,25 @@ func IsAttachableAssetLifecycle(l AssetLifecycle) bool {
 // EmptyMetadata returns the canonical empty technical metadata object.
 func EmptyMetadata() json.RawMessage { return json.RawMessage(`{}`) }
 
-// PublicURL joins a configured public media base URL with an object key.
-// It never invents a host: an empty baseURL or objectKey yields "" so callers
-// must not fabricate a fake host when the base URL is unconfigured.
+// PublicURL joins a validated public media origin with a generated object key.
+// Invalid origins and traversal-shaped keys are rejected rather than projected.
 func PublicURL(baseURL, objectKey string) string {
 	base := strings.TrimSpace(baseURL)
 	key := strings.TrimSpace(objectKey)
 	if base == "" || key == "" {
 		return ""
 	}
-	return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(key, "/")
+	u, err := url.Parse(base)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" ||
+		u.RawQuery != "" || u.Fragment != "" || strings.HasPrefix(key, "/") ||
+		strings.Contains(key, `\`) || strings.Contains(key, "..") {
+		return ""
+	}
+	for _, segment := range strings.Split(key, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return ""
+		}
+	}
+	u.Path = strings.TrimRight(u.Path, "/") + "/" + key
+	return u.String()
 }

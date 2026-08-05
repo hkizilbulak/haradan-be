@@ -101,6 +101,15 @@ type Config struct {
 	PackageExpirySchedulerInterval time.Duration
 	PackageExpiryScanBatchSize     int
 	MediaPublicBaseURL             string
+
+	// TJK is intentionally disabled unless a public scrape endpoint is
+	// configured. It has no credentials, but is kept opt-in to prevent jobs
+	// being claimed by workers that cannot complete them.
+	TJKEnabled      bool
+	TJKBaseURL      string
+	TJKHTTPTimeout  time.Duration
+	TJKBatchSize    int
+	TJKMaxBodyBytes int64
 }
 
 // Supported STORAGE_PROVIDER values after normalization.
@@ -361,6 +370,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	cfg.MediaPublicBaseURL = strings.TrimSpace(os.Getenv("MEDIA_PUBLIC_BASE_URL"))
+	if err := validateMediaPublicBaseURL(cfg); err != nil {
+		return Config{}, err
+	}
 	if cfg.NotificationFanoutBatchSize < 1 || cfg.NotificationEmailChunkSize < 1 || cfg.PackageExpiryScanBatchSize < 1 {
 		return Config{}, fmt.Errorf("notification batch sizes must be greater than zero")
 	}
@@ -369,6 +381,38 @@ func Load() (Config, error) {
 	}
 	if _, err := time.LoadLocation(cfg.PackageExpiryTimezone); err != nil {
 		return Config{}, fmt.Errorf("PACKAGE_EXPIRY_TIMEZONE is not valid")
+	}
+
+	cfg.TJKBaseURL = strings.TrimSpace(os.Getenv("TJK_BASE_URL"))
+	if cfg.TJKHTTPTimeout, err = durationEnv("TJK_HTTP_TIMEOUT", 20*time.Second); err != nil {
+		return Config{}, err
+	}
+	if cfg.TJKBatchSize, err = intEnv("TJK_BATCH_SIZE", 100); err != nil {
+		return Config{}, err
+	}
+	if cfg.TJKMaxBodyBytes, err = int64Env("TJK_MAX_BODY_BYTES", 2<<20); err != nil {
+		return Config{}, err
+	}
+	rawTJKEnabled := strings.TrimSpace(os.Getenv("TJK_ENABLED"))
+	if rawTJKEnabled != "" {
+		cfg.TJKEnabled, err = strconv.ParseBool(rawTJKEnabled)
+		if err != nil {
+			return Config{}, fmt.Errorf("TJK_ENABLED is not a valid boolean")
+		}
+	} else {
+		cfg.TJKEnabled = cfg.TJKBaseURL != ""
+	}
+	if cfg.TJKEnabled {
+		if cfg.TJKBaseURL == "" {
+			return Config{}, fmt.Errorf("TJK_BASE_URL must not be empty when TJK_ENABLED=true")
+		}
+		u, parseErr := url.Parse(cfg.TJKBaseURL)
+		if parseErr != nil || u.Scheme == "" || u.Host == "" || u.User != nil {
+			return Config{}, fmt.Errorf("TJK_BASE_URL is not a valid URL")
+		}
+	}
+	if cfg.TJKBatchSize < 1 || cfg.TJKMaxBodyBytes < 1 {
+		return Config{}, fmt.Errorf("TJK batch size and body limit must be greater than zero")
 	}
 
 	return cfg, nil
@@ -433,6 +477,23 @@ func validateStorageConfig(cfg Config) error {
 	default:
 		return fmt.Errorf("STORAGE_PROVIDER is not supported")
 	}
+}
+
+func validateMediaPublicBaseURL(cfg Config) error {
+	if cfg.StorageProvider != StorageProviderB2 {
+		return nil
+	}
+	if cfg.MediaPublicBaseURL == "" {
+		return fmt.Errorf("MEDIA_PUBLIC_BASE_URL must not be empty when STORAGE_PROVIDER=b2")
+	}
+	u, err := url.Parse(cfg.MediaPublicBaseURL)
+	if err != nil || u.Scheme == "" || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+		return fmt.Errorf("MEDIA_PUBLIC_BASE_URL must be an absolute HTTP URL")
+	}
+	if u.RawQuery != "" || u.Fragment != "" {
+		return fmt.Errorf("MEDIA_PUBLIC_BASE_URL must not contain query or fragment")
+	}
+	return nil
 }
 
 func normalizeImageProcessorProvider(raw string) (string, error) {

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -43,4 +44,23 @@ func OpenTestTx(t *testing.T) (context.Context, pgx.Tx, func()) {
 		cancel()
 	}
 	return ctx, tx, cleanup
+}
+
+// WithSavepoint runs fn inside a PostgreSQL SAVEPOINT and rolls it back afterward,
+// so a statement-level error inside fn does not abort the outer test transaction.
+func WithSavepoint(t *testing.T, ctx context.Context, tx pgx.Tx, fn func()) {
+	t.Helper()
+	sp := "sp_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if _, err := tx.Exec(ctx, "SAVEPOINT "+sp); err != nil {
+		t.Fatalf("savepoint begin: %v", err)
+	}
+	defer func() {
+		if _, err := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT "+sp); err != nil {
+			t.Fatalf("savepoint rollback: %v", err)
+		}
+		if _, err := tx.Exec(ctx, "RELEASE SAVEPOINT "+sp); err != nil {
+			t.Fatalf("savepoint release: %v", err)
+		}
+	}()
+	fn()
 }

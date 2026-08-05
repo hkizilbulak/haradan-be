@@ -19,6 +19,14 @@ type ObjectInfo struct {
 	Exists      bool
 }
 
+// ObjectPage is one bounded provider listing page. Cursor is opaque to callers.
+// LastModified aligns with Keys (same length) when the provider supplies times.
+type ObjectPage struct {
+	Keys         []string
+	LastModified []time.Time
+	NextCursor   string
+}
+
 // UploadAuth is a short-lived, single-object upload grant. ObjectKey stays on
 // the server side of this struct: it is needed to verify completion later but is
 // never projected into a client response.
@@ -52,6 +60,12 @@ type Storage interface {
 
 	// GetObject reads an object back for processing.
 	GetObject(ctx context.Context, objectKey string) ([]byte, string, error)
+
+	// DeleteObject removes an object. Deleting a missing object succeeds.
+	DeleteObject(ctx context.Context, objectKey string) error
+
+	// ListObjects returns at most limit logical keys below prefix.
+	ListObjects(ctx context.Context, prefix, cursor string, limit int) (ObjectPage, error)
 }
 
 // ProcessedImage is the output of a processing step: the decoded, normalized
@@ -232,6 +246,14 @@ func (UnconfiguredStorage) PutObject(context.Context, string, string, []byte) er
 // GetObject reports the storage dependency as unavailable.
 func (UnconfiguredStorage) GetObject(context.Context, string) ([]byte, string, error) {
 	return nil, "", apperr.DependencyUnavailable(storageNotConfiguredMessage)
+}
+
+func (UnconfiguredStorage) DeleteObject(context.Context, string) error {
+	return apperr.DependencyUnavailable(storageNotConfiguredMessage)
+}
+
+func (UnconfiguredStorage) ListObjects(context.Context, string, string, int) (ObjectPage, error) {
+	return ObjectPage{}, apperr.DependencyUnavailable(storageNotConfiguredMessage)
 }
 
 const processorNotConfiguredMessage = "Görsel işleme servisi şu anda kullanılamıyor."

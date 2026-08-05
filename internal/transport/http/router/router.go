@@ -37,15 +37,19 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 			len(authn.AccountSessionProtectedRoutes)+len(authn.AdvertOwnerProtectedRoutes)+
 				len(authn.MediaProtectedRoutes)+len(authn.FavoritesProtectedRoutes)+
 				len(authn.AdvertModerationProtectedRoutes)+len(authn.PackagingAdminProtectedRoutes)+
-				len(authn.AdvertUrgentProtectedRoutes)+len(authn.NotificationInboxProtectedRoutes))
+				len(authn.AdvertUrgentProtectedRoutes)+len(authn.NotificationInboxProtectedRoutes)+
+				len(authn.BannerAdminProtectedRoutes)+len(authn.AdminUserProtectedRoutes)+len(authn.TJKAdminProtectedRoutes))
 		protected = append(protected, authn.AccountSessionProtectedRoutes...)
 		protected = append(protected, authn.AdvertOwnerProtectedRoutes...)
 		protected = append(protected, authn.MediaProtectedRoutes...)
 		protected = append(protected, authn.FavoritesProtectedRoutes...)
 		protected = append(protected, authn.AdvertModerationProtectedRoutes...)
 		protected = append(protected, authn.PackagingAdminProtectedRoutes...)
+		protected = append(protected, authn.BannerAdminProtectedRoutes...)
 		protected = append(protected, authn.AdvertUrgentProtectedRoutes...)
 		protected = append(protected, authn.NotificationInboxProtectedRoutes...)
+		protected = append(protected, authn.AdminUserProtectedRoutes...)
+		protected = append(protected, authn.TJKAdminProtectedRoutes...)
 		r.Use(authn.Selective(opt.AuthService, logger, protected))
 	}
 

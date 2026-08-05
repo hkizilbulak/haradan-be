@@ -9,8 +9,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	appadminuser "github.com/hkizilbulak/haradan-be/internal/application/adminuser"
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
+	appbanner "github.com/hkizilbulak/haradan-be/internal/application/banner"
 	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
 	appfavorite "github.com/hkizilbulak/haradan-be/internal/application/favorite"
@@ -19,15 +21,18 @@ import (
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	appnotification "github.com/hkizilbulak/haradan-be/internal/application/notification"
 	apppackaging "github.com/hkizilbulak/haradan-be/internal/application/packaging"
+	apptjk "github.com/hkizilbulak/haradan-be/internal/application/tjk"
 	"github.com/hkizilbulak/haradan-be/internal/config"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/email/resendemail"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/imageprocessor/tinifyprocessor"
+	pgadminuser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/adminuser"
 	pgadvert "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/advert"
 	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
 	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
 	pghorse "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/horse"
 	pgmedia "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/media"
+	pgtjk "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/tjk"
 	pguser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/user"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/storage/s3storage"
 	"github.com/hkizilbulak/haradan-be/internal/platform/database"
@@ -115,6 +120,10 @@ func run() error {
 	})
 	if err != nil {
 		return fmt.Errorf("auth service: %w", err)
+	}
+	adminUserSvc, err := appadminuser.NewService(appadminuser.Config{Repository: pgadminuser.NewRepository(db.Pool())})
+	if err != nil {
+		return fmt.Errorf("admin user service: %w", err)
 	}
 
 	geoRepo := pggeo.NewRepository(db.Pool())
@@ -207,6 +216,10 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("campaign service: %w", err)
 	}
+	bannerSvc, err := appbanner.NewPostgresService(db.Pool(), mediaRepo, userRepo, nil)
+	if err != nil {
+		return fmt.Errorf("banner service: %w", err)
+	}
 	notificationSvc, err := appnotification.NewPostgresService(db.Pool(), userRepo, nil)
 	if err != nil {
 		return fmt.Errorf("notification service: %w", err)
@@ -215,11 +228,18 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("notification inbox service: %w", err)
 	}
+	tjkSvc, err := apptjk.NewService(pgtjk.NewRepository(db.Pool()))
+	if err != nil {
+		return fmt.Errorf("TJK service: %w", err)
+	}
 
 	srvHandler := handler.NewServer(
 		log, db, geoSvc, catalogSvc, horseSvc, advertSvc, mediaSvc, favoriteSvc,
 		packagingSvc, campaignSvc, campaignPackages, notificationSvc, authSvc, notificationInboxSvc,
-	).WithPublicMediaBaseURL(cfg.MediaPublicBaseURL)
+	).WithPublicMediaBaseURL(cfg.MediaPublicBaseURL).
+		WithBannerService(bannerSvc, mediaRepo, cfg.MediaPublicBaseURL).
+		WithAdminUserService(adminUserSvc).
+		WithTJKService(tjkSvc)
 	engine := router.New(srvHandler, log, router.Options{AuthService: authSvc})
 
 	httpServer := &http.Server{

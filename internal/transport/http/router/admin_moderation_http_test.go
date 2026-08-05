@@ -185,13 +185,13 @@ func TestAdminModerationAuthzHTTP(t *testing.T) {
 		t.Fatalf("admin=%d %s", rec.Code, rec.Body.String())
 	}
 
-	// Other BO_AUTH stubs stay 501 without token.
+	// Other BO_AUTH routes require authentication before handler logic.
 	rec = env.do(http.MethodGet, "/api/v1/admin/banners", "", "")
-	if rec.Code != http.StatusNotImplemented {
+	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("banners tokensız=%d", rec.Code)
 	}
 	rec = env.do(http.MethodGet, "/api/v1/admin/users", "", "")
-	if rec.Code != http.StatusNotImplemented {
+	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("users tokensız=%d", rec.Code)
 	}
 

@@ -57,3 +57,27 @@ func (s *Server) ResendRegistrationEmailVerification(c *gin.Context) {
 	}
 	s.auth.ResendRegistrationEmailVerification(c)
 }
+
+func (s *Server) ConfirmEmailChange(c *gin.Context) {
+	if s.auth == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.auth.ConfirmEmailChange(c)
+}
+
+func (s *Server) RequestPasswordReset(c *gin.Context) {
+	if s.auth == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.auth.RequestPasswordReset(c)
+}
+
+func (s *Server) ResetPassword(c *gin.Context) {
+	if s.auth == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.auth.ResetPassword(c)
+}

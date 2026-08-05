@@ -3,20 +3,25 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/google/uuid"
 
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	appnotification "github.com/hkizilbulak/haradan-be/internal/application/notification"
+	apptjk "github.com/hkizilbulak/haradan-be/internal/application/tjk"
 	appworker "github.com/hkizilbulak/haradan-be/internal/application/worker"
 	"github.com/hkizilbulak/haradan-be/internal/config"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/email/resendemail"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/imageprocessor/tinifyprocessor"
+	pgtjk "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/tjk"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/storage/s3storage"
+	tjkclient "github.com/hkizilbulak/haradan-be/internal/infrastructure/tjk"
 	"github.com/hkizilbulak/haradan-be/internal/platform/database"
 	applogger "github.com/hkizilbulak/haradan-be/internal/platform/logger"
 )
@@ -127,6 +132,8 @@ func run() error {
 	supported := []domainmedia.JobType{
 		domainmedia.JobValidateAndNormalize,
 		domainmedia.JobGenerateVariant,
+		domainmedia.JobDeleteObjects,
+		domainmedia.JobReconcile,
 		domainmedia.JobNotificationFanoutAdvancedAdvert,
 		domainmedia.JobNotificationFanoutUrgentAdvert,
 		domainmedia.JobPackageExpiryReminderScan,
@@ -162,6 +169,17 @@ func run() error {
 	runCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	go scheduler.Run(runCtx)
+	if cfg.TJKEnabled {
+		client, err := tjkclient.NewClient(tjkclient.Config{BaseURL: cfg.TJKBaseURL, HTTPTimeout: cfg.TJKHTTPTimeout, MaxBodyBytes: cfg.TJKMaxBodyBytes})
+		if err != nil {
+			return fmt.Errorf("TJK client: %w", err)
+		}
+		tjkWorker, err := apptjk.NewWorker(pgtjk.NewRepository(db.Pool()), tjkclient.WorkerAdapter{Client: client}, workerID)
+		if err != nil {
+			return fmt.Errorf("TJK worker: %w", err)
+		}
+		go runTJKWorker(runCtx, tjkWorker, cfg.WorkerLeaseDuration, cfg.WorkerPollInterval, log)
+	}
 
 	if err := runner.Run(runCtx); err != nil {
 		return fmt.Errorf("runner: %w", err)
@@ -169,4 +187,20 @@ func run() error {
 	scheduler.Wait()
 	log.Info("worker stopped", "workerId", workerID)
 	return nil
+}
+
+func runTJKWorker(ctx context.Context, worker *apptjk.Worker, lease, poll time.Duration, log *slog.Logger) {
+	for ctx.Err() == nil {
+		claimed, err := worker.ProcessOnce(ctx, lease)
+		if err != nil {
+			log.Error("TJK job failed", "err", "dependency unavailable")
+		}
+		if claimed {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(poll):
+		}
+	}
 }

@@ -393,12 +393,20 @@ func TestRepositoryAdvertModerationIntegration(t *testing.T) {
 		t.Fatalf("want STALE_VERSION, got %v", err)
 	}
 
-	deletedAt := publishedAt.Add(2 * time.Minute)
-	if _, err := tx.Exec(ctx, `UPDATE hrd_adverts SET deleted_at = $2 WHERE id = $1`, pending.ID, deletedAt); err != nil {
-		t.Fatalf("soft delete: %v", err)
+	if stillPublished, err := repo.FindByID(ctx, pending.ID); err != nil || stillPublished.Status != domainadvert.StatusPublished {
+		t.Fatalf("published advert must remain visible: %+v err=%v", stillPublished, err)
 	}
-	if _, err := repo.FindByID(ctx, pending.ID); err == nil {
-		t.Fatal("soft-deleted must be not found")
+
+	draft := newDraft(ref.owner, publishedAt.Add(2*time.Minute))
+	if err := repo.Create(ctx, draft); err != nil {
+		t.Fatalf("create draft: %v", err)
+	}
+	deletedAt := publishedAt.Add(3 * time.Minute)
+	if _, err := repo.SoftDeleteDraft(ctx, ref.owner, draft.ID, 1, deletedAt); err != nil {
+		t.Fatalf("soft delete draft: %v", err)
+	}
+	if _, err := repo.FindByID(ctx, draft.ID); err == nil {
+		t.Fatal("soft-deleted draft must be not found")
 	} else if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeNotFound {
 		t.Fatalf("want NOT_FOUND, got %v", err)
 	}

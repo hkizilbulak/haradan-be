@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/hkizilbulak/haradan-be/internal/application/authz"
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
@@ -76,6 +77,57 @@ func (h *Handler) GetMediaProcessingStatus(c *gin.Context, assetID generated.Ass
 		return
 	}
 	out, err := h.svc.GetMediaProcessingStatus(c.Request.Context(), ownerID, assetID)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, mapProcessingView(out))
+}
+
+// InitiateAdminMediaUpload handles the admin equivalent of MEDIA-01.
+func (h *Handler) InitiateAdminMediaUpload(c *gin.Context) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	var req generated.InitiateMediaUploadRequest
+	if !bind.JSONBody(c, &req) {
+		return
+	}
+	in := appmedia.InitiateInput{DeclaredContentType: req.DeclaredContentType}
+	if req.DeclaredByteSize != nil {
+		size := int64(*req.DeclaredByteSize)
+		in.DeclaredByteSize = &size
+	}
+	out, err := h.svc.InitiateMediaUpload(c.Request.Context(), actorID, in)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusCreated, mapInitiateView(out))
+}
+
+// ConfirmAdminMediaUpload handles the admin equivalent of MEDIA-02.
+func (h *Handler) ConfirmAdminMediaUpload(c *gin.Context, assetID generated.AssetIdPath) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	out, err := h.svc.ConfirmMediaUpload(c.Request.Context(), actorID, assetID)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, mapProcessingView(out))
+}
+
+// GetAdminMediaProcessingStatus handles the admin equivalent of MEDIA-03.
+func (h *Handler) GetAdminMediaProcessingStatus(c *gin.Context, assetID generated.AssetIdPath) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	out, err := h.svc.GetMediaProcessingStatus(c.Request.Context(), actorID, assetID)
 	if err != nil {
 		h.respond(c, h.logger, err)
 		return
@@ -160,6 +212,19 @@ func (h *Handler) requirePrincipal(c *gin.Context) (uuid.UUID, bool) {
 	p, ok := authctx.PrincipalFromContext(c.Request.Context())
 	if !ok {
 		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "Kimlik doğrulama gerekli."))
+		return uuid.Nil, false
+	}
+	return p.UserID, true
+}
+
+func (h *Handler) requireAdminBO(c *gin.Context) (uuid.UUID, bool) {
+	p, ok := authctx.PrincipalFromContext(c.Request.Context())
+	if !ok {
+		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "Kimlik doğrulama gerekli."))
+		return uuid.Nil, false
+	}
+	if err := authz.RequireAdminBO(p); err != nil {
+		h.respond(c, h.logger, err)
 		return uuid.Nil, false
 	}
 	return p.UserID, true

@@ -2,13 +2,13 @@ package handler
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
+	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authctx"
 )
@@ -128,10 +128,7 @@ func mapPublicMedia(v *domainadvert.PublicMedia, base string) *generated.PublicM
 	if v == nil {
 		return nil
 	}
-	url := ""
-	if base != "" && v.ObjectKey != "" {
-		url = strings.TrimRight(base, "/") + "/" + strings.TrimLeft(v.ObjectKey, "/")
-	}
+	url := domainmedia.PublicURL(base, v.ObjectKey)
 	return &generated.PublicMediaItem{AssetId: v.AssetID, DisplayOrder: v.DisplayOrder, IsCover: v.IsCover, PublicUrl: url, Usage: v.Usage}
 }
 func mapPublicMoney(v *domainadvert.Money) *generated.Money {

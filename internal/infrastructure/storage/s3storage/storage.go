@@ -22,6 +22,8 @@ type objectAPI interface {
 	HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
 	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
+	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
 }
 
 // presignAPI is the subset of the S3 presign client used by this adapter.
@@ -262,6 +264,81 @@ func (s *Storage) GetObject(ctx context.Context, objectKey string) ([]byte, stri
 		contentType = *out.ContentType
 	}
 	return data, contentType, nil
+}
+
+// DeleteObject implements idempotent object removal.
+func (s *Storage) DeleteObject(ctx context.Context, objectKey string) error {
+	providerKey, err := s.providerKey(objectKey)
+	if err != nil {
+		return err
+	}
+	_, err = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(providerKey)})
+	if err == nil || isObjectNotFound(err) {
+		return nil
+	}
+	return mapProviderDependency(err)
+}
+
+// ListObjects returns a bounded page and converts provider keys back to logical keys.
+func (s *Storage) ListObjects(ctx context.Context, prefix, cursor string, limit int) (appmedia.ObjectPage, error) {
+	if limit < 1 {
+		return appmedia.ObjectPage{}, apperr.Validation(invalidRequestMessage)
+	}
+	providerPrefix, err := s.providerPrefix(prefix)
+	if err != nil {
+		return appmedia.ObjectPage{}, err
+	}
+	var token *string
+	if strings.TrimSpace(cursor) != "" {
+		token = aws.String(cursor)
+	}
+	out, err := s.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket:            aws.String(s.bucket),
+		Prefix:            aws.String(providerPrefix),
+		ContinuationToken: token,
+		MaxKeys:           aws.Int32(int32(limit)),
+	})
+	if err != nil {
+		return appmedia.ObjectPage{}, mapProviderDependency(err)
+	}
+	page := appmedia.ObjectPage{}
+	for _, item := range out.Contents {
+		key := aws.ToString(item.Key)
+		if logical, ok := s.logicalKey(key); ok {
+			page.Keys = append(page.Keys, logical)
+			if item.LastModified != nil {
+				page.LastModified = append(page.LastModified, item.LastModified.UTC())
+			} else {
+				page.LastModified = append(page.LastModified, time.Time{})
+			}
+		}
+	}
+	page.NextCursor = aws.ToString(out.NextContinuationToken)
+	return page, nil
+}
+
+func (s *Storage) providerPrefix(prefix string) (string, error) {
+	if strings.TrimSpace(prefix) == "" {
+		return "", apperr.Validation(invalidRequestMessage)
+	}
+	if _, err := s.providerKey(prefix + "x"); err != nil {
+		return "", err
+	}
+	if s.basePath == "" {
+		return prefix, nil
+	}
+	return s.basePath + "/" + prefix, nil
+}
+
+func (s *Storage) logicalKey(providerKey string) (string, bool) {
+	if s.basePath == "" {
+		return providerKey, true
+	}
+	prefix := s.basePath + "/"
+	if !strings.HasPrefix(providerKey, prefix) {
+		return "", false
+	}
+	return strings.TrimPrefix(providerKey, prefix), true
 }
 
 func (s *Storage) providerKey(logical string) (string, error) {

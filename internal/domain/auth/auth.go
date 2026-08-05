@@ -68,7 +68,12 @@ const (
 	EventSessionRevoked        SecurityEventType = "SESSION_REVOKED"
 	EventAllSessionsRevoked    SecurityEventType = "ALL_SESSIONS_REVOKED"
 	EventRefreshReplayDetected SecurityEventType = "REFRESH_REPLAY_DETECTED"
+	EventPasswordChange        SecurityEventType = "PASSWORD_CHANGE"
+	EventPasswordReset         SecurityEventType = "PASSWORD_RESET"
 	EventEmailVerification     SecurityEventType = "EMAIL_VERIFICATION"
+	EventEmailChange           SecurityEventType = "EMAIL_CHANGE"
+	EventRoleChange            SecurityEventType = "ROLE_CHANGE"
+	EventAccountStatusChange   SecurityEventType = "ACCOUNT_STATUS_CHANGE"
 	EventBOContextRejected     SecurityEventType = "BO_CONTEXT_REJECTED"
 )
 
@@ -87,7 +92,9 @@ type SecurityEvent struct {
 type OneTimePurpose string
 
 const (
-	PurposeEmailVerification OneTimePurpose = "EMAIL_VERIFICATION"
+	PurposeEmailVerification       OneTimePurpose = "EMAIL_VERIFICATION"
+	PurposePasswordReset           OneTimePurpose = "PASSWORD_RESET"
+	PurposeEmailChangeVerification OneTimePurpose = "EMAIL_CHANGE_VERIFICATION"
 )
 
 // OneTimeCredential is a hashed one-time credential.

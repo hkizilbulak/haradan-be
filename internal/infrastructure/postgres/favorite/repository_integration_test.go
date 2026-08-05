@@ -105,11 +105,13 @@ func TestFavoriteRepositoryAddRemoveListIntegration(t *testing.T) {
 	if err := repo.InsertFavorite(ctx, fav); err != nil {
 		t.Fatalf("insert: %v", err)
 	}
-	if err := repo.InsertFavorite(ctx, domainfavorite.Favorite{
-		ID: uuid.New(), UserID: userID, AdvertID: publishedID, CreatedAt: now,
-	}); !errors.Is(err, domainfavorite.ErrDuplicate) {
-		t.Fatalf("duplicate=%v", err)
-	}
+	testutil.WithSavepoint(t, ctx, tx, func() {
+		if err := repo.InsertFavorite(ctx, domainfavorite.Favorite{
+			ID: uuid.New(), UserID: userID, AdvertID: publishedID, CreatedAt: now,
+		}); !errors.Is(err, domainfavorite.ErrDuplicate) {
+			t.Fatalf("duplicate=%v", err)
+		}
+	})
 
 	rows, err := repo.ListFavoritesByUser(ctx, userID, nil, nil, 10)
 	if err != nil || len(rows) != 1 || rows[0].Advert.ProvinceID == nil {

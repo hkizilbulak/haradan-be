@@ -50,3 +50,19 @@ func (s *Server) RevokeMySession(c *gin.Context, sessionId generated.SessionIdPa
 	}
 	s.account.RevokeMySession(c, sessionId)
 }
+
+func (s *Server) RequestEmailChange(c *gin.Context) {
+	if s.account == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.account.RequestEmailChange(c)
+}
+
+func (s *Server) ChangePassword(c *gin.Context) {
+	if s.account == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.account.ChangePassword(c)
+}

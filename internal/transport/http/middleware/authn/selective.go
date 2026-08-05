@@ -21,6 +21,8 @@ var AccountSessionProtectedRoutes = []ProtectedRoute{
 	{Method: "POST", Path: "/api/v1/auth/logout-all"},
 	{Method: "GET", Path: "/api/v1/me/sessions"},
 	{Method: "DELETE", Path: "/api/v1/me/sessions/:sessionId"},
+	{Method: "POST", Path: "/api/v1/me/email/change-request"},
+	{Method: "POST", Path: "/api/v1/me/password"},
 }
 
 // AdvertOwnerProtectedRoutes are ADVERT-OWNER-01..11 routes. Media relation and
@@ -78,6 +80,25 @@ var AdvertModerationProtectedRoutes = []ProtectedRoute{
 	{Method: "POST", Path: "/api/v1/admin/adverts/:advertId/suspend"},
 }
 
+// AdminUserProtectedRoutes are ADMIN-USER-01..05 BO_AUTH routes.
+var AdminUserProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/admin/users"},
+	{Method: "GET", Path: "/api/v1/admin/users/:userId"},
+	{Method: "POST", Path: "/api/v1/admin/users/:userId/role"},
+	{Method: "POST", Path: "/api/v1/admin/users/:userId/status"},
+	{Method: "GET", Path: "/api/v1/admin/users/:userId/security-events"},
+}
+
+var TJKAdminProtectedRoutes = []ProtectedRoute{
+	{Method: "POST", Path: "/api/v1/admin/tjk/sync-runs"},
+	{Method: "GET", Path: "/api/v1/admin/tjk/sync-runs"},
+	{Method: "GET", Path: "/api/v1/admin/tjk/sync-runs/:runId"},
+	{Method: "POST", Path: "/api/v1/admin/tjk/sync-runs/:runId/cancel"},
+	{Method: "GET", Path: "/api/v1/admin/tjk/sync-runs/:runId/item-errors"},
+	{Method: "POST", Path: "/api/v1/admin/tjk/item-errors/:errorId/resolve"},
+	{Method: "POST", Path: "/api/v1/admin/tjk/item-errors/:errorId/ignore"},
+}
+
 // PackagingAdminProtectedRoutes are packaging/campaign/notification-template BO_AUTH routes.
 var PackagingAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/packages"},
@@ -94,6 +115,16 @@ var PackagingAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/notification-templates"},
 	{Method: "GET", Path: "/api/v1/admin/notification-templates/:eventType"},
 	{Method: "PATCH", Path: "/api/v1/admin/notification-templates/:eventType"},
+}
+
+// BannerAdminProtectedRoutes are banner management BO_AUTH routes.
+var BannerAdminProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/admin/banners"},
+	{Method: "POST", Path: "/api/v1/admin/banners"},
+	{Method: "PUT", Path: "/api/v1/admin/banners/reorder"},
+	{Method: "GET", Path: "/api/v1/admin/banners/:bannerId"},
+	{Method: "PATCH", Path: "/api/v1/admin/banners/:bannerId"},
+	{Method: "POST", Path: "/api/v1/admin/banners/:bannerId/status"},
 }
 
 // AdvertUrgentProtectedRoutes are owner/admin URGENT activate/deactivate routes.

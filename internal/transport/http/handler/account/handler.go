@@ -13,6 +13,7 @@ import (
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
+	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler/bind"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authctx"
 )
 
@@ -125,6 +126,42 @@ func (h *Handler) RevokeMySession(c *gin.Context, sessionID uuid.UUID) {
 		return
 	}
 	out, err := h.svc.RevokeMySession(c.Request.Context(), principal, sessionID)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, generated.GenericAuthMessageResponse{Message: out.Message})
+}
+
+func (h *Handler) RequestEmailChange(c *gin.Context) {
+	principal, ok := authctx.PrincipalFromContext(c.Request.Context())
+	if !ok {
+		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "Kimlik doğrulama gerekli."))
+		return
+	}
+	var body generated.RequestEmailChangeRequest
+	if !bind.JSONBody(c, &body) {
+		return
+	}
+	out, err := h.svc.RequestEmailChange(c.Request.Context(), appauth.RequestEmailChangeInput{UserID: principal.UserID, NewEmail: string(body.NewEmail), ClientIP: c.ClientIP()})
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, generated.GenericAuthMessageResponse{Message: out.Message})
+}
+
+func (h *Handler) ChangePassword(c *gin.Context) {
+	principal, ok := authctx.PrincipalFromContext(c.Request.Context())
+	if !ok {
+		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "Kimlik doğrulama gerekli."))
+		return
+	}
+	var body generated.ChangePasswordRequest
+	if !bind.JSONBody(c, &body) {
+		return
+	}
+	out, err := h.svc.ChangePassword(c.Request.Context(), appauth.ChangePasswordInput{UserID: principal.UserID, CurrentPassword: body.CurrentPassword, NewPassword: body.NewPassword})
 	if err != nil {
 		h.respond(c, h.logger, err)
 		return

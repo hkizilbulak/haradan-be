@@ -142,6 +142,35 @@ WHERE id = $1`
 	return nil
 }
 
+// UpdatePasswordHash atomically replaces a credential and invalidates access tokens.
+func (r *Repository) UpdatePasswordHash(ctx context.Context, userID uuid.UUID, passwordHash string, securityStamp uuid.UUID, now time.Time) error {
+	const q = `UPDATE hrd_users SET password_hash = $2, security_stamp = $3, failed_login_count = 0, locked_until = NULL, updated_at = $4 WHERE id = $1`
+	tag, err := r.db.Exec(ctx, q, userID, passwordHash, securityStamp, now)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("update password: %w", pg.SanitizeErr(err)))
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("user not found")
+	}
+	return nil
+}
+
+// UpdateEmail replaces the canonical address and requires re-verification.
+func (r *Repository) UpdateEmail(ctx context.Context, userID uuid.UUID, email, emailNormalized string, securityStamp uuid.UUID, now time.Time) error {
+	const q = `UPDATE hrd_users SET email = $2, email_normalized = $3, email_verified_at = NULL, security_stamp = $4, updated_at = $5 WHERE id = $1`
+	tag, err := r.db.Exec(ctx, q, userID, email, emailNormalized, securityStamp, now)
+	if isUniqueViolation(err) {
+		return apperr.Conflict("email already registered")
+	}
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("update email: %w", pg.SanitizeErr(err)))
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("user not found")
+	}
+	return nil
+}
+
 // UpdateProfile updates editable profile fields and returns the updated user.
 func (r *Repository) UpdateProfile(ctx context.Context, userID uuid.UUID, firstName, lastName *string, phoneSet bool, phone *string, now time.Time) (domainuser.User, error) {
 	const q = `

@@ -138,6 +138,45 @@ func (h *Handler) ResendRegistrationEmailVerification(c *gin.Context) {
 	c.JSON(http.StatusOK, generated.GenericAuthMessageResponse{Message: out.Message})
 }
 
+func (h *Handler) RequestPasswordReset(c *gin.Context) {
+	var body generated.EmailRequest
+	if !bind.JSONBody(c, &body) {
+		return
+	}
+	out, err := h.svc.RequestPasswordReset(c.Request.Context(), appauth.RequestPasswordResetInput{Email: string(body.Email), ClientIP: c.ClientIP()})
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, generated.GenericAuthMessageResponse{Message: out.Message})
+}
+
+func (h *Handler) ResetPassword(c *gin.Context) {
+	var body generated.ResetPasswordRequest
+	if !bind.JSONBody(c, &body) {
+		return
+	}
+	out, err := h.svc.ResetPassword(c.Request.Context(), appauth.ResetPasswordInput{Token: body.Token, NewPassword: body.NewPassword})
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, generated.GenericAuthMessageResponse{Message: out.Message})
+}
+
+func (h *Handler) ConfirmEmailChange(c *gin.Context) {
+	var body generated.TokenRequest
+	if !bind.JSONBody(c, &body) {
+		return
+	}
+	out, err := h.svc.ConfirmEmailChange(c.Request.Context(), appauth.ConfirmEmailChangeInput{Token: body.Token})
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, generated.GenericAuthMessageResponse{Message: out.Message})
+}
+
 func mapToken(out appauth.TokenResult) generated.AuthTokenResponse {
 	ctx := generated.ClientContext(out.ClientContext)
 	return generated.AuthTokenResponse{

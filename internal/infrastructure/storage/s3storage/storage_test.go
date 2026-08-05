@@ -32,6 +32,13 @@ type fakeObjectAPI struct {
 	getIn  *s3.GetObjectInput
 	getOut *s3.GetObjectOutput
 	getErr error
+
+	deleteIn  *s3.DeleteObjectInput
+	deleteErr error
+
+	listIn  *s3.ListObjectsV2Input
+	listOut *s3.ListObjectsV2Output
+	listErr error
 }
 
 func (f *fakeObjectAPI) HeadObject(_ context.Context, params *s3.HeadObjectInput, _ ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
@@ -53,6 +60,45 @@ func (f *fakeObjectAPI) GetObject(_ context.Context, params *s3.GetObjectInput, 
 		return nil, f.getErr
 	}
 	return f.getOut, nil
+}
+
+func (f *fakeObjectAPI) DeleteObject(_ context.Context, params *s3.DeleteObjectInput, _ ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
+	f.deleteIn = params
+	return &s3.DeleteObjectOutput{}, f.deleteErr
+}
+
+func (f *fakeObjectAPI) ListObjectsV2(_ context.Context, params *s3.ListObjectsV2Input, _ ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+	f.listIn = params
+	return f.listOut, f.listErr
+}
+
+func TestDeleteObjectUsesLogicalKey(t *testing.T) {
+	api := &fakeObjectAPI{}
+	store := mustStore(t, validCfg(), api, &fakePresigner{}, nil)
+	if err := store.DeleteObject(context.Background(), "assets/a/raw"); err != nil {
+		t.Fatal(err)
+	}
+	if got := aws.ToString(api.deleteIn.Key); got != "assets/a/raw" {
+		t.Fatalf("delete key=%q", got)
+	}
+}
+
+func TestListObjectsConvertsProviderPrefix(t *testing.T) {
+	api := &fakeObjectAPI{listOut: &s3.ListObjectsV2Output{
+		Contents:              []types.Object{{Key: aws.String("assets/a/raw")}},
+		NextContinuationToken: aws.String("next"),
+	}}
+	store := mustStore(t, validCfg(), api, &fakePresigner{}, nil)
+	page, err := store.ListObjects(context.Background(), "assets/", "", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := aws.ToString(api.listIn.Prefix); got != "assets/" {
+		t.Fatalf("list prefix=%q", got)
+	}
+	if len(page.Keys) != 1 || page.Keys[0] != "assets/a/raw" || page.NextCursor != "next" {
+		t.Fatalf("page=%+v", page)
+	}
 }
 
 // fakePresigner records PresignPutObject inputs for unit tests only.

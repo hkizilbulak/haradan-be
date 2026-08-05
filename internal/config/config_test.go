@@ -249,6 +249,7 @@ func TestLoadStorageProviderDefaultsAndB2(t *testing.T) {
 	t.Setenv("S3_ACCESS_KEY", "access-key-value")
 	t.Setenv("S3_SECRET_KEY", "secret-key-value-do-not-leak")
 	t.Setenv("S3_BASE_PATH", "/media/prod/")
+	t.Setenv("MEDIA_PUBLIC_BASE_URL", "https://cdn.example.invalid/media")
 	cfg, err = config.Load()
 	if err != nil {
 		t.Fatal(err)

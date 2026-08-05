@@ -434,22 +434,22 @@ func TestMediaMissingAuthHTTP(t *testing.T) {
 	}
 }
 
-func TestMediaOutOfScopeRoutesStill501HTTP(t *testing.T) {
+func TestAdminMediaRoutesRequireAdminAuthenticationHTTP(t *testing.T) {
 	env := newMediaEngine(t)
 	auth, _ := env.registerAndLogin(t, "outofscope@example.com")
 
 	rec := env.do(http.MethodPost, "/api/v1/admin/media/uploads", `{}`, auth)
-	if rec.Code != http.StatusNotImplemented {
+	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("admin initiate status=%d body=%s", rec.Code, rec.Body.String())
 	}
 
 	rec = env.do(http.MethodGet, "/api/v1/admin/media/assets/"+uuid.New().String(), "", auth)
-	if rec.Code != http.StatusNotImplemented {
+	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("admin status status=%d body=%s", rec.Code, rec.Body.String())
 	}
 
 	rec = env.do(http.MethodPost, "/api/v1/admin/media/assets/"+uuid.New().String()+"/confirm", `{}`, auth)
-	if rec.Code != http.StatusNotImplemented {
+	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("admin confirm status=%d body=%s", rec.Code, rec.Body.String())
 	}
 

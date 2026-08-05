@@ -39,6 +39,33 @@ type Property struct {
 	IsActive        bool
 	IsFormVisible   bool
 	IsPublicVisible bool
+	Validation      json.RawMessage
+	Version         int
+}
+
+// CategoryPatch is the mutable subset of a category.
+type CategoryPatch struct {
+	SlugSet, NameSet, DescriptionSet, SortOrderSet bool
+	Slug, Name                                     string
+	Description                                    *string
+	SortOrder                                      int
+}
+
+// PropertyPatch is the mutable subset of a category property.
+type PropertyPatch struct {
+	TitleSet, HelpTextSet, IsRequiredSet, IsPublicVisibleSet, IsFormVisibleSet, IsFilterableSet, SortOrderSet, OptionsSet, ValidationSet, DefaultValueSet, UIMetadataSet bool
+	Title                                                                                                                                                                string
+	HelpText                                                                                                                                                             *string
+	IsRequired, IsPublicVisible, IsFormVisible, IsFilterable                                                                                                             bool
+	SortOrder                                                                                                                                                            int
+	Options, Validation, DefaultValue, UIMetadata                                                                                                                        json.RawMessage
+}
+
+// ReorderItem applies one optimistic sort-order update.
+type ReorderItem struct {
+	ID              uuid.UUID
+	ExpectedVersion int
+	SortOrder       int
 }
 
 // FormCategory is the category header used by form definition responses.

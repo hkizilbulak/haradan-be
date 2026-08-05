@@ -142,6 +142,32 @@ func (m memUsers) MarkEmailVerified(_ context.Context, userID uuid.UUID, verifie
 	m.store.users[userID] = u
 	return nil
 }
+func (m memUsers) UpdatePasswordHash(_ context.Context, userID uuid.UUID, passwordHash string, securityStamp uuid.UUID, now time.Time) error {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	u, ok := m.store.users[userID]
+	if !ok {
+		return apperr.NotFound("user not found")
+	}
+	u.PasswordHash, u.SecurityStamp, u.FailedLoginCount, u.LockedUntil, u.UpdatedAt = passwordHash, securityStamp, 0, nil, now
+	m.store.users[userID] = u
+	return nil
+}
+func (m memUsers) UpdateEmail(_ context.Context, userID uuid.UUID, email, emailNormalized string, securityStamp uuid.UUID, now time.Time) error {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	u, ok := m.store.users[userID]
+	if !ok {
+		return apperr.NotFound("user not found")
+	}
+	if existing, exists := m.store.byEmail[emailNormalized]; exists && existing != userID {
+		return apperr.Conflict("email already registered")
+	}
+	delete(m.store.byEmail, u.EmailNormalized)
+	u.Email, u.EmailNormalized, u.SecurityStamp, u.EmailVerifiedAt, u.UpdatedAt = email, emailNormalized, securityStamp, nil, now
+	m.store.users[userID], m.store.byEmail[emailNormalized] = u, userID
+	return nil
+}
 func (m memUsers) UpdateProfile(_ context.Context, userID uuid.UUID, patch ProfilePatch, now time.Time) (domainuser.User, error) {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()

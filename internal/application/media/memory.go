@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -915,6 +916,36 @@ func (f *FakeStorage) GetObject(_ context.Context, objectKey string) ([]byte, st
 		return nil, "", apperr.NotFound("Nesne bulunamadı.")
 	}
 	return append([]byte(nil), obj.body...), obj.contentType, nil
+}
+
+// DeleteObject is idempotent for test parity with object storage.
+func (f *FakeStorage) DeleteObject(_ context.Context, objectKey string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.objects, objectKey)
+	return nil
+}
+
+// ListObjects returns a stable, bounded lexicographic page.
+func (f *FakeStorage) ListObjects(_ context.Context, prefix, cursor string, limit int) (ObjectPage, error) {
+	if limit <= 0 {
+		return ObjectPage{}, apperr.Validation(invalidRequest)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	keys := make([]string, 0, len(f.objects))
+	for key := range f.objects {
+		if strings.HasPrefix(key, prefix) && key > cursor {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	if len(keys) <= limit {
+		out := ObjectPage{Keys: keys, LastModified: make([]time.Time, len(keys))}
+		return out, nil
+	}
+	pageKeys := keys[:limit]
+	return ObjectPage{Keys: pageKeys, LastModified: make([]time.Time, len(pageKeys)), NextCursor: keys[limit-1]}, nil
 }
 
 // Has reports whether the fake store holds objectKey.

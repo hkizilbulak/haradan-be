@@ -34,6 +34,9 @@ func (s stubHandler) ProcessGenerateVariant(ctx context.Context, id uuid.UUID, p
 	return nil
 }
 
+func (s stubHandler) ProcessDeleteObjects(context.Context, []byte) error { return nil }
+func (s stubHandler) ProcessReconcile(context.Context, []byte) error     { return nil }
+
 func enqueueValidate(t *testing.T, store *appmedia.MemoryStore, assetID uuid.UUID, now time.Time) {
 	t.Helper()
 	key := domainmedia.ValidateJobDedupKey(assetID)
