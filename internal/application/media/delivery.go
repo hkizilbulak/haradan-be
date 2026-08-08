@@ -43,8 +43,9 @@ type PublicDeliveryViewer struct {
 // ResolvePublicDelivery locates a READY, Haradan-owned variant that the viewer
 // may access. Anonymous callers require a current public attachment; owners may
 // preview attached draft/pending advert assets; active admins may preview
-// attached listing/banner assets. Missing, soft-deleted, non-READY, raw/master,
-// orphan, and unauthorized access all collapse to the same NOT_FOUND response.
+// attached listing/banner assets. Active admins may also preview a READY BANNER
+// variant before creating its banner record. Missing, soft-deleted, non-READY,
+// raw/master, other orphan, and unauthorized access collapse to NOT_FOUND.
 func (s *Service) ResolvePublicDelivery(ctx context.Context, assetID uuid.UUID, profile string, viewer PublicDeliveryViewer) (PublicDelivery, error) {
 	profile = strings.TrimSpace(profile)
 	if assetID == uuid.Nil || !domainmedia.IsKnownDeliveryProfile(profile) {
@@ -149,18 +150,20 @@ func (s *Service) advertDeliveryAllowed(ctx context.Context, assetID uuid.UUID, 
 }
 
 func (s *Service) bannerDeliveryAllowed(ctx context.Context, assetID uuid.UUID, viewer PublicDeliveryViewer) (bool, error) {
+	isAdmin := viewer.UserID != uuid.Nil && viewer.Role == string(domainuser.RoleAdmin)
+	if isAdmin {
+		// BO create flow previews the processed BANNER variant before the banner
+		// relation exists. Authentication is still required; anonymous callers
+		// keep the orphan-safe 404 behavior.
+		return true, nil
+	}
 	rows, err := s.repo.FindBannerMediaAccessByAsset(ctx, assetID)
 	if err != nil {
 		return false, err
 	}
-	isAdmin := viewer.UserID != uuid.Nil && viewer.Role == string(domainuser.RoleAdmin)
 	now := s.clock.Now().UTC()
 	for _, row := range rows {
 		if domainbanner.Status(row.Status) == domainbanner.StatusActive && bannerPubliclyDisplayable(row, now) {
-			return true, nil
-		}
-		if isAdmin {
-			// BO preview: any attached banner asset, including inactive.
 			return true, nil
 		}
 	}
