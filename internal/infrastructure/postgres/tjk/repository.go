@@ -27,10 +27,15 @@ type Repository struct{ db DB }
 func NewRepository(db DB) *Repository { return &Repository{db: db} }
 
 const runCols = `id,mode,status,source_adapter,scope_key,checkpoint,trigger_kind,created_by_user_id,cancel_requested_at,cancelled_at,started_at,completed_at,total_count,created_count,updated_count,unchanged_count,skipped_count,failed_count,conflict_count,last_error_summary,version,created_at,updated_at`
+const qualifiedRunCols = `r.id,r.mode,r.status,r.source_adapter,r.scope_key,r.checkpoint,r.trigger_kind,r.created_by_user_id,r.cancel_requested_at,r.cancelled_at,r.started_at,r.completed_at,r.total_count,r.created_count,r.updated_count,r.unchanged_count,r.skipped_count,r.failed_count,r.conflict_count,r.last_error_summary,r.version,r.created_at,r.updated_at`
 
 func (r *Repository) CreateRun(ctx context.Context, x domain.Run) error {
 	_, err := r.db.Exec(ctx, `INSERT INTO hrd_tjk_sync_runs (`+runCols+`) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,NULL,NULL,NULL,NULL,0,0,0,0,0,0,0,NULL,$9,$10,$11)`, x.ID, x.Mode, x.Status, x.SourceAdapter, x.Scope, x.Checkpoint, x.TriggerKind, x.CreatedByUserID, x.Version, x.CreatedAt, x.UpdatedAt)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return apperr.Conflict("Bu kaynak ve kapsam için zaten aktif bir TJK senkronizasyonu var.")
+		}
 		return apperr.Internal(fmt.Errorf("create TJK run: %w", err))
 	}
 	return nil
@@ -83,14 +88,64 @@ func (r *Repository) GetRun(ctx context.Context, id uuid.UUID) (domain.Run, erro
 	return x, nil
 }
 func (r *Repository) RequestCancel(ctx context.Context, id uuid.UUID, version int, now time.Time) (domain.Run, error) {
-	x, e := scanRun(r.db.QueryRow(ctx, `UPDATE hrd_tjk_sync_runs SET cancel_requested_at=COALESCE(cancel_requested_at,$3),version=version+1,updated_at=$3 WHERE id=$1 AND version=$2 AND status IN ('QUEUED','RUNNING') RETURNING `+runCols, id, version, now))
+	// Never-leased QUEUED runs hard-terminalize immediately so the one-active
+	// unique index releases without waiting for a worker.
+	x, e := scanRun(r.db.QueryRow(ctx, `
+WITH cancelled_run AS (
+  UPDATE hrd_tjk_sync_runs SET
+    status='CANCELLED',
+    cancel_requested_at=COALESCE(cancel_requested_at,$3),
+    cancelled_at=$3,
+    completed_at=$3,
+    version=version+1,
+    updated_at=$3
+  WHERE id=$1 AND version=$2 AND status='QUEUED'
+  RETURNING `+runCols+`
+), terminalized_jobs AS (
+  UPDATE hrd_background_jobs SET
+    status='CANCELLED',
+    cancel_requested_at=COALESCE(cancel_requested_at,$3),
+    completed_at=COALESCE(completed_at,$3),
+    lease_owner=NULL,
+    leased_until=NULL,
+    version=version+1,
+    updated_at=$3
+  WHERE tjk_sync_run_id=(SELECT id FROM cancelled_run)
+    AND status IN ('QUEUED','LEASED')
+  RETURNING id
+)
+SELECT `+runCols+` FROM cancelled_run`, id, version, now))
+	if e == nil {
+		return x, nil
+	}
+	if !errors.Is(e, pgx.ErrNoRows) {
+		return domain.Run{}, apperr.Internal(e)
+	}
+
+	// RUNNING stays cooperative soft-cancel until the worker checkpoints.
+	x, e = scanRun(r.db.QueryRow(ctx, `
+WITH cancel_requested_run AS (
+  UPDATE hrd_tjk_sync_runs SET
+    cancel_requested_at=COALESCE(cancel_requested_at,$3),
+    version=version+1,
+    updated_at=$3
+  WHERE id=$1 AND version=$2 AND status='RUNNING'
+  RETURNING `+runCols+`
+), cancel_requested_jobs AS (
+  UPDATE hrd_background_jobs SET
+    cancel_requested_at=COALESCE(cancel_requested_at,$3),
+    updated_at=$3
+  WHERE tjk_sync_run_id=(SELECT id FROM cancel_requested_run)
+    AND status IN ('QUEUED','LEASED')
+  RETURNING id
+)
+SELECT `+runCols+` FROM cancel_requested_run`, id, version, now))
 	if errors.Is(e, pgx.ErrNoRows) {
 		return domain.Run{}, apperr.Conflict("TJK senkronizasyonu güncellenemedi.")
 	}
 	if e != nil {
 		return domain.Run{}, apperr.Internal(e)
 	}
-	_, _ = r.db.Exec(ctx, `UPDATE hrd_background_jobs SET cancel_requested_at=COALESCE(cancel_requested_at,$2),updated_at=$2 WHERE tjk_sync_run_id=$1 AND status IN ('QUEUED','LEASED')`, id, now)
 	return x, nil
 }
 func (r *Repository) ListItemErrors(ctx context.Context, runID uuid.UUID, cursor, status *string, limit int) ([]domain.ItemError, bool, error) {
@@ -141,14 +196,22 @@ func scanRun(row interface{ Scan(...any) error }) (domain.Run, error) {
 }
 
 func (r *Repository) ClaimTJKJob(ctx context.Context, owner string, now, leaseUntil time.Time) (uuid.UUID, domain.Run, bool, error) {
+	// Skip jobs whose run is already terminal (e.g. hard-cancelled QUEUED). Soft-
+	// cancelled RUNNING jobs remain claimable so the worker can FinishTJKRun.
 	const q = `WITH next AS (
- SELECT id FROM hrd_background_jobs WHERE job_type='TJK_SYNC_BATCH' AND status='QUEUED' AND available_at <= $1 AND attempt_count < max_attempts
- ORDER BY available_at,id FOR UPDATE SKIP LOCKED LIMIT 1
+ SELECT j.id FROM hrd_background_jobs j
+ JOIN hrd_tjk_sync_runs r ON r.id=j.tjk_sync_run_id
+ WHERE j.job_type='TJK_SYNC_BATCH'
+   AND j.status='QUEUED'
+   AND j.available_at <= $1
+   AND j.attempt_count < j.max_attempts
+   AND r.status IN ('QUEUED','RUNNING')
+ ORDER BY j.available_at,j.id FOR UPDATE SKIP LOCKED LIMIT 1
 ), claimed AS (
  UPDATE hrd_background_jobs j SET status='LEASED',lease_owner=$2,leased_until=$3,attempt_count=attempt_count+1,version=version+1,updated_at=$1
  FROM next WHERE j.id=next.id
  RETURNING j.id,j.tjk_sync_run_id
-) SELECT c.id,` + runCols + ` FROM claimed c JOIN hrd_tjk_sync_runs r ON r.id=c.tjk_sync_run_id`
+) SELECT c.id,` + qualifiedRunCols + ` FROM claimed c JOIN hrd_tjk_sync_runs r ON r.id=c.tjk_sync_run_id`
 	var id uuid.UUID
 	var run domain.Run
 	row := r.db.QueryRow(ctx, q, now, owner, leaseUntil)
@@ -242,13 +305,13 @@ func (r *Repository) FinishTJKRun(ctx context.Context, jobID uuid.UUID, run doma
 	if run.CancelRequestedAt != nil {
 		status = domain.RunCancelled
 	}
-	_, err := r.db.Exec(ctx, `UPDATE hrd_tjk_sync_runs SET status=$2,completed_at=$3,cancelled_at=CASE WHEN $2='CANCELLED' THEN $3 ELSE NULL END,updated_at=$3,version=version+1 WHERE id=$1`, run.ID, status, now)
+	_, err := r.db.Exec(ctx, `UPDATE hrd_tjk_sync_runs SET status=$2::varchar,completed_at=$3::timestamptz,cancelled_at=CASE WHEN $2::varchar='CANCELLED' THEN $3::timestamptz ELSE NULL END,updated_at=$3::timestamptz,version=version+1 WHERE id=$1`, run.ID, status, now)
 	if err != nil {
-		return apperr.Internal(err)
+		return apperr.Internal(fmt.Errorf("finish TJK run: %w", err))
 	}
-	_, err = r.db.Exec(ctx, `UPDATE hrd_background_jobs SET status=CASE WHEN $2='CANCELLED' THEN 'CANCELLED' ELSE 'SUCCEEDED' END,lease_owner=NULL,leased_until=NULL,completed_at=$3,updated_at=$3 WHERE id=$1`, jobID, status, now)
+	_, err = r.db.Exec(ctx, `UPDATE hrd_background_jobs SET status=CASE WHEN $2::varchar='CANCELLED' THEN 'CANCELLED' ELSE 'SUCCEEDED' END,cancel_requested_at=CASE WHEN $2::varchar='CANCELLED' THEN COALESCE(cancel_requested_at,$3::timestamptz) ELSE cancel_requested_at END,lease_owner=NULL,leased_until=NULL,completed_at=$3::timestamptz,updated_at=$3::timestamptz WHERE id=$1`, jobID, status, now)
 	if err != nil {
-		return apperr.Internal(err)
+		return apperr.Internal(fmt.Errorf("finish TJK job: %w", err))
 	}
 	return nil
 }

@@ -128,7 +128,13 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("auth service: %w", err)
 	}
-	adminUserSvc, err := appadminuser.NewService(appadminuser.Config{Repository: pgadminuser.NewRepository(db.Pool())})
+	adminUserSvc, err := appadminuser.NewService(appadminuser.Config{
+		Repository:      pgadminuser.NewRepository(db.Pool()),
+		Hasher:          hasher,
+		EmailSender:     emailSender,
+		EmailConfigured: cfg.EmailProvider == config.EmailProviderResend,
+		InvitationTTL:   cfg.EmailVerificationTTL,
+	})
 	if err != nil {
 		return fmt.Errorf("admin user service: %w", err)
 	}
@@ -246,8 +252,9 @@ func run() error {
 		Repo:  pgjobdef.NewRepository(db.Pool()),
 		Users: userRepo,
 		Caps: appjobadmin.ProviderCapabilities{
-			TJKEnabled: cfg.TJKEnabled,
-			B2Enabled:  cfg.StorageProvider == config.StorageProviderB2,
+			TJKEnabled:    cfg.TJKEnabled,
+			B2Enabled:     cfg.StorageProvider == config.StorageProviderB2,
+			TinifyEnabled: cfg.ImageProcessorProvider == config.ImageProcessorProviderTinify,
 		},
 	})
 	if err != nil {

@@ -80,13 +80,17 @@ var AdvertModerationProtectedRoutes = []ProtectedRoute{
 	{Method: "POST", Path: "/api/v1/admin/adverts/:advertId/suspend"},
 }
 
-// AdminUserProtectedRoutes are ADMIN-USER-01..05 BO_AUTH routes.
+// AdminUserProtectedRoutes are ADMIN-USER BO_AUTH routes.
 var AdminUserProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/users"},
+	{Method: "POST", Path: "/api/v1/admin/users"},
 	{Method: "GET", Path: "/api/v1/admin/users/:userId"},
+	{Method: "PATCH", Path: "/api/v1/admin/users/:userId"},
 	{Method: "POST", Path: "/api/v1/admin/users/:userId/role"},
 	{Method: "POST", Path: "/api/v1/admin/users/:userId/status"},
 	{Method: "GET", Path: "/api/v1/admin/users/:userId/security-events"},
+	{Method: "POST", Path: "/api/v1/admin/users/:userId/invitation/resend"},
+	{Method: "POST", Path: "/api/v1/admin/users/:userId/email/change-request"},
 }
 
 var TJKAdminProtectedRoutes = []ProtectedRoute{
@@ -99,10 +103,11 @@ var TJKAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "POST", Path: "/api/v1/admin/tjk/item-errors/:errorId/ignore"},
 }
 
-// PackagingAdminProtectedRoutes are packaging/campaign/notification-template BO_AUTH routes.
+// PackagingAdminProtectedRoutes are packaging/campaign/notification-template/job BO_AUTH routes.
 var PackagingAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/packages"},
 	{Method: "POST", Path: "/api/v1/admin/packages"},
+	{Method: "PUT", Path: "/api/v1/admin/packages/reorder"},
 	{Method: "GET", Path: "/api/v1/admin/packages/:packageCode"},
 	{Method: "PATCH", Path: "/api/v1/admin/packages/:packageCode"},
 	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId/package"},
@@ -133,6 +138,31 @@ var BannerAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/banners/:bannerId"},
 	{Method: "PATCH", Path: "/api/v1/admin/banners/:bannerId"},
 	{Method: "POST", Path: "/api/v1/admin/banners/:bannerId/status"},
+}
+
+// CatalogAdminProtectedRoutes are ADMIN-CATALOG-* BO_AUTH category/property routes.
+// Without these, Bearer tokens from the BO proxy never become a Principal and
+// requireAdminBO returns 401 "Kimlik doğrulama gerekli."
+var CatalogAdminProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/admin/categories"},
+	{Method: "POST", Path: "/api/v1/admin/categories"},
+	{Method: "PUT", Path: "/api/v1/admin/categories/reorder"},
+	{Method: "GET", Path: "/api/v1/admin/categories/:categoryId"},
+	{Method: "PATCH", Path: "/api/v1/admin/categories/:categoryId"},
+	{Method: "POST", Path: "/api/v1/admin/categories/:categoryId/active"},
+	{Method: "POST", Path: "/api/v1/admin/categories/:categoryId/reparent"},
+	{Method: "GET", Path: "/api/v1/admin/categories/:categoryId/properties"},
+	{Method: "POST", Path: "/api/v1/admin/categories/:categoryId/properties"},
+	{Method: "PUT", Path: "/api/v1/admin/categories/:categoryId/properties/reorder"},
+	{Method: "PATCH", Path: "/api/v1/admin/categories/:categoryId/properties/:propertyId"},
+	{Method: "POST", Path: "/api/v1/admin/categories/:categoryId/properties/:propertyId/active"},
+}
+
+// MediaAdminProtectedRoutes are admin media upload/status BO_AUTH routes.
+var MediaAdminProtectedRoutes = []ProtectedRoute{
+	{Method: "POST", Path: "/api/v1/admin/media/uploads"},
+	{Method: "POST", Path: "/api/v1/admin/media/assets/:assetId/confirm"},
+	{Method: "GET", Path: "/api/v1/admin/media/assets/:assetId"},
 }
 
 // AdvertUrgentProtectedRoutes are owner/admin URGENT activate/deactivate routes.

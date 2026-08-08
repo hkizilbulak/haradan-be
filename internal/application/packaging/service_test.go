@@ -3,6 +3,7 @@ package packaging_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -681,6 +682,8 @@ func contains(s, sub string) bool {
 }
 
 func ptrTime(t time.Time) *time.Time { return &t }
+
+func strPtr(s string) *string { return &s }
 func intPtr(v int) *int              { return &v }
 
 func TestUpdatePackageOptimisticAndAllowsUrgentFalse(t *testing.T) {
@@ -772,6 +775,29 @@ func TestUpdatePackageNonAdminForbidden(t *testing.T) {
 	requireKind(t, err, apperr.KindForbidden)
 }
 
+func TestUpdatePackageDescriptionSanitizesHTML(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	raw := `<p>Güvenli</p><script>alert(1)</script><a href="javascript:alert(1)">x</a>`
+	updated, err := f.svc.UpdatePackage(ctx, apppackaging.UpdatePackageInput{
+		ActorUserID: f.admin.ID, Code: domainpackaging.PackageCode("STARTER"), ExpectedVersion: 1,
+		DescriptionSet: true, Description: &raw,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Description == nil {
+		t.Fatal("expected sanitized description")
+	}
+	got := strings.ToLower(*updated.Description)
+	if strings.Contains(got, "<script") || strings.Contains(got, "javascript:") {
+		t.Fatalf("unsafe HTML survived: %q", *updated.Description)
+	}
+	if !strings.Contains(*updated.Description, "<p>") || !strings.Contains(*updated.Description, "Güvenli") {
+		t.Fatalf("allowed markup lost: %q", *updated.Description)
+	}
+}
+
 func TestUpdatePackageNullableOmitNullValue(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
@@ -815,5 +841,108 @@ func TestUpdatePackageNullableOmitNullValue(t *testing.T) {
 	if cleared.Description != nil || cleared.BadgeText != nil ||
 		cleared.DisplayPriceAmountMinor != nil || cleared.DefaultDurationDays != nil {
 		t.Fatalf("null did not clear: %+v", cleared)
+	}
+}
+
+func TestCreatePackageGeneratesCodeTRYOnlyAppendsEnd(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	created, err := f.svc.CreatePackage(ctx, apppackaging.CreatePackageInput{
+		ActorUserID: f.admin.ID,
+		DisplayName: "Premium Plus",
+		Benefits:    []string{"Öne çıkar"},
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Code != "PREMIUM_PLUS" {
+		t.Fatalf("expected PREMIUM_PLUS, got %s", created.Code)
+	}
+	if created.CurrencyCode != "TRY" {
+		t.Fatalf("currency=%s", created.CurrencyCode)
+	}
+	if created.SearchPriority != 0 {
+		t.Fatalf("default searchPriority want 0 got %d", created.SearchPriority)
+	}
+	if created.SortOrder != 31 {
+		t.Fatalf("expected append after ADVANCED(30), got %d", created.SortOrder)
+	}
+
+	_, err = f.svc.CreatePackage(ctx, apppackaging.CreatePackageInput{
+		ActorUserID:  f.admin.ID,
+		DisplayName:  "USD Paket",
+		CurrencyCode: "USD",
+		Benefits:     []string{"x"},
+		IsActive:     true,
+	})
+	if err == nil {
+		t.Fatal("expected TRY-only validation")
+	}
+
+	_, err = f.svc.CreatePackage(ctx, apppackaging.CreatePackageInput{
+		ActorUserID:       f.admin.ID,
+		DisplayName:       "Bad Priority",
+		Benefits:          []string{"x"},
+		SearchPriority:    101,
+		SearchPrioritySet: true,
+		IsActive:          true,
+	})
+	if err == nil {
+		t.Fatal("expected priority bounds validation")
+	}
+}
+
+func TestReorderPackagesOptimistic(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	err := f.svc.ReorderPackages(ctx, f.admin.ID, []apppackaging.ReorderPackageItem{
+		{ID: f.advanced.ID, ExpectedVersion: 1, SortOrder: 0},
+		{ID: f.starter.ID, ExpectedVersion: 1, SortOrder: 1},
+		{ID: f.middle.ID, ExpectedVersion: 1, SortOrder: 2},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := f.svc.ListAdminPackages(ctx, f.admin.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if items[0].Code != "ADVANCED" || items[1].Code != "STARTER" || items[2].Code != "MIDDLE" {
+		t.Fatalf("unexpected order: %+v", items)
+	}
+	err = f.svc.ReorderPackages(ctx, f.admin.ID, []apppackaging.ReorderPackageItem{
+		{ID: f.starter.ID, ExpectedVersion: 1, SortOrder: 9},
+	})
+	if err == nil {
+		t.Fatal("expected stale version conflict")
+	}
+}
+
+func TestCreatePackageCodeImmutableOnNameChange(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	created, err := f.svc.CreatePackage(ctx, apppackaging.CreatePackageInput{
+		ActorUserID: f.admin.ID,
+		DisplayName: "Özel Paket",
+		Benefits:    []string{"a"},
+		IsActive:    true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := created.Code
+	updated, err := f.svc.UpdatePackage(ctx, apppackaging.UpdatePackageInput{
+		ActorUserID: f.admin.ID, Code: code, ExpectedVersion: created.Version,
+		DisplayName: strPtr("Yeni İsim"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Code != code {
+		t.Fatalf("code must stay immutable: %s -> %s", code, updated.Code)
+	}
+	if updated.DisplayName != "Yeni İsim" {
+		t.Fatalf("name not updated: %s", updated.DisplayName)
 	}
 }

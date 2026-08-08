@@ -135,6 +135,30 @@ func (r *Repository) UpdateRole(ctx context.Context, userID uuid.UUID, role doma
 func (r *Repository) UpdateStatus(ctx context.Context, userID uuid.UUID, status domainuser.Status, securityStamp uuid.UUID, now time.Time) (domainuser.User, error) {
 	return r.updateUser(ctx, `status = $2`, userID, status, securityStamp, now)
 }
+func (r *Repository) UpdateProfile(ctx context.Context, userID uuid.UUID, firstName, lastName string, phone *string, now time.Time) (domainuser.User, error) {
+	user, err := scanUser(r.db.QueryRow(ctx, `
+UPDATE hrd_users
+SET first_name = $2, last_name = $3, phone = $4, updated_at = $5
+WHERE id = $1
+RETURNING `+userColumns, userID, firstName, lastName, phone, now))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domainuser.User{}, apperr.NotFound("user not found")
+	}
+	if err != nil {
+		return domainuser.User{}, apperr.Internal(fmt.Errorf("update admin user profile: %w", pg.SanitizeErr(err)))
+	}
+	return user, nil
+}
+func (r *Repository) FindUserByNormalizedEmail(ctx context.Context, normalized string) (domainuser.User, error) {
+	user, err := scanUser(r.db.QueryRow(ctx, `SELECT `+userColumns+` FROM hrd_users WHERE email_normalized = $1`, normalized))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domainuser.User{}, apperr.NotFound("user not found")
+	}
+	if err != nil {
+		return domainuser.User{}, apperr.Internal(fmt.Errorf("find user by email: %w", pg.SanitizeErr(err)))
+	}
+	return user, nil
+}
 func (r *Repository) updateUser(ctx context.Context, assignment string, userID uuid.UUID, value any, securityStamp uuid.UUID, now time.Time) (domainuser.User, error) {
 	user, err := scanUser(r.db.QueryRow(ctx, `UPDATE hrd_users SET `+assignment+`, security_stamp = $3, updated_at = $4 WHERE id = $1 RETURNING `+userColumns, userID, value, securityStamp, now))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -220,6 +244,89 @@ LIMIT $5`
 		return nil, apperr.Internal(fmt.Errorf("list security events rows: %w", pg.SanitizeErr(err)))
 	}
 	return out, nil
+}
+
+func (r *Repository) CreateUser(ctx context.Context, user domainuser.User) error {
+	const q = `
+INSERT INTO hrd_users (
+  id, email, email_normalized, password_hash, role, status, email_verified_at,
+  first_name, last_name, phone, security_stamp, failed_login_count, locked_until, created_at, updated_at
+) VALUES (
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
+)`
+	_, err := r.db.Exec(ctx, q,
+		user.ID, user.Email, user.EmailNormalized, user.PasswordHash, string(user.Role), string(user.Status), user.EmailVerifiedAt,
+		user.FirstName, user.LastName, user.Phone, user.SecurityStamp, user.FailedLoginCount, user.LockedUntil, user.CreatedAt, user.UpdatedAt,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return apperr.Conflict("Bu e-posta adresi zaten kayıtlı.")
+		}
+		return apperr.Internal(fmt.Errorf("create admin user: %w", pg.SanitizeErr(err)))
+	}
+	return nil
+}
+
+func (r *Repository) CountActiveAdmins(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, `
+SELECT count(*) FROM hrd_users
+WHERE role = 'admin' AND status = 'ACTIVE'`).Scan(&count)
+	if err != nil {
+		return 0, apperr.Internal(fmt.Errorf("count active admins: %w", pg.SanitizeErr(err)))
+	}
+	return count, nil
+}
+
+// LockActiveAdminGuard takes a transaction-scoped advisory lock so concurrent
+// demote/disable paths cannot both observe count>1 and leave zero ACTIVE admins.
+func (r *Repository) LockActiveAdminGuard(ctx context.Context) error {
+	// Stable key derived from a fixed namespace string (must stay constant).
+	const key int64 = 0x6872645f61646d6e // "hrd_admn"
+	if _, err := r.db.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, key); err != nil {
+		return apperr.Internal(fmt.Errorf("lock active admin guard: %w", pg.SanitizeErr(err)))
+	}
+	return nil
+}
+
+func (r *Repository) InvalidateActiveOneTimeCredentials(ctx context.Context, userID uuid.UUID, purpose domainauth.OneTimePurpose, now time.Time) error {
+	_, err := r.db.Exec(ctx, `
+UPDATE hrd_one_time_credentials
+SET invalidated_at = $3
+WHERE user_id = $1
+  AND purpose = $2
+  AND consumed_at IS NULL
+  AND invalidated_at IS NULL`, userID, string(purpose), now)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("invalidate admin invitation credentials: %w", pg.SanitizeErr(err)))
+	}
+	return nil
+}
+
+func (r *Repository) CreateOneTimeCredential(ctx context.Context, cred domainauth.OneTimeCredential) error {
+	_, err := r.db.Exec(ctx, `
+INSERT INTO hrd_one_time_credentials (
+  id, user_id, purpose, token_hash, target_email, target_email_normalized,
+  expires_at, consumed_at, invalidated_at, created_at, request_ip_hash
+) VALUES (
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11
+)`,
+		cred.ID, cred.UserID, string(cred.Purpose), cred.TokenHash,
+		pg.NullIfEmpty(cred.TargetEmail), pg.NullIfEmpty(cred.TargetEmailNormalized),
+		cred.ExpiresAt, cred.ConsumedAt, cred.InvalidatedAt, cred.CreatedAt, cred.RequestIPHash,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return apperr.Conflict("Davet jetonu çakışması.")
+		}
+		return apperr.Internal(fmt.Errorf("create admin invitation credential: %w", pg.SanitizeErr(err)))
+	}
+	return nil
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 func scanUser(row pgx.Row) (domainuser.User, error) {

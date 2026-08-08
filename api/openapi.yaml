@@ -1976,6 +1976,115 @@ paths:
         - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
+    post:
+      operationId: CreateAdminUser
+      summary: CreateAdminUser
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Creates ACTIVE user with
+        role user|admin, issues PASSWORD_RESET invitation credential, and attempts
+        password-setup email. Never accepts or returns a password. Requires role=admin
+        and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminUsers
+      x-function-id: ADMIN-USER-06
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/CreateAdminUserRequest"
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminUserCreateResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '409':
+        - CONFLICT
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/users/{userId}/invitation/resend":
+    post:
+      operationId: ResendAdminUserInvitation
+      summary: ResendAdminUserInvitation
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Re-issues PASSWORD_RESET
+        invitation credential and attempts password-setup email for an ACTIVE user.
+        Never returns a token or password. Requires role=admin and session clientContext=ADMIN_BO.
+        Returns 503 when email provider is unconfigured or delivery fails after credential rotation.'
+      tags:
+      - AdminUsers
+      x-function-id: ADMIN-USER-07
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminUserCreateResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/UserIdPath"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - CONFLICT
+        '503':
+        - DEPENDENCY_UNAVAILABLE
+        '500':
+        - INTERNAL_ERROR
   "/v1/admin/users/{userId}":
     get:
       operationId: GetUserAdminDetail
@@ -2019,6 +2128,128 @@ paths:
         - ACCOUNT_INACTIVE
         '404':
         - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+    patch:
+      operationId: UpdateAdminUser
+      summary: UpdateAdminUser
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Updates firstName/lastName/phone.
+        Email is never changed here. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminUsers
+      x-function-id: ADMIN-USER-08
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      parameters:
+      - "$ref": "#/components/parameters/UserIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/UpdateAdminUserRequest"
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminUserDetailResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - CONFLICT
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/admin/users/{userId}/email/change-request":
+    post:
+      operationId: RequestAdminUserEmailChange
+      summary: RequestAdminUserEmailChange
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Starts EMAIL_CHANGE verification
+        to newEmail without changing current email until confirmation. Requires role=admin
+        and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminUsers
+      x-function-id: ADMIN-USER-09
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      parameters:
+      - "$ref": "#/components/parameters/UserIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RequestAdminUserEmailChangeRequest"
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SuccessMessageResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '503':
+          "$ref": "#/components/responses/DependencyUnavailable"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - CONFLICT
+        '422':
+        - VALIDATION_ERROR
+        '503':
+        - DEPENDENCY_UNAVAILABLE
         '500':
         - INTERNAL_ERROR
   "/v1/admin/users/{userId}/role":
@@ -4835,6 +5066,55 @@ paths:
         - NOT_FOUND
         '500':
         - INTERNAL_ERROR
+  "/v1/admin/packages/reorder":
+    put:
+      operationId: ReorderPackages
+      summary: ReorderPackages
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Optimistic reorder of package
+        catalog sortOrder. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminPackages
+      x-function-id: ADMIN-PACKAGE-REORDER
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ReorderPackagesRequest"
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SuccessMessageResponse"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '409':
+        - STALE_VERSION
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
   "/v1/admin/packages":
     get:
       operationId: ListAdminPackages
@@ -7497,6 +7777,111 @@ components:
           activeSessionCount:
             type: integer
             minimum: 0
+          updatedAt:
+            type: string
+            format: date-time
+    CreateAdminUserRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - email
+      - firstName
+      - lastName
+      - role
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 3
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        phone:
+          type: string
+          nullable: true
+          maxLength: 32
+        role:
+          "$ref": "#/components/schemas/UserRole"
+    AdminUserCreateResponse:
+      allOf:
+      - "$ref": "#/components/schemas/AdminUserDetailResponse"
+      - type: object
+        additionalProperties: false
+        required:
+        - invitationEmailSent
+        properties:
+          invitationEmailSent:
+            type: boolean
+            description: False when the account was created but password-setup email
+              could not be delivered (provider unconfigured or unavailable).
+
+    UpdateAdminUserRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - expectedUpdatedAt
+      - firstName
+      - lastName
+      properties:
+        expectedUpdatedAt:
+          type: string
+          format: date-time
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        phone:
+          type: string
+          nullable: true
+          maxLength: 32
+          description: Optional TR mobile; blank/null clears. Canonical storage +905XXXXXXXXX.
+    RequestAdminUserEmailChangeRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - newEmail
+      properties:
+        newEmail:
+          type: string
+          format: email
+          minLength: 3
+    ReorderPackagesRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            "$ref": "#/components/schemas/ReorderPackageItem"
+    ReorderPackageItem:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - expectedVersion
+      - sortOrder
+      properties:
+        id:
+          type: string
+          format: uuid
+        expectedVersion:
+          type: integer
+          minimum: 1
+        sortOrder:
+          type: integer
+          minimum: 0
     ChangeUserStatusRequest:
       type: object
       required:
@@ -7773,12 +8158,12 @@ components:
     CreateCategoryPropertyRequest:
       type: object
       required:
-      - code
       - title
       - dataType
       properties:
         code:
           type: string
+          description: Optional. When omitted, a stable immutable code is generated from title (Turkish-normalized, collision-safe within the category).
         title:
           type: string
         helpText:
@@ -7797,6 +8182,7 @@ components:
         sortOrder:
           type: integer
           minimum: 0
+          description: Optional. When omitted, the property is appended at the end of the category property list.
         options:
           type: array
           items:
@@ -8401,6 +8787,7 @@ components:
       type: object
       additionalProperties: false
       required:
+      - id
       - code
       - displayName
       - benefits
@@ -8415,6 +8802,9 @@ components:
       - createdAt
       - updatedAt
       properties:
+        id:
+          type: string
+          format: uuid
         code:
           "$ref": "#/components/schemas/PackageCode"
         displayName:
@@ -8448,6 +8838,7 @@ components:
         searchPriority:
           type: integer
           minimum: 0
+          maximum: 100
         broadcastOnPublish:
           type: boolean
         isActive:
@@ -8478,16 +8869,12 @@ components:
       type: object
       additionalProperties: false
       required:
-      - code
       - displayName
       - benefits
-      - currencyCode
       - allowsUrgent
       - showcaseEligible
-      - searchPriority
       - broadcastOnPublish
       - isActive
-      - sortOrder
       properties:
         code:
           "$ref": "#/components/schemas/PackageCode"
@@ -8522,6 +8909,7 @@ components:
         searchPriority:
           type: integer
           minimum: 0
+          maximum: 100
         broadcastOnPublish:
           type: boolean
         isActive:
@@ -8569,6 +8957,7 @@ components:
         searchPriority:
           type: integer
           minimum: 0
+          maximum: 100
         broadcastOnPublish:
           type: boolean
         isActive:
@@ -8797,6 +9186,10 @@ components:
         emailBody:
           type: string
           nullable: true
+        emailProviderTemplateId:
+          type: string
+          nullable: true
+          description: Provider-neutral template id selected from discovered provider templates.
         ctaLabel:
           type: string
           nullable: true
@@ -8859,7 +9252,6 @@ components:
       type: object
       additionalProperties: false
       required:
-      - code
       - name
       - eventType
       - title
@@ -8868,6 +9260,7 @@ components:
         code:
           type: string
           minLength: 1
+          description: Optional. When omitted, a stable immutable code is generated from name (collision-safe).
         name:
           type: string
           minLength: 1
@@ -8896,6 +9289,10 @@ components:
         emailBody:
           type: string
           nullable: true
+        emailProviderTemplateId:
+          type: string
+          nullable: true
+          description: Provider-neutral template id selected from discovered provider templates.
         ctaLabel:
           type: string
           nullable: true
@@ -8966,6 +9363,10 @@ components:
         emailBody:
           type: string
           nullable: true
+        emailProviderTemplateId:
+          type: string
+          nullable: true
+          description: Provider-neutral template id selected from discovered provider templates.
         ctaLabel:
           type: string
           nullable: true
@@ -9179,6 +9580,7 @@ components:
         searchPriority:
           type: integer
           minimum: 0
+          maximum: 100
         sortOrder:
           type: integer
           minimum: 0

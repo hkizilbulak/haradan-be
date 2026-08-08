@@ -102,7 +102,7 @@ func TestSchedulerOccurrenceDedup(t *testing.T) {
 
 	sched, err := jobscheduler.New(jobscheduler.Config{
 		Definitions: defs, Enqueuer: enq,
-		Capabilities:    appjobadmin.ProviderCapabilities{B2Enabled: true, TJKEnabled: true},
+		Capabilities:    appjobadmin.ProviderCapabilities{B2Enabled: true, TinifyEnabled: true, TJKEnabled: true},
 		RefreshInterval: time.Minute,
 		Clock:           clock,
 	})

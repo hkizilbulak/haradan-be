@@ -36,7 +36,8 @@ const (
 )
 
 const campaignColumns = `id, code, name, event_type, source_package_id, target_package_id,
-title, description, email_subject, email_heading, email_body, cta_label, cta_url, badge_text,
+title, description, email_subject, email_heading, email_body, email_provider_template_id,
+cta_label, cta_url, badge_text,
 image_asset_id, display_original_price_amount_minor, display_campaign_price_amount_minor,
 currency_code, starts_at, ends_at, is_active, created_by_user_id, version, created_at, updated_at`
 
@@ -80,15 +81,17 @@ func (r *Repository) Create(ctx context.Context, c domaincampaign.Campaign) erro
 	const q = `
 INSERT INTO hrd_campaigns (
   id, code, name, event_type, source_package_id, target_package_id,
-  title, description, email_subject, email_heading, email_body, cta_label, cta_url, badge_text,
+  title, description, email_subject, email_heading, email_body, email_provider_template_id,
+  cta_label, cta_url, badge_text,
   image_asset_id, display_original_price_amount_minor, display_campaign_price_amount_minor,
   currency_code, starts_at, ends_at, is_active, created_by_user_id, version, created_at, updated_at
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26
 )`
 	_, err := r.db.Exec(ctx, q,
 		c.ID, c.Code, c.Name, string(c.EventType), c.SourcePackageID, c.TargetPackageID,
-		c.Title, c.Description, c.EmailSubject, c.EmailHeading, c.EmailBody, c.CTALabel, c.CTAURL, c.BadgeText,
+		c.Title, c.Description, c.EmailSubject, c.EmailHeading, c.EmailBody, c.EmailProviderTemplateID,
+		c.CTALabel, c.CTAURL, c.BadgeText,
 		c.ImageAssetID, c.DisplayOriginalPriceAmountMinor, c.DisplayCampaignPriceAmountMinor,
 		c.CurrencyCode, c.StartsAt, c.EndsAt, c.IsActive, c.CreatedByUserID, c.Version, c.CreatedAt, c.UpdatedAt,
 	)
@@ -204,25 +207,27 @@ SET code = $3,
     email_subject = $10,
     email_heading = $11,
     email_body = $12,
-    cta_label = $13,
-    cta_url = $14,
-    badge_text = $15,
-    image_asset_id = $16,
-    display_original_price_amount_minor = $17,
-    display_campaign_price_amount_minor = $18,
-    currency_code = $19,
-    starts_at = $20,
-    ends_at = $21,
-    is_active = $22,
+    email_provider_template_id = $13,
+    cta_label = $14,
+    cta_url = $15,
+    badge_text = $16,
+    image_asset_id = $17,
+    display_original_price_amount_minor = $18,
+    display_campaign_price_amount_minor = $19,
+    currency_code = $20,
+    starts_at = $21,
+    ends_at = $22,
+    is_active = $23,
     version = version + 1,
-    updated_at = $23
+    updated_at = $24
 WHERE id = $1 AND version = $2
 RETURNING ` + campaignColumns
 
 	updated, err := scanCampaign(r.db.QueryRow(ctx, q,
 		c.ID, expectedVersion,
 		c.Code, c.Name, string(c.EventType), c.SourcePackageID, c.TargetPackageID,
-		c.Title, c.Description, c.EmailSubject, c.EmailHeading, c.EmailBody, c.CTALabel, c.CTAURL, c.BadgeText,
+		c.Title, c.Description, c.EmailSubject, c.EmailHeading, c.EmailBody, c.EmailProviderTemplateID,
+		c.CTALabel, c.CTAURL, c.BadgeText,
 		c.ImageAssetID, c.DisplayOriginalPriceAmountMinor, c.DisplayCampaignPriceAmountMinor,
 		c.CurrencyCode, c.StartsAt, c.EndsAt, c.IsActive, c.UpdatedAt,
 	))
@@ -255,7 +260,8 @@ func scanCampaign(row rowScanner) (domaincampaign.Campaign, error) {
 	)
 	err := row.Scan(
 		&c.ID, &c.Code, &c.Name, &eventType, &c.SourcePackageID, &c.TargetPackageID,
-		&c.Title, &c.Description, &c.EmailSubject, &c.EmailHeading, &c.EmailBody, &c.CTALabel, &c.CTAURL, &c.BadgeText,
+		&c.Title, &c.Description, &c.EmailSubject, &c.EmailHeading, &c.EmailBody, &c.EmailProviderTemplateID,
+		&c.CTALabel, &c.CTAURL, &c.BadgeText,
 		&c.ImageAssetID, &c.DisplayOriginalPriceAmountMinor, &c.DisplayCampaignPriceAmountMinor,
 		&c.CurrencyCode, &c.StartsAt, &c.EndsAt, &c.IsActive, &c.CreatedByUserID, &c.Version, &c.CreatedAt, &c.UpdatedAt,
 	)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	apptjk "github.com/hkizilbulak/haradan-be/internal/application/tjk"
@@ -16,13 +17,17 @@ import (
 // one horse never aborts the bulk page.
 type WorkerAdapter struct{ Client *Client }
 
+const enrichmentConcurrency = 8
+
 func (a WorkerAdapter) FetchPage(ctx context.Context, cursor string) ([]domain.HorseInput, error) {
 	page, err := a.Client.FetchPage(ctx, cursor)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]domain.HorseInput, 0, len(page))
-	for _, h := range page {
+	out := make([]domain.HorseInput, len(page))
+	sem := make(chan struct{}, enrichmentConcurrency)
+	var wg sync.WaitGroup
+	for i, h := range page {
 		in := domain.HorseInput{
 			Number: h.Number,
 			Name:   h.Name,
@@ -30,7 +35,22 @@ func (a WorkerAdapter) FetchPage(ctx context.Context, cursor string) ([]domain.H
 			Sire:   h.Sire,
 			Dam:    h.Dam,
 		}
-		out = append(out, a.enrichHorse(ctx, in))
+		out[i] = in
+		wg.Add(1)
+		go func(index int, input domain.HorseInput) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return
+			}
+			out[index] = a.enrichHorse(ctx, input)
+		}(i, in)
+	}
+	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

@@ -59,8 +59,9 @@ type Repository interface {
 
 // ProviderCapabilities gates schedule/manual enqueue by infra readiness.
 type ProviderCapabilities struct {
-	TJKEnabled bool
-	B2Enabled  bool
+	TJKEnabled    bool
+	B2Enabled     bool
+	TinifyEnabled bool
 }
 
 // Allows reports whether jobType may be enqueued on this process.
@@ -69,7 +70,7 @@ func (c ProviderCapabilities) Allows(jobType domainjobdef.JobType) bool {
 	case domainjobdef.JobTypeTJKSync:
 		return c.TJKEnabled
 	case domainjobdef.JobTypeMediaReconcile:
-		return c.B2Enabled
+		return c.B2Enabled && c.TinifyEnabled
 	case domainjobdef.JobTypePackageExpiryScan:
 		return true
 	default:

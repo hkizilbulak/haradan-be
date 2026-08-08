@@ -839,6 +839,24 @@ type AdminCategoryPropertyResponse struct {
 	Version         int                      `json:"version"`
 }
 
+// AdminUserCreateResponse defines model for AdminUserCreateResponse.
+type AdminUserCreateResponse struct {
+	ActiveSessionCount int                `json:"activeSessionCount"`
+	CreatedAt          time.Time          `json:"createdAt"`
+	Email              string             `json:"email"`
+	EmailVerified      bool               `json:"emailVerified"`
+	FirstName          string             `json:"firstName"`
+	Id                 openapi_types.UUID `json:"id"`
+
+	// InvitationEmailSent False when the account was created but password-setup email could not be delivered (provider unconfigured or unavailable).
+	InvitationEmailSent bool       `json:"invitationEmailSent"`
+	LastName            string     `json:"lastName"`
+	Phone               *string    `json:"phone,omitempty"`
+	Role                UserRole   `json:"role"`
+	Status              UserStatus `json:"status"`
+	UpdatedAt           *time.Time `json:"updatedAt,omitempty"`
+}
+
 // AdminUserDetailResponse defines model for AdminUserDetailResponse.
 type AdminUserDetailResponse struct {
 	ActiveSessionCount int                `json:"activeSessionCount"`
@@ -851,6 +869,7 @@ type AdminUserDetailResponse struct {
 	Phone              *string            `json:"phone,omitempty"`
 	Role               UserRole           `json:"role"`
 	Status             UserStatus         `json:"status"`
+	UpdatedAt          *time.Time         `json:"updatedAt,omitempty"`
 }
 
 // AdminUserListItem defines model for AdminUserListItem.
@@ -986,30 +1005,33 @@ type BannerStatus string
 
 // CampaignAdminView defines model for CampaignAdminView.
 type CampaignAdminView struct {
-	BadgeText         *string             `json:"badgeText,omitempty"`
-	CampaignPrice     *Money              `json:"campaignPrice,omitempty"`
-	Code              string              `json:"code"`
-	CreatedAt         time.Time           `json:"createdAt"`
-	CtaLabel          *string             `json:"ctaLabel,omitempty"`
-	CtaUrl            *string             `json:"ctaUrl,omitempty"`
-	CurrencyCode      string              `json:"currencyCode"`
-	Description       *string             `json:"description,omitempty"`
-	EmailBody         *string             `json:"emailBody,omitempty"`
-	EmailHeading      *string             `json:"emailHeading,omitempty"`
-	EmailSubject      *string             `json:"emailSubject,omitempty"`
-	EndsAt            *time.Time          `json:"endsAt,omitempty"`
-	EventType         CampaignEventType   `json:"eventType"`
-	Id                openapi_types.UUID  `json:"id"`
-	ImageAssetId      *openapi_types.UUID `json:"imageAssetId,omitempty"`
-	IsActive          bool                `json:"isActive"`
-	Name              string              `json:"name"`
-	OriginalPrice     *Money              `json:"originalPrice,omitempty"`
-	SourcePackageCode *PackageCode        `json:"sourcePackageCode,omitempty"`
-	StartsAt          time.Time           `json:"startsAt"`
-	TargetPackageCode *PackageCode        `json:"targetPackageCode,omitempty"`
-	Title             string              `json:"title"`
-	UpdatedAt         time.Time           `json:"updatedAt"`
-	Version           int                 `json:"version"`
+	BadgeText     *string   `json:"badgeText,omitempty"`
+	CampaignPrice *Money    `json:"campaignPrice,omitempty"`
+	Code          string    `json:"code"`
+	CreatedAt     time.Time `json:"createdAt"`
+	CtaLabel      *string   `json:"ctaLabel,omitempty"`
+	CtaUrl        *string   `json:"ctaUrl,omitempty"`
+	CurrencyCode  string    `json:"currencyCode"`
+	Description   *string   `json:"description,omitempty"`
+	EmailBody     *string   `json:"emailBody,omitempty"`
+	EmailHeading  *string   `json:"emailHeading,omitempty"`
+
+	// EmailProviderTemplateId Provider-neutral template id selected from discovered provider templates.
+	EmailProviderTemplateId *string             `json:"emailProviderTemplateId,omitempty"`
+	EmailSubject            *string             `json:"emailSubject,omitempty"`
+	EndsAt                  *time.Time          `json:"endsAt,omitempty"`
+	EventType               CampaignEventType   `json:"eventType"`
+	Id                      openapi_types.UUID  `json:"id"`
+	ImageAssetId            *openapi_types.UUID `json:"imageAssetId,omitempty"`
+	IsActive                bool                `json:"isActive"`
+	Name                    string              `json:"name"`
+	OriginalPrice           *Money              `json:"originalPrice,omitempty"`
+	SourcePackageCode       *PackageCode        `json:"sourcePackageCode,omitempty"`
+	StartsAt                time.Time           `json:"startsAt"`
+	TargetPackageCode       *PackageCode        `json:"targetPackageCode,omitempty"`
+	Title                   string              `json:"title"`
+	UpdatedAt               time.Time           `json:"updatedAt"`
+	Version                 int                 `json:"version"`
 }
 
 // CampaignEventType defines model for CampaignEventType.
@@ -1089,6 +1111,15 @@ type ChangeUserStatusRequest struct {
 // ClientContext defines model for ClientContext.
 type ClientContext string
 
+// CreateAdminUserRequest defines model for CreateAdminUserRequest.
+type CreateAdminUserRequest struct {
+	Email     openapi_types.Email `json:"email"`
+	FirstName string              `json:"firstName"`
+	LastName  string              `json:"lastName"`
+	Phone     *string             `json:"phone,omitempty"`
+	Role      UserRole            `json:"role"`
+}
+
 // CreateAdvertDraftRequest defines model for CreateAdvertDraftRequest.
 type CreateAdvertDraftRequest struct {
 	CategoryId  *openapi_types.UUID `json:"categoryId,omitempty"`
@@ -1111,31 +1142,37 @@ type CreateBannerRequest struct {
 
 // CreateCampaignRequest defines model for CreateCampaignRequest.
 type CreateCampaignRequest struct {
-	BadgeText         *string             `json:"badgeText,omitempty"`
-	CampaignPrice     *Money              `json:"campaignPrice,omitempty"`
-	Code              string              `json:"code"`
-	CtaLabel          *string             `json:"ctaLabel,omitempty"`
-	CtaUrl            *string             `json:"ctaUrl,omitempty"`
-	CurrencyCode      *string             `json:"currencyCode,omitempty"`
-	Description       *string             `json:"description,omitempty"`
-	EmailBody         *string             `json:"emailBody,omitempty"`
-	EmailHeading      *string             `json:"emailHeading,omitempty"`
-	EmailSubject      *string             `json:"emailSubject,omitempty"`
-	EndsAt            *time.Time          `json:"endsAt,omitempty"`
-	EventType         CampaignEventType   `json:"eventType"`
-	ImageAssetId      *openapi_types.UUID `json:"imageAssetId,omitempty"`
-	IsActive          *bool               `json:"isActive,omitempty"`
-	Name              string              `json:"name"`
-	OriginalPrice     *Money              `json:"originalPrice,omitempty"`
-	SourcePackageCode *PackageCode        `json:"sourcePackageCode,omitempty"`
-	StartsAt          time.Time           `json:"startsAt"`
-	TargetPackageCode *PackageCode        `json:"targetPackageCode,omitempty"`
-	Title             string              `json:"title"`
+	BadgeText     *string `json:"badgeText,omitempty"`
+	CampaignPrice *Money  `json:"campaignPrice,omitempty"`
+
+	// Code Optional. When omitted, a stable immutable code is generated from name (collision-safe).
+	Code         *string `json:"code,omitempty"`
+	CtaLabel     *string `json:"ctaLabel,omitempty"`
+	CtaUrl       *string `json:"ctaUrl,omitempty"`
+	CurrencyCode *string `json:"currencyCode,omitempty"`
+	Description  *string `json:"description,omitempty"`
+	EmailBody    *string `json:"emailBody,omitempty"`
+	EmailHeading *string `json:"emailHeading,omitempty"`
+
+	// EmailProviderTemplateId Provider-neutral template id selected from discovered provider templates.
+	EmailProviderTemplateId *string             `json:"emailProviderTemplateId,omitempty"`
+	EmailSubject            *string             `json:"emailSubject,omitempty"`
+	EndsAt                  *time.Time          `json:"endsAt,omitempty"`
+	EventType               CampaignEventType   `json:"eventType"`
+	ImageAssetId            *openapi_types.UUID `json:"imageAssetId,omitempty"`
+	IsActive                *bool               `json:"isActive,omitempty"`
+	Name                    string              `json:"name"`
+	OriginalPrice           *Money              `json:"originalPrice,omitempty"`
+	SourcePackageCode       *PackageCode        `json:"sourcePackageCode,omitempty"`
+	StartsAt                time.Time           `json:"startsAt"`
+	TargetPackageCode       *PackageCode        `json:"targetPackageCode,omitempty"`
+	Title                   string              `json:"title"`
 }
 
 // CreateCategoryPropertyRequest defines model for CreateCategoryPropertyRequest.
 type CreateCategoryPropertyRequest struct {
-	Code            string                    `json:"code"`
+	// Code Optional. When omitted, a stable immutable code is generated from title (Turkish-normalized, collision-safe within the category).
+	Code            *string                   `json:"code,omitempty"`
 	DataType        PropertyDataType          `json:"dataType"`
 	DefaultValue    interface{}               `json:"defaultValue,omitempty"`
 	HelpText        *string                   `json:"helpText,omitempty"`
@@ -1144,10 +1181,12 @@ type CreateCategoryPropertyRequest struct {
 	IsPublicVisible *bool                     `json:"isPublicVisible,omitempty"`
 	IsRequired      *bool                     `json:"isRequired,omitempty"`
 	Options         *[]map[string]interface{} `json:"options,omitempty"`
-	SortOrder       *int                      `json:"sortOrder,omitempty"`
-	Title           string                    `json:"title"`
-	UiMetadata      *map[string]interface{}   `json:"uiMetadata,omitempty"`
-	Validation      *map[string]interface{}   `json:"validation,omitempty"`
+
+	// SortOrder Optional. When omitted, the property is appended at the end of the category property list.
+	SortOrder  *int                    `json:"sortOrder,omitempty"`
+	Title      string                  `json:"title"`
+	UiMetadata *map[string]interface{} `json:"uiMetadata,omitempty"`
+	Validation *map[string]interface{} `json:"validation,omitempty"`
 }
 
 // CreateCategoryRequest defines model for CreateCategoryRequest.
@@ -1161,20 +1200,20 @@ type CreateCategoryRequest struct {
 
 // CreatePackageRequest defines model for CreatePackageRequest.
 type CreatePackageRequest struct {
-	AllowsUrgent        bool        `json:"allowsUrgent"`
-	BadgeText           *string     `json:"badgeText,omitempty"`
-	Benefits            []string    `json:"benefits"`
-	BroadcastOnPublish  bool        `json:"broadcastOnPublish"`
-	Code                PackageCode `json:"code"`
-	CurrencyCode        string      `json:"currencyCode"`
-	DefaultDurationDays *int        `json:"defaultDurationDays,omitempty"`
-	Description         *string     `json:"description,omitempty"`
-	DisplayName         string      `json:"displayName"`
-	DisplayPrice        *Money      `json:"displayPrice,omitempty"`
-	IsActive            bool        `json:"isActive"`
-	SearchPriority      int         `json:"searchPriority"`
-	ShowcaseEligible    bool        `json:"showcaseEligible"`
-	SortOrder           int         `json:"sortOrder"`
+	AllowsUrgent        bool         `json:"allowsUrgent"`
+	BadgeText           *string      `json:"badgeText,omitempty"`
+	Benefits            []string     `json:"benefits"`
+	BroadcastOnPublish  bool         `json:"broadcastOnPublish"`
+	Code                *PackageCode `json:"code,omitempty"`
+	CurrencyCode        *string      `json:"currencyCode,omitempty"`
+	DefaultDurationDays *int         `json:"defaultDurationDays,omitempty"`
+	Description         *string      `json:"description,omitempty"`
+	DisplayName         string       `json:"displayName"`
+	DisplayPrice        *Money       `json:"displayPrice,omitempty"`
+	IsActive            bool         `json:"isActive"`
+	SearchPriority      *int         `json:"searchPriority,omitempty"`
+	ShowcaseEligible    bool         `json:"showcaseEligible"`
+	SortOrder           *int         `json:"sortOrder,omitempty"`
 }
 
 // District defines model for District.
@@ -1564,23 +1603,24 @@ type PackageAdminListResponse struct {
 
 // PackageAdminView defines model for PackageAdminView.
 type PackageAdminView struct {
-	AllowsUrgent        bool        `json:"allowsUrgent"`
-	BadgeText           *string     `json:"badgeText,omitempty"`
-	Benefits            []string    `json:"benefits"`
-	BroadcastOnPublish  bool        `json:"broadcastOnPublish"`
-	Code                PackageCode `json:"code"`
-	CreatedAt           time.Time   `json:"createdAt"`
-	CurrencyCode        string      `json:"currencyCode"`
-	DefaultDurationDays *int        `json:"defaultDurationDays,omitempty"`
-	Description         *string     `json:"description,omitempty"`
-	DisplayName         string      `json:"displayName"`
-	DisplayPrice        *Money      `json:"displayPrice,omitempty"`
-	IsActive            bool        `json:"isActive"`
-	SearchPriority      int         `json:"searchPriority"`
-	ShowcaseEligible    bool        `json:"showcaseEligible"`
-	SortOrder           int         `json:"sortOrder"`
-	UpdatedAt           time.Time   `json:"updatedAt"`
-	Version             int         `json:"version"`
+	AllowsUrgent        bool               `json:"allowsUrgent"`
+	BadgeText           *string            `json:"badgeText,omitempty"`
+	Benefits            []string           `json:"benefits"`
+	BroadcastOnPublish  bool               `json:"broadcastOnPublish"`
+	Code                PackageCode        `json:"code"`
+	CreatedAt           time.Time          `json:"createdAt"`
+	CurrencyCode        string             `json:"currencyCode"`
+	DefaultDurationDays *int               `json:"defaultDurationDays,omitempty"`
+	Description         *string            `json:"description,omitempty"`
+	DisplayName         string             `json:"displayName"`
+	DisplayPrice        *Money             `json:"displayPrice,omitempty"`
+	Id                  openapi_types.UUID `json:"id"`
+	IsActive            bool               `json:"isActive"`
+	SearchPriority      int                `json:"searchPriority"`
+	ShowcaseEligible    bool               `json:"showcaseEligible"`
+	SortOrder           int                `json:"sortOrder"`
+	UpdatedAt           time.Time          `json:"updatedAt"`
+	Version             int                `json:"version"`
 }
 
 // PackageAssignmentSource defines model for PackageAssignmentSource.
@@ -1777,6 +1817,18 @@ type ReorderItem struct {
 	SortOrder       int                `json:"sortOrder"`
 }
 
+// ReorderPackageItem defines model for ReorderPackageItem.
+type ReorderPackageItem struct {
+	ExpectedVersion int                `json:"expectedVersion"`
+	Id              openapi_types.UUID `json:"id"`
+	SortOrder       int                `json:"sortOrder"`
+}
+
+// ReorderPackagesRequest defines model for ReorderPackagesRequest.
+type ReorderPackagesRequest struct {
+	Items []ReorderPackageItem `json:"items"`
+}
+
 // ReparentCategoryRequest defines model for ReparentCategoryRequest.
 type ReparentCategoryRequest struct {
 	ExpectedVersion int                 `json:"expectedVersion"`
@@ -1787,6 +1839,11 @@ type ReparentCategoryRequest struct {
 type ReplaceAdvertDynamicPropertiesRequest struct {
 	ExpectedVersion int                    `json:"expectedVersion"`
 	Properties      map[string]interface{} `json:"properties"`
+}
+
+// RequestAdminUserEmailChangeRequest defines model for RequestAdminUserEmailChangeRequest.
+type RequestAdminUserEmailChangeRequest struct {
+	NewEmail openapi_types.Email `json:"newEmail"`
 }
 
 // RequestEmailChangeRequest defines model for RequestEmailChangeRequest.
@@ -1951,6 +2008,16 @@ type TriggerTJKSyncRequest struct {
 	SourceAdapter string        `json:"sourceAdapter"`
 }
 
+// UpdateAdminUserRequest defines model for UpdateAdminUserRequest.
+type UpdateAdminUserRequest struct {
+	ExpectedUpdatedAt time.Time `json:"expectedUpdatedAt"`
+	FirstName         string    `json:"firstName"`
+	LastName          string    `json:"lastName"`
+
+	// Phone Optional TR mobile; blank/null clears. Canonical storage +905XXXXXXXXX.
+	Phone *string `json:"phone,omitempty"`
+}
+
 // UpdateAdvertDraftDetailsRequest defines model for UpdateAdvertDraftDetailsRequest.
 type UpdateAdvertDraftDetailsRequest struct {
 	Description     *string             `json:"description,omitempty"`
@@ -1973,26 +2040,29 @@ type UpdateBannerRequest struct {
 
 // UpdateCampaignRequest defines model for UpdateCampaignRequest.
 type UpdateCampaignRequest struct {
-	BadgeText         *string             `json:"badgeText,omitempty"`
-	CampaignPrice     *Money              `json:"campaignPrice,omitempty"`
-	CtaLabel          *string             `json:"ctaLabel,omitempty"`
-	CtaUrl            *string             `json:"ctaUrl,omitempty"`
-	CurrencyCode      *string             `json:"currencyCode,omitempty"`
-	Description       *string             `json:"description,omitempty"`
-	EmailBody         *string             `json:"emailBody,omitempty"`
-	EmailHeading      *string             `json:"emailHeading,omitempty"`
-	EmailSubject      *string             `json:"emailSubject,omitempty"`
-	EndsAt            *time.Time          `json:"endsAt,omitempty"`
-	EventType         *CampaignEventType  `json:"eventType,omitempty"`
-	ExpectedVersion   int                 `json:"expectedVersion"`
-	ImageAssetId      *openapi_types.UUID `json:"imageAssetId,omitempty"`
-	IsActive          *bool               `json:"isActive,omitempty"`
-	Name              *string             `json:"name,omitempty"`
-	OriginalPrice     *Money              `json:"originalPrice,omitempty"`
-	SourcePackageCode *PackageCode        `json:"sourcePackageCode,omitempty"`
-	StartsAt          *time.Time          `json:"startsAt,omitempty"`
-	TargetPackageCode *PackageCode        `json:"targetPackageCode,omitempty"`
-	Title             *string             `json:"title,omitempty"`
+	BadgeText     *string `json:"badgeText,omitempty"`
+	CampaignPrice *Money  `json:"campaignPrice,omitempty"`
+	CtaLabel      *string `json:"ctaLabel,omitempty"`
+	CtaUrl        *string `json:"ctaUrl,omitempty"`
+	CurrencyCode  *string `json:"currencyCode,omitempty"`
+	Description   *string `json:"description,omitempty"`
+	EmailBody     *string `json:"emailBody,omitempty"`
+	EmailHeading  *string `json:"emailHeading,omitempty"`
+
+	// EmailProviderTemplateId Provider-neutral template id selected from discovered provider templates.
+	EmailProviderTemplateId *string             `json:"emailProviderTemplateId,omitempty"`
+	EmailSubject            *string             `json:"emailSubject,omitempty"`
+	EndsAt                  *time.Time          `json:"endsAt,omitempty"`
+	EventType               *CampaignEventType  `json:"eventType,omitempty"`
+	ExpectedVersion         int                 `json:"expectedVersion"`
+	ImageAssetId            *openapi_types.UUID `json:"imageAssetId,omitempty"`
+	IsActive                *bool               `json:"isActive,omitempty"`
+	Name                    *string             `json:"name,omitempty"`
+	OriginalPrice           *Money              `json:"originalPrice,omitempty"`
+	SourcePackageCode       *PackageCode        `json:"sourcePackageCode,omitempty"`
+	StartsAt                *time.Time          `json:"startsAt,omitempty"`
+	TargetPackageCode       *PackageCode        `json:"targetPackageCode,omitempty"`
+	Title                   *string             `json:"title,omitempty"`
 }
 
 // UpdateCategoryPropertyRequest code immutable after use
@@ -2442,6 +2512,9 @@ type UpdateAdminNotificationTemplateJSONRequestBody = UpdateNotificationTemplate
 // CreateAdminPackageJSONRequestBody defines body for CreateAdminPackage for application/json ContentType.
 type CreateAdminPackageJSONRequestBody = CreatePackageRequest
 
+// ReorderPackagesJSONRequestBody defines body for ReorderPackages for application/json ContentType.
+type ReorderPackagesJSONRequestBody = ReorderPackagesRequest
+
 // UpdateAdminPackageJSONRequestBody defines body for UpdateAdminPackage for application/json ContentType.
 type UpdateAdminPackageJSONRequestBody = UpdatePackageRequest
 
@@ -2450,6 +2523,15 @@ type TriggerTJKSyncJSONRequestBody = TriggerTJKSyncRequest
 
 // CancelTJKSyncJSONRequestBody defines body for CancelTJKSync for application/json ContentType.
 type CancelTJKSyncJSONRequestBody = ExpectedVersionRequest
+
+// CreateAdminUserJSONRequestBody defines body for CreateAdminUser for application/json ContentType.
+type CreateAdminUserJSONRequestBody = CreateAdminUserRequest
+
+// UpdateAdminUserJSONRequestBody defines body for UpdateAdminUser for application/json ContentType.
+type UpdateAdminUserJSONRequestBody = UpdateAdminUserRequest
+
+// RequestAdminUserEmailChangeJSONRequestBody defines body for RequestAdminUserEmailChange for application/json ContentType.
+type RequestAdminUserEmailChangeJSONRequestBody = RequestAdminUserEmailChangeRequest
 
 // ChangeUserRoleJSONRequestBody defines body for ChangeUserRole for application/json ContentType.
 type ChangeUserRoleJSONRequestBody = ChangeUserRoleRequest
@@ -2672,6 +2754,9 @@ type ServerInterface interface {
 	// CreateAdminPackage CreateAdminPackage
 	// (POST /v1/admin/packages)
 	CreateAdminPackage(c *gin.Context)
+	// ReorderPackages ReorderPackages
+	// (PUT /v1/admin/packages/reorder)
+	ReorderPackages(c *gin.Context)
 	// GetAdminPackage GetAdminPackage
 	// (GET /v1/admin/packages/{packageCode})
 	GetAdminPackage(c *gin.Context, packageCode PackageCodePath)
@@ -2702,9 +2787,21 @@ type ServerInterface interface {
 	// ListUsers ListUsers
 	// (GET /v1/admin/users)
 	ListUsers(c *gin.Context, params ListUsersParams)
+	// CreateAdminUser CreateAdminUser
+	// (POST /v1/admin/users)
+	CreateAdminUser(c *gin.Context)
 	// GetUserAdminDetail GetUserAdminDetail
 	// (GET /v1/admin/users/{userId})
 	GetUserAdminDetail(c *gin.Context, userId UserIdPath)
+	// UpdateAdminUser UpdateAdminUser
+	// (PATCH /v1/admin/users/{userId})
+	UpdateAdminUser(c *gin.Context, userId UserIdPath)
+	// RequestAdminUserEmailChange RequestAdminUserEmailChange
+	// (POST /v1/admin/users/{userId}/email/change-request)
+	RequestAdminUserEmailChange(c *gin.Context, userId UserIdPath)
+	// ResendAdminUserInvitation ResendAdminUserInvitation
+	// (POST /v1/admin/users/{userId}/invitation/resend)
+	ResendAdminUserInvitation(c *gin.Context, userId UserIdPath)
 	// ChangeUserRole ChangeUserRole
 	// (POST /v1/admin/users/{userId}/role)
 	ChangeUserRole(c *gin.Context, userId UserIdPath)
@@ -4118,6 +4215,19 @@ func (siw *ServerInterfaceWrapper) CreateAdminPackage(c *gin.Context) {
 	siw.Handler.CreateAdminPackage(c)
 }
 
+// ReorderPackages operation middleware
+func (siw *ServerInterfaceWrapper) ReorderPackages(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReorderPackages(c)
+}
+
 // GetAdminPackage operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminPackage(c *gin.Context) {
 
@@ -4435,6 +4545,19 @@ func (siw *ServerInterfaceWrapper) ListUsers(c *gin.Context) {
 	siw.Handler.ListUsers(c, params)
 }
 
+// CreateAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) CreateAdminUser(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateAdminUser(c)
+}
+
 // GetUserAdminDetail operation middleware
 func (siw *ServerInterfaceWrapper) GetUserAdminDetail(c *gin.Context) {
 
@@ -4458,6 +4581,81 @@ func (siw *ServerInterfaceWrapper) GetUserAdminDetail(c *gin.Context) {
 	}
 
 	siw.Handler.GetUserAdminDetail(c, userId)
+}
+
+// UpdateAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminUser(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAdminUser(c, userId)
+}
+
+// RequestAdminUserEmailChange operation middleware
+func (siw *ServerInterfaceWrapper) RequestAdminUserEmailChange(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RequestAdminUserEmailChange(c, userId)
+}
+
+// ResendAdminUserInvitation operation middleware
+func (siw *ServerInterfaceWrapper) ResendAdminUserInvitation(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResendAdminUserInvitation(c, userId)
 }
 
 // ChangeUserRole operation middleware
@@ -6079,7 +6277,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/v1/admin/tjk/sync-runs/:runId/cancel", wrapper.CancelTJKSync)
 	router.GET(options.BaseURL+"/v1/admin/tjk/sync-runs/:runId/item-errors", wrapper.ListTJKSyncItemErrors)
 	router.GET(options.BaseURL+"/v1/admin/users", wrapper.ListUsers)
+	router.POST(options.BaseURL+"/v1/admin/users", wrapper.CreateAdminUser)
+	router.POST(options.BaseURL+"/v1/admin/users/:userId/invitation/resend", wrapper.ResendAdminUserInvitation)
 	router.GET(options.BaseURL+"/v1/admin/users/:userId", wrapper.GetUserAdminDetail)
+	router.PATCH(options.BaseURL+"/v1/admin/users/:userId", wrapper.UpdateAdminUser)
+	router.POST(options.BaseURL+"/v1/admin/users/:userId/email/change-request", wrapper.RequestAdminUserEmailChange)
 	router.POST(options.BaseURL+"/v1/admin/users/:userId/role", wrapper.ChangeUserRole)
 	router.GET(options.BaseURL+"/v1/admin/users/:userId/security-events", wrapper.ListUserSecurityEvents)
 	router.POST(options.BaseURL+"/v1/admin/users/:userId/status", wrapper.ChangeUserStatus)
@@ -6140,6 +6342,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/provinces", wrapper.ListActiveProvinces)
 	router.GET(options.BaseURL+"/v1/provinces/search", wrapper.SearchProvinces)
 	router.GET(options.BaseURL+"/v1/provinces/:provinceId/districts", wrapper.ListDistrictsByProvince)
+	router.PUT(options.BaseURL+"/v1/admin/packages/reorder", wrapper.ReorderPackages)
 	router.GET(options.BaseURL+"/v1/admin/packages", wrapper.ListAdminPackages)
 	router.POST(options.BaseURL+"/v1/admin/packages", wrapper.CreateAdminPackage)
 	router.GET(options.BaseURL+"/v1/admin/packages/:packageCode", wrapper.GetAdminPackage)

@@ -3,7 +3,9 @@ package catalog
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -206,7 +208,7 @@ func (s *Service) GetCategoryAdminDetail(ctx context.Context, id uuid.UUID) (dom
 	}
 	return r.GetCategoryAdmin(ctx, id)
 }
-func (s *Service) CreateCategory(ctx context.Context, c domaincatalog.Category) (domaincatalog.Category, error) {
+func (s *Service) CreateCategory(ctx context.Context, c domaincatalog.Category, sortOrder *int) (domaincatalog.Category, error) {
 	r, err := s.admin()
 	if err != nil {
 		return c, err
@@ -215,6 +217,26 @@ func (s *Service) CreateCategory(ctx context.Context, c domaincatalog.Category) 
 		if _, err := r.GetCategoryAdmin(ctx, *c.ParentID); err != nil {
 			return c, err
 		}
+	}
+	if sortOrder != nil {
+		if *sortOrder < 0 {
+			return c, apperr.Validation("sortOrder negatif olamaz.")
+		}
+		c.SortOrder = *sortOrder
+	} else {
+		siblings, err := r.ListCategoriesAdmin(ctx, nil, 10000)
+		if err != nil {
+			return c, err
+		}
+		maxOrder := -1
+		for _, item := range siblings {
+			sameParent := (c.ParentID == nil && item.ParentID == nil) ||
+				(c.ParentID != nil && item.ParentID != nil && *c.ParentID == *item.ParentID)
+			if sameParent && item.SortOrder > maxOrder {
+				maxOrder = item.SortOrder
+			}
+		}
+		c.SortOrder = maxOrder + 1
 	}
 	c.ID = uuid.New()
 	c.CreatedAt = time.Now().UTC()
@@ -286,7 +308,7 @@ func (s *Service) ListCategoryPropertiesAdmin(ctx context.Context, categoryID uu
 	}
 	return r.ListPropertiesAdmin(ctx, categoryID)
 }
-func (s *Service) CreateCategoryProperty(ctx context.Context, p domaincatalog.Property) (domaincatalog.Property, error) {
+func (s *Service) CreateCategoryProperty(ctx context.Context, p domaincatalog.Property, sortOrder *int) (domaincatalog.Property, error) {
 	r, err := s.admin()
 	if err != nil {
 		return p, err
@@ -297,8 +319,71 @@ func (s *Service) CreateCategoryProperty(ctx context.Context, p domaincatalog.Pr
 	if !validDataType(p.DataType) {
 		return p, apperr.Validation("Geçersiz özellik türü.")
 	}
+	title := strings.TrimSpace(p.Title)
+	if title == "" {
+		return p, apperr.Validation("Alan adı zorunludur.")
+	}
+	p.Title = title
+
+	existing, err := r.ListPropertiesAdmin(ctx, p.CategoryID)
+	if err != nil {
+		return p, err
+	}
+
+	code := strings.TrimSpace(p.Code)
+	if code == "" {
+		allocated, err := allocatePropertyCode(existing, domaincatalog.GeneratePropertyCodeBase(title))
+		if err != nil {
+			return p, err
+		}
+		code = allocated
+	}
+	p.Code = code
+
+	if sortOrder != nil {
+		if *sortOrder < 0 {
+			return p, apperr.Validation("Sıra negatif olamaz.")
+		}
+		p.SortOrder = *sortOrder
+	} else {
+		maxOrder := -1
+		for _, item := range existing {
+			if item.SortOrder > maxOrder {
+				maxOrder = item.SortOrder
+			}
+		}
+		p.SortOrder = maxOrder + 1
+	}
+
 	p.ID = uuid.New()
 	return r.CreateProperty(ctx, p, time.Now().UTC())
+}
+
+func allocatePropertyCode(existing []domaincatalog.Property, base string) (string, error) {
+	used := make(map[string]struct{}, len(existing))
+	for _, item := range existing {
+		used[item.Code] = struct{}{}
+	}
+	candidate := strings.TrimSpace(base)
+	if candidate == "" {
+		candidate = "PROPERTY"
+	}
+	for i := 0; i < 1000; i++ {
+		try := candidate
+		if i > 0 {
+			suffix := fmt.Sprintf("_%d", i+1)
+			stem := candidate
+			if len(stem)+len(suffix) > 64 {
+				stem = stem[:64-len(suffix)]
+				stem = strings.TrimRight(stem, "_")
+			}
+			try = stem + suffix
+		}
+		if _, ok := used[try]; !ok {
+			return try, nil
+		}
+	}
+	return "", apperr.Conflict("Özellik kodu üretilemedi.")
 }
 func (s *Service) UpdateCategoryProperty(ctx context.Context, cid, pid uuid.UUID, p domaincatalog.PropertyPatch, expected int) (domaincatalog.Property, error) {
 	if expected < 1 {

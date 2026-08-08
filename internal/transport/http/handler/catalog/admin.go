@@ -3,6 +3,7 @@ package catalog
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -60,11 +61,7 @@ func (h *Handler) CreateCategory(c *gin.Context) {
 		v := uuid.UUID(*req.ParentId)
 		parent = &v
 	}
-	sort := 0
-	if req.SortOrder != nil {
-		sort = *req.SortOrder
-	}
-	out, err := h.svc.CreateCategory(c.Request.Context(), domaincatalog.Category{ParentID: parent, Slug: req.Slug, Name: req.Name, Description: req.Description, SortOrder: sort})
+	out, err := h.svc.CreateCategory(c.Request.Context(), domaincatalog.Category{ParentID: parent, Slug: req.Slug, Name: req.Name, Description: req.Description}, req.SortOrder)
 	if err != nil {
 		h.respond(c, h.logger, err)
 		return
@@ -182,7 +179,7 @@ func (h *Handler) CreateCategoryProperty(c *gin.Context, cid generated.CategoryI
 		return
 	}
 	p := propertyFromCreate(uuid.UUID(cid), req)
-	out, err := h.svc.CreateCategoryProperty(c.Request.Context(), p)
+	out, err := h.svc.CreateCategoryProperty(c.Request.Context(), p, req.SortOrder)
 	if err != nil {
 		h.respond(c, h.logger, err)
 		return
@@ -368,7 +365,11 @@ func mapReorder(v []generated.ReorderItem) []domaincatalog.ReorderItem {
 	return out
 }
 func propertyFromCreate(cid uuid.UUID, r generated.CreateCategoryPropertyRequest) domaincatalog.Property {
-	p := domaincatalog.Property{CategoryID: cid, Code: r.Code, Title: r.Title, HelpText: r.HelpText, DataType: string(r.DataType), Options: json.RawMessage(`[]`), Validation: json.RawMessage(`{}`), UIMetadata: json.RawMessage(`{}`)}
+	code := ""
+	if r.Code != nil {
+		code = strings.TrimSpace(*r.Code)
+	}
+	p := domaincatalog.Property{CategoryID: cid, Code: code, Title: r.Title, HelpText: r.HelpText, DataType: string(r.DataType), Options: json.RawMessage(`[]`), Validation: json.RawMessage(`{}`), UIMetadata: json.RawMessage(`{}`)}
 	if r.IsRequired != nil {
 		p.IsRequired = *r.IsRequired
 	}
@@ -384,9 +385,6 @@ func propertyFromCreate(cid uuid.UUID, r generated.CreateCategoryPropertyRequest
 	}
 	if r.IsFilterable != nil {
 		p.IsFilterable = *r.IsFilterable
-	}
-	if r.SortOrder != nil {
-		p.SortOrder = *r.SortOrder
 	}
 	if r.Options != nil {
 		p.Options, _ = json.Marshal(*r.Options)

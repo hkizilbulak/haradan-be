@@ -109,10 +109,9 @@ type Config struct {
 	JobSchedulerRefreshInterval time.Duration
 	MediaPublicBaseURL          string
 
-	// TJK is intentionally disabled unless enabled. It has no credentials, but
-	// is kept opt-in to prevent jobs being claimed by workers that cannot
-	// complete them. When enabled without TJK_BASE_URL, the legacy public host
-	// https://www.tjk.org is used.
+	// TJK is intentionally opt-in. TJK_ENABLED=true enables the API/scheduler
+	// and worker capability; TJK_BASE_URL alone never enables it. When enabled
+	// without TJK_BASE_URL, the legacy public host is used.
 	TJKEnabled      bool
 	TJKBaseURL      string
 	TJKHTTPTimeout  time.Duration
@@ -430,8 +429,6 @@ func Load() (Config, error) {
 		if err != nil {
 			return Config{}, fmt.Errorf("TJK_ENABLED is not a valid boolean")
 		}
-	} else {
-		cfg.TJKEnabled = cfg.TJKBaseURL != ""
 	}
 	if cfg.TJKEnabled {
 		if cfg.TJKBaseURL == "" {

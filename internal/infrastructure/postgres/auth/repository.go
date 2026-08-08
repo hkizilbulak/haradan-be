@@ -217,7 +217,8 @@ INSERT INTO hrd_one_time_credentials (
   $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11
 )`
 	_, err := r.db.Exec(ctx, q,
-		c.ID, c.UserID, string(c.Purpose), c.TokenHash, c.TargetEmail, c.TargetEmailNormalized,
+		c.ID, c.UserID, string(c.Purpose), c.TokenHash,
+		pg.NullIfEmpty(c.TargetEmail), pg.NullIfEmpty(c.TargetEmailNormalized),
 		c.ExpiresAt, c.ConsumedAt, c.InvalidatedAt, c.CreatedAt, c.RequestIPHash,
 	)
 	if err != nil {

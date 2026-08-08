@@ -3,6 +3,7 @@ package campaign_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -102,6 +103,43 @@ func baseCreate(f *fixture) appcampaign.CreateCampaignInput {
 		CurrencyCode:                    "TRY",
 		StartsAt:                        f.clock.Now(),
 		IsActive:                        true,
+	}
+}
+
+func TestCreateCampaignEmailBodySanitizesHTML(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	in := baseCreate(f)
+	raw := `<p>Merhaba</p><script>alert(1)</script><img src=x onerror="alert(1)">`
+	in.EmailBody = &raw
+	c, err := f.svc.CreateCampaign(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.EmailBody == nil {
+		t.Fatal("expected sanitized email body")
+	}
+	got := strings.ToLower(*c.EmailBody)
+	if strings.Contains(got, "<script") || strings.Contains(got, "onerror") {
+		t.Fatalf("unsafe HTML survived: %q", *c.EmailBody)
+	}
+	if !strings.Contains(*c.EmailBody, "Merhaba") {
+		t.Fatalf("content lost: %q", *c.EmailBody)
+	}
+}
+
+func TestCreateCampaignAutoGeneratesCode(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	in := baseCreate(f)
+	in.Code = ""
+	in.Name = "Motor Gücü Kampanyası"
+	c, err := f.svc.CreateCampaign(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Code != "MOTOR_GUCU_KAMPANYASI" {
+		t.Fatalf("want MOTOR_GUCU_KAMPANYASI, got %q", c.Code)
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	domaincampaign "github.com/hkizilbulak/haradan-be/internal/domain/campaign"
 	domainpackaging "github.com/hkizilbulak/haradan-be/internal/domain/packaging"
 	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
+	"github.com/hkizilbulak/haradan-be/internal/platform/security/richhtml"
 )
 
 const (
@@ -89,6 +90,7 @@ type CreateCampaignInput struct {
 	EmailSubject                    *string
 	EmailHeading                    *string
 	EmailBody                       *string
+	EmailProviderTemplateID         *string
 	CTALabel                        *string
 	CTAURL                          *string
 	BadgeText                       *string
@@ -122,6 +124,8 @@ type UpdateCampaignInput struct {
 	EmailHeading                    *string
 	EmailBodySet                    bool
 	EmailBody                       *string
+	EmailProviderTemplateIDSet      bool
+	EmailProviderTemplateID         *string
 	CTALabelSet                     bool
 	CTALabel                        *string
 	CTAURLSet                       bool
@@ -167,15 +171,17 @@ func (s *Service) CreateCampaign(ctx context.Context, in CreateCampaignInput) (d
 	code := strings.TrimSpace(in.Code)
 	name := strings.TrimSpace(in.Name)
 	title := strings.TrimSpace(in.Title)
-	if code == "" {
-		return domaincampaign.Campaign{}, apperr.Validation(invalidRequestMessage, apperr.FieldError{
-			Field: "code", Message: "Kod zorunludur.",
-		})
-	}
 	if !domaincampaign.NonBlankName(name) {
 		return domaincampaign.Campaign{}, apperr.Validation(invalidRequestMessage, apperr.FieldError{
 			Field: "name", Message: "Ad zorunludur.",
 		})
+	}
+	if code == "" {
+		allocated, err := s.allocateCampaignCode(ctx, domaincampaign.GenerateCampaignCodeBase(name))
+		if err != nil {
+			return domaincampaign.Campaign{}, err
+		}
+		code = allocated
 	}
 	if !in.EventType.Valid() {
 		return domaincampaign.Campaign{}, apperr.Validation(invalidRequestMessage, apperr.FieldError{
@@ -232,7 +238,8 @@ func (s *Service) CreateCampaign(ctx context.Context, in CreateCampaignInput) (d
 		Description:                     trimOptional(in.Description),
 		EmailSubject:                    trimOptional(in.EmailSubject),
 		EmailHeading:                    trimOptional(in.EmailHeading),
-		EmailBody:                       trimOptional(in.EmailBody),
+		EmailBody:                       richhtml.SanitizeOptional(in.EmailBody),
+		EmailProviderTemplateID:         trimOptional(in.EmailProviderTemplateID),
 		CTALabel:                        trimOptional(in.CTALabel),
 		CTAURL:                          trimOptional(in.CTAURL),
 		BadgeText:                       trimOptional(in.BadgeText),
@@ -422,7 +429,10 @@ func (s *Service) applyCampaignPatch(
 		c.EmailHeading = trimOptional(in.EmailHeading)
 	}
 	if in.EmailBodySet {
-		c.EmailBody = trimOptional(in.EmailBody)
+		c.EmailBody = richhtml.SanitizeOptional(in.EmailBody)
+	}
+	if in.EmailProviderTemplateIDSet {
+		c.EmailProviderTemplateID = trimOptional(in.EmailProviderTemplateID)
 	}
 	if in.CTALabelSet {
 		c.CTALabel = trimOptional(in.CTALabel)
@@ -511,6 +521,37 @@ func (s *Service) resolvePackageCode(ctx context.Context, code *string) (*uuid.U
 	}
 	id := pkg.ID
 	return &id, nil
+}
+
+func (s *Service) allocateCampaignCode(ctx context.Context, base string) (string, error) {
+	existing, err := s.repo.List(ctx, ListFilter{Limit: maxPageLimit})
+	if err != nil {
+		return "", err
+	}
+	used := make(map[string]struct{}, len(existing))
+	for _, item := range existing {
+		used[item.Code] = struct{}{}
+	}
+	candidate := strings.TrimSpace(base)
+	if candidate == "" {
+		candidate = "CAMPAIGN"
+	}
+	for i := 0; i < 1000; i++ {
+		try := candidate
+		if i > 0 {
+			suffix := fmt.Sprintf("_%d", i+1)
+			stem := candidate
+			if len(stem)+len(suffix) > 64 {
+				stem = stem[:64-len(suffix)]
+				stem = strings.TrimRight(stem, "_")
+			}
+			try = stem + suffix
+		}
+		if _, ok := used[try]; !ok {
+			return try, nil
+		}
+	}
+	return "", apperr.Conflict("Kampanya kodu üretilemedi.")
 }
 
 func (s *Service) validateAsset(ctx context.Context, assetID *uuid.UUID) error {
