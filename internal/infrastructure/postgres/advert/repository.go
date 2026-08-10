@@ -118,6 +118,97 @@ func (r *Repository) FindByIDForOwnerForUpdate(ctx context.Context, ownerID, adv
 	return r.queryOne(ctx, "find advert for owner for update", q, advertID, ownerID)
 }
 
+// FindByID returns a non-deleted advert by id (admin scope).
+func (r *Repository) FindByID(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error) {
+	const q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE id = $1 AND deleted_at IS NULL`
+	return r.queryOne(ctx, "find advert by id", q, advertID)
+}
+
+// FindByIDForUpdate locks a non-deleted advert by id for admin transitions.
+func (r *Repository) FindByIDForUpdate(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error) {
+	const q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`
+	return r.queryOne(ctx, "find advert by id for update", q, advertID)
+}
+
+// ListForModeration returns non-deleted adverts matching status, newest first.
+func (r *Repository) ListForModeration(
+	ctx context.Context,
+	status domainadvert.Status,
+	afterCreated *time.Time,
+	afterID *uuid.UUID,
+	limit int,
+) ([]domainadvert.Advert, error) {
+	const q = `
+SELECT ` + advertColumns + `
+FROM hrd_adverts
+WHERE deleted_at IS NULL
+  AND status = $1::varchar
+  AND (
+    $2::timestamptz IS NULL
+    OR (created_at, id) < ($2::timestamptz, $3::uuid)
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT $4`
+
+	rows, err := r.db.Query(ctx, q, string(status), afterCreated, afterID, limit)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list moderation adverts: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+
+	out := make([]domainadvert.Advert, 0, limit)
+	for rows.Next() {
+		a, err := scanAdvert(rows)
+		if err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan moderation advert: %w", pg.SanitizeErr(err)))
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("iterate moderation adverts: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
+}
+
+// ListStatusHistory returns status history for one advert, oldest first.
+func (r *Repository) ListStatusHistory(ctx context.Context, advertID uuid.UUID) ([]domainadvert.StatusHistory, error) {
+	const q = `
+SELECT id, advert_id, from_status, to_status, actor_user_id, is_system, reason, created_at
+FROM hrd_advert_status_history
+WHERE advert_id = $1
+ORDER BY created_at ASC, id ASC`
+
+	rows, err := r.db.Query(ctx, q, advertID)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list advert status history: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+
+	out := make([]domainadvert.StatusHistory, 0)
+	for rows.Next() {
+		var (
+			h          domainadvert.StatusHistory
+			fromStatus *string
+			toStatus   string
+		)
+		if err := rows.Scan(
+			&h.ID, &h.AdvertID, &fromStatus, &toStatus, &h.ActorUserID, &h.IsSystem, &h.Reason, &h.CreatedAt,
+		); err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan advert status history: %w", pg.SanitizeErr(err)))
+		}
+		if fromStatus != nil {
+			s := domainadvert.Status(*fromStatus)
+			h.FromStatus = &s
+		}
+		h.ToStatus = domainadvert.Status(toStatus)
+		out = append(out, h)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("iterate advert status history: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
+}
+
 // ListByOwner returns non-deleted adverts newest first with keyset paging.
 func (r *Repository) ListByOwner(
 	ctx context.Context,

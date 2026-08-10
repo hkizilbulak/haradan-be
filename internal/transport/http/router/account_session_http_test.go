@@ -23,7 +23,7 @@ func newAccountEngine(t *testing.T) (*appauth.Service, func(method, path, body, 
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	svc, _, _ := appauth.NewMemoryServiceForTest(t)
-	engine := router.New(handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, nil, svc), log, router.Options{AuthService: svc})
+	engine := router.New(handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, svc), log, router.Options{AuthService: svc})
 	do := func(method, path, body, auth string) *httptest.ResponseRecorder {
 		var rdr io.Reader
 		if body != "" {
@@ -133,8 +133,8 @@ func TestAccountAuthRequiredAndPublicUnaffected(t *testing.T) {
 	}
 
 	rec = do(http.MethodGet, "/api/v1/me/favorites", "", "")
-	if rec.Code != http.StatusNotImplemented {
-		t.Fatalf("favorites still out of scope want 501 got %d", rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("favorites without token want 401 got %d", rec.Code)
 	}
 }
 
@@ -184,7 +184,8 @@ func TestSelectiveMiddlewareBoundariesHTTP(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &tokens)
 	auth := "Bearer " + tokens.AccessToken
 
-	// Out-of-scope FE_AUTH stub must stay 501 even with a valid access token.
+	// Favorites routes are protected, but this engine does not wire the favorite
+	// service, so an authenticated call still reaches the 501 stub.
 	rec = do(http.MethodGet, "/api/v1/me/favorites", "", auth)
 	if rec.Code != http.StatusNotImplemented {
 		t.Fatalf("favorites with token=%d", rec.Code)

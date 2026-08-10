@@ -179,3 +179,23 @@ func OwnerTransitionAllowed(from, to Status) bool {
 	}
 	return false
 }
+
+// AdminTransitionAllowed reports whether an admin moderation action may drive
+// from -> to. Resume/unsuspend is intentionally absent (phase-one OpenAPI).
+func AdminTransitionAllowed(from, to Status) bool {
+	switch from {
+	case StatusPendingReview:
+		return to == StatusPublished || to == StatusChangesRequested || to == StatusRejected
+	case StatusPublished:
+		return to == StatusSuspended
+	}
+	return false
+}
+
+// ModerationDetailView is the admin moderation projection: owner-visible
+// fields plus owner id and immutable status history.
+type ModerationDetailView struct {
+	OwnerView
+	OwnerUserID   uuid.UUID
+	StatusHistory []StatusHistory
+}

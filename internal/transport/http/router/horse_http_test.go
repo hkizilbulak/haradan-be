@@ -58,7 +58,7 @@ func (h *horseRepoStub) SearchByNormalizedPrefix(context.Context, string, int) (
 func newHorseEngine(repo *horseRepoStub) http.Handler {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	svc := apphorse.NewService(repo)
-	srv := handler.NewServer(log, fakeDeps{}, nil, nil, svc, nil, nil, nil)
+	srv := handler.NewServer(log, fakeDeps{}, nil, nil, svc, nil, nil, nil, nil, nil, nil, nil, nil)
 	return router.New(srv, log)
 }
 

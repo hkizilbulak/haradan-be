@@ -2,14 +2,17 @@
 package media
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/hkizilbulak/haradan-be/internal/application/authz"
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domainauth "github.com/hkizilbulak/haradan-be/internal/domain/auth"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler/bind"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authctx"
@@ -18,11 +21,18 @@ import (
 // ErrorResponder maps application errors to HTTP responses.
 type ErrorResponder func(c *gin.Context, logger *slog.Logger, err error)
 
+// AccessAuthenticator soft-authenticates optional Bearer tokens on public media
+// routes. Invalid tokens must not surface as 401 on those routes.
+type AccessAuthenticator interface {
+	AuthenticateAccessToken(ctx context.Context, accessToken string) (domainauth.Principal, error)
+}
+
 // Handler exposes the owner-scoped media OpenAPI operations. Identity comes
 // exclusively from the authenticated principal; object keys and the storage
 // provider are never part of any response this handler produces.
 type Handler struct {
 	svc     *appmedia.Service
+	auth    AccessAuthenticator
 	logger  *slog.Logger
 	respond ErrorResponder
 }
@@ -30,6 +40,14 @@ type Handler struct {
 // NewHandler constructs a media owner HTTP handler.
 func NewHandler(svc *appmedia.Service, logger *slog.Logger, respond ErrorResponder) *Handler {
 	return &Handler{svc: svc, logger: logger, respond: respond}
+}
+
+// WithAccessAuthenticator wires optional Bearer soft-auth for public media delivery.
+func (h *Handler) WithAccessAuthenticator(auth AccessAuthenticator) *Handler {
+	if h != nil {
+		h.auth = auth
+	}
+	return h
 }
 
 // InitiateMediaUpload handles POST /v1/media/uploads (MEDIA-01).
@@ -76,6 +94,57 @@ func (h *Handler) GetMediaProcessingStatus(c *gin.Context, assetID generated.Ass
 		return
 	}
 	out, err := h.svc.GetMediaProcessingStatus(c.Request.Context(), ownerID, assetID)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, mapProcessingView(out))
+}
+
+// InitiateAdminMediaUpload handles the admin equivalent of MEDIA-01.
+func (h *Handler) InitiateAdminMediaUpload(c *gin.Context) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	var req generated.InitiateMediaUploadRequest
+	if !bind.JSONBody(c, &req) {
+		return
+	}
+	in := appmedia.InitiateInput{DeclaredContentType: req.DeclaredContentType}
+	if req.DeclaredByteSize != nil {
+		size := int64(*req.DeclaredByteSize)
+		in.DeclaredByteSize = &size
+	}
+	out, err := h.svc.InitiateMediaUpload(c.Request.Context(), actorID, in)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusCreated, mapInitiateView(out))
+}
+
+// ConfirmAdminMediaUpload handles the admin equivalent of MEDIA-02.
+func (h *Handler) ConfirmAdminMediaUpload(c *gin.Context, assetID generated.AssetIdPath) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	out, err := h.svc.ConfirmMediaUpload(c.Request.Context(), actorID, assetID)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, mapProcessingView(out))
+}
+
+// GetAdminMediaProcessingStatus handles the admin equivalent of MEDIA-03.
+func (h *Handler) GetAdminMediaProcessingStatus(c *gin.Context, assetID generated.AssetIdPath) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	out, err := h.svc.GetMediaProcessingStatus(c.Request.Context(), actorID, assetID)
 	if err != nil {
 		h.respond(c, h.logger, err)
 		return
@@ -165,6 +234,19 @@ func (h *Handler) requirePrincipal(c *gin.Context) (uuid.UUID, bool) {
 	return p.UserID, true
 }
 
+func (h *Handler) requireAdminBO(c *gin.Context) (uuid.UUID, bool) {
+	p, ok := authctx.PrincipalFromContext(c.Request.Context())
+	if !ok {
+		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "Kimlik doğrulama gerekli."))
+		return uuid.Nil, false
+	}
+	if err := authz.RequireAdminBO(p); err != nil {
+		h.respond(c, h.logger, err)
+		return uuid.Nil, false
+	}
+	return p.UserID, true
+}
+
 // mapInitiateView projects MEDIA-01 output. No object key ever reaches this
 // mapping: appmedia.UploadAuthView already stripped it.
 func mapInitiateView(v appmedia.InitiateView) generated.InitiateMediaUploadResponse {
@@ -184,15 +266,15 @@ func mapInitiateView(v appmedia.InitiateView) generated.InitiateMediaUploadRespo
 	}
 }
 
-// mapProcessingView projects MEDIA-02/03 output. PublicUrl always stays nil:
-// the public URL strategy is undecided and object keys are never exposed.
+// mapProcessingView projects MEDIA-02/03 output. READY variants expose
+// PublicDeliveryURL relative paths; object keys are never exposed.
 func mapProcessingView(v appmedia.ProcessingView) generated.MediaProcessingState {
 	variants := make([]generated.MediaVariantStatusItem, 0, len(v.Variants))
 	for _, item := range v.Variants {
 		variants = append(variants, generated.MediaVariantStatusItem{
 			TransformProfile: item.TransformProfile,
 			LifecycleStatus:  generated.MediaVariantLifecycle(item.LifecycleStatus),
-			PublicUrl:        nil,
+			PublicUrl:        item.PublicURL,
 			Usage:            item.Usage,
 		})
 	}

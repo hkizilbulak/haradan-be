@@ -12,7 +12,10 @@ package media
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,6 +39,14 @@ type MemoryAdvert struct {
 	DeletedAt    *time.Time
 }
 
+// MemoryBanner is the banner state media public delivery needs for attachment
+// checks (status ACTIVE/INACTIVE).
+type MemoryBanner struct {
+	ID      uuid.UUID
+	AssetID uuid.UUID
+	Status  string
+}
+
 // MemoryStore holds in-memory media state for tests.
 type MemoryStore struct {
 	mu   sync.Mutex
@@ -45,6 +56,7 @@ type MemoryStore struct {
 	variants  map[uuid.UUID]map[string]domainmedia.Variant
 	relations map[uuid.UUID][]domainmedia.AdvertMediaRelation
 	adverts   map[uuid.UUID]MemoryAdvert
+	banners   map[uuid.UUID]MemoryBanner
 	jobs      []domainmedia.BackgroundJob
 	dedup     map[string]struct{}
 }
@@ -56,6 +68,7 @@ func NewMemoryStore() *MemoryStore {
 		variants:  map[uuid.UUID]map[string]domainmedia.Variant{},
 		relations: map[uuid.UUID][]domainmedia.AdvertMediaRelation{},
 		adverts:   map[uuid.UUID]MemoryAdvert{},
+		banners:   map[uuid.UUID]MemoryBanner{},
 		dedup:     map[string]struct{}{},
 	}
 }
@@ -88,6 +101,13 @@ func (s *MemoryStore) Advert(id uuid.UUID) (MemoryAdvert, bool) {
 	defer s.mu.Unlock()
 	a, ok := s.adverts[id]
 	return a, ok
+}
+
+// PutBanner seeds or replaces a banner attachment used by public delivery tests.
+func (s *MemoryStore) PutBanner(b MemoryBanner) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.banners[b.ID] = b
 }
 
 // PutVariant seeds or replaces a variant.
@@ -157,6 +177,11 @@ func (s *MemoryStore) JobsByType(jobType domainmedia.JobType) []domainmedia.Back
 
 // Repo returns the Repository view of the store.
 func (s *MemoryStore) Repo() Repository { return MemoryRepository{store: s} }
+
+// JobQueue returns the JobQueue view of the store.
+func (s *MemoryStore) JobQueue() JobQueue { return MemoryRepository{store: s} }
+
+var _ JobQueue = MemoryRepository{}
 
 // NewMemoryService builds a media service backed by the store. Storage and
 // Processor stay as supplied, so a test can pass a fake or deliberately leave
@@ -443,6 +468,44 @@ func (r MemoryRepository) CountAdvertMediaByAdvert(_ context.Context, advertID u
 	return len(r.store.relations[advertID]), nil
 }
 
+// FindAdvertMediaAccessByAsset returns advert attachment rows for public delivery.
+func (r MemoryRepository) FindAdvertMediaAccessByAsset(_ context.Context, assetID uuid.UUID) ([]AdvertMediaAccess, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	var out []AdvertMediaAccess
+	for advertID, relations := range r.store.relations {
+		for _, rel := range relations {
+			if rel.AssetID != assetID {
+				continue
+			}
+			advert, ok := r.store.adverts[advertID]
+			if !ok {
+				continue
+			}
+			out = append(out, AdvertMediaAccess{
+				OwnerUserID: advert.OwnerUserID,
+				Status:      advert.Status,
+				DeletedAt:   advert.DeletedAt,
+			})
+		}
+	}
+	return out, nil
+}
+
+// FindBannerMediaAccessByAsset returns banner attachment rows for public delivery.
+func (r MemoryRepository) FindBannerMediaAccessByAsset(_ context.Context, assetID uuid.UUID) ([]BannerMediaAccess, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	var out []BannerMediaAccess
+	for _, b := range r.store.banners {
+		if b.AssetID != assetID {
+			continue
+		}
+		out = append(out, BannerMediaAccess{Status: b.Status})
+	}
+	return out, nil
+}
+
 // AttachAdvertMedia inserts a relation, rejecting a duplicate asset or a taken
 // display order like the table's unique constraints do.
 func (r MemoryRepository) AttachAdvertMedia(_ context.Context, rel domainmedia.AdvertMediaRelation) error {
@@ -604,6 +667,194 @@ func (r MemoryRepository) FindJobByDedupKey(_ context.Context, key string) (doma
 	return domainmedia.BackgroundJob{}, apperr.NotFound("İş kaydı bulunamadı.")
 }
 
+const memoryJobLeaseLostMessage = "İş kirası geçersiz veya süresi dolmuş."
+const memoryJobLeaseExpiredMessage = "İş kirası süresi doldu."
+
+// ClaimNextJob leases one eligible QUEUED job matching supported types.
+func (r MemoryRepository) ClaimNextJob(_ context.Context, params ClaimJobParams) (domainmedia.BackgroundJob, bool, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	if len(params.SupportedTypes) == 0 || params.LeaseOwner == "" || !params.LeaseUntil.After(params.Now) {
+		return domainmedia.BackgroundJob{}, false, apperr.Internal(fmt.Errorf("invalid claim params"))
+	}
+	supported := map[domainmedia.JobType]struct{}{}
+	for _, t := range params.SupportedTypes {
+		supported[t] = struct{}{}
+	}
+	best := -1
+	for i, job := range r.store.jobs {
+		if job.Status != domainmedia.JobQueued {
+			continue
+		}
+		if job.CancelRequestedAt != nil {
+			continue
+		}
+		if job.AvailableAt.After(params.Now) {
+			continue
+		}
+		if job.AttemptCount >= job.MaxAttempts {
+			continue
+		}
+		if _, ok := supported[job.JobType]; !ok {
+			continue
+		}
+		if best < 0 {
+			best = i
+			continue
+		}
+		cur := r.store.jobs[best]
+		if job.AvailableAt.Before(cur.AvailableAt) ||
+			(job.AvailableAt.Equal(cur.AvailableAt) && job.ID.String() < cur.ID.String()) {
+			best = i
+		}
+	}
+	if best < 0 {
+		return domainmedia.BackgroundJob{}, false, nil
+	}
+	job := r.store.jobs[best]
+	owner := params.LeaseOwner
+	until := params.LeaseUntil
+	job.Status = domainmedia.JobLeased
+	job.LeaseOwner = &owner
+	job.LeasedUntil = &until
+	job.AttemptCount++
+	job.Version++
+	job.UpdatedAt = params.Now
+	job.LastError = nil
+	r.store.jobs[best] = job
+	return job, true, nil
+}
+
+// MarkJobSucceeded marks a claimed job SUCCEEDED.
+func (r MemoryRepository) MarkJobSucceeded(_ context.Context, guard JobLeaseGuard, now time.Time) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	i, job, ok := r.findClaimedLocked(guard)
+	if !ok {
+		return apperr.InvalidState(memoryJobLeaseLostMessage)
+	}
+	job.Status = domainmedia.JobSucceeded
+	job.CompletedAt = &now
+	job.LeaseOwner = nil
+	job.LeasedUntil = nil
+	job.LastError = nil
+	job.Version++
+	job.UpdatedAt = now
+	r.store.jobs[i] = job
+	return nil
+}
+
+// MarkJobFailed marks a claimed job FAILED.
+func (r MemoryRepository) MarkJobFailed(_ context.Context, guard JobLeaseGuard, now time.Time, lastError string) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	i, job, ok := r.findClaimedLocked(guard)
+	if !ok {
+		return apperr.InvalidState(memoryJobLeaseLostMessage)
+	}
+	job.Status = domainmedia.JobFailed
+	job.CompletedAt = &now
+	job.LeaseOwner = nil
+	job.LeasedUntil = nil
+	if lastError != "" {
+		msg := lastError
+		job.LastError = &msg
+	} else {
+		job.LastError = nil
+	}
+	job.Version++
+	job.UpdatedAt = now
+	r.store.jobs[i] = job
+	return nil
+}
+
+// RetryOrDeadLetterJob returns a claimed job to QUEUED or marks it DEAD.
+func (r MemoryRepository) RetryOrDeadLetterJob(_ context.Context, params RetryJobParams) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	i, job, ok := r.findClaimedLocked(params.JobLeaseGuard)
+	if !ok {
+		return apperr.InvalidState(memoryJobLeaseLostMessage)
+	}
+	job.LeaseOwner = nil
+	job.LeasedUntil = nil
+	job.Version++
+	job.UpdatedAt = params.Now
+	if params.LastError != "" {
+		msg := params.LastError
+		job.LastError = &msg
+	} else {
+		job.LastError = nil
+	}
+	if params.AttemptCount >= params.MaxAttempts {
+		job.Status = domainmedia.JobDead
+		job.CompletedAt = &params.Now
+	} else {
+		job.Status = domainmedia.JobQueued
+		job.AvailableAt = params.NextAvailableAt
+		job.CompletedAt = nil
+	}
+	r.store.jobs[i] = job
+	return nil
+}
+
+// RecoverExpiredJobLeases requeues or dead-letters expired LEASED jobs.
+func (r MemoryRepository) RecoverExpiredJobLeases(_ context.Context, now time.Time, limit int) (int, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	if limit <= 0 {
+		limit = 100
+	}
+	recovered := 0
+	for i := range r.store.jobs {
+		if recovered >= limit {
+			break
+		}
+		job := r.store.jobs[i]
+		if job.Status != domainmedia.JobLeased || job.LeasedUntil == nil || job.LeasedUntil.After(now) {
+			continue
+		}
+		job.LeaseOwner = nil
+		job.LeasedUntil = nil
+		job.Version++
+		job.UpdatedAt = now
+		if job.AttemptCount >= job.MaxAttempts {
+			job.Status = domainmedia.JobDead
+			job.CompletedAt = &now
+			if job.LastError == nil {
+				msg := memoryJobLeaseExpiredMessage
+				job.LastError = &msg
+			}
+		} else {
+			job.Status = domainmedia.JobQueued
+			job.AvailableAt = now
+			job.CompletedAt = nil
+		}
+		r.store.jobs[i] = job
+		recovered++
+	}
+	return recovered, nil
+}
+
+func (r MemoryRepository) findClaimedLocked(guard JobLeaseGuard) (int, domainmedia.BackgroundJob, bool) {
+	for i, job := range r.store.jobs {
+		if job.ID != guard.JobID {
+			continue
+		}
+		if job.Status != domainmedia.JobLeased {
+			return 0, domainmedia.BackgroundJob{}, false
+		}
+		if job.LeaseOwner == nil || *job.LeaseOwner != guard.LeaseOwner {
+			return 0, domainmedia.BackgroundJob{}, false
+		}
+		if job.Version != guard.Version {
+			return 0, domainmedia.BackgroundJob{}, false
+		}
+		return i, job, true
+	}
+	return 0, domainmedia.BackgroundJob{}, false
+}
+
 func (r MemoryRepository) assetLocked(assetID uuid.UUID) (domainmedia.Asset, error) {
 	a, ok := r.store.assets[assetID]
 	if !ok {
@@ -721,6 +972,53 @@ func (f *FakeStorage) GetObject(_ context.Context, objectKey string) ([]byte, st
 		return nil, "", apperr.NotFound("Nesne bulunamadı.")
 	}
 	return append([]byte(nil), obj.body...), obj.contentType, nil
+}
+
+// OpenObject returns a streaming reader over a copy of the fake object body.
+func (f *FakeStorage) OpenObject(_ context.Context, objectKey string) (ObjectReader, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	obj, ok := f.objects[objectKey]
+	if !ok {
+		return ObjectReader{}, apperr.NotFound("Nesne bulunamadı.")
+	}
+	body := append([]byte(nil), obj.body...)
+	return ObjectReader{
+		Body:        io.NopCloser(bytes.NewReader(body)),
+		ContentType: obj.contentType,
+		ByteSize:    int64(len(body)),
+		ETag:        `"fake-` + objectKey + `"`,
+	}, nil
+}
+
+// DeleteObject is idempotent for test parity with object storage.
+func (f *FakeStorage) DeleteObject(_ context.Context, objectKey string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.objects, objectKey)
+	return nil
+}
+
+// ListObjects returns a stable, bounded lexicographic page.
+func (f *FakeStorage) ListObjects(_ context.Context, prefix, cursor string, limit int) (ObjectPage, error) {
+	if limit <= 0 {
+		return ObjectPage{}, apperr.Validation(invalidRequest)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	keys := make([]string, 0, len(f.objects))
+	for key := range f.objects {
+		if strings.HasPrefix(key, prefix) && key > cursor {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	if len(keys) <= limit {
+		out := ObjectPage{Keys: keys, LastModified: make([]time.Time, len(keys))}
+		return out, nil
+	}
+	pageKeys := keys[:limit]
+	return ObjectPage{Keys: pageKeys, LastModified: make([]time.Time, len(pageKeys)), NextCursor: keys[limit-1]}, nil
 }
 
 // Has reports whether the fake store holds objectKey.

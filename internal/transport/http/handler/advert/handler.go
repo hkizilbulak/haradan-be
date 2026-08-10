@@ -36,6 +36,9 @@ func NewHandler(svc *appadvert.Service, logger *slog.Logger, respond ErrorRespon
 	return &Handler{svc: svc, logger: logger, respond: respond}
 }
 
+// Service exposes the shared application service for root-level public routes.
+func (h *Handler) Service() *appadvert.Service { return h.svc }
+
 // CreateAdvertDraft handles POST /v1/me/adverts.
 func (h *Handler) CreateAdvertDraft(c *gin.Context) {
 	ownerID, ok := h.requirePrincipal(c)

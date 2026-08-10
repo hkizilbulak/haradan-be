@@ -24,30 +24,6 @@ func (NotImplementedServer) GetHealth(c *gin.Context) {
 	respondNotImplemented(c)
 }
 
-func (NotImplementedServer) ListAdvertModerationQueue(c *gin.Context, params generated.ListAdvertModerationQueueParams) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) GetAdvertModerationDetail(c *gin.Context, advertId generated.AdvertIdPath) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) ApproveAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) RejectAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) RequestAdvertChanges(c *gin.Context, advertId generated.AdvertIdPath) {
-	respondNotImplemented(c)
-}
-
-func (NotImplementedServer) SuspendAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
-	respondNotImplemented(c)
-}
-
 func (NotImplementedServer) ListBannersAdmin(c *gin.Context, params generated.ListBannersAdminParams) {
 	respondNotImplemented(c)
 }
@@ -345,5 +321,109 @@ func (NotImplementedServer) ConfirmMediaUpload(c *gin.Context, assetId generated
 }
 
 func (NotImplementedServer) InitiateMediaUpload(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ListAdminPackages(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetAdminPackage(c *gin.Context, packageCode generated.PackageCodePath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) UpdateAdminPackage(c *gin.Context, packageCode generated.PackageCodePath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetAdminAdvertPackage(c *gin.Context, advertId generated.AdvertIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) AssignAdminAdvertPackage(c *gin.Context, advertId generated.AdvertIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ListAdminAdvertPackageHistory(c *gin.Context, advertId generated.AdvertIdPath, params generated.ListAdminAdvertPackageHistoryParams) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) CancelAdminAdvertPackage(c *gin.Context, advertId generated.AdvertIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ActivateAdvertUrgent(c *gin.Context, advertId generated.AdvertIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) DeactivateAdvertUrgent(c *gin.Context, advertId generated.AdvertIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ListAdminCampaigns(c *gin.Context, params generated.ListAdminCampaignsParams) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) CreateAdminCampaign(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetAdminCampaign(c *gin.Context, campaignId generated.CampaignIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) UpdateAdminCampaign(c *gin.Context, campaignId generated.CampaignIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ListAdminNotificationTemplates(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetAdminNotificationTemplate(c *gin.Context, eventType generated.NotificationEventTypePath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) UpdateAdminNotificationTemplate(c *gin.Context, eventType generated.NotificationEventTypePath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) CreateAdminPackage(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetPublicMedia(c *gin.Context, assetId generated.AssetIdPath, profile generated.MediaDeliveryProfile) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) HeadPublicMedia(c *gin.Context, assetId generated.AssetIdPath, profile generated.MediaDeliveryProfile) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ListAdminProviderEmailTemplates(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetAdminProviderEmailTemplateVariables(c *gin.Context, templateId generated.ProviderEmailTemplateIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ListAdminJobs(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) GetAdminJob(c *gin.Context, jobId generated.JobIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) UpdateAdminJob(c *gin.Context, jobId generated.JobIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) RunAdminJob(c *gin.Context, jobId generated.JobIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ListAdminJobHistory(c *gin.Context, jobId generated.JobIdPath, params generated.ListAdminJobHistoryParams) {
 	respondNotImplemented(c)
 }

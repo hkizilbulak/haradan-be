@@ -142,6 +142,32 @@ func (m memUsers) MarkEmailVerified(_ context.Context, userID uuid.UUID, verifie
 	m.store.users[userID] = u
 	return nil
 }
+func (m memUsers) UpdatePasswordHash(_ context.Context, userID uuid.UUID, passwordHash string, securityStamp uuid.UUID, now time.Time) error {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	u, ok := m.store.users[userID]
+	if !ok {
+		return apperr.NotFound("user not found")
+	}
+	u.PasswordHash, u.SecurityStamp, u.FailedLoginCount, u.LockedUntil, u.UpdatedAt = passwordHash, securityStamp, 0, nil, now
+	m.store.users[userID] = u
+	return nil
+}
+func (m memUsers) UpdateEmail(_ context.Context, userID uuid.UUID, email, emailNormalized string, securityStamp uuid.UUID, now time.Time) error {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	u, ok := m.store.users[userID]
+	if !ok {
+		return apperr.NotFound("user not found")
+	}
+	if existing, exists := m.store.byEmail[emailNormalized]; exists && existing != userID {
+		return apperr.Conflict("email already registered")
+	}
+	delete(m.store.byEmail, u.EmailNormalized)
+	u.Email, u.EmailNormalized, u.SecurityStamp, u.EmailVerifiedAt, u.UpdatedAt = email, emailNormalized, securityStamp, nil, now
+	m.store.users[userID], m.store.byEmail[emailNormalized] = u, userID
+	return nil
+}
 func (m memUsers) UpdateProfile(_ context.Context, userID uuid.UUID, patch ProfilePatch, now time.Time) (domainuser.User, error) {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()
@@ -344,4 +370,41 @@ func (m memSessions) InsertSecurityEvent(_ context.Context, e domainauth.Securit
 	defer m.store.mu.Unlock()
 	m.store.events = append(m.store.events, e)
 	return nil
+}
+
+// SetUserRole mutates a seeded user's role for HTTP/unit tests.
+func (s *memStore) SetUserRole(userID uuid.UUID, role domainuser.Role) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u, ok := s.users[userID]
+	if !ok {
+		return
+	}
+	u.Role = role
+	s.users[userID] = u
+}
+
+// SetUserStatus mutates a seeded user's account status for HTTP/unit tests.
+func (s *memStore) SetUserStatus(userID uuid.UUID, status domainuser.Status) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u, ok := s.users[userID]
+	if !ok {
+		return
+	}
+	u.Status = status
+	s.users[userID] = u
+}
+
+// RevokeSession marks a session revoked for HTTP/unit tests.
+func (s *memStore) RevokeSession(sessionID uuid.UUID, now time.Time, reason string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sess, ok := s.sessions[sessionID]
+	if !ok {
+		return
+	}
+	sess.RevokedAt = &now
+	sess.RevokeReason = &reason
+	s.sessions[sessionID] = sess
 }

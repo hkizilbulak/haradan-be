@@ -20,6 +20,8 @@ type UserRepository interface {
 	RecordFailedLogin(ctx context.Context, userID uuid.UUID, now time.Time) error
 	ResetFailedLogin(ctx context.Context, userID uuid.UUID, now time.Time) error
 	MarkEmailVerified(ctx context.Context, userID uuid.UUID, verifiedAt time.Time) error
+	UpdatePasswordHash(ctx context.Context, userID uuid.UUID, passwordHash string, securityStamp uuid.UUID, now time.Time) error
+	UpdateEmail(ctx context.Context, userID uuid.UUID, email, emailNormalized string, securityStamp uuid.UUID, now time.Time) error
 	UpdateProfile(ctx context.Context, userID uuid.UUID, patch ProfilePatch, now time.Time) (domainuser.User, error)
 }
 

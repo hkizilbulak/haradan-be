@@ -212,14 +212,6 @@ func TestInitiateMediaUploadDependencyUnavailableWhenConfigUnset(t *testing.T) {
 			},
 		},
 		{
-			name: "no max byte size",
-			cfg: appmedia.Config{
-				Storage:             appmedia.NewFakeStorage(nil),
-				AllowedContentTypes: testAllowedContentTypes(),
-				UploadURLTTL:        testUploadTTL,
-			},
-		},
-		{
 			name: "blank allowed content types",
 			cfg: appmedia.Config{
 				Storage:             appmedia.NewFakeStorage(nil),
@@ -239,6 +231,21 @@ func TestInitiateMediaUploadDependencyUnavailableWhenConfigUnset(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("zero max byte size uses security default", func(t *testing.T) {
+		svc, _ := newServiceWithConfig(t, appmedia.Config{
+			Storage:             appmedia.NewFakeStorage(nil),
+			AllowedContentTypes: testAllowedContentTypes(),
+			UploadURLTTL:        testUploadTTL,
+		})
+		view, err := svc.InitiateMediaUpload(context.Background(), uuid.New(), appmedia.InitiateInput{})
+		if err != nil {
+			t.Fatalf("initiate: %v", err)
+		}
+		if view.Constraints.MaxByteSize != domainmedia.MaxUploadBytes {
+			t.Fatalf("MaxByteSize=%d want %d", view.Constraints.MaxByteSize, domainmedia.MaxUploadBytes)
+		}
+	})
 }
 
 func TestInitiateMediaUploadDependencyUnavailableWithUnconfiguredStorage(t *testing.T) {
@@ -712,9 +719,13 @@ func TestGetMediaProcessingStatusOwnerScoped(t *testing.T) {
 	if view.LifecycleStatus != domainmedia.AssetMasterReady || len(view.Variants) != 1 {
 		t.Fatalf("view=%+v", view)
 	}
-	// A ready variant still exposes no public URL: that strategy is undecided.
-	if view.Variants[0].PublicURL != nil {
-		t.Fatalf("publicUrl must stay nil, got %v", *view.Variants[0].PublicURL)
+	// A ready variant projects the same-origin delivery path (never an object key).
+	if view.Variants[0].PublicURL == nil {
+		t.Fatal("publicUrl must be set for READY variants")
+	}
+	want := domainmedia.PublicDeliveryURL(assetID, domainmedia.ProfileDetail)
+	if *view.Variants[0].PublicURL != want {
+		t.Fatalf("publicUrl=%q want %q", *view.Variants[0].PublicURL, want)
 	}
 
 	_, err = f.svc.GetMediaProcessingStatus(ctx, f.stranger, assetID)
@@ -748,7 +759,6 @@ func TestViewsNeverMarshalObjectKeys(t *testing.T) {
 		"objectKey",
 		"rawObjectKey",
 		"masterObjectKey",
-		"publicUrl",
 	}
 	for name, view := range map[string]any{"ownerView": ownerView, "processingView": processingView} {
 		raw, err := json.Marshal(view)
@@ -760,6 +770,17 @@ func TestViewsNeverMarshalObjectKeys(t *testing.T) {
 			if strings.Contains(encoded, needle) {
 				t.Fatalf("%s leaks %q: %s", name, needle, encoded)
 			}
+		}
+	}
+	for _, v := range processingView.Variants {
+		if v.LifecycleStatus != domainmedia.VariantReady {
+			continue
+		}
+		if v.PublicURL == nil || *v.PublicURL == "" {
+			t.Fatal("READY variant must expose publicUrl")
+		}
+		if strings.Contains(*v.PublicURL, "assets/") || strings.Contains(*v.PublicURL, "/raw") {
+			t.Fatalf("publicUrl leaked object key shape: %s", *v.PublicURL)
 		}
 	}
 }

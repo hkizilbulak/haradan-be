@@ -49,23 +49,39 @@ type Clock interface {
 	Now() time.Time
 }
 
-// EmailSender delivers verification emails after register commit.
+// EmailSender delivers verification and password-reset emails after commit.
+// fullName is a trimmed display name; empty means the sender must omit fullName
+// from template variables rather than sending an empty string.
 type EmailSender interface {
-	SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken string) error
+	SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken, fullName string) error
+	SendPasswordReset(ctx context.Context, toEmail, plaintextToken, fullName string) error
 }
 
 // NoopEmailSender acknowledges delivery without sending.
 type NoopEmailSender struct{}
 
-func (NoopEmailSender) SendRegistrationVerification(context.Context, string, string) error {
+func (NoopEmailSender) SendRegistrationVerification(context.Context, string, string, string) error {
 	return nil
 }
 
-// EmailSenderFunc adapts a function to EmailSender.
-type EmailSenderFunc func(ctx context.Context, toEmail, plaintextToken string) error
+func (NoopEmailSender) SendPasswordReset(context.Context, string, string, string) error {
+	return nil
+}
 
-func (f EmailSenderFunc) SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken string) error {
-	return f(ctx, toEmail, plaintextToken)
+// EmailSenderFunc adapts a function to EmailSender (registration path only).
+// Prefer a concrete fake when password-reset coverage is needed.
+type EmailSenderFunc func(ctx context.Context, toEmail, plaintextToken, fullName string) error
+
+func (f EmailSenderFunc) SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken, fullName string) error {
+	return f(ctx, toEmail, plaintextToken, fullName)
+}
+
+func (f EmailSenderFunc) SendPasswordReset(ctx context.Context, toEmail, plaintextToken, fullName string) error {
+	return f(ctx, toEmail, plaintextToken, fullName)
+}
+
+func displayFullName(firstName, lastName string) string {
+	return strings.TrimSpace(strings.TrimSpace(firstName) + " " + strings.TrimSpace(lastName))
 }
 
 // Service implements AUTH-01/02/03/04/05/06 use cases.
@@ -201,6 +217,26 @@ type ResendVerificationResult struct {
 	Message string
 }
 
+type RequestPasswordResetInput struct {
+	Email    string
+	ClientIP string
+}
+type ResetPasswordInput struct {
+	Token       string
+	NewPassword string
+}
+type RequestEmailChangeInput struct {
+	UserID   uuid.UUID
+	NewEmail string
+	ClientIP string
+}
+type ConfirmEmailChangeInput struct{ Token string }
+type ChangePasswordInput struct {
+	UserID          uuid.UUID
+	CurrentPassword string
+	NewPassword     string
+}
+
 // Register implements AUTH-01.
 func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResult, error) {
 	email := strings.TrimSpace(in.Email)
@@ -295,7 +331,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResul
 		return RegisterResult{}, err
 	}
 
-	if err := s.email.SendRegistrationVerification(ctx, email, verifyPlain); err != nil {
+	if err := s.email.SendRegistrationVerification(ctx, email, verifyPlain, displayFullName(first, last)); err != nil {
 		return RegisterResult{}, apperr.DependencyUnavailable("E-posta servisi şu anda kullanılamıyor.")
 	}
 	return RegisterResult{Message: registerSuccessMessage}, nil
@@ -430,10 +466,204 @@ func (s *Service) ResendVerification(ctx context.Context, in ResendVerificationI
 		return ResendVerificationResult{Message: resendSuccessMessage}, nil
 	}
 
-	if err := s.email.SendRegistrationVerification(ctx, user.Email, verifyPlain); err != nil {
+	if err := s.email.SendRegistrationVerification(ctx, user.Email, verifyPlain, displayFullName(user.FirstName, user.LastName)); err != nil {
 		return ResendVerificationResult{}, apperr.DependencyUnavailable("E-posta servisi şu anda kullanılamıyor.")
 	}
 	return ResendVerificationResult{Message: resendSuccessMessage}, nil
+}
+
+// RequestPasswordReset implements AUTH-10 without revealing account existence.
+func (s *Service) RequestPasswordReset(ctx context.Context, in RequestPasswordResetInput) (ResendVerificationResult, error) {
+	email := strings.TrimSpace(in.Email)
+	if !emailnorm.ValidFormat(email) {
+		return ResendVerificationResult{}, apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "email", Message: "Geçerli bir e-posta girin."})
+	}
+	user, err := s.users.FindByNormalizedEmail(ctx, emailnorm.Normalize(email))
+	if err != nil {
+		if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindNotFound {
+			return ResendVerificationResult{Message: resendSuccessMessage}, nil
+		}
+		return ResendVerificationResult{}, err
+	}
+	if !user.IsActive() {
+		return ResendVerificationResult{Message: resendSuccessMessage}, nil
+	}
+	plain, hash, err := token.NewOpaqueToken()
+	if err != nil {
+		return ResendVerificationResult{}, apperr.Internal(err)
+	}
+	now := s.clock.Now()
+	cred := domainauth.OneTimeCredential{ID: uuid.New(), UserID: user.ID, Purpose: domainauth.PurposePasswordReset, TokenHash: hash, ExpiresAt: now.Add(s.emailVerifyTTL), CreatedAt: now, RequestIPHash: hashIP(in.ClientIP)}
+	if err := s.withTx(ctx, func(ctx context.Context, _ UserRepository, sessions SessionRepository) error {
+		if err := sessions.InvalidateActiveOneTimeCredentials(ctx, user.ID, cred.Purpose, now); err != nil {
+			return err
+		}
+		return sessions.CreateOneTimeCredential(ctx, cred)
+	}); err != nil {
+		return ResendVerificationResult{}, err
+	}
+	if err := s.email.SendPasswordReset(ctx, user.Email, plain, displayFullName(user.FirstName, user.LastName)); err != nil {
+		return ResendVerificationResult{}, apperr.DependencyUnavailable("E-posta servisi şu anda kullanılamıyor.")
+	}
+	return ResendVerificationResult{Message: resendSuccessMessage}, nil
+}
+
+// ResetPassword implements AUTH-11 and revokes every existing session.
+func (s *Service) ResetPassword(ctx context.Context, in ResetPasswordInput) (LogoutResult, error) {
+	if strings.TrimSpace(in.Token) == "" {
+		return LogoutResult{}, apperr.TokenInvalid(genericTokenFailure)
+	}
+	if len(in.NewPassword) < 8 {
+		return LogoutResult{}, apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "newPassword", Message: "Parola en az 8 karakter olmalıdır."})
+	}
+	hash, err := s.hasher.Hash(in.NewPassword)
+	if err != nil {
+		return LogoutResult{}, apperr.Internal(err)
+	}
+	now := s.clock.Now()
+	var uid uuid.UUID
+	err = s.withTx(ctx, func(ctx context.Context, users UserRepository, sessions SessionRepository) error {
+		cred, err := sessions.FindOneTimeCredentialByHashForUpdate(ctx, token.HashOpaqueToken(strings.TrimSpace(in.Token)))
+		if err != nil {
+			return apperr.TokenInvalid(genericTokenFailure)
+		}
+		if cred.Purpose != domainauth.PurposePasswordReset || !cred.IsActive() {
+			return apperr.TokenInvalid(genericTokenFailure)
+		}
+		if cred.IsExpired(now) {
+			return apperr.TokenExpired("Doğrulama jetonunun süresi dolmuş.")
+		}
+		user, err := users.FindByIDForUpdate(ctx, cred.UserID)
+		if err != nil {
+			return apperr.TokenInvalid(genericTokenFailure)
+		}
+		uid = user.ID
+		if err := sessions.ConsumeOneTimeCredential(ctx, cred.ID, now); err != nil {
+			return err
+		}
+		if err := users.UpdatePasswordHash(ctx, user.ID, hash, uuid.New(), now); err != nil {
+			return err
+		}
+		return sessions.RevokeAllSessionsForUser(ctx, user.ID, now, "PASSWORD_RESET")
+	})
+	if err != nil {
+		return LogoutResult{}, err
+	}
+	s.bestEffortEvent(ctx, domainauth.SecurityEvent{ID: uuid.New(), SubjectUserID: &uid, ActorUserID: &uid, EventType: domainauth.EventPasswordReset, Metadata: map[string]any{}, CreatedAt: now})
+	return LogoutResult{Message: "Parola güncellendi."}, nil
+}
+
+func (s *Service) RequestEmailChange(ctx context.Context, in RequestEmailChangeInput) (LogoutResult, error) {
+	email := strings.TrimSpace(in.NewEmail)
+	if !emailnorm.ValidFormat(email) {
+		return LogoutResult{}, apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "newEmail", Message: "Geçerli bir e-posta girin."})
+	}
+	normalized := emailnorm.Normalize(email)
+	now := s.clock.Now()
+	user, err := s.requireActiveUser(ctx, in.UserID)
+	if err != nil {
+		return LogoutResult{}, err
+	}
+	if user.EmailVerifiedAt == nil {
+		return LogoutResult{}, apperr.Forbidden(apperr.CodeForbidden, "E-posta doğrulanmamış.")
+	}
+	if user.EmailNormalized == normalized {
+		return LogoutResult{}, apperr.Conflict("email already registered")
+	}
+	if _, err := s.users.FindByNormalizedEmail(ctx, normalized); err == nil {
+		return LogoutResult{}, apperr.Conflict("email already registered")
+	} else if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
+		return LogoutResult{}, err
+	}
+	plain, hash, err := token.NewOpaqueToken()
+	if err != nil {
+		return LogoutResult{}, apperr.Internal(err)
+	}
+	cred := domainauth.OneTimeCredential{ID: uuid.New(), UserID: user.ID, Purpose: domainauth.PurposeEmailChangeVerification, TokenHash: hash, TargetEmail: email, TargetEmailNormalized: normalized, ExpiresAt: now.Add(s.emailVerifyTTL), CreatedAt: now, RequestIPHash: hashIP(in.ClientIP)}
+	if err := s.withTx(ctx, func(ctx context.Context, _ UserRepository, sessions SessionRepository) error {
+		if err := sessions.InvalidateActiveOneTimeCredentials(ctx, user.ID, cred.Purpose, now); err != nil {
+			return err
+		}
+		return sessions.CreateOneTimeCredential(ctx, cred)
+	}); err != nil {
+		return LogoutResult{}, err
+	}
+	if err := s.email.SendRegistrationVerification(ctx, email, plain, displayFullName(user.FirstName, user.LastName)); err != nil {
+		return LogoutResult{}, apperr.DependencyUnavailable("E-posta servisi şu anda kullanılamıyor.")
+	}
+	return LogoutResult{Message: resendSuccessMessage}, nil
+}
+
+func (s *Service) ConfirmEmailChange(ctx context.Context, in ConfirmEmailChangeInput) (LogoutResult, error) {
+	if strings.TrimSpace(in.Token) == "" {
+		return LogoutResult{}, apperr.TokenInvalid(genericTokenFailure)
+	}
+	now := s.clock.Now()
+	var uid uuid.UUID
+	err := s.withTx(ctx, func(ctx context.Context, users UserRepository, sessions SessionRepository) error {
+		cred, err := sessions.FindOneTimeCredentialByHashForUpdate(ctx, token.HashOpaqueToken(strings.TrimSpace(in.Token)))
+		if err != nil {
+			return apperr.TokenInvalid(genericTokenFailure)
+		}
+		if cred.Purpose != domainauth.PurposeEmailChangeVerification || !cred.IsActive() {
+			return apperr.TokenInvalid(genericTokenFailure)
+		}
+		if cred.IsExpired(now) {
+			return apperr.TokenExpired("Doğrulama jetonunun süresi dolmuş.")
+		}
+		user, err := users.FindByIDForUpdate(ctx, cred.UserID)
+		if err != nil {
+			return apperr.TokenInvalid(genericTokenFailure)
+		}
+		uid = user.ID
+		if err := sessions.ConsumeOneTimeCredential(ctx, cred.ID, now); err != nil {
+			return err
+		}
+		if err := users.UpdateEmail(ctx, user.ID, cred.TargetEmail, cred.TargetEmailNormalized, uuid.New(), now); err != nil {
+			return err
+		}
+		return sessions.RevokeAllSessionsForUser(ctx, user.ID, now, "EMAIL_CHANGE")
+	})
+	if err != nil {
+		return LogoutResult{}, err
+	}
+	s.bestEffortEvent(ctx, domainauth.SecurityEvent{ID: uuid.New(), SubjectUserID: &uid, ActorUserID: &uid, EventType: domainauth.EventEmailChange, Metadata: map[string]any{}, CreatedAt: now})
+	return LogoutResult{Message: "E-posta adresi güncellendi."}, nil
+}
+
+func (s *Service) ChangePassword(ctx context.Context, in ChangePasswordInput) (LogoutResult, error) {
+	if len(in.NewPassword) < 8 {
+		return LogoutResult{}, apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "newPassword", Message: "Parola en az 8 karakter olmalıdır."})
+	}
+	now := s.clock.Now()
+	var uid uuid.UUID
+	err := s.withTx(ctx, func(ctx context.Context, users UserRepository, sessions SessionRepository) error {
+		user, err := users.FindByIDForUpdate(ctx, in.UserID)
+		if err != nil {
+			return err
+		}
+		if !user.IsActive() {
+			return apperr.Forbidden(apperr.CodeAccountInactive, "Hesap aktif değil.")
+		}
+		ok, err := s.hasher.Verify(user.PasswordHash, in.CurrentPassword)
+		if err != nil || !ok {
+			return apperr.Unauthenticated(apperr.CodeUnauthenticated, genericAuthFailure)
+		}
+		hash, err := s.hasher.Hash(in.NewPassword)
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		uid = user.ID
+		if err := users.UpdatePasswordHash(ctx, user.ID, hash, uuid.New(), now); err != nil {
+			return err
+		}
+		return sessions.RevokeAllSessionsForUser(ctx, user.ID, now, "PASSWORD_CHANGE")
+	})
+	if err != nil {
+		return LogoutResult{}, err
+	}
+	s.bestEffortEvent(ctx, domainauth.SecurityEvent{ID: uuid.New(), SubjectUserID: &uid, ActorUserID: &uid, EventType: domainauth.EventPasswordChange, Metadata: map[string]any{}, CreatedAt: now})
+	return LogoutResult{Message: "Parola güncellendi."}, nil
 }
 
 // Login implements AUTH-04.

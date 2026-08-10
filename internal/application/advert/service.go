@@ -28,22 +28,26 @@ const (
 
 // Service implements the ADVERT-OWNER-01..11 use cases.
 type Service struct {
-	repo    Repository
-	catalog CatalogReader
-	geo     GeoReader
-	horses  HorseReader
-	users   UserReader
-	clock   Clock
+	repo          Repository
+	public        PublicRepository
+	catalog       CatalogReader
+	geo           GeoReader
+	horses        HorseReader
+	users         UserReader
+	clock         Clock
+	notifications NotificationEmitter
 }
 
 // Config wires advert application dependencies.
 type Config struct {
-	Repo    Repository
-	Catalog CatalogReader
-	Geo     GeoReader
-	Horses  HorseReader
-	Users   UserReader
-	Clock   Clock
+	Repo          Repository
+	Public        PublicRepository
+	Catalog       CatalogReader
+	Geo           GeoReader
+	Horses        HorseReader
+	Users         UserReader
+	Clock         Clock
+	Notifications NotificationEmitter
 }
 
 // NewService constructs the advert application service.
@@ -56,12 +60,14 @@ func NewService(cfg Config) (*Service, error) {
 		clock = systemClock{}
 	}
 	return &Service{
-		repo:    cfg.Repo,
-		catalog: cfg.Catalog,
-		geo:     cfg.Geo,
-		horses:  cfg.Horses,
-		users:   cfg.Users,
-		clock:   clock,
+		repo:          cfg.Repo,
+		public:        cfg.Public,
+		catalog:       cfg.Catalog,
+		geo:           cfg.Geo,
+		horses:        cfg.Horses,
+		users:         cfg.Users,
+		clock:         clock,
+		notifications: cfg.Notifications,
 	}, nil
 }
 
@@ -167,7 +173,7 @@ func (s *Service) CreateAdvertDraft(ctx context.Context, ownerID uuid.UUID, in C
 	}
 
 	// DRAFT insert and the initial NULL->DRAFT history row share one transaction.
-	if err := s.withTx(ctx, func(ctx context.Context, repo Repository) error {
+	if err := s.withTx(ctx, func(ctx context.Context, repo Repository, _ pgx.Tx) error {
 		if err := repo.Create(ctx, draft); err != nil {
 			return err
 		}
@@ -257,7 +263,7 @@ func (s *Service) UpdateAdvertDraftDetails(
 	}
 
 	var updated domainadvert.Advert
-	err = s.withTx(ctx, func(ctx context.Context, repo Repository) error {
+	err = s.withTx(ctx, func(ctx context.Context, repo Repository, _ pgx.Tx) error {
 		current, err := repo.FindByIDForOwnerForUpdate(ctx, ownerID, advertID)
 		if err != nil {
 			return err
@@ -300,7 +306,7 @@ func (s *Service) ChangeAdvertDraftCategory(
 
 	var updated domainadvert.Advert
 	cleared := false
-	err := s.withTx(ctx, func(ctx context.Context, repo Repository) error {
+	err := s.withTx(ctx, func(ctx context.Context, repo Repository, _ pgx.Tx) error {
 		current, err := repo.FindByIDForOwnerForUpdate(ctx, ownerID, advertID)
 		if err != nil {
 			return err
@@ -337,7 +343,7 @@ func (s *Service) ReplaceAdvertDynamicProperties(
 	}
 
 	var updated domainadvert.Advert
-	err := s.withTx(ctx, func(ctx context.Context, repo Repository) error {
+	err := s.withTx(ctx, func(ctx context.Context, repo Repository, _ pgx.Tx) error {
 		current, err := repo.FindByIDForOwnerForUpdate(ctx, ownerID, advertID)
 		if err != nil {
 			return err
@@ -383,7 +389,7 @@ func (s *Service) SoftDeleteAdvertDraft(ctx context.Context, ownerID, advertID u
 	}
 
 	var updated domainadvert.Advert
-	err := s.withTx(ctx, func(ctx context.Context, repo Repository) error {
+	err := s.withTx(ctx, func(ctx context.Context, repo Repository, _ pgx.Tx) error {
 		current, err := repo.FindByIDForOwnerForUpdate(ctx, ownerID, advertID)
 		if err != nil {
 			return err
@@ -433,7 +439,7 @@ func (s *Service) submitForReview(
 
 	var updated domainadvert.Advert
 	now := s.clock.Now()
-	err := s.withTx(ctx, func(ctx context.Context, repo Repository) error {
+	err := s.withTx(ctx, func(ctx context.Context, repo Repository, _ pgx.Tx) error {
 		current, err := repo.FindByIDForOwnerForUpdate(ctx, ownerID, advertID)
 		if err != nil {
 			return err
@@ -488,7 +494,7 @@ func (s *Service) ownerTransition(
 
 	var updated domainadvert.Advert
 	now := s.clock.Now()
-	err := s.withTx(ctx, func(ctx context.Context, repo Repository) error {
+	err := s.withTx(ctx, func(ctx context.Context, repo Repository, _ pgx.Tx) error {
 		current, err := repo.FindByIDForOwnerForUpdate(ctx, ownerID, advertID)
 		if err != nil {
 			return err
@@ -679,13 +685,13 @@ func (s *Service) requireHorse(ctx context.Context, horseID uuid.UUID) error {
 	return nil
 }
 
-func (s *Service) withTx(ctx context.Context, fn func(context.Context, Repository) error) error {
+func (s *Service) withTx(ctx context.Context, fn func(context.Context, Repository, pgx.Tx) error) error {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err := fn(ctx, s.repo.WithTx(tx)); err != nil {
+	if err := fn(ctx, s.repo.WithTx(tx), tx); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {

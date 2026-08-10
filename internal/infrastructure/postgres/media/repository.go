@@ -467,6 +467,64 @@ WHERE advert_id = $1 AND asset_id = $2`
 	return nil
 }
 
+// FindAdvertMediaAccessByAsset returns advert attachment rows for one asset.
+// Uses hrd_advert_media_asset_id_idx; bounded by the number of adverts that
+// currently reference the asset.
+func (r *Repository) FindAdvertMediaAccessByAsset(ctx context.Context, assetID uuid.UUID) ([]domainmedia.AdvertMediaAccess, error) {
+	const q = `
+SELECT a.owner_user_id, a.status, a.deleted_at
+FROM hrd_advert_media am
+JOIN hrd_adverts a ON a.id = am.advert_id
+WHERE am.asset_id = $1`
+
+	rows, err := r.db.Query(ctx, q, assetID)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("find advert media access by asset: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+
+	var out []domainmedia.AdvertMediaAccess
+	for rows.Next() {
+		var row domainmedia.AdvertMediaAccess
+		if err := rows.Scan(&row.OwnerUserID, &row.Status, &row.DeletedAt); err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan advert media access: %w", pg.SanitizeErr(err)))
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("iterate advert media access: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
+}
+
+// FindBannerMediaAccessByAsset returns banner attachment rows for one asset.
+// Uses hrd_banners_asset_id_idx.
+func (r *Repository) FindBannerMediaAccessByAsset(ctx context.Context, assetID uuid.UUID) ([]domainmedia.BannerMediaAccess, error) {
+	const q = `
+SELECT status
+FROM hrd_banners
+WHERE asset_id = $1`
+
+	rows, err := r.db.Query(ctx, q, assetID)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("find banner media access by asset: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+
+	var out []domainmedia.BannerMediaAccess
+	for rows.Next() {
+		var row domainmedia.BannerMediaAccess
+		if err := rows.Scan(&row.Status); err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan banner media access: %w", pg.SanitizeErr(err)))
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("iterate banner media access: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
+}
+
 // FindOwnerAdvertForUpdate locks the owner's advert and returns only the fields
 // the media domain is allowed to read.
 func (r *Repository) FindOwnerAdvertForUpdate(ctx context.Context, ownerID, advertID uuid.UUID) (domainmedia.AdvertRef, error) {

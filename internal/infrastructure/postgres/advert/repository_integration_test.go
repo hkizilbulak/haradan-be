@@ -302,4 +302,114 @@ func TestRepositoryListByOwnerOrderAndSoftDeleteIntegration(t *testing.T) {
 	}
 }
 
+func TestRepositoryAdvertModerationIntegration(t *testing.T) {
+	ctx, tx, cleanup := testutil.OpenTestTx(t)
+	defer cleanup()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	ref := seedRefs(t, ctx, tx, now)
+	repo := pgadvert.NewRepository(nil).WithTx(tx)
+
+	adminID := uuid.New()
+	users := pguser.NewRepository(tx)
+	if err := users.Create(ctx, domainuser.User{
+		ID: adminID, Email: "admin-" + adminID.String()[:8] + "@example.com",
+		EmailNormalized: "admin-" + adminID.String()[:8] + "@example.com",
+		PasswordHash:    "hash", Role: domainuser.RoleAdmin, Status: domainuser.StatusActive,
+		FirstName: "A", LastName: "B", SecurityStamp: uuid.New(), CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("create admin: %v", err)
+	}
+
+	title := "Moderasyon"
+	desc := "Açıklama"
+	pending := domainadvert.Advert{
+		ID: uuid.New(), OwnerUserID: ref.owner,
+		CategoryID: &ref.category, DistrictID: &ref.district,
+		Title: &title, Description: &desc,
+		Status: domainadvert.StatusPendingReview, Properties: domainadvert.EmptyProperties(),
+		Version: 1, MediaVersion: 1, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := repo.Create(ctx, pending); err != nil {
+		t.Fatalf("create pending: %v", err)
+	}
+
+	listed, err := repo.ListForModeration(ctx, domainadvert.StatusPendingReview, nil, nil, 10)
+	if err != nil {
+		t.Fatalf("list moderation: %v", err)
+	}
+	if len(listed) != 1 || listed[0].ID != pending.ID {
+		t.Fatalf("%+v", listed)
+	}
+
+	found, err := repo.FindByID(ctx, pending.ID)
+	if err != nil {
+		t.Fatalf("find by id: %v", err)
+	}
+	if found.OwnerUserID != ref.owner {
+		t.Fatalf("%+v", found)
+	}
+
+	locked, err := repo.FindByIDForUpdate(ctx, pending.ID)
+	if err != nil {
+		t.Fatalf("for update: %v", err)
+	}
+	publishedAt := now.Add(time.Minute)
+	updated, err := repo.TransitionStatus(
+		ctx, locked.OwnerUserID, pending.ID,
+		domainadvert.StatusPendingReview, domainadvert.StatusPublished,
+		1, &publishedAt, publishedAt,
+	)
+	if err != nil {
+		t.Fatalf("transition: %v", err)
+	}
+	if updated.Status != domainadvert.StatusPublished || updated.PublishedAt == nil || updated.Version != 2 {
+		t.Fatalf("%+v", updated)
+	}
+	from := domainadvert.StatusPendingReview
+	if err := repo.InsertHistory(ctx, domainadvert.StatusHistory{
+		ID: uuid.New(), AdvertID: pending.ID, FromStatus: &from,
+		ToStatus: domainadvert.StatusPublished, ActorUserID: &adminID,
+		IsSystem: false, CreatedAt: publishedAt,
+	}); err != nil {
+		t.Fatalf("history: %v", err)
+	}
+
+	hist, err := repo.ListStatusHistory(ctx, pending.ID)
+	if err != nil {
+		t.Fatalf("list history: %v", err)
+	}
+	if len(hist) != 1 || hist[0].ActorUserID == nil || *hist[0].ActorUserID != adminID {
+		t.Fatalf("%+v", hist)
+	}
+
+	if _, err := repo.TransitionStatus(
+		ctx, ref.owner, pending.ID,
+		domainadvert.StatusPendingReview, domainadvert.StatusPublished,
+		2, nil, publishedAt.Add(time.Minute),
+	); err == nil {
+		t.Fatal("stale/invalid transition must fail")
+	} else if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeStaleVersion {
+		t.Fatalf("want STALE_VERSION, got %v", err)
+	}
+
+	if stillPublished, err := repo.FindByID(ctx, pending.ID); err != nil || stillPublished.Status != domainadvert.StatusPublished {
+		t.Fatalf("published advert must remain visible: %+v err=%v", stillPublished, err)
+	}
+
+	draft := newDraft(ref.owner, publishedAt.Add(2*time.Minute))
+	if err := repo.Create(ctx, draft); err != nil {
+		t.Fatalf("create draft: %v", err)
+	}
+	deletedAt := publishedAt.Add(3 * time.Minute)
+	if _, err := repo.SoftDeleteDraft(ctx, ref.owner, draft.ID, 1, deletedAt); err != nil {
+		t.Fatalf("soft delete draft: %v", err)
+	}
+	if _, err := repo.FindByID(ctx, draft.ID); err == nil {
+		t.Fatal("soft-deleted draft must be not found")
+	} else if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeNotFound {
+		t.Fatalf("want NOT_FOUND, got %v", err)
+	}
+}
+
 func statusPtr(s domainadvert.Status) *domainadvert.Status { return &s }

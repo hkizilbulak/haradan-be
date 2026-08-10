@@ -326,14 +326,18 @@ func TestRepositoryAdvertMediaRelationsIntegration(t *testing.T) {
 
 	// The same asset twice, a taken display order and a second cover are all
 	// conflicts enforced by the table, not internal errors.
-	if err := repo.AttachAdvertMedia(ctx, relation(first.ID, 2, false)); err == nil {
-		t.Fatal("duplicate asset attach must fail")
-	} else if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeConflict {
-		t.Fatalf("want CONFLICT, got %v", err)
-	}
-	if err := repo.AttachAdvertMedia(ctx, relation(uuid.New(), 0, false)); err == nil {
-		t.Fatal("attaching an unknown asset must fail")
-	}
+	testutil.WithSavepoint(t, ctx, tx, func() {
+		if err := repo.AttachAdvertMedia(ctx, relation(first.ID, 2, false)); err == nil {
+			t.Fatal("duplicate asset attach must fail")
+		} else if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeConflict {
+			t.Fatalf("want CONFLICT, got %v", err)
+		}
+	})
+	testutil.WithSavepoint(t, ctx, tx, func() {
+		if err := repo.AttachAdvertMedia(ctx, relation(uuid.New(), 0, false)); err == nil {
+			t.Fatal("attaching an unknown asset must fail")
+		}
+	})
 
 	rows, err := repo.ListAdvertMediaByAdvert(ctx, ref.advert)
 	if err != nil {
@@ -464,11 +468,13 @@ func TestRepositoryJobDeduplicationIntegration(t *testing.T) {
 	// A repeated completion must not create a second job for the same asset.
 	duplicate := job
 	duplicate.ID = uuid.New()
-	if err := repo.EnqueueJob(ctx, duplicate); err == nil {
-		t.Fatal("duplicate dedup key must fail")
-	} else if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeConflict {
-		t.Fatalf("want CONFLICT, got %v", err)
-	}
+	testutil.WithSavepoint(t, ctx, tx, func() {
+		if err := repo.EnqueueJob(ctx, duplicate); err == nil {
+			t.Fatal("duplicate dedup key must fail")
+		} else if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeConflict {
+			t.Fatalf("want CONFLICT, got %v", err)
+		}
+	})
 
 	found, err := repo.FindJobByDedupKey(ctx, key)
 	if err != nil {

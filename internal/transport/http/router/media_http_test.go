@@ -16,6 +16,7 @@ import (
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
+	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/router"
@@ -26,6 +27,7 @@ import (
 // end-to-end without a database, an object store or a compression provider.
 type mediaTestEnv struct {
 	authSvc     *appauth.Service
+	authStore   *appauth.MemoryStore
 	mediaStore  *appmedia.MemoryStore
 	fakeStorage *appmedia.FakeStorage
 	do          func(method, path, body, auth string) *httptest.ResponseRecorder
@@ -39,7 +41,7 @@ const (
 func newMediaEngine(t *testing.T) *mediaTestEnv {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	authSvc, _, _ := appauth.NewMemoryServiceForTest(t)
+	authSvc, authStore, _ := appauth.NewMemoryServiceForTest(t)
 
 	store := appmedia.NewMemoryStore()
 	fakeStorage := appmedia.NewFakeStorage(nil)
@@ -54,7 +56,7 @@ func newMediaEngine(t *testing.T) *mediaTestEnv {
 		t.Fatal(err)
 	}
 
-	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, mediaSvc, authSvc)
+	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, mediaSvc, nil, nil, nil, nil, nil, authSvc)
 	engine := router.New(srv, log, router.Options{AuthService: authSvc})
 
 	do := func(method, path, body, auth string) *httptest.ResponseRecorder {
@@ -74,7 +76,7 @@ func newMediaEngine(t *testing.T) *mediaTestEnv {
 		engine.ServeHTTP(rec, req)
 		return rec
 	}
-	return &mediaTestEnv{authSvc: authSvc, mediaStore: store, fakeStorage: fakeStorage, do: do}
+	return &mediaTestEnv{authSvc: authSvc, authStore: authStore, mediaStore: store, fakeStorage: fakeStorage, do: do}
 }
 
 // registerAndLogin registers and logs a fresh user in via the real HTTP auth
@@ -144,6 +146,50 @@ func (env *mediaTestEnv) draftAdvert(ownerID uuid.UUID) uuid.UUID {
 	return advertID
 }
 
+func (env *mediaTestEnv) seedReadyAsset(
+	t *testing.T,
+	ownerID uuid.UUID,
+	profile string,
+	body string,
+) uuid.UUID {
+	t.Helper()
+	assetID := uuid.New()
+	now := time.Now().UTC()
+	rawKey := domainmedia.RawObjectKey(assetID)
+	masterKey := domainmedia.MasterObjectKey(assetID)
+	ct := mediaAllowedContentType
+	size := int64(2048)
+	edge := 100
+	env.mediaStore.PutAsset(domainmedia.Asset{
+		ID: assetID, OwnerUserID: ownerID, Provider: domainmedia.ProviderB2,
+		RawObjectKey: &rawKey, MasterObjectKey: &masterKey,
+		ContentType: &ct, ByteSize: &size, WidthPx: &edge, HeightPx: &edge,
+		LifecycleStatus: domainmedia.AssetMasterReady, TechnicalMetadata: domainmedia.EmptyMetadata(),
+		CreatedAt: now, UpdatedAt: now,
+	})
+	key := domainmedia.VariantObjectKey(assetID, profile)
+	vSize := int64(len(body))
+	env.mediaStore.PutVariant(domainmedia.Variant{
+		ID: uuid.New(), AssetID: assetID, TransformProfile: profile,
+		ObjectKey: &key, LifecycleStatus: domainmedia.VariantReady,
+		ContentType: &ct, ByteSize: &vSize, CreatedAt: now, UpdatedAt: now,
+	})
+	if err := env.fakeStorage.PutObject(context.Background(), key, ct, []byte(body)); err != nil {
+		t.Fatal(err)
+	}
+	return assetID
+}
+
+func (env *mediaTestEnv) attachAdvert(t *testing.T, advertID, assetID uuid.UUID) {
+	t.Helper()
+	now := time.Now().UTC()
+	if err := env.mediaStore.Repo().AttachAdvertMedia(context.Background(), domainmedia.AdvertMediaRelation{
+		ID: uuid.New(), AdvertID: advertID, AssetID: assetID, DisplayOrder: 0, CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestInitiateMediaUploadHTTP(t *testing.T) {
 	env := newMediaEngine(t)
 	auth, _ := env.registerAndLogin(t, "initiate@example.com")
@@ -201,7 +247,7 @@ func TestInitiateMediaUploadDependencyUnavailableHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, mediaSvc, authSvc)
+	srv := handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, mediaSvc, nil, nil, nil, nil, nil, authSvc)
 	engine := router.New(srv, log, router.Options{AuthService: authSvc})
 
 	env := &mediaTestEnv{authSvc: authSvc, do: func(method, path, body, auth string) *httptest.ResponseRecorder {
@@ -434,22 +480,22 @@ func TestMediaMissingAuthHTTP(t *testing.T) {
 	}
 }
 
-func TestMediaOutOfScopeRoutesStill501HTTP(t *testing.T) {
+func TestAdminMediaRoutesRequireAdminAuthenticationHTTP(t *testing.T) {
 	env := newMediaEngine(t)
 	auth, _ := env.registerAndLogin(t, "outofscope@example.com")
 
 	rec := env.do(http.MethodPost, "/api/v1/admin/media/uploads", `{}`, auth)
-	if rec.Code != http.StatusNotImplemented {
+	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("admin initiate status=%d body=%s", rec.Code, rec.Body.String())
 	}
 
 	rec = env.do(http.MethodGet, "/api/v1/admin/media/assets/"+uuid.New().String(), "", auth)
-	if rec.Code != http.StatusNotImplemented {
+	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("admin status status=%d body=%s", rec.Code, rec.Body.String())
 	}
 
 	rec = env.do(http.MethodPost, "/api/v1/admin/media/assets/"+uuid.New().String()+"/confirm", `{}`, auth)
-	if rec.Code != http.StatusNotImplemented {
+	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("admin confirm status=%d body=%s", rec.Code, rec.Body.String())
 	}
 
@@ -461,6 +507,100 @@ func TestMediaOutOfScopeRoutesStill501HTTP(t *testing.T) {
 	rec = env.do(http.MethodGet, "/api/v1/me/favorites", "", auth)
 	if rec.Code != http.StatusNotImplemented {
 		t.Fatalf("favorites status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPublicMediaHEADAndAttachmentHTTP(t *testing.T) {
+	env := newMediaEngine(t)
+	auth, ownerID := env.registerAndLogin(t, "public-media@example.com")
+
+	assetID := env.seedReadyAsset(t, ownerID, domainmedia.ProfileDetail, "public-bytes")
+	advertID := uuid.New()
+	env.mediaStore.PutAdvert(appmedia.MemoryAdvert{
+		ID: advertID, OwnerUserID: ownerID, Status: "PUBLISHED", MediaVersion: 1,
+	})
+	env.attachAdvert(t, advertID, assetID)
+
+	path := "/api/v1/media/" + assetID.String() + "/" + domainmedia.ProfileDetail
+	head := env.do(http.MethodHead, path, "", "")
+	if head.Code != http.StatusOK {
+		t.Fatalf("HEAD status=%d body=%s", head.Code, head.Body.String())
+	}
+	if head.Body.Len() != 0 {
+		t.Fatalf("HEAD must not write a body, got %q", head.Body.String())
+	}
+	if head.Header().Get("Content-Type") == "" || head.Header().Get("Cache-Control") == "" {
+		t.Fatalf("missing headers: %+v", head.Header())
+	}
+	if head.Header().Get("Content-Disposition") != "inline" {
+		t.Fatalf("Content-Disposition=%q", head.Header().Get("Content-Disposition"))
+	}
+
+	get := env.do(http.MethodGet, path, "", "")
+	if get.Code != http.StatusOK || get.Body.String() != "public-bytes" {
+		t.Fatalf("GET status=%d body=%q", get.Code, get.Body.String())
+	}
+
+	orphan := env.seedReadyAsset(t, ownerID, domainmedia.ProfileDetail, "orphan")
+	rec := env.do(http.MethodGet, "/api/v1/media/"+orphan.String()+"/"+domainmedia.ProfileDetail, "", "")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("orphan status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	draftAsset := env.seedReadyAsset(t, ownerID, domainmedia.ProfileHomepage, "draft-preview")
+	draftAdvert := env.draftAdvert(ownerID)
+	env.attachAdvert(t, draftAdvert, draftAsset)
+	draftPath := "/api/v1/media/" + draftAsset.String() + "/" + domainmedia.ProfileHomepage
+	rec = env.do(http.MethodGet, draftPath, "", "")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("anonymous draft status=%d", rec.Code)
+	}
+	rec = env.do(http.MethodGet, draftPath, "", auth)
+	if rec.Code != http.StatusOK || rec.Body.String() != "draft-preview" {
+		t.Fatalf("owner preview status=%d body=%q", rec.Code, rec.Body.String())
+	}
+	rec = env.do(http.MethodGet, draftPath, "", "Bearer not-a-token")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("invalid bearer must stay anonymous 404, got %d", rec.Code)
+	}
+
+	bannerAsset := env.seedReadyAsset(t, ownerID, domainmedia.ProfileBanner, "banner-bytes")
+	env.mediaStore.PutBanner(appmedia.MemoryBanner{
+		ID: uuid.New(), AssetID: bannerAsset, Status: "INACTIVE",
+	})
+	bannerPath := "/api/v1/media/" + bannerAsset.String() + "/" + domainmedia.ProfileBanner
+	rec = env.do(http.MethodGet, bannerPath, "", "")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("inactive banner status=%d", rec.Code)
+	}
+	env.mediaStore.PutBanner(appmedia.MemoryBanner{
+		ID: uuid.New(), AssetID: bannerAsset, Status: "ACTIVE",
+	})
+	rec = env.do(http.MethodGet, bannerPath, "", "")
+	if rec.Code != http.StatusOK || rec.Body.String() != "banner-bytes" {
+		t.Fatalf("active banner status=%d body=%q", rec.Code, rec.Body.String())
+	}
+
+	// Admin preview of inactive-only banner asset.
+	inactiveOnly := env.seedReadyAsset(t, ownerID, domainmedia.ProfileBanner, "admin-banner")
+	env.mediaStore.PutBanner(appmedia.MemoryBanner{
+		ID: uuid.New(), AssetID: inactiveOnly, Status: "INACTIVE",
+	})
+	adminAuth, adminID := env.registerAndLogin(t, "media-admin@example.com")
+	env.authStore.SetUserRole(adminID, domainuser.RoleAdmin)
+	rec = env.do(http.MethodPost, "/api/v1/auth/login",
+		`{"email":"media-admin@example.com","password":"Password1","clientContext":"PUBLIC_WEB"}`, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("admin re-login=%d %s", rec.Code, rec.Body.String())
+	}
+	var tokens generated.AuthTokenResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &tokens); err != nil {
+		t.Fatal(err)
+	}
+	adminAuth = "Bearer " + tokens.AccessToken
+	rec = env.do(http.MethodGet, "/api/v1/media/"+inactiveOnly.String()+"/"+domainmedia.ProfileBanner, "", adminAuth)
+	if rec.Code != http.StatusOK || rec.Body.String() != "admin-banner" {
+		t.Fatalf("admin banner preview status=%d body=%q", rec.Code, rec.Body.String())
 	}
 }
 

@@ -28,6 +28,12 @@ type Repository interface {
 
 	FindByIDForOwner(ctx context.Context, ownerID, advertID uuid.UUID) (domainadvert.Advert, error)
 	FindByIDForOwnerForUpdate(ctx context.Context, ownerID, advertID uuid.UUID) (domainadvert.Advert, error)
+
+	// FindByID returns a non-deleted advert by id (admin scope; no ownership filter).
+	FindByID(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error)
+	// FindByIDForUpdate locks a non-deleted advert by id for admin transitions.
+	FindByIDForUpdate(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error)
+
 	ListByOwner(
 		ctx context.Context,
 		ownerID uuid.UUID,
@@ -36,6 +42,18 @@ type Repository interface {
 		afterID *uuid.UUID,
 		limit int,
 	) ([]domainadvert.Advert, error)
+
+	// ListForModeration returns non-deleted adverts matching status with keyset paging.
+	ListForModeration(
+		ctx context.Context,
+		status domainadvert.Status,
+		afterCreated *time.Time,
+		afterID *uuid.UUID,
+		limit int,
+	) ([]domainadvert.Advert, error)
+
+	// ListStatusHistory returns history for one advert, oldest first.
+	ListStatusHistory(ctx context.Context, advertID uuid.UUID) ([]domainadvert.StatusHistory, error)
 
 	// UpdateDetails applies core content fields when owner+id+version still match
 	// and the status is owner-editable.
@@ -81,6 +99,16 @@ type Repository interface {
 		publishedAt *time.Time,
 		now time.Time,
 	) (domainadvert.Advert, error)
+}
+
+// PublicRepository returns denormalized buyer-facing projections. It is kept
+// separate from Repository because public reads deliberately join package,
+// media, geography, and favorite state in one query.
+type PublicRepository interface {
+	SearchPublished(ctx context.Context, q domainadvert.PublicSearchQuery) ([]domainadvert.PublicCard, error)
+	ListHomepageNew(ctx context.Context, q domainadvert.HomepageNewQuery) ([]domainadvert.PublicCard, error)
+	ListHomepageShowcase(ctx context.Context, seed string, limit int, actorUserID *uuid.UUID) ([]domainadvert.PublicCard, error)
+	GetPublishedDetail(ctx context.Context, advertID uuid.UUID, actorUserID *uuid.UUID) (domainadvert.PublicDetail, error)
 }
 
 // CatalogReader reads the category metadata the advert core depends on.

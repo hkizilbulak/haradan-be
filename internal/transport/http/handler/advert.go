@@ -33,6 +33,60 @@ func (s *Server) SoftDeleteAdvertDraft(c *gin.Context, advertId generated.Advert
 	s.advert.SoftDeleteAdvertDraft(c, advertId, params)
 }
 
+// ListAdvertModerationQueue implements ADVERT-ADMIN-01.
+func (s *Server) ListAdvertModerationQueue(c *gin.Context, params generated.ListAdvertModerationQueueParams) {
+	if s.advert == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.advert.ListAdvertModerationQueue(c, params)
+}
+
+// GetAdvertModerationDetail implements ADVERT-ADMIN-02.
+func (s *Server) GetAdvertModerationDetail(c *gin.Context, advertId generated.AdvertIdPath) {
+	if s.advert == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.advert.GetAdvertModerationDetail(c, advertId)
+}
+
+// ApproveAdvert implements ADVERT-ADMIN-03.
+func (s *Server) ApproveAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
+	if s.advert == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.advert.ApproveAdvert(c, advertId)
+}
+
+// RequestAdvertChanges implements ADVERT-ADMIN-04.
+func (s *Server) RequestAdvertChanges(c *gin.Context, advertId generated.AdvertIdPath) {
+	if s.advert == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.advert.RequestAdvertChanges(c, advertId)
+}
+
+// RejectAdvert implements ADVERT-ADMIN-05.
+func (s *Server) RejectAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
+	if s.advert == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.advert.RejectAdvert(c, advertId)
+}
+
+// SuspendAdvert implements ADVERT-ADMIN-06.
+func (s *Server) SuspendAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
+	if s.advert == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.advert.SuspendAdvert(c, advertId)
+}
+
 // GetMyAdvert implements ADVERT-OWNER-03.
 func (s *Server) GetMyAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
 	if s.advert == nil {

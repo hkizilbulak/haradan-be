@@ -21,6 +21,8 @@ var AccountSessionProtectedRoutes = []ProtectedRoute{
 	{Method: "POST", Path: "/api/v1/auth/logout-all"},
 	{Method: "GET", Path: "/api/v1/me/sessions"},
 	{Method: "DELETE", Path: "/api/v1/me/sessions/:sessionId"},
+	{Method: "POST", Path: "/api/v1/me/email/change-request"},
+	{Method: "POST", Path: "/api/v1/me/password"},
 }
 
 // AdvertOwnerProtectedRoutes are ADVERT-OWNER-01..11 routes. Media relation and
@@ -50,6 +52,93 @@ var MediaProtectedRoutes = []ProtectedRoute{
 	{Method: "DELETE", Path: "/api/v1/me/adverts/:advertId/media/:assetId"},
 	{Method: "PUT", Path: "/api/v1/me/adverts/:advertId/media/order"},
 	{Method: "PUT", Path: "/api/v1/me/adverts/:advertId/media/cover"},
+}
+
+// FavoritesProtectedRoutes are FAVORITE-01..03 authenticated user routes.
+var FavoritesProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/me/favorites"},
+	{Method: "PUT", Path: "/api/v1/me/favorites/:advertId"},
+	{Method: "DELETE", Path: "/api/v1/me/favorites/:advertId"},
+}
+
+// NotificationInboxProtectedRoutes are authenticated ACTIVE-user inbox routes.
+var NotificationInboxProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/me/notifications"},
+	{Method: "GET", Path: "/api/v1/me/notifications/unread-count"},
+	{Method: "PUT", Path: "/api/v1/me/notifications/read-all"},
+	{Method: "PUT", Path: "/api/v1/me/notifications/:notificationId/read"},
+}
+
+// AdvertModerationProtectedRoutes are ADVERT-ADMIN-01..06 BO_AUTH routes.
+// Admin media/banner/user management routes are intentionally excluded.
+var AdvertModerationProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/admin/adverts/moderation"},
+	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId"},
+	{Method: "POST", Path: "/api/v1/admin/adverts/:advertId/approve"},
+	{Method: "POST", Path: "/api/v1/admin/adverts/:advertId/request-changes"},
+	{Method: "POST", Path: "/api/v1/admin/adverts/:advertId/reject"},
+	{Method: "POST", Path: "/api/v1/admin/adverts/:advertId/suspend"},
+}
+
+// AdminUserProtectedRoutes are ADMIN-USER-01..05 BO_AUTH routes.
+var AdminUserProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/admin/users"},
+	{Method: "GET", Path: "/api/v1/admin/users/:userId"},
+	{Method: "POST", Path: "/api/v1/admin/users/:userId/role"},
+	{Method: "POST", Path: "/api/v1/admin/users/:userId/status"},
+	{Method: "GET", Path: "/api/v1/admin/users/:userId/security-events"},
+}
+
+var TJKAdminProtectedRoutes = []ProtectedRoute{
+	{Method: "POST", Path: "/api/v1/admin/tjk/sync-runs"},
+	{Method: "GET", Path: "/api/v1/admin/tjk/sync-runs"},
+	{Method: "GET", Path: "/api/v1/admin/tjk/sync-runs/:runId"},
+	{Method: "POST", Path: "/api/v1/admin/tjk/sync-runs/:runId/cancel"},
+	{Method: "GET", Path: "/api/v1/admin/tjk/sync-runs/:runId/item-errors"},
+	{Method: "POST", Path: "/api/v1/admin/tjk/item-errors/:errorId/resolve"},
+	{Method: "POST", Path: "/api/v1/admin/tjk/item-errors/:errorId/ignore"},
+}
+
+// PackagingAdminProtectedRoutes are packaging/campaign/notification-template BO_AUTH routes.
+var PackagingAdminProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/admin/packages"},
+	{Method: "POST", Path: "/api/v1/admin/packages"},
+	{Method: "GET", Path: "/api/v1/admin/packages/:packageCode"},
+	{Method: "PATCH", Path: "/api/v1/admin/packages/:packageCode"},
+	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId/package"},
+	{Method: "PUT", Path: "/api/v1/admin/adverts/:advertId/package"},
+	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId/package-history"},
+	{Method: "POST", Path: "/api/v1/admin/adverts/:advertId/package/cancel"},
+	{Method: "GET", Path: "/api/v1/admin/campaigns"},
+	{Method: "POST", Path: "/api/v1/admin/campaigns"},
+	{Method: "GET", Path: "/api/v1/admin/campaigns/:campaignId"},
+	{Method: "PATCH", Path: "/api/v1/admin/campaigns/:campaignId"},
+	{Method: "GET", Path: "/api/v1/admin/notification-templates"},
+	{Method: "GET", Path: "/api/v1/admin/notification-templates/:eventType"},
+	{Method: "PATCH", Path: "/api/v1/admin/notification-templates/:eventType"},
+	{Method: "GET", Path: "/api/v1/admin/email-templates/provider"},
+	{Method: "GET", Path: "/api/v1/admin/email-templates/provider/:templateId/variables"},
+	{Method: "GET", Path: "/api/v1/admin/jobs"},
+	{Method: "GET", Path: "/api/v1/admin/jobs/:jobId"},
+	{Method: "PATCH", Path: "/api/v1/admin/jobs/:jobId"},
+	{Method: "POST", Path: "/api/v1/admin/jobs/:jobId/run"},
+	{Method: "GET", Path: "/api/v1/admin/jobs/:jobId/history"},
+}
+
+// BannerAdminProtectedRoutes are banner management BO_AUTH routes.
+var BannerAdminProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/admin/banners"},
+	{Method: "POST", Path: "/api/v1/admin/banners"},
+	{Method: "PUT", Path: "/api/v1/admin/banners/reorder"},
+	{Method: "GET", Path: "/api/v1/admin/banners/:bannerId"},
+	{Method: "PATCH", Path: "/api/v1/admin/banners/:bannerId"},
+	{Method: "POST", Path: "/api/v1/admin/banners/:bannerId/status"},
+}
+
+// AdvertUrgentProtectedRoutes are owner/admin URGENT activate/deactivate routes.
+var AdvertUrgentProtectedRoutes = []ProtectedRoute{
+	{Method: "PUT", Path: "/api/v1/adverts/:advertId/urgent"},
+	{Method: "DELETE", Path: "/api/v1/adverts/:advertId/urgent"},
 }
 
 // Selective runs Bearer access-token auth only for the listed method+path pairs.

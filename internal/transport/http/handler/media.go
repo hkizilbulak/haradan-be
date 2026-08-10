@@ -33,6 +33,33 @@ func (s *Server) GetMediaProcessingStatus(c *gin.Context, assetId generated.Asse
 	s.media.GetMediaProcessingStatus(c, assetId)
 }
 
+// InitiateAdminMediaUpload implements the admin MEDIA-01 operation.
+func (s *Server) InitiateAdminMediaUpload(c *gin.Context) {
+	if s.media == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.media.InitiateAdminMediaUpload(c)
+}
+
+// ConfirmAdminMediaUpload implements the admin MEDIA-02 operation.
+func (s *Server) ConfirmAdminMediaUpload(c *gin.Context, assetId generated.AssetIdPath) {
+	if s.media == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.media.ConfirmAdminMediaUpload(c, assetId)
+}
+
+// GetAdminMediaProcessingStatus implements the admin MEDIA-03 operation.
+func (s *Server) GetAdminMediaProcessingStatus(c *gin.Context, assetId generated.AssetIdPath) {
+	if s.media == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.media.GetAdminMediaProcessingStatus(c, assetId)
+}
+
 // AttachMediaToAdvert implements MEDIA-04.
 func (s *Server) AttachMediaToAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
 	if s.media == nil {

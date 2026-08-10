@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,9 +15,29 @@ import (
 // ObjectInfo is the provider's own view of a stored object. Client-declared
 // metadata is never canonical; only what the provider reports counts.
 type ObjectInfo struct {
-	ContentType string
-	ByteSize    int64
-	Exists      bool
+	ContentType  string
+	ByteSize     int64
+	ETag         string
+	LastModified time.Time
+	Exists       bool
+}
+
+// ObjectReader is a streaming object body plus provider metadata. Callers must
+// Close Body; canceling ctx should close the underlying provider stream.
+type ObjectReader struct {
+	Body         io.ReadCloser
+	ContentType  string
+	ByteSize     int64
+	ETag         string
+	LastModified time.Time
+}
+
+// ObjectPage is one bounded provider listing page. Cursor is opaque to callers.
+// LastModified aligns with Keys (same length) when the provider supplies times.
+type ObjectPage struct {
+	Keys         []string
+	LastModified []time.Time
+	NextCursor   string
 }
 
 // UploadAuth is a short-lived, single-object upload grant. ObjectKey stays on
@@ -52,6 +73,16 @@ type Storage interface {
 
 	// GetObject reads an object back for processing.
 	GetObject(ctx context.Context, objectKey string) ([]byte, string, error)
+
+	// OpenObject opens a streaming object read for public delivery. The caller
+	// owns Body and must Close it. Missing objects surface as NotFound.
+	OpenObject(ctx context.Context, objectKey string) (ObjectReader, error)
+
+	// DeleteObject removes an object. Deleting a missing object succeeds.
+	DeleteObject(ctx context.Context, objectKey string) error
+
+	// ListObjects returns at most limit logical keys below prefix.
+	ListObjects(ctx context.Context, prefix, cursor string, limit int) (ObjectPage, error)
 }
 
 // ProcessedImage is the output of a processing step: the decoded, normalized
@@ -78,8 +109,10 @@ type ImageProcessor interface {
 // aliases rather than local structs so the postgres repository can satisfy this
 // interface without importing the application package.
 type (
-	AdvertRef   = domainmedia.AdvertRef
-	RelationRow = domainmedia.RelationWithAsset
+	AdvertRef         = domainmedia.AdvertRef
+	RelationRow       = domainmedia.RelationWithAsset
+	AdvertMediaAccess = domainmedia.AdvertMediaAccess
+	BannerMediaAccess = domainmedia.BannerMediaAccess
 )
 
 // Repository persists media assets, variants, advert relations and the durable
@@ -162,6 +195,13 @@ type Repository interface {
 	CountAdvertMediaByAdvert(ctx context.Context, advertID uuid.UUID) (int, error)
 	AttachAdvertMedia(ctx context.Context, rel domainmedia.AdvertMediaRelation) error
 
+	// FindAdvertMediaAccessByAsset returns advert attachment rows for public
+	// delivery authorization (indexed by hrd_advert_media.asset_id).
+	FindAdvertMediaAccessByAsset(ctx context.Context, assetID uuid.UUID) ([]AdvertMediaAccess, error)
+	// FindBannerMediaAccessByAsset returns banner attachment rows for public
+	// delivery authorization (indexed by hrd_banners.asset_id).
+	FindBannerMediaAccessByAsset(ctx context.Context, assetID uuid.UUID) ([]BannerMediaAccess, error)
+
 	// DetachAdvertMedia removes the relation and reports whether a row was
 	// removed and whether that row was the cover.
 	DetachAdvertMedia(ctx context.Context, advertID, assetID uuid.UUID) (removed bool, wasCover bool, err error)
@@ -232,6 +272,19 @@ func (UnconfiguredStorage) PutObject(context.Context, string, string, []byte) er
 // GetObject reports the storage dependency as unavailable.
 func (UnconfiguredStorage) GetObject(context.Context, string) ([]byte, string, error) {
 	return nil, "", apperr.DependencyUnavailable(storageNotConfiguredMessage)
+}
+
+// OpenObject reports the storage dependency as unavailable.
+func (UnconfiguredStorage) OpenObject(context.Context, string) (ObjectReader, error) {
+	return ObjectReader{}, apperr.DependencyUnavailable(storageNotConfiguredMessage)
+}
+
+func (UnconfiguredStorage) DeleteObject(context.Context, string) error {
+	return apperr.DependencyUnavailable(storageNotConfiguredMessage)
+}
+
+func (UnconfiguredStorage) ListObjects(context.Context, string, string, int) (ObjectPage, error) {
+	return ObjectPage{}, apperr.DependencyUnavailable(storageNotConfiguredMessage)
 }
 
 const processorNotConfiguredMessage = "Görsel işleme servisi şu anda kullanılamıyor."

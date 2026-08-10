@@ -197,7 +197,7 @@ func TestRefreshReplayDoesNotAffectOtherFamily(t *testing.T) {
 }
 
 func TestRegisterEmailFailureLeavesUserWithoutResendInThisSlice(t *testing.T) {
-	fail := EmailSenderFunc(func(context.Context, string, string) error {
+	fail := EmailSenderFunc(func(context.Context, string, string, string) error {
 		return errors.New("smtp down")
 	})
 	svc, store, _ := NewMemoryServiceForTestWithEmail(t, fail)
@@ -436,7 +436,7 @@ type recordingEmail struct {
 	failN int // fail first N calls when >0
 }
 
-func (r *recordingEmail) SendRegistrationVerification(_ context.Context, _, plaintextToken string) error {
+func (r *recordingEmail) SendRegistrationVerification(_ context.Context, _, plaintextToken, _ string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.calls++
@@ -445,6 +445,10 @@ func (r *recordingEmail) SendRegistrationVerification(_ context.Context, _, plai
 	}
 	r.last = plaintextToken
 	return nil
+}
+
+func (r *recordingEmail) SendPasswordReset(ctx context.Context, toEmail, plaintextToken, fullName string) error {
+	return r.SendRegistrationVerification(ctx, toEmail, plaintextToken, fullName)
 }
 
 func TestRegisterEmailFailureRecoveredByResendThenVerify(t *testing.T) {
