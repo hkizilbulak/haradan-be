@@ -74,7 +74,7 @@ func TestListAndGetRequireAdmin(t *testing.T) {
 	def := seedDef(store, nil)
 	userID := uuid.New()
 	store.SeedUser(domainuser.User{ID: userID, Role: domainuser.RoleUser, Status: domainuser.StatusActive})
-	svc := newSvc(t, store, appjobadmin.ProviderCapabilities{B2Enabled: true, TJKEnabled: true})
+	svc := newSvc(t, store, appjobadmin.ProviderCapabilities{B2Enabled: true, TinifyEnabled: true, TJKEnabled: true})
 
 	_, err := svc.ListJobs(context.Background(), userID)
 	requireCode(t, err, apperr.CodeForbidden)
@@ -204,7 +204,7 @@ func TestManualRunAndReferenceDateValidation(t *testing.T) {
 	store := appjobadmin.NewMemoryStore()
 	def := seedDef(store, nil)
 	admin := seedAdmin(store)
-	svc := newSvc(t, store, appjobadmin.ProviderCapabilities{B2Enabled: true, TJKEnabled: true})
+	svc := newSvc(t, store, appjobadmin.ProviderCapabilities{B2Enabled: true, TinifyEnabled: true, TJKEnabled: true})
 
 	ref := "2026-08-01"
 	out, err := svc.RunJob(context.Background(), appjobadmin.RunJobInput{

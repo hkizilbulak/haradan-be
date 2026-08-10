@@ -14,6 +14,38 @@ func (s *Server) ListUsers(c *gin.Context, params generated.ListUsersParams) {
 	s.adminuser.ListUsers(c, params)
 }
 
+func (s *Server) CreateAdminUser(c *gin.Context) {
+	if s.adminuser == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.adminuser.CreateAdminUser(c)
+}
+
+func (s *Server) ResendAdminUserInvitation(c *gin.Context, userID generated.UserIdPath) {
+	if s.adminuser == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.adminuser.ResendAdminUserInvitation(c, userID)
+}
+
+func (s *Server) UpdateAdminUser(c *gin.Context, userID generated.UserIdPath) {
+	if s.adminuser == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.adminuser.UpdateAdminUser(c, userID)
+}
+
+func (s *Server) RequestAdminUserEmailChange(c *gin.Context, userID generated.UserIdPath) {
+	if s.adminuser == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.adminuser.RequestAdminUserEmailChange(c, userID)
+}
+
 func (s *Server) GetUserAdminDetail(c *gin.Context, userID generated.UserIdPath) {
 	if s.adminuser == nil {
 		respondNotImplemented(c)

@@ -61,7 +61,10 @@ func (h *Handler) CreateAdminPackage(c *gin.Context) {
 		return
 	}
 	var price *int64
-	currency := req.CurrencyCode
+	currency := ""
+	if req.CurrencyCode != nil {
+		currency = *req.CurrencyCode
+	}
 	if req.DisplayPrice != nil {
 		amount := int64(req.DisplayPrice.AmountMinor)
 		price = &amount
@@ -69,9 +72,19 @@ func (h *Handler) CreateAdminPackage(c *gin.Context) {
 			currency = req.DisplayPrice.Currency
 		}
 	}
+	var code domainpackaging.PackageCode
+	if req.Code != nil {
+		code = domainpackaging.PackageCode(*req.Code)
+	}
+	priority := 0
+	prioritySet := false
+	if req.SearchPriority != nil {
+		priority = *req.SearchPriority
+		prioritySet = true
+	}
 	out, err := h.svc.CreatePackage(c.Request.Context(), apppackaging.CreatePackageInput{
 		ActorUserID:             actorID,
-		Code:                    domainpackaging.PackageCode(req.Code),
+		Code:                    code,
 		DisplayName:             req.DisplayName,
 		Description:             req.Description,
 		BadgeText:               req.BadgeText,
@@ -81,7 +94,8 @@ func (h *Handler) CreateAdminPackage(c *gin.Context) {
 		DefaultDurationDays:     req.DefaultDurationDays,
 		AllowsUrgent:            req.AllowsUrgent,
 		ShowcaseEligible:        req.ShowcaseEligible,
-		SearchPriority:          req.SearchPriority,
+		SearchPriority:          priority,
+		SearchPrioritySet:       prioritySet,
 		BroadcastOnPublish:      req.BroadcastOnPublish,
 		IsActive:                req.IsActive,
 		SortOrder:               req.SortOrder,
@@ -91,6 +105,31 @@ func (h *Handler) CreateAdminPackage(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, mapPackageAdminView(out))
+}
+
+// ReorderPackages handles PUT /v1/admin/packages/reorder.
+func (h *Handler) ReorderPackages(c *gin.Context) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	var req generated.ReorderPackagesRequest
+	if !bind.JSONBody(c, &req) {
+		return
+	}
+	items := make([]apppackaging.ReorderPackageItem, 0, len(req.Items))
+	for _, item := range req.Items {
+		items = append(items, apppackaging.ReorderPackageItem{
+			ID:              uuid.UUID(item.Id),
+			ExpectedVersion: item.ExpectedVersion,
+			SortOrder:       item.SortOrder,
+		})
+	}
+	if err := h.svc.ReorderPackages(c.Request.Context(), actorID, items); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, generated.SuccessMessageResponse{Message: "Sıralama güncellendi."})
 }
 
 // ListAdminPackages handles GET /v1/admin/packages.

@@ -172,6 +172,10 @@ func TestResolvePublicDeliveryBannerLifecycle(t *testing.T) {
 	if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
 		t.Fatalf("want not found without banner attachment, got %v", err)
 	}
+	admin := appmedia.PublicDeliveryViewer{UserID: uuid.New(), Role: string(domainuser.RoleAdmin)}
+	if _, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileBanner, admin); err != nil {
+		t.Fatalf("admin pre-create banner preview: %v", err)
+	}
 
 	f.store.PutBanner(appmedia.MemoryBanner{
 		ID: uuid.New(), AssetID: assetID, Status: string(domainbanner.StatusInactive),
@@ -197,7 +201,6 @@ func TestResolvePublicDeliveryBannerLifecycle(t *testing.T) {
 	f.store.PutBanner(appmedia.MemoryBanner{
 		ID: uuid.New(), AssetID: inactiveAsset, Status: string(domainbanner.StatusInactive),
 	})
-	admin := appmedia.PublicDeliveryViewer{UserID: uuid.New(), Role: string(domainuser.RoleAdmin)}
 	if _, err := f.svc.ResolvePublicDelivery(ctx, inactiveAsset, domainmedia.ProfileBanner, admin); err != nil {
 		t.Fatalf("admin inactive banner preview: %v", err)
 	}

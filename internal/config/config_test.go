@@ -58,7 +58,7 @@ func TestLoadTJKEnabledDefaultsBaseURL(t *testing.T) {
 	}
 }
 
-func TestLoadTJKExplicitBaseURL(t *testing.T) {
+func TestLoadTJKBaseURLAloneDoesNotEnable(t *testing.T) {
 	clearConfigEnv(t)
 	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
 	t.Setenv("TJK_BASE_URL", "https://tjk.example.test")
@@ -68,8 +68,8 @@ func TestLoadTJKExplicitBaseURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
 	}
-	if !cfg.TJKEnabled {
-		t.Fatal("expected TJK enabled when base URL set")
+	if cfg.TJKEnabled {
+		t.Fatal("TJK_BASE_URL alone must not enable TJK")
 	}
 	if cfg.TJKBaseURL != "https://tjk.example.test" {
 		t.Fatalf("base URL = %q", cfg.TJKBaseURL)

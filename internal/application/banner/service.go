@@ -83,6 +83,18 @@ func (s *Service) CreateBanner(ctx context.Context, in CreateInput) (domainbanne
 	order := 0
 	if in.SortOrder != nil {
 		order = *in.SortOrder
+	} else {
+		existing, err := s.repo.List(ctx, ListFilter{Placement: &in.Placement, Limit: 500})
+		if err != nil {
+			return domainbanner.Banner{}, err
+		}
+		maxOrder := -1
+		for _, item := range existing {
+			if item.SortOrder > maxOrder {
+				maxOrder = item.SortOrder
+			}
+		}
+		order = maxOrder + 1
 	}
 	now := s.clock.Now().UTC()
 	actor := in.ActorUserID

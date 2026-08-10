@@ -32,6 +32,15 @@ func (s *Server) CreateAdminPackage(c *gin.Context) {
 	s.packaging.CreateAdminPackage(c)
 }
 
+// ReorderPackages implements packaging admin reorder.
+func (s *Server) ReorderPackages(c *gin.Context) {
+	if s.packaging == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.packaging.ReorderPackages(c)
+}
+
 // GetAdminPackage implements packaging admin get-by-code.
 func (s *Server) GetAdminPackage(c *gin.Context, packageCode generated.PackageCodePath) {
 	if s.packaging == nil {

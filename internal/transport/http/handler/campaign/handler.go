@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -102,7 +103,6 @@ func (h *Handler) CreateAdminCampaign(c *gin.Context) {
 	}
 	in := appcampaign.CreateCampaignInput{
 		ActorUserID:  actorID,
-		Code:         req.Code,
 		Name:         req.Name,
 		EventType:    domaincampaign.CampaignEventType(req.EventType),
 		Title:        req.Title,
@@ -110,6 +110,7 @@ func (h *Handler) CreateAdminCampaign(c *gin.Context) {
 		EmailSubject: req.EmailSubject,
 		EmailHeading: req.EmailHeading,
 		EmailBody:    req.EmailBody,
+		EmailProviderTemplateID: req.EmailProviderTemplateId,
 		CTALabel:     req.CtaLabel,
 		CTAURL:       req.CtaUrl,
 		BadgeText:    req.BadgeText,
@@ -118,6 +119,9 @@ func (h *Handler) CreateAdminCampaign(c *gin.Context) {
 		StartsAt:     req.StartsAt,
 		EndsAt:       req.EndsAt,
 		IsActive:     isActive,
+	}
+	if req.Code != nil {
+		in.Code = strings.TrimSpace(*req.Code)
 	}
 	if req.SourcePackageCode != nil {
 		s := string(*req.SourcePackageCode)
@@ -208,6 +212,7 @@ func (h *Handler) mapCampaign(ctx context.Context, camp domaincampaign.Campaign)
 		EmailSubject:  camp.EmailSubject,
 		EmailHeading:  camp.EmailHeading,
 		EmailBody:     camp.EmailBody,
+		EmailProviderTemplateId: camp.EmailProviderTemplateID,
 		CtaLabel:      camp.CTALabel,
 		CtaUrl:        camp.CTAURL,
 		BadgeText:     camp.BadgeText,

@@ -10,6 +10,7 @@ import (
 
 func mapPackageAdminView(p domainpackaging.Package) generated.PackageAdminView {
 	return generated.PackageAdminView{
+		Id:                  p.ID,
 		Code:                generated.PackageCode(p.Code),
 		DisplayName:         p.DisplayName,
 		Description:         p.Description,

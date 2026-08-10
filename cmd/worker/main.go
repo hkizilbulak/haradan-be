@@ -52,13 +52,13 @@ func run() error {
 		workerID = host + "-" + uuid.NewString()
 	}
 	log.Info("worker starting", "workerId", workerID, "env", cfg.AppEnv)
-
-	if cfg.StorageProvider != config.StorageProviderB2 {
-		return fmt.Errorf("worker requires STORAGE_PROVIDER=b2")
-	}
-	if cfg.ImageProcessorProvider != config.ImageProcessorProviderTinify {
-		return fmt.Errorf("worker requires IMAGE_PROCESSOR_PROVIDER=tinify")
-	}
+	mediaEnabled := cfg.StorageProvider == config.StorageProviderB2 &&
+		cfg.ImageProcessorProvider == config.ImageProcessorProviderTinify
+	log.Info("worker capabilities",
+		"media", mediaEnabled,
+		"email", cfg.EmailProvider == config.EmailProviderResend,
+		"tjk", cfg.TJKEnabled,
+	)
 
 	db, err := database.Open(context.Background(), database.Config{
 		DatabaseURL:     cfg.DatabaseURL,
@@ -73,30 +73,33 @@ func run() error {
 	}
 	defer db.Close()
 
-	store, err := s3storage.New(s3storage.Config{
-		Endpoint:  cfg.S3Endpoint,
-		Region:    cfg.S3Region,
-		Bucket:    cfg.S3Bucket,
-		AccessKey: cfg.S3AccessKey,
-		SecretKey: cfg.S3SecretKey,
-		BasePath:  cfg.S3BasePath,
-	})
-	if err != nil {
-		return fmt.Errorf("storage: %w", err)
-	}
-
-	proc, err := tinifyprocessor.New(tinifyprocessor.Config{
-		APIKey:      cfg.TinifyAPIKey,
-		BaseURL:     cfg.TinifyBaseURL,
-		HTTPTimeout: cfg.TinifyHTTPTimeout,
-		Profiles: map[string]tinifyprocessor.ProfileConfig{
-			domainmedia.ProfileDetail:   {Width: cfg.MediaProfileDetailW, Height: cfg.MediaProfileDetailH},
-			domainmedia.ProfileHomepage: {Width: cfg.MediaProfileHomepageW, Height: cfg.MediaProfileHomepageH},
-			domainmedia.ProfileSearch:   {Width: cfg.MediaProfileSearchW, Height: cfg.MediaProfileSearchH},
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("image processor: %w", err)
+	var store appmedia.Storage
+	var proc appmedia.ImageProcessor
+	if mediaEnabled {
+		store, err = s3storage.New(s3storage.Config{
+			Endpoint:  cfg.S3Endpoint,
+			Region:    cfg.S3Region,
+			Bucket:    cfg.S3Bucket,
+			AccessKey: cfg.S3AccessKey,
+			SecretKey: cfg.S3SecretKey,
+			BasePath:  cfg.S3BasePath,
+		})
+		if err != nil {
+			return fmt.Errorf("storage: %w", err)
+		}
+		proc, err = tinifyprocessor.New(tinifyprocessor.Config{
+			APIKey:      cfg.TinifyAPIKey,
+			BaseURL:     cfg.TinifyBaseURL,
+			HTTPTimeout: cfg.TinifyHTTPTimeout,
+			Profiles: map[string]tinifyprocessor.ProfileConfig{
+				domainmedia.ProfileDetail:   {Width: cfg.MediaProfileDetailW, Height: cfg.MediaProfileDetailH},
+				domainmedia.ProfileHomepage: {Width: cfg.MediaProfileHomepageW, Height: cfg.MediaProfileHomepageH},
+				domainmedia.ProfileSearch:   {Width: cfg.MediaProfileSearchW, Height: cfg.MediaProfileSearchH},
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("image processor: %w", err)
+		}
 	}
 
 	mediaWorker, err := appmedia.NewPostgresWorker(db.Pool(), appmedia.WorkerConfig{
@@ -133,8 +136,9 @@ func run() error {
 
 	jobRepo := pgjobdef.NewRepository(db.Pool())
 	caps := appjobadmin.ProviderCapabilities{
-		TJKEnabled: cfg.TJKEnabled,
-		B2Enabled:  cfg.StorageProvider == config.StorageProviderB2,
+		TJKEnabled:    cfg.TJKEnabled,
+		B2Enabled:     cfg.StorageProvider == config.StorageProviderB2,
+		TinifyEnabled: cfg.ImageProcessorProvider == config.ImageProcessorProviderTinify,
 	}
 	loc, err := time.LoadLocation(cfg.PackageExpiryTimezone)
 	if err != nil {
@@ -152,19 +156,7 @@ func run() error {
 		return fmt.Errorf("job definition scheduler: %w", err)
 	}
 
-	supported := []domainmedia.JobType{
-		domainmedia.JobValidateAndNormalize,
-		domainmedia.JobGenerateVariant,
-		domainmedia.JobDeleteObjects,
-		domainmedia.JobReconcile,
-		domainmedia.JobNotificationFanoutPackageAdvert,
-		domainmedia.JobNotificationFanoutAdvancedAdvert, // historical rows
-		domainmedia.JobNotificationFanoutUrgentAdvert,
-		domainmedia.JobPackageExpiryReminderScan,
-	}
-	if emailJobsEnabled {
-		supported = append(supported, domainmedia.JobEmailSendAdvertNotificationChunk, domainmedia.JobEmailSendPackageExpiryReminder)
-	}
+	supported := supportedJobTypes(mediaEnabled, emailJobsEnabled)
 
 	runner, err := appworker.NewRunner(appworker.Config{
 		WorkerID:              workerID,
@@ -203,7 +195,7 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("TJK worker: %w", err)
 		}
-		go runTJKWorker(runCtx, tjkWorker, cfg.WorkerLeaseDuration, cfg.WorkerPollInterval, log)
+		go runTJKWorker(runCtx, tjkWorker, cfg.WorkerLeaseDuration, cfg.WorkerPollInterval, cfg.WorkerJobTimeout, log)
 	}
 
 	if err := runner.Run(runCtx); err != nil {
@@ -214,9 +206,32 @@ func run() error {
 	return nil
 }
 
-func runTJKWorker(ctx context.Context, worker *apptjk.Worker, lease, poll time.Duration, log *slog.Logger) {
+func supportedJobTypes(mediaEnabled, emailEnabled bool) []domainmedia.JobType {
+	types := []domainmedia.JobType{
+		domainmedia.JobNotificationFanoutPackageAdvert,
+		domainmedia.JobNotificationFanoutAdvancedAdvert, // historical rows
+		domainmedia.JobNotificationFanoutUrgentAdvert,
+		domainmedia.JobPackageExpiryReminderScan,
+	}
+	if mediaEnabled {
+		types = append(types,
+			domainmedia.JobValidateAndNormalize,
+			domainmedia.JobGenerateVariant,
+			domainmedia.JobDeleteObjects,
+			domainmedia.JobReconcile,
+		)
+	}
+	if emailEnabled {
+		types = append(types, domainmedia.JobEmailSendAdvertNotificationChunk, domainmedia.JobEmailSendPackageExpiryReminder)
+	}
+	return types
+}
+
+func runTJKWorker(ctx context.Context, worker *apptjk.Worker, lease, poll, jobTimeout time.Duration, log *slog.Logger) {
 	for ctx.Err() == nil {
-		claimed, err := worker.ProcessOnce(ctx, lease)
+		jobCtx, cancel := context.WithTimeout(ctx, jobTimeout)
+		claimed, err := worker.ProcessOnce(jobCtx, lease)
+		cancel()
 		if err != nil {
 			log.Error("TJK job failed", "err", "dependency unavailable")
 		}

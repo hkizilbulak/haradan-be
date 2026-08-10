@@ -17,6 +17,7 @@ import (
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
 	domainpackaging "github.com/hkizilbulak/haradan-be/internal/domain/packaging"
 	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
+	"github.com/hkizilbulak/haradan-be/internal/platform/security/richhtml"
 )
 
 const (
@@ -110,20 +111,27 @@ type CancelAdvertPackageInput struct {
 // CreatePackageInput is the admin package catalog create request.
 type CreatePackageInput struct {
 	ActorUserID             uuid.UUID
-	Code                    domainpackaging.PackageCode
+	Code                    domainpackaging.PackageCode // empty → generate from DisplayName
 	DisplayName             string
 	Description             *string
 	BadgeText               *string
 	Benefits                []string
 	DisplayPriceAmountMinor *int64
-	CurrencyCode            string
+	CurrencyCode            string // ignored; packages are TRY-only
 	DefaultDurationDays     *int
 	AllowsUrgent            bool
 	ShowcaseEligible        bool
-	SearchPriority          int
+	SearchPriority          int  // 0–100; default 0
+	SearchPrioritySet       bool // false → default 0
 	BroadcastOnPublish      bool
 	IsActive                bool
-	SortOrder               int
+	SortOrder               *int // nil → append to end
+}
+
+type ReorderPackageItem struct {
+	ID              uuid.UUID
+	ExpectedVersion int
+	SortOrder       int
 }
 
 // UpdatePackageInput is the admin package catalog patch.
@@ -196,20 +204,13 @@ func (s *Service) CreatePackage(ctx context.Context, in CreatePackageInput) (dom
 	if err := s.requireAdmin(ctx, in.ActorUserID); err != nil {
 		return domainpackaging.Package{}, err
 	}
-	code := domainpackaging.NormalizePackageCode(string(in.Code))
-	if !code.Valid() {
-		return domainpackaging.Package{}, apperr.Validation("Geçersiz paket kodu.")
-	}
 	name := strings.TrimSpace(in.DisplayName)
 	if name == "" {
 		return domainpackaging.Package{}, apperr.Validation("Görünen ad boş olamaz.")
 	}
-	currency := strings.TrimSpace(in.CurrencyCode)
-	if currency == "" {
-		currency = defaultPackageCurrency
-	}
-	if !currencyPattern.MatchString(currency) {
-		return domainpackaging.Package{}, apperr.Validation("Geçersiz para birimi.")
+	currency := defaultPackageCurrency
+	if strings.TrimSpace(in.CurrencyCode) != "" && strings.TrimSpace(in.CurrencyCode) != defaultPackageCurrency {
+		return domainpackaging.Package{}, apperr.Validation("Paket fiyatı yalnız TRY kabul eder.")
 	}
 	if in.DisplayPriceAmountMinor != nil && *in.DisplayPriceAmountMinor < 0 {
 		return domainpackaging.Package{}, apperr.Validation("Fiyat negatif olamaz.")
@@ -217,10 +218,14 @@ func (s *Service) CreatePackage(ctx context.Context, in CreatePackageInput) (dom
 	if in.DefaultDurationDays != nil && *in.DefaultDurationDays <= 0 {
 		return domainpackaging.Package{}, apperr.Validation("Varsayılan süre pozitif olmalıdır.")
 	}
-	if in.SearchPriority < 0 {
-		return domainpackaging.Package{}, apperr.Validation("Arama önceliği negatif olamaz.")
+	priority := 0
+	if in.SearchPrioritySet {
+		priority = in.SearchPriority
 	}
-	if in.SortOrder < 0 {
+	if priority < 0 || priority > 100 {
+		return domainpackaging.Package{}, apperr.Validation("Arama öncelik puanı 0 ile 100 arasında olmalıdır.")
+	}
+	if in.SortOrder != nil && *in.SortOrder < 0 {
 		return domainpackaging.Package{}, apperr.Validation("Sıra negatif olamaz.")
 	}
 	benefits := in.Benefits
@@ -232,12 +237,40 @@ func (s *Service) CreatePackage(ctx context.Context, in CreatePackageInput) (dom
 		return domainpackaging.Package{}, apperr.Internal(fmt.Errorf("marshal benefits: %w", err))
 	}
 
+	code := domainpackaging.NormalizePackageCode(string(in.Code))
+	if code == "" {
+		base := domainpackaging.GeneratePackageCodeBase(name)
+		code, err = s.allocatePackageCode(ctx, base)
+		if err != nil {
+			return domainpackaging.Package{}, err
+		}
+	} else if !code.Valid() {
+		return domainpackaging.Package{}, apperr.Validation("Geçersiz paket kodu.")
+	}
+
+	sortOrder := 0
+	if in.SortOrder != nil {
+		sortOrder = *in.SortOrder
+	} else {
+		existing, err := s.packages.List(ctx, true)
+		if err != nil {
+			return domainpackaging.Package{}, err
+		}
+		maxOrder := -1
+		for _, item := range existing {
+			if item.SortOrder > maxOrder {
+				maxOrder = item.SortOrder
+			}
+		}
+		sortOrder = maxOrder + 1
+	}
+
 	now := s.clock.Now().UTC()
 	created := domainpackaging.Package{
 		ID:                      uuid.New(),
 		Code:                    code,
 		DisplayName:             name,
-		Description:             trimOptional(in.Description),
+		Description:             sanitizeRichOptional(in.Description),
 		BadgeText:               trimOptional(in.BadgeText),
 		BenefitsJSON:            rawBenefits,
 		DisplayPriceAmountMinor: in.DisplayPriceAmountMinor,
@@ -245,10 +278,10 @@ func (s *Service) CreatePackage(ctx context.Context, in CreatePackageInput) (dom
 		DefaultDurationDays:     in.DefaultDurationDays,
 		AllowsUrgent:            in.AllowsUrgent,
 		ShowcaseEligible:        in.ShowcaseEligible,
-		SearchPriority:          in.SearchPriority,
+		SearchPriority:          priority,
 		BroadcastOnPublish:      in.BroadcastOnPublish,
 		IsActive:                in.IsActive,
-		SortOrder:               in.SortOrder,
+		SortOrder:               sortOrder,
 		Version:                 1,
 		CreatedAt:               now,
 		UpdatedAt:               now,
@@ -257,6 +290,69 @@ func (s *Service) CreatePackage(ctx context.Context, in CreatePackageInput) (dom
 		return domainpackaging.Package{}, err
 	}
 	return created, nil
+}
+
+func (s *Service) allocatePackageCode(ctx context.Context, base string) (domainpackaging.PackageCode, error) {
+	candidate := domainpackaging.NormalizePackageCode(base)
+	if !candidate.Valid() {
+		candidate = "PACKAGE"
+	}
+	for i := 0; i < 1000; i++ {
+		try := candidate
+		if i > 0 {
+			suffix := fmt.Sprintf("_%d", i+1)
+			stem := string(candidate)
+			if len(stem)+len(suffix) > 64 {
+				stem = stem[:64-len(suffix)]
+				stem = strings.TrimRight(stem, "_")
+			}
+			try = domainpackaging.NormalizePackageCode(stem + suffix)
+		}
+		_, err := s.packages.FindByCode(ctx, try)
+		if err != nil {
+			if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindNotFound {
+				return try, nil
+			}
+			return "", err
+		}
+	}
+	return "", apperr.Conflict("Paket kodu üretilemedi.")
+}
+
+// ReorderPackages applies optimistic sortOrder updates for catalog packages.
+func (s *Service) ReorderPackages(ctx context.Context, actor uuid.UUID, items []ReorderPackageItem) error {
+	if err := s.requireAdmin(ctx, actor); err != nil {
+		return err
+	}
+	if len(items) == 0 {
+		return apperr.Validation("Sıralama öğeleri zorunludur.")
+	}
+	seen := map[uuid.UUID]struct{}{}
+	return s.withPackageTx(ctx, func(ctx context.Context, packages PackageRepository, _ FeatureRepository) error {
+		now := s.clock.Now().UTC()
+		for _, item := range items {
+			if item.ID == uuid.Nil || item.ExpectedVersion < 1 || item.SortOrder < 0 {
+				return apperr.Validation("Geçersiz sıralama öğesi.")
+			}
+			if _, ok := seen[item.ID]; ok {
+				return apperr.Validation("Tekrarlayan paket sıralama öğesi.")
+			}
+			seen[item.ID] = struct{}{}
+			current, err := packages.FindByID(ctx, item.ID)
+			if err != nil {
+				return err
+			}
+			if current.Version != item.ExpectedVersion {
+				return apperr.StaleVersion(stalePackageVersionMessage)
+			}
+			current.SortOrder = item.SortOrder
+			current.UpdatedAt = now
+			if _, err := packages.UpdateOptimistic(ctx, current, item.ExpectedVersion); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // UpdatePackage applies an optimistic catalog update for an ACTIVE ADMIN.
@@ -698,7 +794,7 @@ func applyPackagePatch(current domainpackaging.Package, in UpdatePackageInput) (
 		out.DisplayName = name
 	}
 	if in.DescriptionSet {
-		out.Description = trimOptional(in.Description)
+		out.Description = sanitizeRichOptional(in.Description)
 	}
 	if in.BadgeTextSet {
 		out.BadgeText = trimOptional(in.BadgeText)
@@ -718,8 +814,11 @@ func applyPackagePatch(current domainpackaging.Package, in UpdatePackageInput) (
 	}
 	if in.CurrencyCode != nil {
 		code := strings.TrimSpace(*in.CurrencyCode)
-		if !currencyPattern.MatchString(code) {
-			return domainpackaging.Package{}, apperr.Validation("Geçersiz para birimi.")
+		if code == "" {
+			code = defaultPackageCurrency
+		}
+		if code != defaultPackageCurrency {
+			return domainpackaging.Package{}, apperr.Validation("Paket fiyatı yalnız TRY kabul eder.")
 		}
 		out.CurrencyCode = code
 	}
@@ -736,8 +835,8 @@ func applyPackagePatch(current domainpackaging.Package, in UpdatePackageInput) (
 		out.ShowcaseEligible = *in.ShowcaseEligible
 	}
 	if in.SearchPriority != nil {
-		if *in.SearchPriority < 0 {
-			return domainpackaging.Package{}, apperr.Validation("Arama önceliği negatif olamaz.")
+		if *in.SearchPriority < 0 || *in.SearchPriority > 100 {
+			return domainpackaging.Package{}, apperr.Validation("Arama öncelik puanı 0 ile 100 arasında olmalıdır.")
 		}
 		out.SearchPriority = *in.SearchPriority
 	}
@@ -765,6 +864,10 @@ func trimOptional(v *string) *string {
 		return nil
 	}
 	return &s
+}
+
+func sanitizeRichOptional(v *string) *string {
+	return richhtml.SanitizeOptional(v)
 }
 
 func encodeHistoryCursor(assignedAt time.Time, id uuid.UUID) string {

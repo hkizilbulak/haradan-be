@@ -33,12 +33,12 @@ func TestGetAndUpdateMyProfile(t *testing.T) {
 		t.Fatalf("%+v", view)
 	}
 
-	phone := "555"
+	phone := "0532 123 45 67"
 	first := "Augusta"
 	updated, err := svc.UpdateMyProfile(context.Background(), userID, ProfilePatch{
 		FirstName: &first, PhoneSet: true, PhoneValue: &phone,
 	})
-	if err != nil || updated.FirstName != "Augusta" || updated.Phone == nil || *updated.Phone != "555" {
+	if err != nil || updated.FirstName != "Augusta" || updated.Phone == nil || *updated.Phone != "+905321234567" {
 		t.Fatalf("%+v err=%v", updated, err)
 	}
 	cleared, err := svc.UpdateMyProfile(context.Background(), userID, ProfilePatch{PhoneSet: true, PhoneValue: nil})

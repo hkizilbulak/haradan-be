@@ -140,6 +140,22 @@ func (NotImplementedServer) ListUsers(c *gin.Context, params generated.ListUsers
 	respondNotImplemented(c)
 }
 
+func (NotImplementedServer) CreateAdminUser(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ResendAdminUserInvitation(c *gin.Context, userId generated.UserIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) UpdateAdminUser(c *gin.Context, userId generated.UserIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) RequestAdminUserEmailChange(c *gin.Context, userId generated.UserIdPath) {
+	respondNotImplemented(c)
+}
+
 func (NotImplementedServer) GetUserAdminDetail(c *gin.Context, userId generated.UserIdPath) {
 	respondNotImplemented(c)
 }
@@ -389,6 +405,10 @@ func (NotImplementedServer) UpdateAdminNotificationTemplate(c *gin.Context, even
 }
 
 func (NotImplementedServer) CreateAdminPackage(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) ReorderPackages(c *gin.Context) {
 	respondNotImplemented(c)
 }
 

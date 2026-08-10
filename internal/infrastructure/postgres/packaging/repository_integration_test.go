@@ -207,8 +207,8 @@ func (f *itestFixture) ensureCatalogPackages(t *testing.T) {
 			ActorUserID: f.adminID, Code: d.code, DisplayName: d.name,
 			CurrencyCode: "TRY", DefaultDurationDays: d.duration,
 			AllowsUrgent: d.allowsUrgent, ShowcaseEligible: d.showcaseEligible,
-			SearchPriority: d.searchPriority, BroadcastOnPublish: d.broadcastOnPublish,
-			IsActive: true, SortOrder: d.sortOrder,
+			SearchPriority: d.searchPriority, SearchPrioritySet: true, BroadcastOnPublish: d.broadcastOnPublish,
+			IsActive: true, SortOrder: intPtr(d.sortOrder),
 		})
 		if err != nil {
 			t.Fatalf("CreatePackage(%s): %v", d.code, err)

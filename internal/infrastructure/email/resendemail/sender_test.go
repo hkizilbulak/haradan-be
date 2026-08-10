@@ -145,6 +145,12 @@ func TestSendRegistrationVerificationSuccessContract(t *testing.T) {
 	if vars["verificationToken"] != testToken {
 		t.Fatalf("verificationToken mismatch")
 	}
+	if vars["fullname"] != "Ada Lovelace" {
+		t.Fatalf("legacy fullname=%v", vars["fullname"])
+	}
+	if vars["resetUrl"] != testFrontendURL+"/verify-email?token="+testToken {
+		t.Fatalf("legacy resetUrl=%v", vars["resetUrl"])
+	}
 	if vars["recipientEmail"] != testRecipient {
 		t.Fatalf("recipientEmail=%v", vars["recipientEmail"])
 	}
@@ -191,6 +197,9 @@ func TestSendOmitsEmptyFullName(t *testing.T) {
 	if _, present := vars["fullName"]; present {
 		t.Fatalf("empty fullName must be omitted, got %v", vars["fullName"])
 	}
+	if _, present := vars["fullname"]; present {
+		t.Fatalf("empty legacy fullname must be omitted, got %v", vars["fullname"])
+	}
 	if vars["verificationUrl"] != testFrontendURL+"/verify-email?token="+testToken {
 		t.Fatalf("verificationUrl=%v", vars["verificationUrl"])
 	}
@@ -236,6 +245,9 @@ func TestSendPasswordResetVariablesOmitEmptyFullName(t *testing.T) {
 	}
 	if vars["resetToken"] != testToken {
 		t.Fatalf("resetToken mismatch")
+	}
+	if _, present := vars["fullname"]; present {
+		t.Fatalf("empty legacy fullname must be omitted, got %v", vars["fullname"])
 	}
 }
 

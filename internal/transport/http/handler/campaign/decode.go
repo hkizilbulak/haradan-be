@@ -26,6 +26,7 @@ var updateCampaignAllowed = map[string]struct{}{
 	"emailSubject":      {},
 	"emailHeading":      {},
 	"emailBody":         {},
+	"emailProviderTemplateId": {},
 	"ctaLabel":          {},
 	"ctaUrl":            {},
 	"badgeText":         {},
@@ -146,6 +147,16 @@ func decodeUpdateCampaignInput(
 				return appcampaign.UpdateCampaignInput{}, apperr.BadRequest(apperr.CodeValidation, bind.MalformedBodyMessage)
 			}
 			in.EmailBody = &s
+		}
+	}
+	if v, ok := raw["emailProviderTemplateId"]; ok {
+		in.EmailProviderTemplateIDSet = true
+		if !bind.IsJSONNull(v) {
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				return appcampaign.UpdateCampaignInput{}, apperr.BadRequest(apperr.CodeValidation, bind.MalformedBodyMessage)
+			}
+			in.EmailProviderTemplateID = &s
 		}
 	}
 	if v, ok := raw["ctaLabel"]; ok {

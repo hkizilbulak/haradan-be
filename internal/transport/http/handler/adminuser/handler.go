@@ -2,6 +2,7 @@
 package adminuser
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -69,6 +70,120 @@ func (h *Handler) ListUsers(c *gin.Context, params generated.ListUsersParams) {
 		items = append(items, mapListItem(user))
 	}
 	c.JSON(http.StatusOK, generated.AdminUserListResponse{Items: items, NextCursor: out.NextCursor, HasMore: out.HasMore})
+}
+
+func (h *Handler) CreateAdminUser(c *gin.Context) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	var req generated.CreateAdminUserRequest
+	if !bind.JSONBody(c, &req) {
+		return
+	}
+	var phone *string
+	if req.Phone != nil {
+		phone = req.Phone
+	}
+	out, err := h.svc.CreateUser(c.Request.Context(), appadminuser.CreateInput{
+		ActorUserID: actorID,
+		Email:       string(req.Email),
+		FirstName:   req.FirstName,
+		LastName:    req.LastName,
+		Phone:       phone,
+		Role:        toRole(req.Role),
+	})
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusCreated, mapCreate(out))
+}
+
+func (h *Handler) ResendAdminUserInvitation(c *gin.Context, userID generated.UserIdPath) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	out, err := h.svc.ResendInvitation(c.Request.Context(), actorID, uuid.UUID(userID))
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, mapCreate(out))
+}
+
+func (h *Handler) UpdateAdminUser(c *gin.Context, userID generated.UserIdPath) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	raw, err := bind.PatchObject(c, map[string]struct{}{
+		"expectedUpdatedAt": {},
+		"firstName":         {},
+		"lastName":          {},
+		"phone":             {},
+	})
+	if err != nil {
+		bind.RespondBadBody(c)
+		return
+	}
+	for _, required := range []string{"expectedUpdatedAt", "firstName", "lastName"} {
+		value, ok := raw[required]
+		if !ok || bind.IsJSONNull(value) {
+			bind.RespondBadBody(c)
+			return
+		}
+	}
+	body, err := json.Marshal(raw)
+	if err != nil {
+		bind.RespondBadBody(c)
+		return
+	}
+	var req generated.UpdateAdminUserRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		bind.RespondBadBody(c)
+		return
+	}
+	_, phoneSet := raw["phone"]
+	var phone *string
+	if phoneSet && !bind.IsJSONNull(raw["phone"]) {
+		phone = req.Phone
+	}
+	out, err := h.svc.UpdateProfile(c.Request.Context(), appadminuser.UpdateProfileInput{
+		ActorUserID:       actorID,
+		UserID:            uuid.UUID(userID),
+		ExpectedUpdatedAt: req.ExpectedUpdatedAt,
+		FirstName:         req.FirstName,
+		LastName:          req.LastName,
+		Phone:             phone,
+		PhoneSet:          phoneSet,
+	})
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, mapDetail(out))
+}
+
+func (h *Handler) RequestAdminUserEmailChange(c *gin.Context, userID generated.UserIdPath) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	var req generated.RequestAdminUserEmailChangeRequest
+	if !bind.JSONBody(c, &req) {
+		return
+	}
+	if err := h.svc.RequestEmailChange(c.Request.Context(), appadminuser.RequestEmailChangeInput{
+		ActorUserID: actorID,
+		UserID:      uuid.UUID(userID),
+		NewEmail:    string(req.NewEmail),
+	}); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, generated.SuccessMessageResponse{Message: "Doğrulama e-postası yeni adrese gönderildi."})
 }
 
 func (h *Handler) GetUserAdminDetail(c *gin.Context, userID generated.UserIdPath) {
@@ -154,7 +269,18 @@ func mapDetail(detail appadminuser.Detail) generated.AdminUserDetailResponse {
 	return generated.AdminUserDetailResponse{
 		Id: openapi_types.UUID(user.ID), Email: user.Email, FirstName: user.FirstName, LastName: user.LastName,
 		Phone: user.Phone, Role: generated.UserRole(user.Role), Status: generated.UserStatus(user.Status),
-		EmailVerified: user.EmailVerifiedAt != nil, CreatedAt: user.CreatedAt, ActiveSessionCount: detail.ActiveSessionCount,
+		EmailVerified: user.EmailVerifiedAt != nil, CreatedAt: user.CreatedAt, UpdatedAt: &user.UpdatedAt,
+		ActiveSessionCount: detail.ActiveSessionCount,
+	}
+}
+
+func mapCreate(out appadminuser.CreateResult) generated.AdminUserCreateResponse {
+	detail := mapDetail(out.Detail)
+	return generated.AdminUserCreateResponse{
+		Id: detail.Id, Email: detail.Email, FirstName: detail.FirstName, LastName: detail.LastName,
+		Phone: detail.Phone, Role: detail.Role, Status: detail.Status, EmailVerified: detail.EmailVerified,
+		CreatedAt: detail.CreatedAt, UpdatedAt: detail.UpdatedAt, ActiveSessionCount: detail.ActiveSessionCount,
+		InvitationEmailSent: out.InvitationEmailSent,
 	}
 }
 

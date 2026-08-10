@@ -49,6 +49,7 @@ type Campaign struct {
 	EmailSubject                    *string
 	EmailHeading                    *string
 	EmailBody                       *string
+	EmailProviderTemplateID         *string
 	CTALabel                        *string
 	CTAURL                          *string
 	BadgeText                       *string

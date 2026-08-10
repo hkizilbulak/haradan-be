@@ -484,19 +484,26 @@ func TestAdminMediaRoutesRequireAdminAuthenticationHTTP(t *testing.T) {
 	env := newMediaEngine(t)
 	auth, _ := env.registerAndLogin(t, "outofscope@example.com")
 
+	// Authenticated non-admin must be rejected as FORBIDDEN (authn runs; authz fails).
 	rec := env.do(http.MethodPost, "/api/v1/admin/media/uploads", `{}`, auth)
-	if rec.Code != http.StatusUnauthorized {
+	if rec.Code != http.StatusForbidden {
 		t.Fatalf("admin initiate status=%d body=%s", rec.Code, rec.Body.String())
 	}
 
 	rec = env.do(http.MethodGet, "/api/v1/admin/media/assets/"+uuid.New().String(), "", auth)
-	if rec.Code != http.StatusUnauthorized {
+	if rec.Code != http.StatusForbidden {
 		t.Fatalf("admin status status=%d body=%s", rec.Code, rec.Body.String())
 	}
 
 	rec = env.do(http.MethodPost, "/api/v1/admin/media/assets/"+uuid.New().String()+"/confirm", `{}`, auth)
-	if rec.Code != http.StatusUnauthorized {
+	if rec.Code != http.StatusForbidden {
 		t.Fatalf("admin confirm status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// Missing bearer must remain UNAUTHENTICATED.
+	rec = env.do(http.MethodPost, "/api/v1/admin/media/uploads", `{}`, "")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated admin initiate status=%d body=%s", rec.Code, rec.Body.String())
 	}
 
 	rec = env.do(http.MethodGet, "/api/v1/adverts", "", "")

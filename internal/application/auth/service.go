@@ -18,6 +18,7 @@ import (
 	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/emailnorm"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/password"
+	"github.com/hkizilbulak/haradan-be/internal/platform/security/phone"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/token"
 )
 
@@ -257,15 +258,9 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResul
 	if firstNameTooLong(first) || lastNameTooLong(last) {
 		return RegisterResult{}, apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "firstName", Message: "Ad veya soyad çok uzun."})
 	}
-	var phone *string
-	if in.Phone != nil {
-		p := strings.TrimSpace(*in.Phone)
-		if p != "" {
-			if len(p) > 32 {
-				return RegisterResult{}, apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "phone", Message: "Telefon çok uzun."})
-			}
-			phone = &p
-		}
+	normalizedPhone, err := phone.NormalizeOptional(in.Phone)
+	if err != nil {
+		return RegisterResult{}, err
 	}
 
 	normalized := emailnorm.Normalize(email)
@@ -299,7 +294,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResul
 		Status:          domainuser.StatusActive,
 		FirstName:       first,
 		LastName:        last,
-		Phone:           phone,
+		Phone:           normalizedPhone,
 		SecurityStamp:   uuid.New(),
 		CreatedAt:       now,
 		UpdatedAt:       now,
@@ -544,6 +539,12 @@ func (s *Service) ResetPassword(ctx context.Context, in ResetPasswordInput) (Log
 		if err := users.UpdatePasswordHash(ctx, user.ID, hash, uuid.New(), now); err != nil {
 			return err
 		}
+		// Invitation/password-setup link proves mailbox possession.
+		if user.EmailVerifiedAt == nil {
+			if err := users.MarkEmailVerified(ctx, user.ID, now); err != nil {
+				return err
+			}
+		}
 		return sessions.RevokeAllSessionsForUser(ctx, user.ID, now, "PASSWORD_RESET")
 	})
 	if err != nil {
@@ -620,6 +621,10 @@ func (s *Service) ConfirmEmailChange(ctx context.Context, in ConfirmEmailChangeI
 			return err
 		}
 		if err := users.UpdateEmail(ctx, user.ID, cred.TargetEmail, cred.TargetEmailNormalized, uuid.New(), now); err != nil {
+			return err
+		}
+		// Token delivery to the new address proves possession.
+		if err := users.MarkEmailVerified(ctx, user.ID, now); err != nil {
 			return err
 		}
 		return sessions.RevokeAllSessionsForUser(ctx, user.ID, now, "EMAIL_CHANGE")
@@ -1159,14 +1164,11 @@ func normalizeProfilePatch(patch ProfilePatch) (ProfilePatch, error) {
 		patch.LastName = &v
 	}
 	if patch.PhoneSet && patch.PhoneValue != nil {
-		v := strings.TrimSpace(*patch.PhoneValue)
-		if v == "" {
-			patch.PhoneValue = nil
-		} else if len(v) > 32 {
-			return ProfilePatch{}, apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "phone", Message: "Telefon çok uzun."})
-		} else {
-			patch.PhoneValue = &v
+		normalized, err := phone.NormalizeOptional(patch.PhoneValue)
+		if err != nil {
+			return ProfilePatch{}, err
 		}
+		patch.PhoneValue = normalized
 	}
 	return patch, nil
 }

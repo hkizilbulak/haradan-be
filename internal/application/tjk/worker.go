@@ -56,7 +56,9 @@ func (w *Worker) ProcessOnce(ctx context.Context, lease time.Duration) (bool, er
 	horses, err := w.fetcher.FetchPage(ctx, strconv.Itoa(page))
 	if err != nil {
 		retryable := isRetryable(err)
-		_ = w.repo.FailTJKJob(ctx, jobID, "TJK sayfası alınamadı", now, retryable)
+		failCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = w.repo.FailTJKJob(failCtx, jobID, "TJK sayfası alınamadı", now, retryable)
 		return true, err
 	}
 	if len(horses) == 0 {

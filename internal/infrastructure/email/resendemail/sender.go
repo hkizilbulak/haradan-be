@@ -139,10 +139,15 @@ func (s *Sender) sendAuthTemplate(
 	}
 	if name := strings.TrimSpace(fullName); name != "" {
 		variables["fullName"] = name
+		// The established company templates use the legacy lower-case key.
+		// Keep both spellings while Haradan-specific templates are introduced.
+		variables["fullname"] = name
 	}
 	// Keep the raw token available for templates that still expect it.
 	if urlVar == "verificationUrl" {
 		variables["verificationToken"] = token
+		// The existing company welcome template calls its setup link resetUrl.
+		variables["resetUrl"] = link
 	} else {
 		variables["resetToken"] = token
 	}
