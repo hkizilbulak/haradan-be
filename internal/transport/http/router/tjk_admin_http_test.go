@@ -46,6 +46,12 @@ func (f *tjkHTTPRepo) CreateRun(_ context.Context, r domain.Run) error {
 	return nil
 }
 func (f *tjkHTTPRepo) EnqueueRun(context.Context, uuid.UUID, time.Time) error { return nil }
+func (f *tjkHTTPRepo) CreateRunAndEnqueue(ctx context.Context, run domain.Run, now time.Time) error {
+	if err := f.CreateRun(ctx, run); err != nil {
+		return err
+	}
+	return f.EnqueueRun(ctx, run.ID, now)
+}
 func (f *tjkHTTPRepo) ListRuns(context.Context, *string, *string, int) ([]domain.Run, bool, error) {
 	return nil, false, nil
 }

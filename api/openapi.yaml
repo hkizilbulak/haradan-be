@@ -6554,6 +6554,7 @@ components:
       - DEAD
     TJKSyncMode:
       type: string
+      description: FULL performs the production page scan. INCREMENTAL and RECONCILIATION currently use the same complete scan path; they do not imply a change window or missing-record deactivation.
       enum:
       - FULL
       - INCREMENTAL

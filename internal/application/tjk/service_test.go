@@ -2,6 +2,7 @@ package tjk
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -11,14 +12,35 @@ import (
 )
 
 type fakeRepo struct {
-	created  domain.Run
-	enqueued bool
+	created   domain.Run
+	enqueued  bool
+	createErr error
 }
 
 func (f *fakeRepo) CreateRun(_ context.Context, r domain.Run) error { f.created = r; return nil }
 func (f *fakeRepo) EnqueueRun(context.Context, uuid.UUID, time.Time) error {
 	f.enqueued = true
 	return nil
+}
+func (f *fakeRepo) CreateRunAndEnqueue(ctx context.Context, run domain.Run, now time.Time) error {
+	if f.createErr != nil {
+		return f.createErr
+	}
+	if err := f.CreateRun(ctx, run); err != nil {
+		return err
+	}
+	return f.EnqueueRun(ctx, run.ID, now)
+}
+
+func TestTriggerUsesAtomicRunAndJobPrimitive(t *testing.T) {
+	repo := &fakeRepo{createErr: errors.New("enqueue failed")}
+	svc, _ := NewService(Config{Repo: repo, Enabled: true})
+	if _, err := svc.Trigger(context.Background(), uuid.New(), "FULL", "TJK_HTTP"); err == nil {
+		t.Fatal("expected atomic trigger failure")
+	}
+	if repo.created.ID != uuid.Nil || repo.enqueued {
+		t.Fatalf("failed atomic trigger leaked state: created=%s enqueued=%v", repo.created.ID, repo.enqueued)
+	}
 }
 func (*fakeRepo) ListRuns(context.Context, *string, *string, int) ([]domain.Run, bool, error) {
 	return nil, false, nil

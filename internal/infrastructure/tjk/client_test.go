@@ -2,6 +2,7 @@ package tjk
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -44,14 +45,14 @@ English
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 {
+	if len(got.Horses) != 2 || got.EndOfSource || got.Fingerprint == "" {
 		t.Fatalf("horses = %#v", got)
 	}
-	if got[0] != (Horse{Number: "123", Name: "Thunder", Race: "Arabian", Sire: "Sire", Dam: "Dam"}) {
-		t.Fatalf("first = %#v", got[0])
+	if got.Horses[0] != (Horse{Number: "123", Name: "Thunder", Race: "Arabian", Sire: "Sire", Dam: "Dam"}) {
+		t.Fatalf("first = %#v", got.Horses[0])
 	}
-	if got[1] != (Horse{Number: "456", Name: "Storm", Race: "English", Sire: "S2", Dam: "D2"}) {
-		t.Fatalf("second = %#v", got[1])
+	if got.Horses[1] != (Horse{Number: "456", Name: "Storm", Race: "English", Sire: "S2", Dam: "D2"}) {
+		t.Fatalf("second = %#v", got.Horses[1])
 	}
 }
 
@@ -63,7 +64,7 @@ func TestClientFetchPageTableFallback(t *testing.T) {
 		_, _ = w.Write([]byte(`<table><tr><th>header</th></tr><tr>
 <td>1</td><td><a href="/Query/DataRows/Atlar?AtId=123">  Thunder  </a></td>
 <td>Arabian</td><td>Sire</td><td>Dam</td></tr>
-<tr><td>2</td><td>broken</td></tr></table>`))
+<tr><td>2</td><td><a href="/Query/DataRows/Atlar?AtId=">broken</a></td></tr></table>`))
 	}))
 	defer s.Close()
 	c, err := NewClient(Config{BaseURL: s.URL, HTTPTimeout: time.Second})
@@ -74,8 +75,22 @@ func TestClientFetchPageTableFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0] != (Horse{Number: "123", Name: "Thunder", Race: "Arabian", Sire: "Sire", Dam: "Dam"}) {
+	if len(got.Horses) != 1 || got.Horses[0] != (Horse{Number: "123", Name: "Thunder", Race: "Arabian", Sire: "Sire", Dam: "Dam"}) {
 		t.Fatalf("horses = %#v", got)
+	}
+}
+
+func TestClientDoesNotRecognizeAnUnrelatedTableAsHorseData(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<html><body><table><tr><td>Error</td><td>Temporarily unavailable</td></tr></table></body></html>`))
+	}))
+	defer s.Close()
+	c, err := NewClient(Config{BaseURL: s.URL, HTTPTimeout: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.FetchPage(context.Background(), "2"); err == nil || !IsTransient(err) {
+		t.Fatalf("unrelated table must be an unrecognized transient response, got %v", err)
 	}
 }
 
@@ -92,8 +107,36 @@ func TestClientFetchPageEmptyMeansEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 0 {
+	if len(got.Horses) != 0 || !got.EndOfSource {
 		t.Fatalf("horses = %#v", got)
+	}
+}
+
+func TestClientFetchPageRejectsUnrecognizedHTTP200(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`<html><body><h1>Unexpected provider page</h1></body></html>`))
+	}))
+	defer s.Close()
+	c, err := NewClient(Config{BaseURL: s.URL, HTTPTimeout: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.FetchPage(context.Background(), "4"); err == nil || !IsTransient(err) {
+		t.Fatalf("unrecognized HTTP 200 must be retryable, got %v", err)
+	}
+}
+
+func TestSiblingParserRecognizesProviderAuthoritativeEmptyMessage(t *testing.T) {
+	siblings, err := parseSiblings([]byte(`<span>Bu atın aynı anneden kardeşi yoktur.</span>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if siblings == nil || len(siblings) != 0 {
+		t.Fatalf("siblings=%#v, want authoritative empty slice", siblings)
+	}
+
+	if _, err := parseSiblings([]byte(`<span>Temporary provider error</span>`)); err == nil || !IsTransient(err) {
+		t.Fatalf("unrecognized message must remain transient, got %v", err)
 	}
 }
 
@@ -187,9 +230,25 @@ func TestClientFetchDetailPedigreeSiblings(t *testing.T) {
 		t.Fatalf("siblings = %#v", sibs)
 	}
 
-	doc := BuildDetailDocument(ped, sibs, d.Statistics)
-	if len(doc.Pedigree) == 0 || len(doc.Siblings) != 1 || len(doc.Statistics) != 1 {
+	doc := DetailDocument{Pedigree: &ped, Siblings: &sibs, Statistics: &d.Statistics}
+	if doc.Pedigree == nil || len(*doc.Pedigree) == 0 || doc.Siblings == nil || len(*doc.Siblings) != 1 || doc.Statistics == nil || len(*doc.Statistics) != 1 {
 		t.Fatalf("detail doc = %#v", doc)
+	}
+}
+
+func TestPedigreeParserGrowsBeyondLegacySevenSlots(t *testing.T) {
+	var body strings.Builder
+	body.WriteString(`<div class="grid_24"><table><tbody><tr>`)
+	for i := 0; i < 10; i++ {
+		_, _ = fmt.Fprintf(&body, `<td style="background:#dbdbdb;">F%d</td><td>M%d</td>`, i, i)
+	}
+	body.WriteString(`</tr></tbody></table></div>`)
+	entries, err := parsePedigree([]byte(body.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) < 13 || entries[12].Father != "F9" || entries[12].Mother != "M9" {
+		t.Fatalf("pedigree was truncated: len=%d last=%#v", len(entries), entries[len(entries)-1])
 	}
 }
 
@@ -260,7 +319,7 @@ func TestClientStripsBasePath(t *testing.T) {
 		if r.URL.Path != "/TR/YarisSever/Query/DataRows/Atlar" {
 			t.Fatalf("path = %q", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`<html><body></body></html>`))
+		_, _ = w.Write([]byte(`<html><body><div>Toplam 0</div></body></html>`))
 	}))
 	defer s.Close()
 	c, err := NewClient(Config{BaseURL: s.URL + "/ignored/prefix", HTTPTimeout: time.Second})

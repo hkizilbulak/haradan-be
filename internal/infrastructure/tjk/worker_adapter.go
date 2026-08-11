@@ -19,15 +19,18 @@ type WorkerAdapter struct{ Client *Client }
 
 const enrichmentConcurrency = 8
 
-func (a WorkerAdapter) FetchPage(ctx context.Context, cursor string) ([]domain.HorseInput, error) {
+func (a WorkerAdapter) FetchPage(ctx context.Context, cursor string) (domain.PageResult, error) {
 	page, err := a.Client.FetchPage(ctx, cursor)
 	if err != nil {
-		return nil, err
+		return domain.PageResult{}, err
 	}
-	out := make([]domain.HorseInput, len(page))
+	if page.EndOfSource {
+		return domain.PageResult{EndOfSource: true, SourceTotal: page.SourceTotal}, nil
+	}
+	out := make([]domain.HorseInput, len(page.Horses))
 	sem := make(chan struct{}, enrichmentConcurrency)
 	var wg sync.WaitGroup
-	for i, h := range page {
+	for i, h := range page.Horses {
 		in := domain.HorseInput{
 			Number: h.Number,
 			Name:   h.Name,
@@ -50,9 +53,12 @@ func (a WorkerAdapter) FetchPage(ctx context.Context, cursor string) ([]domain.H
 	}
 	wg.Wait()
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return domain.PageResult{}, err
 	}
-	return out, nil
+	return domain.PageResult{
+		Horses: out, Fingerprint: page.Fingerprint,
+		SourceTotal: page.SourceTotal, SkippedCount: page.SkippedCount,
+	}, nil
 }
 
 func (a WorkerAdapter) enrichHorse(ctx context.Context, in domain.HorseInput) domain.HorseInput {
@@ -60,12 +66,15 @@ func (a WorkerAdapter) enrichHorse(ctx context.Context, in domain.HorseInput) do
 		return in
 	}
 
-	var pedigree []PedigreeEntry
-	var siblings []Sibling
-	var stats []RaceStatistic
+	var doc DetailDocument
 
 	if d, err := a.Client.FetchDetail(ctx, in.Number); err == nil {
-		stats = d.Statistics
+		doc.Profile = &DetailProfile{
+			SourceName: d.Name, AgeText: d.AgeText, BirthDate: d.BirthDate,
+			HandicapPoint: d.HandicapPoint, MaidenSire: d.MaidenSire,
+			Owner: d.Owner, Grower: d.Grower, Earning: d.Earning,
+		}
+		doc.Statistics = &d.Statistics
 		if strings.TrimSpace(in.Sire) == "" && strings.TrimSpace(d.Sire) != "" {
 			in.Sire = strings.TrimSpace(d.Sire)
 		}
@@ -78,17 +87,31 @@ func (a WorkerAdapter) enrichHorse(ctx context.Context, in domain.HorseInput) do
 		if g := genderFromAgeText(d.AgeText); g != "" {
 			in.Gender = &g
 		}
+		if coat := coatFromAgeText(d.AgeText); coat != "" {
+			in.Coat = &coat
+		}
+	} else {
+		in.EnrichmentIssues = append(in.EnrichmentIssues, domain.EnrichmentIssue{
+			Component: "detail", Message: "TJK horse detail could not be retrieved",
+		})
 	}
 
 	if p, err := a.Client.FetchPedigree(ctx, in.Number); err == nil {
-		pedigree = p
+		doc.Pedigree = &p
+	} else {
+		in.EnrichmentIssues = append(in.EnrichmentIssues, domain.EnrichmentIssue{
+			Component: "pedigree", Message: "TJK horse pedigree could not be retrieved",
+		})
 	}
 	if s, err := a.Client.FetchSiblings(ctx, in.Number); err == nil {
-		siblings = s
+		doc.Siblings = &s
+	} else {
+		in.EnrichmentIssues = append(in.EnrichmentIssues, domain.EnrichmentIssue{
+			Component: "siblings", Message: "TJK horse siblings could not be retrieved",
+		})
 	}
 
-	doc := BuildDetailDocument(pedigree, siblings, stats)
-	if len(doc.Pedigree) == 0 && len(doc.Siblings) == 0 && len(doc.Statistics) == 0 {
+	if doc.Profile == nil && doc.Pedigree == nil && doc.Siblings == nil && doc.Statistics == nil {
 		return in
 	}
 	raw, err := json.Marshal(doc)
@@ -132,6 +155,19 @@ func genderFromAgeText(ageText string) string {
 		return ""
 	}
 	return string(letters[len(letters)-1])
+}
+
+func coatFromAgeText(ageText string) string {
+	letters := make([]rune, 0, 8)
+	for _, r := range ageText {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+			letters = append(letters, r)
+		}
+	}
+	if len(letters) < 2 {
+		return ""
+	}
+	return string(letters[len(letters)-2])
 }
 
 var _ apptjk.PageFetcher = WorkerAdapter{}

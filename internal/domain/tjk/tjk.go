@@ -50,5 +50,32 @@ type HorseInput struct {
 	Number, Name, Race, Sire, Dam string
 	BirthYear                     *int
 	Gender                        *string
+	Coat                          *string
 	Detail                        json.RawMessage
+	EnrichmentIssues              []EnrichmentIssue
+}
+
+// EnrichmentIssue records a best-effort provider subrequest that did not
+// complete. Messages are deliberately safe summaries; raw provider responses
+// and URLs are never persisted.
+type EnrichmentIssue struct {
+	Component string
+	Message   string
+}
+
+// PageResult is the explicit source-page contract used by the sync worker.
+// EndOfSource may only be true when the adapter recognized provider-owned EOF
+// evidence. An empty Horses slice by itself is never an EOF signal.
+type PageResult struct {
+	Horses       []HorseInput
+	EndOfSource  bool
+	Fingerprint  string
+	SourceTotal  *int
+	SkippedCount int
+}
+
+// PageJob is the durable identity of one TJK source page.
+type PageJob struct {
+	ID   uuid.UUID
+	Page int
 }

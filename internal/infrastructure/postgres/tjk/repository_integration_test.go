@@ -2,6 +2,7 @@ package tjk_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	apptjk "github.com/hkizilbulak/haradan-be/internal/application/tjk"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
 	domaintjk "github.com/hkizilbulak/haradan-be/internal/domain/tjk"
@@ -61,14 +63,17 @@ INSERT INTO hrd_users (
 	return id
 }
 
-func cleanupTJK(t *testing.T, pool *pgxpool.Pool, actorID uuid.UUID, horseNumber string) {
+func cleanupTJK(t *testing.T, pool *pgxpool.Pool, actorID uuid.UUID, horseNumbers ...string) {
 	t.Helper()
 	t.Cleanup(func() {
 		ctx := context.Background()
+		_, _ = pool.Exec(ctx, `DELETE FROM hrd_tjk_sync_item_errors WHERE run_id IN (SELECT id FROM hrd_tjk_sync_runs WHERE created_by_user_id=$1)`, actorID)
 		_, _ = pool.Exec(ctx, `DELETE FROM hrd_background_jobs WHERE tjk_sync_run_id IN (SELECT id FROM hrd_tjk_sync_runs WHERE created_by_user_id=$1)`, actorID)
 		_, _ = pool.Exec(ctx, `DELETE FROM hrd_tjk_sync_runs WHERE created_by_user_id=$1`, actorID)
-		if horseNumber != "" {
-			_, _ = pool.Exec(ctx, `DELETE FROM hrd_horses WHERE tjk_number=$1`, horseNumber)
+		for _, horseNumber := range horseNumbers {
+			if horseNumber != "" {
+				_, _ = pool.Exec(ctx, `DELETE FROM hrd_horses WHERE tjk_number=$1`, horseNumber)
+			}
 		}
 		_, _ = pool.Exec(ctx, `DELETE FROM hrd_users WHERE id=$1`, actorID)
 	})
@@ -118,6 +123,45 @@ func TestQueuedCancellationReleasesActiveRunIntegration(t *testing.T) {
 	}
 	if _, err := svc.Cancel(context.Background(), second.ID, second.Version); err != nil {
 		t.Fatalf("cleanup second run: %v", err)
+	}
+}
+
+func TestManualTriggerRollsBackRunWhenInitialJobFailsIntegration(t *testing.T) {
+	pool := requireTJKIntegration(t)
+	actorID := seedActor(t, pool)
+	cleanupTJK(t, pool, actorID)
+	ctx := context.Background()
+	sql := fmt.Sprintf(`
+CREATE OR REPLACE FUNCTION hrd_test_reject_tjk_bootstrap() RETURNS trigger AS $$
+BEGIN
+  IF NEW.job_type='TJK_SYNC_BATCH' AND EXISTS (
+    SELECT 1 FROM hrd_tjk_sync_runs WHERE id=NEW.tjk_sync_run_id AND created_by_user_id='%s'::uuid
+  ) THEN
+    RAISE EXCEPTION 'intentional TJK bootstrap rollback';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS hrd_test_reject_tjk_bootstrap ON hrd_background_jobs;
+CREATE TRIGGER hrd_test_reject_tjk_bootstrap BEFORE INSERT ON hrd_background_jobs
+FOR EACH ROW EXECUTE FUNCTION hrd_test_reject_tjk_bootstrap()`, actorID)
+	if _, err := pool.Exec(ctx, sql); err != nil {
+		t.Fatalf("install bootstrap trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DROP TRIGGER IF EXISTS hrd_test_reject_tjk_bootstrap ON hrd_background_jobs; DROP FUNCTION IF EXISTS hrd_test_reject_tjk_bootstrap()`)
+	})
+	repo := pgtjk.NewRepository(pool)
+	svc, _ := apptjk.NewService(apptjk.Config{Repo: repo, Enabled: true})
+	if _, err := svc.Trigger(ctx, actorID, "FULL", "TJK_HTTP"); err == nil {
+		t.Fatal("expected bootstrap enqueue failure")
+	}
+	var runCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM hrd_tjk_sync_runs WHERE created_by_user_id=$1`, actorID).Scan(&runCount); err != nil {
+		t.Fatal(err)
+	}
+	if runCount != 0 {
+		t.Fatalf("manual trigger leaked %d active run(s)", runCount)
 	}
 }
 
@@ -212,7 +256,7 @@ func TestRunningCancellationIsSoftIntegration(t *testing.T) {
 	}
 	var jobStatus string
 	var cancelRequested *time.Time
-	if err := pool.QueryRow(context.Background(), `SELECT status,cancel_requested_at FROM hrd_background_jobs WHERE id=$1`, jobID).Scan(&jobStatus, &cancelRequested); err != nil {
+	if err := pool.QueryRow(context.Background(), `SELECT status,cancel_requested_at FROM hrd_background_jobs WHERE id=$1`, jobID.ID).Scan(&jobStatus, &cancelRequested); err != nil {
 		t.Fatal(err)
 	}
 	if jobStatus != "LEASED" || cancelRequested == nil {
@@ -226,25 +270,279 @@ func TestRunningCancellationIsSoftIntegration(t *testing.T) {
 	}
 }
 
+func TestPermanentFailureTerminalizesRunIntegration(t *testing.T) {
+	pool := requireTJKIntegration(t)
+	actorID := seedActor(t, pool)
+	cleanupTJK(t, pool, actorID)
+	repo := pgtjk.NewRepository(pool)
+	svc, _ := apptjk.NewService(apptjk.Config{Repo: repo, Enabled: true})
+	run, err := svc.Trigger(context.Background(), actorID, "FULL", "TJK_HTTP")
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, _, ok, err := repo.ClaimTJKJob(context.Background(), "integration-worker", time.Now().UTC(), time.Now().UTC().Add(time.Minute))
+	if err != nil || !ok {
+		t.Fatalf("claim ok=%v err=%v", ok, err)
+	}
+	if err := repo.FailTJKJob(context.Background(), job, run.ID, "safe permanent failure", time.Now().UTC(), false); err != nil {
+		t.Fatal(err)
+	}
+	failed, err := repo.GetRun(context.Background(), run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if failed.Status != domaintjk.RunFailed || failed.CompletedAt == nil || failed.LastErrorSummary == nil {
+		t.Fatalf("run was not terminalized: %#v", failed)
+	}
+	if next, err := svc.Trigger(context.Background(), actorID, "FULL", "TJK_HTTP"); err != nil {
+		t.Fatalf("terminal failure must release active-run constraint: %v", err)
+	} else if _, err := svc.Cancel(context.Background(), next.ID, next.Version); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRetryExhaustionTerminalizesRunIntegration(t *testing.T) {
+	pool := requireTJKIntegration(t)
+	actorID := seedActor(t, pool)
+	cleanupTJK(t, pool, actorID)
+	repo := pgtjk.NewRepository(pool)
+	svc, _ := apptjk.NewService(apptjk.Config{Repo: repo, Enabled: true})
+	run, err := svc.Trigger(context.Background(), actorID, "FULL", "TJK_HTTP")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for attempt := 1; attempt <= 3; attempt++ {
+		now := time.Now().UTC().Add(time.Duration(attempt) * 10 * time.Second)
+		job, _, ok, err := repo.ClaimTJKJob(context.Background(), "integration-worker", now, now.Add(time.Minute))
+		if err != nil || !ok {
+			t.Fatalf("attempt %d claim ok=%v err=%v", attempt, ok, err)
+		}
+		if err := repo.FailTJKJob(context.Background(), job, run.ID, "safe transient failure", now, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	failed, err := repo.GetRun(context.Background(), run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var jobStatus string
+	if err := pool.QueryRow(context.Background(), `SELECT status FROM hrd_background_jobs WHERE tjk_sync_run_id=$1`, run.ID).Scan(&jobStatus); err != nil {
+		t.Fatal(err)
+	}
+	if failed.Status != domaintjk.RunFailed || failed.CompletedAt == nil || jobStatus != "DEAD" {
+		t.Fatalf("retry exhaustion run=%#v job=%s", failed, jobStatus)
+	}
+}
+
+func TestExpiredFinalLeaseTerminalizesTJKRunIntegration(t *testing.T) {
+	pool := requireTJKIntegration(t)
+	actorID := seedActor(t, pool)
+	cleanupTJK(t, pool, actorID)
+	repo := pgtjk.NewRepository(pool)
+	svc, _ := apptjk.NewService(apptjk.Config{Repo: repo, Enabled: true})
+	run, err := svc.Trigger(context.Background(), actorID, "FULL", "TJK_HTTP")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Now().UTC()
+	for attempt := 1; attempt <= 2; attempt++ {
+		now := base.Add(time.Duration(attempt) * 10 * time.Second)
+		job, _, ok, err := repo.ClaimTJKJob(context.Background(), "integration-worker", now, now.Add(time.Minute))
+		if err != nil || !ok {
+			t.Fatalf("attempt %d claim ok=%v err=%v", attempt, ok, err)
+		}
+		if err := repo.FailTJKJob(context.Background(), job, run.ID, "safe transient failure", now, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	claimAt := base.Add(30 * time.Second)
+	if _, _, ok, err := repo.ClaimTJKJob(context.Background(), "crashed-worker", claimAt, claimAt.Add(time.Second)); err != nil || !ok {
+		t.Fatalf("final claim ok=%v err=%v", ok, err)
+	}
+	queue, err := appmedia.NewPostgresJobQueue(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered, err := queue.RecoverExpiredJobLeases(context.Background(), claimAt.Add(2*time.Second), 10); err != nil || recovered != 1 {
+		t.Fatalf("recovered=%d err=%v", recovered, err)
+	}
+	failed, err := repo.GetRun(context.Background(), run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if failed.Status != domaintjk.RunFailed || failed.CompletedAt == nil {
+		t.Fatalf("expired final lease left active run: %#v", failed)
+	}
+}
+
+type sequenceFetcher struct {
+	pages map[string]domaintjk.PageResult
+}
+
+func (f sequenceFetcher) FetchPage(_ context.Context, cursor string) (domaintjk.PageResult, error) {
+	page, ok := f.pages[cursor]
+	if !ok {
+		return domaintjk.PageResult{}, fmt.Errorf("unexpected page %s", cursor)
+	}
+	return page, nil
+}
+
+func TestCountersDuplicatesAndEnrichmentPartialIntegration(t *testing.T) {
+	pool := requireTJKIntegration(t)
+	actorID := seedActor(t, pool)
+	number := "ITEST-PARTIAL-" + uuid.NewString()
+	cleanupTJK(t, pool, actorID, number)
+	repo := pgtjk.NewRepository(pool)
+	svc, _ := apptjk.NewService(apptjk.Config{Repo: repo, Enabled: true})
+	run, err := svc.Trigger(context.Background(), actorID, "FULL", "TJK_HTTP")
+	if err != nil {
+		t.Fatal(err)
+	}
+	total := 3
+	worker, err := apptjk.NewWorker(repo, sequenceFetcher{pages: map[string]domaintjk.PageResult{
+		"0": {
+			Fingerprint: "partial-page", SourceTotal: &total, SkippedCount: 1,
+			Horses: []domaintjk.HorseInput{
+				{Number: number, Name: "PARTIAL HORSE", EnrichmentIssues: []domaintjk.EnrichmentIssue{{Component: "detail", Message: "detail unavailable"}}},
+				{Number: number, Name: "PARTIAL HORSE DUPLICATE"},
+			},
+		},
+		"1": {EndOfSource: true},
+	}}, "integration-worker")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if claimed, err := worker.ProcessOnce(context.Background(), time.Minute); err != nil || !claimed {
+			t.Fatalf("worker pass %d claimed=%v err=%v", i+1, claimed, err)
+		}
+	}
+	finished, err := repo.GetRun(context.Background(), run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finished.Status != domaintjk.RunPartialSuccess || finished.TotalCount != 3 || finished.CreatedCount != 1 ||
+		finished.UpdatedCount != 0 || finished.UnchangedCount != 0 || finished.SkippedCount != 1 ||
+		finished.FailedCount != 1 || finished.ConflictCount != 1 {
+		t.Fatalf("truthful counters not persisted: %#v", finished)
+	}
+	var horseCount, errorCount int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM hrd_horses WHERE tjk_number=$1`, number).Scan(&horseCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM hrd_tjk_sync_item_errors WHERE run_id=$1`, run.ID).Scan(&errorCount); err != nil {
+		t.Fatal(err)
+	}
+	if horseCount != 1 || errorCount != 3 {
+		t.Fatalf("horseCount=%d errorCount=%d", horseCount, errorCount)
+	}
+}
+
+func TestPageHandoffRollbackRemainsRetryableIntegration(t *testing.T) {
+	pool := requireTJKIntegration(t)
+	actorID := seedActor(t, pool)
+	number := "ITEST-ROLLBACK-" + uuid.NewString()
+	cleanupTJK(t, pool, actorID, number)
+	ctx := context.Background()
+	_, err := pool.Exec(ctx, `
+CREATE OR REPLACE FUNCTION hrd_test_reject_tjk_page_one() RETURNS trigger AS $$
+BEGIN
+  IF NEW.job_type='TJK_SYNC_BATCH' AND NEW.deduplication_key LIKE 'TJK_SYNC_BATCH:%:1' THEN
+    RAISE EXCEPTION 'intentional TJK handoff rollback';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS hrd_test_reject_tjk_page_one ON hrd_background_jobs;
+CREATE TRIGGER hrd_test_reject_tjk_page_one BEFORE INSERT ON hrd_background_jobs
+FOR EACH ROW EXECUTE FUNCTION hrd_test_reject_tjk_page_one()`)
+	if err != nil {
+		t.Fatalf("install rollback trigger: %v", err)
+	}
+	dropTrigger := func() {
+		_, _ = pool.Exec(context.Background(), `DROP TRIGGER IF EXISTS hrd_test_reject_tjk_page_one ON hrd_background_jobs; DROP FUNCTION IF EXISTS hrd_test_reject_tjk_page_one()`)
+	}
+	t.Cleanup(dropTrigger)
+	repo := pgtjk.NewRepository(pool)
+	svc, _ := apptjk.NewService(apptjk.Config{Repo: repo, Enabled: true})
+	run, err := svc.Trigger(ctx, actorID, "FULL", "TJK_HTTP")
+	if err != nil {
+		t.Fatal(err)
+	}
+	total := 1
+	worker, err := apptjk.NewWorker(repo, sequenceFetcher{pages: map[string]domaintjk.PageResult{
+		"0": {Fingerprint: "rollback-page", SourceTotal: &total, Horses: []domaintjk.HorseInput{{Number: number, Name: "ROLLBACK HORSE"}}},
+		"1": {EndOfSource: true},
+	}}, "integration-worker")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed, err := worker.ProcessOnce(ctx, time.Minute); err == nil || !claimed {
+		t.Fatalf("expected handoff failure, claimed=%v err=%v", claimed, err)
+	}
+	var horseCount, jobCount int
+	var jobStatus string
+	var checkpoint []byte
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM hrd_horses WHERE tjk_number=$1`, number).Scan(&horseCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*),min(status) FROM hrd_background_jobs WHERE tjk_sync_run_id=$1`, run.ID).Scan(&jobCount, &jobStatus); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT checkpoint FROM hrd_tjk_sync_runs WHERE id=$1`, run.ID).Scan(&checkpoint); err != nil {
+		t.Fatal(err)
+	}
+	var cp struct {
+		Page int `json:"page"`
+	}
+	if err := json.Unmarshal(checkpoint, &cp); err != nil {
+		t.Fatal(err)
+	}
+	if horseCount != 0 || jobCount != 1 || jobStatus != "QUEUED" || cp.Page != 0 {
+		t.Fatalf("rollback horse=%d jobs=%d status=%s checkpoint=%s", horseCount, jobCount, jobStatus, checkpoint)
+	}
+	dropTrigger()
+	if _, err := pool.Exec(ctx, `UPDATE hrd_background_jobs SET available_at=now() WHERE tjk_sync_run_id=$1 AND status='QUEUED'`, run.ID); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if claimed, err := worker.ProcessOnce(ctx, time.Minute); err != nil || !claimed {
+			t.Fatalf("retry pass %d claimed=%v err=%v", i+1, claimed, err)
+		}
+	}
+	finished, err := repo.GetRun(ctx, run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finished.Status != domaintjk.RunSucceeded || finished.CreatedCount != 1 {
+		t.Fatalf("retry did not complete run: %#v", finished)
+	}
+}
+
 func TestFakeHTTPFullSyncIntegration(t *testing.T) {
 	pool := requireTJKIntegration(t)
 	actorID := seedActor(t, pool)
 	horseNumber := "ITEST-" + uuid.NewString()
-	cleanupTJK(t, pool, actorID, horseNumber)
+	secondHorseNumber := horseNumber + "-2"
+	cleanupTJK(t, pool, actorID, horseNumber, secondHorseNumber)
+	firstHorseName := "LOCAL TEST HORSE"
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		switch r.URL.Path {
 		case "/TR/YarisSever/Query/DataRows/Atlar":
-			if r.URL.Query().Get("PageNumber") == "0" {
-				_, _ = fmt.Fprintf(w, `<html><body><a href="?QueryParameter_AtId=%s">LOCAL TEST HORSE</a> ARAP <a href="?QueryParameter_BabaAdi=x">LOCAL SIRE</a><a href="?QueryParameter_AnneAdi=x">LOCAL DAM</a></body></html>`, horseNumber)
-				return
+			switch r.URL.Query().Get("PageNumber") {
+			case "0":
+				_, _ = fmt.Fprintf(w, `<html><body><div>Toplam 2</div><a href="?QueryParameter_AtId=%s">%s</a> ARAP <a href="?QueryParameter_BabaAdi=x">LOCAL SIRE</a><a href="?QueryParameter_AnneAdi=x">LOCAL DAM</a></body></html>`, horseNumber, firstHorseName)
+			case "1":
+				_, _ = fmt.Fprintf(w, `<html><body><a href="?QueryParameter_AtId=%s">LOCAL TEST HORSE TWO</a> İNGİLİZ <a href="?QueryParameter_BabaAdi=x">LOCAL SIRE TWO</a><a href="?QueryParameter_AnneAdi=x">LOCAL DAM TWO</a></body></html>`, secondHorseNumber)
+			default:
+				_, _ = w.Write([]byte(`<html><body><div>Toplam 0</div></body></html>`))
 			}
-			_, _ = w.Write([]byte(`<html><body></body></html>`))
 		case "/TR/YarisSever/Query/ConnectedPage/AtKosuBilgileri":
 			_, _ = w.Write([]byte(`<div class="grid_8"><span>Doğ. Trh</span><span>01.01.2020</span></div>`))
 		case "/TR/YarisSever/Query/Pedigri/Pedigri", "/TR/YarisSever/Query/Kardes/Kardes":
-			_, _ = w.Write([]byte(`<html><body></body></html>`))
+			_, _ = w.Write([]byte(`<div class="grid_24"><table><tbody></tbody></table></div>`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -270,7 +568,7 @@ func TestFakeHTTPFullSyncIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 3; i++ {
 		claimed, err := worker.ProcessOnce(context.Background(), time.Minute)
 		if err != nil || !claimed {
 			t.Fatalf("worker pass %d claimed=%v err=%v cause=%v", i+1, claimed, err, errors.Unwrap(err))
@@ -280,22 +578,59 @@ func TestFakeHTTPFullSyncIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if finished.Status != domaintjk.RunSucceeded || finished.TotalCount != 1 || finished.CompletedAt == nil {
+	if finished.Status != domaintjk.RunSucceeded || finished.TotalCount != 2 || finished.CreatedCount != 2 || finished.UpdatedCount != 0 || finished.UnchangedCount != 0 || finished.CompletedAt == nil {
 		t.Fatalf("unexpected full-sync result: %#v", finished)
 	}
-	var name string
-	var birthYear *int
-	if err := pool.QueryRow(context.Background(), `SELECT original_name,birth_year FROM hrd_horses WHERE tjk_number=$1`, horseNumber).Scan(&name, &birthYear); err != nil {
+	var horseCount int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM hrd_horses WHERE tjk_number IN ($1,$2)`, horseNumber, secondHorseNumber).Scan(&horseCount); err != nil {
 		t.Fatal(err)
 	}
-	if name != "LOCAL TEST HORSE" || birthYear == nil || *birthYear != 2020 {
-		t.Fatalf("horse upsert name=%q birthYear=%v", name, birthYear)
+	if horseCount != 2 {
+		t.Fatalf("unique persisted horses=%d", horseCount)
 	}
 	var succeededJobs int
 	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM hrd_background_jobs WHERE tjk_sync_run_id=$1 AND status='SUCCEEDED'`, run.ID).Scan(&succeededJobs); err != nil {
 		t.Fatal(err)
 	}
-	if succeededJobs != 2 {
+	if succeededJobs != 3 {
 		t.Fatalf("succeeded TJK jobs=%d", succeededJobs)
+	}
+
+	secondRun, err := svc.Trigger(context.Background(), actorID, "FULL", "TJK_HTTP")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		claimed, err := worker.ProcessOnce(context.Background(), time.Minute)
+		if err != nil || !claimed {
+			t.Fatalf("rerun worker pass %d claimed=%v err=%v", i+1, claimed, err)
+		}
+	}
+	rerun, err := repo.GetRun(context.Background(), secondRun.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rerun.Status != domaintjk.RunSucceeded || rerun.TotalCount != 2 || rerun.UnchangedCount != 2 || rerun.CreatedCount != 0 || rerun.UpdatedCount != 0 {
+		t.Fatalf("unexpected idempotent rerun: %#v", rerun)
+	}
+
+	firstHorseName = "LOCAL TEST HORSE UPDATED"
+	thirdRun, err := svc.Trigger(context.Background(), actorID, "FULL", "TJK_HTTP")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		claimed, err := worker.ProcessOnce(context.Background(), time.Minute)
+		if err != nil || !claimed {
+			t.Fatalf("updated rerun worker pass %d claimed=%v err=%v", i+1, claimed, err)
+		}
+	}
+	updatedRun, err := repo.GetRun(context.Background(), thirdRun.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updatedRun.Status != domaintjk.RunSucceeded || updatedRun.TotalCount != 2 ||
+		updatedRun.CreatedCount != 0 || updatedRun.UpdatedCount != 1 || updatedRun.UnchangedCount != 1 {
+		t.Fatalf("unexpected updated rerun: %#v", updatedRun)
 	}
 }

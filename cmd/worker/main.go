@@ -195,7 +195,7 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("TJK worker: %w", err)
 		}
-		go runTJKWorker(runCtx, tjkWorker, cfg.WorkerLeaseDuration, cfg.WorkerPollInterval, cfg.WorkerJobTimeout, log)
+		go runTJKWorker(runCtx, tjkWorker, cfg.WorkerLeaseDuration, cfg.WorkerPollInterval, cfg.TJKPageTimeout, log)
 	}
 
 	if err := runner.Run(runCtx); err != nil {

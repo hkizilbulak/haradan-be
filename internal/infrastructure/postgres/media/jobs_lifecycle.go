@@ -220,7 +220,7 @@ WITH expired AS (
   ORDER BY leased_until ASC, id ASC
   FOR UPDATE SKIP LOCKED
   LIMIT $2
-)
+), recovered AS (
 UPDATE hrd_background_jobs j
 SET
   status = CASE
@@ -244,13 +244,27 @@ SET
   version = j.version + 1,
   updated_at = $1
 FROM expired
-WHERE j.id = expired.id`
+WHERE j.id = expired.id
+RETURNING j.tjk_sync_run_id,j.status
+), failed_tjk_runs AS (
+UPDATE hrd_tjk_sync_runs r SET
+  status='FAILED',
+  completed_at=$1,
+  last_error_summary=$3,
+  version=version+1,
+  updated_at=$1
+FROM recovered x
+WHERE x.tjk_sync_run_id=r.id AND x.status='DEAD' AND r.status IN ('QUEUED','RUNNING')
+RETURNING r.id
+)
+SELECT (SELECT count(*) FROM recovered) + (SELECT 0 * count(*) FROM failed_tjk_runs)`
 
-	tag, err := r.db.Exec(ctx, q, now, limit, jobLeaseExpiredMessage)
+	var recovered int
+	err := r.db.QueryRow(ctx, q, now, limit, jobLeaseExpiredMessage).Scan(&recovered)
 	if err != nil {
 		return 0, apperr.Internal(fmt.Errorf("recover expired job leases: %w", pg.SanitizeErr(err)))
 	}
-	return int(tag.RowsAffected()), nil
+	return recovered, nil
 }
 
 func nullIfEmpty(s string) *string {

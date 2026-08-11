@@ -270,7 +270,7 @@ func run() error {
 		WithTJKService(tjkSvc).
 		WithEmailTemplateDiscovery(emailDiscovery).
 		WithJobAdminService(jobAdminSvc)
-	engine := router.New(srvHandler, log, router.Options{AuthService: authSvc})
+	engine := router.New(srvHandler, log, router.Options{AuthService: authSvc, CORSAllowedOrigins: cfg.CORSAllowedOrigins})
 
 	httpServer := &http.Server{
 		Addr:         cfg.HTTPAddr,

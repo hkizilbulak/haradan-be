@@ -56,10 +56,10 @@ Arabian
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 {
+	if len(got.Horses) != 1 {
 		t.Fatalf("horses=%#v", got)
 	}
-	h := got[0]
+	h := got.Horses[0]
 	if h.Number != "99" || h.Name != "Thunder" || h.Race != "Arabian" {
 		t.Fatalf("summary=%#v", h)
 	}
@@ -69,12 +69,18 @@ Arabian
 	if h.Gender == nil || *h.Gender != "a" {
 		t.Fatalf("gender=%v", h.Gender)
 	}
+	if h.Coat == nil || *h.Coat != "k" {
+		t.Fatalf("coat=%v", h.Coat)
+	}
 	var doc DetailDocument
 	if err := json.Unmarshal(h.Detail, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if len(doc.Statistics) != 1 || len(doc.Siblings) != 1 || len(doc.Pedigree) == 0 {
+	if doc.Statistics == nil || len(*doc.Statistics) != 1 || doc.Siblings == nil || len(*doc.Siblings) != 1 || doc.Pedigree == nil || len(*doc.Pedigree) == 0 {
 		t.Fatalf("detail=%#v", doc)
+	}
+	if doc.Profile == nil || doc.Profile.BirthDate != "01.01.2020" || doc.Profile.MaidenSire != "Maid" {
+		t.Fatalf("profile=%#v", doc.Profile)
 	}
 }
 
@@ -125,17 +131,17 @@ English
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 {
+	if len(got.Horses) != 2 {
 		t.Fatalf("horses=%#v", got)
 	}
-	if len(got[0].Detail) != 0 {
-		t.Fatalf("horse 1 should have no detail, got %s", got[0].Detail)
+	if len(got.Horses[0].Detail) != 0 || len(got.Horses[0].EnrichmentIssues) != 3 {
+		t.Fatalf("horse 1 should have observable missing detail, got %#v", got.Horses[0])
 	}
 	var doc DetailDocument
-	if err := json.Unmarshal(got[1].Detail, &doc); err != nil {
+	if err := json.Unmarshal(got.Horses[1].Detail, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if len(doc.Statistics) != 1 || len(doc.Siblings) != 1 {
+	if doc.Statistics == nil || len(*doc.Statistics) != 1 || doc.Siblings == nil || len(*doc.Siblings) != 1 {
 		t.Fatalf("horse 2 detail=%#v", doc)
 	}
 }

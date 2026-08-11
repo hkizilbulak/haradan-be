@@ -20,6 +20,7 @@ type Config struct {
 	HTTPWriteTimeout    time.Duration
 	HTTPIdleTimeout     time.Duration
 	HTTPShutdownTimeout time.Duration
+	CORSAllowedOrigins  []string
 
 	DatabaseURL       string
 	DBMaxConns        int32
@@ -115,7 +116,7 @@ type Config struct {
 	TJKEnabled      bool
 	TJKBaseURL      string
 	TJKHTTPTimeout  time.Duration
-	TJKBatchSize    int
+	TJKPageTimeout  time.Duration
 	TJKMaxBodyBytes int64
 }
 
@@ -170,6 +171,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if cfg.HTTPShutdownTimeout, err = durationEnv("HTTP_SHUTDOWN_TIMEOUT", 10*time.Second); err != nil {
+		return Config{}, err
+	}
+	if cfg.CORSAllowedOrigins, err = corsAllowedOriginsEnv("CORS_ALLOWED_ORIGINS"); err != nil {
 		return Config{}, err
 	}
 
@@ -417,7 +421,10 @@ func Load() (Config, error) {
 	if cfg.TJKHTTPTimeout, err = durationEnv("TJK_HTTP_TIMEOUT", 60*time.Second); err != nil {
 		return Config{}, err
 	}
-	if cfg.TJKBatchSize, err = intEnv("TJK_BATCH_SIZE", 100); err != nil {
+	// A TJK page enriches every bulk row with multiple provider requests. Its
+	// overall deadline must therefore be longer than a single HTTP request and
+	// remain shorter than the durable job lease.
+	if cfg.TJKPageTimeout, err = durationEnv("TJK_PAGE_TIMEOUT", 15*time.Minute); err != nil {
 		return Config{}, err
 	}
 	if cfg.TJKMaxBodyBytes, err = int64Env("TJK_MAX_BODY_BYTES", 2<<20); err != nil {
@@ -439,8 +446,17 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("TJK_BASE_URL is not a valid URL")
 		}
 	}
-	if cfg.TJKBatchSize < 1 || cfg.TJKMaxBodyBytes < 1 {
-		return Config{}, fmt.Errorf("TJK batch size and body limit must be greater than zero")
+	if cfg.TJKMaxBodyBytes < 1 {
+		return Config{}, fmt.Errorf("TJK body limit must be greater than zero")
+	}
+	if cfg.TJKHTTPTimeout <= 0 {
+		return Config{}, fmt.Errorf("TJK_HTTP_TIMEOUT must be greater than zero")
+	}
+	if cfg.TJKPageTimeout <= 0 {
+		return Config{}, fmt.Errorf("TJK_PAGE_TIMEOUT must be greater than zero")
+	}
+	if cfg.TJKPageTimeout >= cfg.WorkerLeaseDuration {
+		return Config{}, fmt.Errorf("TJK_PAGE_TIMEOUT must be less than WORKER_LEASE_DURATION")
 	}
 
 	return cfg, nil
@@ -790,6 +806,33 @@ func validateFrontendURL(raw string) error {
 		return fmt.Errorf("FRONTEND_URL must not contain userinfo")
 	}
 	return nil
+}
+
+func corsAllowedOriginsEnv(key string) ([]string, error) {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil, nil
+	}
+	seen := map[string]struct{}{}
+	origins := make([]string, 0)
+	for _, part := range strings.Split(raw, ",") {
+		origin := strings.TrimSpace(part)
+		if origin == "" || origin == "*" {
+			return nil, fmt.Errorf("%s must contain explicit HTTP origins", key)
+		}
+		u, err := url.Parse(origin)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
+			u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+			return nil, fmt.Errorf("%s contains an invalid origin", key)
+		}
+		canonical := u.Scheme + "://" + u.Host
+		if _, exists := seen[canonical]; exists {
+			continue
+		}
+		seen[canonical] = struct{}{}
+		origins = append(origins, canonical)
+	}
+	return origins, nil
 }
 
 func optionalPositiveIntEnv(key string) (int, error) {
