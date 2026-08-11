@@ -2,6 +2,17 @@
 
 Haradan BE, Haradan uygulamalarının HTTP API'sini ve kuyruklanmış arka plan işlerini yürüten Go servisidir.
 
+## Yerel port standardı
+
+| Component | Local port | Purpose |
+| --- | ---: | --- |
+| BO runtime | 3000 | Normal BO UI + Go session/API proxy |
+| Next dev | 3001 | BO frontend hot reload/development |
+| BE API | 8080 | Haradan backend REST API |
+| Worker | none | Background jobs |
+
+`3000` mevcut BO runtime'a aittir. Gelecekte eklenecek son kullanıcı Haradan FE için portlar ayrı ele alınmalıdır.
+
 ## Yerel gereksinimler
 
 - Go
@@ -18,12 +29,12 @@ Production API ve worker komutları `.env` dosyasını kendileri yüklemez. Yere
 go run ./cmd/dev api
 ```
 
-Komut Windows, macOS ve Linux üzerinde çalışır. Process environment içinde `HTTP_ADDR` tanımlı değilse veya boşsa API'yi yerelde `:3001` üzerinde başlatır.
+Komut Windows, macOS ve Linux üzerinde çalışır. Process environment içinde `HTTP_ADDR` tanımlı değilse veya boşsa API'yi yerelde `:8080` üzerinde başlatır.
 
 Health kontrolü:
 
 ```text
-http://localhost:3001/api/health
+http://localhost:8080/api/health
 ```
 
 ## Platformlar arası worker başlangıcı
@@ -55,7 +66,15 @@ Make, Bash, `.sh`, `source`, Node.js veya npm birincil BE komutları için gerek
 npm run start:all
 ```
 
-Bu BO komutu BE API'yi, BE worker'ı ve BO sunucusunu birlikte başlatır. BE deposu tek başına BO'ya bağımlı değildir.
+Bu BO komutu BE API'yi `:8080`, BE worker'ı ve BO sunucusunu `:3000` üzerinde birlikte başlatır. Tarayıcıda `http://localhost:3000` açılır.
+
+Hot reload kullanan tam geliştirme stack'i için BO deposunda:
+
+```bash
+npm run dev:all
+```
+
+Bu komut aynı servislere ek olarak Next.js'i `:3001` üzerinde başlatır. Geliştirme sırasında tarayıcıda `http://localhost:3001` açılır. BE deposu tek başına BO'ya bağımlı değildir.
 
 ## Ortam güvenliği
 

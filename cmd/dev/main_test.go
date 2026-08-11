@@ -43,7 +43,7 @@ func TestSetLocalAPIAddress(t *testing.T) {
 		expected   string
 	}{
 		{name: "missing", initial: map[string]environmentValue{}, expected: localAPIAddress},
-		{name: "file value", initial: map[string]environmentValue{"HTTP_ADDR": {name: "HTTP_ADDR", value: ":8080"}}, expected: localAPIAddress},
+		{name: "file value", initial: map[string]environmentValue{"HTTP_ADDR": {name: "HTTP_ADDR", value: ":3001"}}, expected: localAPIAddress},
 		{name: "blank process value", initial: map[string]environmentValue{"HTTP_ADDR": {name: "HTTP_ADDR", value: ""}}, processEnv: []string{"HTTP_ADDR="}, expected: localAPIAddress},
 		{name: "process value", initial: map[string]environmentValue{"HTTP_ADDR": {name: "HTTP_ADDR", value: ":4000"}}, processEnv: []string{"HTTP_ADDR=:4000"}, expected: ":4000"},
 	}

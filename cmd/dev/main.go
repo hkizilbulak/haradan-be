@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	localAPIAddress = ":3001"
+	localAPIAddress = ":8080"
 	shutdownTimeout = 10 * time.Second
 )
 

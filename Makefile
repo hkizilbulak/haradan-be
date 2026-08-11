@@ -16,7 +16,7 @@ run:
 	go run ./cmd/api
 
 api:
-	@set -a; . ./.env; set +a; HTTP_ADDR=:3001 go run ./cmd/api
+	@set -a; . ./.env; set +a; HTTP_ADDR=:8080 go run ./cmd/api
 
 worker:
 	@set -a; . ./.env; set +a; go run ./cmd/worker
