@@ -1954,7 +1954,7 @@ type TJKSyncItemErrorResponse struct {
 // TJKSyncItemErrorStatus defines model for TJKSyncItemErrorStatus.
 type TJKSyncItemErrorStatus string
 
-// TJKSyncMode defines model for TJKSyncMode.
+// TJKSyncMode FULL performs the production page scan. INCREMENTAL and RECONCILIATION currently use the same complete scan path; they do not imply a change window or missing-record deactivation.
 type TJKSyncMode string
 
 // TJKSyncRunListResponse defines model for TJKSyncRunListResponse.
@@ -1974,17 +1974,19 @@ type TJKSyncRunResponse struct {
 	FailedCount       int                `json:"failedCount"`
 	Id                openapi_types.UUID `json:"id"`
 	LastErrorSummary  *string            `json:"lastErrorSummary,omitempty"`
-	Mode              TJKSyncMode        `json:"mode"`
-	Scope             TJKSyncScope       `json:"scope"`
-	SkippedCount      int                `json:"skippedCount"`
-	SourceAdapter     string             `json:"sourceAdapter"`
-	StartedAt         *time.Time         `json:"startedAt,omitempty"`
-	Status            TJKSyncRunStatus   `json:"status"`
-	TotalCount        int                `json:"totalCount"`
-	TriggerKind       TJKTriggerKind     `json:"triggerKind"`
-	UnchangedCount    int                `json:"unchangedCount"`
-	UpdatedCount      int                `json:"updatedCount"`
-	Version           int                `json:"version"`
+
+	// Mode FULL performs the production page scan. INCREMENTAL and RECONCILIATION currently use the same complete scan path; they do not imply a change window or missing-record deactivation.
+	Mode           TJKSyncMode      `json:"mode"`
+	Scope          TJKSyncScope     `json:"scope"`
+	SkippedCount   int              `json:"skippedCount"`
+	SourceAdapter  string           `json:"sourceAdapter"`
+	StartedAt      *time.Time       `json:"startedAt,omitempty"`
+	Status         TJKSyncRunStatus `json:"status"`
+	TotalCount     int              `json:"totalCount"`
+	TriggerKind    TJKTriggerKind   `json:"triggerKind"`
+	UnchangedCount int              `json:"unchangedCount"`
+	UpdatedCount   int              `json:"updatedCount"`
+	Version        int              `json:"version"`
 }
 
 // TJKSyncRunStatus defines model for TJKSyncRunStatus.
@@ -2003,6 +2005,7 @@ type TokenRequest struct {
 
 // TriggerTJKSyncRequest defines model for TriggerTJKSyncRequest.
 type TriggerTJKSyncRequest struct {
+	// Mode FULL performs the production page scan. INCREMENTAL and RECONCILIATION currently use the same complete scan path; they do not imply a change window or missing-record deactivation.
 	Mode          TJKSyncMode   `json:"mode"`
 	Scope         *TJKSyncScope `json:"scope,omitempty"`
 	SourceAdapter string        `json:"sourceAdapter"`

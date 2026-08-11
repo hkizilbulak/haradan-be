@@ -13,8 +13,7 @@ import (
 )
 
 type Repository interface {
-	CreateRun(context.Context, domain.Run) error
-	EnqueueRun(context.Context, uuid.UUID, time.Time) error
+	CreateRunAndEnqueue(context.Context, domain.Run, time.Time) error
 	ListRuns(context.Context, *string, *string, int) ([]domain.Run, bool, error)
 	GetRun(context.Context, uuid.UUID) (domain.Run, error)
 	RequestCancel(context.Context, uuid.UUID, int, time.Time) (domain.Run, error)
@@ -61,10 +60,7 @@ func (s *Service) Trigger(ctx context.Context, actorID uuid.UUID, mode, source s
 	}
 	now := s.now()
 	run := domain.Run{ID: uuid.New(), Mode: mode, Status: domain.RunQueued, SourceAdapter: source, Scope: "HORSES", Checkpoint: []byte(`{"page":0}`), TriggerKind: "MANUAL", CreatedByUserID: &actorID, Version: 1, CreatedAt: now, UpdatedAt: now}
-	if err := s.repo.CreateRun(ctx, run); err != nil {
-		return domain.Run{}, err
-	}
-	if err := s.repo.EnqueueRun(ctx, run.ID, now); err != nil {
+	if err := s.repo.CreateRunAndEnqueue(ctx, run, now); err != nil {
 		return domain.Run{}, err
 	}
 	return run, nil

@@ -36,6 +36,67 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.TJKHTTPTimeout != 60*time.Second {
 		t.Fatalf("TJK timeout default = %v", cfg.TJKHTTPTimeout)
 	}
+	if cfg.TJKPageTimeout != 15*time.Minute {
+		t.Fatalf("TJK page timeout default = %v", cfg.TJKPageTimeout)
+	}
+}
+
+func TestLoadCORSAllowedOrigins(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com, http://localhost:3000,https://app.example.com")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"https://app.example.com", "http://localhost:3000"}
+	if len(cfg.CORSAllowedOrigins) != len(want) {
+		t.Fatalf("origins=%v", cfg.CORSAllowedOrigins)
+	}
+	for i := range want {
+		if cfg.CORSAllowedOrigins[i] != want[i] {
+			t.Fatalf("origins=%v", cfg.CORSAllowedOrigins)
+		}
+	}
+}
+
+func TestLoadRejectsUnsafeCORSOrigins(t *testing.T) {
+	for _, origins := range []string{
+		"*",
+		"https://user:pass@app.example.com",
+		"https://app.example.com/path",
+		"https://app.example.com?query=1",
+		"file:///tmp/app",
+		"https://app.example.com,",
+	} {
+		t.Run(origins, func(t *testing.T) {
+			clearConfigEnv(t)
+			t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+			t.Setenv("CORS_ALLOWED_ORIGINS", origins)
+			if _, err := config.Load(); err == nil {
+				t.Fatalf("expected rejection for %q", origins)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsInvalidTJKPageTimeout(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("TJK_PAGE_TIMEOUT", "0s")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected zero TJK page timeout rejection")
+	}
+
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("WORKER_LEASE_DURATION", "20m")
+	t.Setenv("WORKER_MAX_JOB_TIMEOUT", "10m")
+	t.Setenv("TJK_PAGE_TIMEOUT", "20m")
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected TJK page timeout at lease duration rejection")
+	}
 }
 
 func TestLoadTJKEnabledDefaultsBaseURL(t *testing.T) {
@@ -785,7 +846,7 @@ func TestLoadEmailProviderResendValidation(t *testing.T) {
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
 	keys := []string{
-		"APP_ENV", "HTTP_ADDR", "HTTP_READ_TIMEOUT", "HTTP_WRITE_TIMEOUT", "HTTP_IDLE_TIMEOUT", "HTTP_SHUTDOWN_TIMEOUT",
+		"APP_ENV", "HTTP_ADDR", "HTTP_READ_TIMEOUT", "HTTP_WRITE_TIMEOUT", "HTTP_IDLE_TIMEOUT", "HTTP_SHUTDOWN_TIMEOUT", "CORS_ALLOWED_ORIGINS",
 		"DATABASE_URL", "DB_MAX_CONNS", "DB_MIN_CONNS", "DB_MAX_CONN_LIFETIME", "DB_MAX_CONN_IDLE_TIME", "DB_HEALTH_TIMEOUT",
 		"AUTH_JWT_SECRET", "AUTH_ACCESS_TOKEN_TTL", "AUTH_REFRESH_ABSOLUTE_TTL", "AUTH_REFRESH_IDLE_TTL",
 		"AUTH_EMAIL_VERIFICATION_TTL", "AUTH_ARGON2_TIME", "AUTH_ARGON2_MEMORY_KIB", "AUTH_ARGON2_THREADS", "AUTH_ARGON2_KEY_LEN",
@@ -803,10 +864,10 @@ func clearConfigEnv(t *testing.T) {
 		"PACKAGE_EXPIRY_TIMEZONE", "PACKAGE_EXPIRY_SCAN_HOUR", "PACKAGE_EXPIRY_SCHEDULER_INTERVAL",
 		"JOB_SCHEDULER_REFRESH_INTERVAL",
 		"PACKAGE_EXPIRY_SCAN_BATCH_SIZE",
-		"WORKER_CONCURRENCY", "WORKER_POLL_INTERVAL", "WORKER_LEASE_DURATION", "WORKER_JOB_TIMEOUT",
+		"WORKER_CONCURRENCY", "WORKER_POLL_INTERVAL", "WORKER_LEASE_DURATION", "WORKER_JOB_TIMEOUT", "WORKER_MAX_JOB_TIMEOUT",
 		"WORKER_ID", "WORKER_SHUTDOWN_TIMEOUT", "WORKER_RETRY_BASE_DELAY", "WORKER_RETRY_MAX_DELAY",
 		"WORKER_LEASE_RECOVERY_INTERVAL",
-		"TJK_ENABLED", "TJK_BASE_URL", "TJK_HTTP_TIMEOUT", "TJK_BATCH_SIZE", "TJK_MAX_BODY_BYTES",
+		"TJK_ENABLED", "TJK_BASE_URL", "TJK_HTTP_TIMEOUT", "TJK_PAGE_TIMEOUT", "TJK_MAX_BODY_BYTES",
 	}
 	for _, key := range keys {
 		prev, had := os.LookupEnv(key)

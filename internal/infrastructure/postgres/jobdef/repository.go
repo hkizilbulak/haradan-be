@@ -254,6 +254,7 @@ func (r *Repository) enqueueTx(ctx context.Context, req appjobadmin.EnqueueReque
 			triggerKind = "MANUAL"
 		}
 		checkpoint := []byte(`{"page":0}`)
+		payload = json.RawMessage(`{"page":0}`)
 		_, err := r.db.Exec(ctx, `
 INSERT INTO hrd_tjk_sync_runs (
   id, mode, status, source_adapter, scope_key, checkpoint, trigger_kind, created_by_user_id,

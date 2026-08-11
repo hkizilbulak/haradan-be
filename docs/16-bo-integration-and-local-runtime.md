@@ -98,7 +98,7 @@ Set `IMAGE_PROCESSOR_PROVIDER=tinify`, `TINIFY_API_KEY`, and profile width/heigh
 
 - `TJK_ENABLED=true` to allow the API/scheduler to enqueue and workers to execute TJK jobs.
 - `TJK_BASE_URL` optional (defaults to the public TJK host when enabled).
-- Tunables: `TJK_HTTP_TIMEOUT`, `TJK_BATCH_SIZE`, `TJK_MAX_BODY_BYTES`.
+- Tunables: `TJK_HTTP_TIMEOUT` (one provider request), `TJK_PAGE_TIMEOUT` (one durable bulk/enrichment page), and `TJK_MAX_BODY_BYTES`. Source page size is controlled by TJK; Haradan does not impose a total-record limit. Keep the page timeout below `WORKER_LEASE_DURATION`.
 
 Do not run real TJK sync against production hosts from disposable local environments unless intentionally testing the adapter.
 
@@ -114,7 +114,9 @@ Last active admin demotion/disable is rejected with **409** and serialized with 
 
 ## CORS / cookies
 
-BO Go server CORS allowlist must match the local/prod BO origin. Session cookies require compatible `SameSite` / HTTPS settings for the deployment topology.
+- Direct public browser clients call BE with bearer tokens and require their exact origins in BE `CORS_ALLOWED_ORIGINS` (comma-separated `http://` or `https://` origins; no wildcard, credentials, path, query, or fragment). Native Android/iOS requests have no browser `Origin` restriction and use `clientContext=MOBILE`.
+- BO browser traffic stays same-origin with the BO Go server; that server proxies `/api/*` and owns the HttpOnly session cookies. The BO origin therefore does not need BE CORS unless operators intentionally bypass the proxy.
+- CORS is not an authentication boundary. Session cookies still require compatible `SameSite`, `Secure`, and HTTPS settings for the chosen deployment topology.
 
 ## BO → Go proxy → BE auth topology
 

@@ -16,17 +16,17 @@ import (
 // PageFetcher is deliberately small so the application layer remains independent
 // of the HTTP adapter and can be fixture-tested.
 type PageFetcher interface {
-	FetchPage(context.Context, string) ([]domain.HorseInput, error)
+	FetchPage(context.Context, string) (domain.PageResult, error)
 }
 
 // WorkerRepository atomically claims, persists and finalizes durable TJK jobs.
 type WorkerRepository interface {
-	ClaimTJKJob(context.Context, string, time.Time, time.Time) (uuid.UUID, domain.Run, bool, error)
-	ApplyTJKPage(context.Context, uuid.UUID, domain.Run, []domain.HorseInput, string, time.Time) error
-	FinishTJKRun(context.Context, uuid.UUID, domain.Run, time.Time) error
+	ClaimTJKJob(context.Context, string, time.Time, time.Time) (domain.PageJob, domain.Run, bool, error)
+	ApplyTJKPage(context.Context, domain.PageJob, domain.Run, domain.PageResult, time.Time) error
+	FinishTJKRun(context.Context, domain.PageJob, domain.Run, time.Time) error
 	// FailTJKJob marks the job failed. When retryable is true and attempts remain
 	// (attempt_count < max_attempts), the job is requeued with backoff.
-	FailTJKJob(context.Context, uuid.UUID, string, time.Time, bool) error
+	FailTJKJob(context.Context, domain.PageJob, uuid.UUID, string, time.Time, bool) error
 }
 
 type Worker struct {
@@ -45,26 +45,89 @@ func NewWorker(repo WorkerRepository, fetcher PageFetcher, workerID string) (*Wo
 
 func (w *Worker) ProcessOnce(ctx context.Context, lease time.Duration) (bool, error) {
 	now := w.now()
-	jobID, run, ok, err := w.repo.ClaimTJKJob(ctx, w.workerID, now, now.Add(lease))
+	job, run, ok, err := w.repo.ClaimTJKJob(ctx, w.workerID, now, now.Add(lease))
 	if err != nil || !ok {
 		return ok, err
 	}
 	if run.CancelRequestedAt != nil {
-		return true, w.repo.FinishTJKRun(ctx, jobID, run, now)
+		return true, w.repo.FinishTJKRun(ctx, job, run, now)
 	}
-	page := checkpointPage(run.Checkpoint)
-	horses, err := w.fetcher.FetchPage(ctx, strconv.Itoa(page))
-	if err != nil {
-		retryable := isRetryable(err)
-		failCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		_ = w.repo.FailTJKJob(failCtx, jobID, "TJK sayfası alınamadı", now, retryable)
+	checkpoint := parseCheckpoint(run.Checkpoint)
+	if job.Page != checkpoint.Page {
+		err := fmt.Errorf("TJK job page does not match run checkpoint")
+		w.fail(job, run.ID, "TJK sayfa kimliği checkpoint ile uyuşmuyor", now, false)
 		return true, err
 	}
-	if len(horses) == 0 {
-		return true, w.repo.FinishTJKRun(ctx, jobID, run, now)
+	if job.Page >= maxTraversalPages {
+		err := fmt.Errorf("TJK page safety ceiling reached")
+		w.fail(job, run.ID, "TJK sayfa güvenlik sınırına ulaştı", now, false)
+		return true, err
 	}
-	return true, w.repo.ApplyTJKPage(ctx, jobID, run, horses, strconv.Itoa(page+1), now)
+	page, err := w.fetcher.FetchPage(ctx, strconv.Itoa(job.Page))
+	if err != nil {
+		w.fail(job, run.ID, "TJK sayfası alınamadı", now, isRetryable(err))
+		return true, err
+	}
+	if page.EndOfSource {
+		if len(page.Horses) != 0 {
+			err := fmt.Errorf("TJK EOF page contains horses")
+			w.fail(job, run.ID, "TJK sayfa sonu yanıtı tutarsız", now, true)
+			return true, err
+		}
+		if err := w.repo.FinishTJKRun(ctx, job, run, now); err != nil {
+			w.fail(job, run.ID, "TJK senkronizasyonu tamamlanamadı", now, true)
+			return true, err
+		}
+		return true, nil
+	}
+	if page.Fingerprint == "" {
+		err := fmt.Errorf("TJK page fingerprint is missing")
+		w.fail(job, run.ID, "TJK sayfa kimliği üretilemedi", now, true)
+		return true, err
+	}
+	if checkpoint.LastFingerprint != "" && checkpoint.LastFingerprint == page.Fingerprint {
+		err := fmt.Errorf("TJK provider returned a repeated page")
+		w.fail(job, run.ID, "TJK kaynağı ilerlemeyen aynı sayfayı döndürdü", now, true)
+		return true, err
+	}
+	if err := w.repo.ApplyTJKPage(ctx, job, run, page, now); err != nil {
+		w.fail(job, run.ID, "TJK sayfası kalıcılaştırılamadı", now, true)
+		return true, err
+	}
+	return true, nil
+}
+
+const maxTraversalPages = 100000
+
+type checkpoint struct {
+	Page            int    `json:"page"`
+	LastFingerprint string `json:"lastFingerprint,omitempty"`
+	PagesProcessed  int    `json:"pagesProcessed,omitempty"`
+	SourceProcessed int    `json:"sourceProcessed,omitempty"`
+	SourceTotal     *int   `json:"sourceTotal,omitempty"`
+}
+
+func parseCheckpoint(raw json.RawMessage) checkpoint {
+	var cp checkpoint
+	if json.Unmarshal(raw, &cp) == nil && cp.Page >= 0 {
+		return cp
+	}
+	var legacy struct {
+		Page string `json:"page"`
+	}
+	if json.Unmarshal(raw, &legacy) == nil {
+		if page, err := strconv.Atoi(legacy.Page); err == nil && page >= 0 {
+			cp.Page = page
+			return cp
+		}
+	}
+	return checkpoint{}
+}
+
+func (w *Worker) fail(job domain.PageJob, runID uuid.UUID, message string, now time.Time, retryable bool) {
+	failCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = w.repo.FailTJKJob(failCtx, job, runID, message, now, retryable)
 }
 
 type retryableError interface {
@@ -85,21 +148,5 @@ func isRetryable(err error) bool {
 // checkpointPage returns the legacy 0-based TJK PageNumber stored in the run
 // checkpoint. Missing/invalid checkpoints start at page 0.
 func checkpointPage(raw json.RawMessage) int {
-	var v struct {
-		Page json.RawMessage `json:"page"`
-	}
-	if json.Unmarshal(raw, &v) != nil {
-		return 0
-	}
-	var page int
-	if json.Unmarshal(v.Page, &page) == nil && page >= 0 {
-		return page
-	}
-	var text string
-	if json.Unmarshal(v.Page, &text) == nil {
-		if n, err := strconv.Atoi(text); err == nil && n >= 0 {
-			return n
-		}
-	}
-	return 0
+	return parseCheckpoint(raw).Page
 }

@@ -36,6 +36,16 @@ type Horse struct {
 	Dam    string
 }
 
+// BulkPage is a structurally classified DataRows/Atlar response. EndOfSource
+// is set only when the parser recognizes provider-owned empty-result evidence.
+type BulkPage struct {
+	Horses       []Horse
+	EndOfSource  bool
+	Fingerprint  string
+	SourceTotal  *int
+	SkippedCount int
+}
+
 // Detail holds typed fields and race statistics from AtKosuBilgileri.
 type Detail struct {
 	Name          string
@@ -44,8 +54,10 @@ type Detail struct {
 	HandicapPoint string
 	Sire          string
 	Dam           string
+	MaidenSire    string
 	Owner         string
 	Grower        string
+	Earning       string
 	Statistics    []RaceStatistic
 }
 
@@ -82,18 +94,23 @@ type Sibling struct {
 // DetailDocument is the controlled subset of horse.detail JSONB keys that this
 // adapter can populate from pedigree/sibling/statistics responses.
 type DetailDocument struct {
-	Pedigree   []PedigreeEntry `json:"pedigree,omitempty"`
-	Siblings   []Sibling       `json:"siblings,omitempty"`
-	Statistics []RaceStatistic `json:"statistics,omitempty"`
+	Profile    *DetailProfile   `json:"profile,omitempty"`
+	Pedigree   *[]PedigreeEntry `json:"pedigree,omitempty"`
+	Siblings   *[]Sibling       `json:"siblings,omitempty"`
+	Statistics *[]RaceStatistic `json:"statistics,omitempty"`
 }
 
-// BuildDetailDocument maps supported client results into the horse detail object.
-func BuildDetailDocument(pedigree []PedigreeEntry, siblings []Sibling, stats []RaceStatistic) DetailDocument {
-	return DetailDocument{
-		Pedigree:   pedigree,
-		Siblings:   siblings,
-		Statistics: stats,
-	}
+// DetailProfile preserves useful values available from AtKosuBilgileri that do
+// not belong in query-oriented horse columns.
+type DetailProfile struct {
+	SourceName    string `json:"sourceName,omitempty"`
+	AgeText       string `json:"ageText,omitempty"`
+	BirthDate     string `json:"birthDate,omitempty"`
+	HandicapPoint string `json:"handicapPoint,omitempty"`
+	MaidenSire    string `json:"maidenSire,omitempty"`
+	Owner         string `json:"owner,omitempty"`
+	Grower        string `json:"grower,omitempty"`
+	Earning       string `json:"earning,omitempty"`
 }
 
 // Config configures the TJK HTTP client. BaseURL is the host origin
@@ -148,8 +165,9 @@ func NewClient(cfg Config) (*Client, error) {
 }
 
 // FetchPage requests legacy bulk summary DataRows/Atlar for a 0-based PageNumber.
-// An empty cursor is treated as page 0. Empty result means end of listing.
-func (c *Client) FetchPage(ctx context.Context, cursor string) ([]Horse, error) {
+// An empty cursor is treated as page 0. Only recognized provider-owned empty
+// evidence means end of listing; an otherwise empty HTTP 200 is an error.
+func (c *Client) FetchPage(ctx context.Context, cursor string) (BulkPage, error) {
 	page := strings.TrimSpace(cursor)
 	if page == "" {
 		page = "0"
@@ -160,7 +178,7 @@ func (c *Client) FetchPage(ctx context.Context, cursor string) ([]Horse, error) 
 	q.Set("X-Requested-With", "XMLHttpRequest")
 	body, err := c.get(ctx, pathBulkSummary, q)
 	if err != nil {
-		return nil, err
+		return BulkPage{}, err
 	}
 	return parseBulkSummary(body)
 }

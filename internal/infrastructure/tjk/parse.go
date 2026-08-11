@@ -2,38 +2,91 @@ package tjk
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"golang.org/x/net/html"
 )
 
-func parseBulkSummary(body []byte) ([]Horse, error) {
+var totalCountPattern = regexp.MustCompile(`^Toplam\s+([0-9]+)(?:\s|$)`)
+
+func parseBulkSummary(body []byte) (BulkPage, error) {
 	doc, err := html.Parse(bytes.NewReader(body))
 	if err != nil {
-		return nil, permanentErr("parse TJK HTML failed", 0)
+		return BulkPage{}, transientErr("parse TJK HTML failed", 0)
 	}
-	if horses := parseBulkLinkSequence(doc); len(horses) > 0 {
-		return horses, nil
+	total := parseBulkTotal(doc)
+	if horses, candidates := parseBulkLinkSequence(doc); candidates > 0 {
+		return classifiedBulkPage(body, horses, candidates-len(horses), total)
 	}
-	if horses := parseBulkTableRows(doc); len(horses) > 0 {
-		return horses, nil
+	if horses, candidates := parseBulkTableRows(doc); candidates > 0 {
+		return classifiedBulkPage(body, horses, candidates-len(horses), total)
 	}
-	// Empty page is a valid end-of-listing signal for the worker.
-	return []Horse{}, nil
+	if total != nil && *total == 0 {
+		return BulkPage{EndOfSource: true, SourceTotal: total}, nil
+	}
+	return BulkPage{}, transientErr("unrecognized TJK horse page", 0)
+}
+
+func classifiedBulkPage(body []byte, horses []Horse, skipped int, total *int) (BulkPage, error) {
+	if total != nil && *total == 0 {
+		return BulkPage{}, transientErr("inconsistent TJK horse page", 0)
+	}
+	h := sha256.New()
+	if len(horses) == 0 {
+		_, _ = h.Write(body)
+	} else {
+		for _, horse := range horses {
+			_, _ = h.Write([]byte(horse.Number))
+			_, _ = h.Write([]byte{0})
+		}
+	}
+	return BulkPage{
+		Horses: horses, Fingerprint: hex.EncodeToString(h.Sum(nil)),
+		SourceTotal: total, SkippedCount: skipped,
+	}, nil
+}
+
+func parseBulkTotal(doc *html.Node) *int {
+	var total *int
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if total != nil {
+			return
+		}
+		if n.Type == html.ElementNode && n.Data == "div" {
+			if match := totalCountPattern.FindStringSubmatch(normalizedText(n)); len(match) == 2 {
+				if value, err := strconv.Atoi(match[1]); err == nil && value >= 0 {
+					total = &value
+					return
+				}
+			}
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(doc)
+	return total
 }
 
 // parseBulkLinkSequence mirrors legacy HorseService.parseHorseSummary: walk
 // nodes for QueryParameter_AtId / BabaAdi / AnneAdi anchors. Malformed items
 // are skipped without aborting the batch.
-func parseBulkLinkSequence(doc *html.Node) []Horse {
+func parseBulkLinkSequence(doc *html.Node) ([]Horse, int) {
 	var out []Horse
+	candidates := 0
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
 		if n.Type == html.ElementNode && n.Data == "a" {
 			href := attr(n, "href")
 			switch {
 			case containsFold(href, "QueryParameter_AtId"):
+				candidates++
 				id := extractAtID(href)
 				name := normalizedText(n)
 				if id != "" && name != "" {
@@ -55,7 +108,7 @@ func parseBulkLinkSequence(doc *html.Node) []Horse {
 		}
 	}
 	walk(doc)
-	return out
+	return out, candidates
 }
 
 func raceAfterAnchor(n *html.Node) string {
@@ -94,13 +147,17 @@ func flatNodeText(n *html.Node) string {
 	return normalizedText(n)
 }
 
-func parseBulkTableRows(doc *html.Node) []Horse {
+func parseBulkTableRows(doc *html.Node) ([]Horse, int) {
 	var out []Horse
+	candidates := 0
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
 		if n.Type == html.ElementNode && n.Data == "tr" {
-			if h, ok := parseTableRow(n); ok {
-				out = append(out, h)
+			if h, ok, candidate := parseTableRow(n); candidate {
+				candidates++
+				if ok {
+					out = append(out, h)
+				}
 			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -108,19 +165,27 @@ func parseBulkTableRows(doc *html.Node) []Horse {
 		}
 	}
 	walk(doc)
-	return out
+	return out, candidates
 }
 
-func parseTableRow(row *html.Node) (Horse, bool) {
+func parseTableRow(row *html.Node) (Horse, bool, bool) {
 	var cells []string
 	var number string
+	var horseLink bool
 	var visit func(*html.Node)
 	visit = func(n *html.Node) {
 		if n.Type == html.ElementNode && n.Data == "td" {
 			cells = append(cells, normalizedText(n))
 		}
 		if n.Type == html.ElementNode && n.Data == "a" {
-			if id := extractAtID(attr(n, "href")); id != "" {
+			href := attr(n, "href")
+			// Generic provider/error pages may also contain ordinary two-column
+			// tables. Treat a row as a horse candidate only when it carries the
+			// provider's horse-id link contract.
+			if containsFold(href, "AtId=") {
+				horseLink = true
+			}
+			if id := extractAtID(href); id != "" {
 				number = id
 			}
 		}
@@ -129,8 +194,11 @@ func parseTableRow(row *html.Node) (Horse, bool) {
 		}
 	}
 	visit(row)
-	if number == "" || len(cells) < 2 {
-		return Horse{}, false
+	if len(cells) < 2 || !horseLink {
+		return Horse{}, false, false
+	}
+	if number == "" {
+		return Horse{}, false, true
 	}
 	h := Horse{Number: number, Name: cells[1]}
 	if len(cells) > 2 {
@@ -142,7 +210,7 @@ func parseTableRow(row *html.Node) (Horse, bool) {
 	if len(cells) > 4 {
 		h.Dam = cells[4]
 	}
-	return h, h.Name != ""
+	return h, h.Name != "", true
 }
 
 func parseDetail(body []byte) (Detail, error) {
@@ -151,10 +219,15 @@ func parseDetail(body []byte) (Detail, error) {
 		return Detail{}, permanentErr("parse TJK detail HTML failed", 0)
 	}
 	var d Detail
-	for _, spanTexts := range collectGridSpanPairs(doc, "grid_8") {
+	pairs := collectGridSpanPairs(doc, "grid_8")
+	statTables := findTablesUnderClass(doc, "grid_10")
+	if len(pairs) == 0 && len(statTables) == 0 {
+		return Detail{}, transientErr("unrecognized TJK detail page", 0)
+	}
+	for _, spanTexts := range pairs {
 		applyDetailPair(&d, spanTexts[0], spanTexts[1])
 	}
-	d.Statistics = parseStatisticRows(doc)
+	d.Statistics = parseStatisticRows(statTables)
 	return d, nil
 }
 
@@ -201,22 +274,24 @@ func applyDetailPair(d *Detail, key, value string) {
 	case "Baba":
 		d.Sire = value
 	case "Anne":
-		// Legacy: "Anne / Maidensire" — keep dam name only in typed Dam.
 		if parts := strings.SplitN(value, "/", 2); len(parts) > 0 {
 			d.Dam = strings.TrimSpace(parts[0])
-		} else {
-			d.Dam = value
+			if len(parts) == 2 {
+				d.MaidenSire = strings.TrimSpace(parts[1])
+			}
 		}
 	case "Gerçek Sahip":
 		d.Owner = value
 	case "Yetiştirici":
 		d.Grower = value
+	case "Kazanç":
+		d.Earning = value
 	}
 }
 
-func parseStatisticRows(doc *html.Node) []RaceStatistic {
+func parseStatisticRows(tables []*html.Node) []RaceStatistic {
 	var out []RaceStatistic
-	for _, table := range findTablesUnderClass(doc, "grid_10") {
+	for _, table := range tables {
 		for _, row := range tableBodyRows(table) {
 			cells := rowCellTexts(row)
 			if len(cells) == 0 {
@@ -258,30 +333,33 @@ func parsePedigree(body []byte) ([]PedigreeEntry, error) {
 	if err != nil {
 		return nil, permanentErr("parse TJK pedigree HTML failed", 0)
 	}
-	// Legacy allocates 7 Pedigri slots and fills by rowspan.
-	entries := make([]PedigreeEntry, 7)
+	// Keep the legacy rowspan-to-pair ordering, but grow dynamically. The old
+	// fixed seven slots silently overwrote the final entry when the provider
+	// returned a deeper structure.
+	tables := findTablesUnderClass(doc, "grid_24")
+	if len(tables) == 0 {
+		return nil, transientErr("unrecognized TJK pedigree page", 0)
+	}
+	entries := make([]PedigreeEntry, 0, 7)
 	i, j := 1, 3
-	for _, table := range findTablesUnderClass(doc, "grid_24") {
+	for _, table := range tables {
 		for _, row := range tableBodyRows(table) {
 			for td := firstChildElement(row, "td"); td != nil; td = nextSiblingElement(td, "td") {
 				raw := nodeHTMLHint(td)
 				text := normalizedText(td)
 				switch {
 				case strings.Contains(raw, `rowspan="4"`):
+					ensurePedigreeEntry(&entries, 0)
 					setPedigreeParent(&entries[0], td, text)
 				case strings.Contains(raw, `rowspan="2"`):
+					ensurePedigreeEntry(&entries, i)
 					if setPedigreeParent(&entries[i], td, text) {
 						i++
-						if i >= len(entries) {
-							i = len(entries) - 1
-						}
 					}
 				default:
+					ensurePedigreeEntry(&entries, j)
 					if setPedigreeParent(&entries[j], td, text) {
 						j++
-						if j >= len(entries) {
-							j = len(entries) - 1
-						}
 					}
 				}
 			}
@@ -292,6 +370,12 @@ func parsePedigree(body []byte) ([]PedigreeEntry, error) {
 		entries = entries[:len(entries)-1]
 	}
 	return entries, nil
+}
+
+func ensurePedigreeEntry(entries *[]PedigreeEntry, index int) {
+	for len(*entries) <= index {
+		*entries = append(*entries, PedigreeEntry{})
+	}
 }
 
 func setPedigreeParent(e *PedigreeEntry, td *html.Node, text string) bool {
@@ -309,8 +393,18 @@ func parseSiblings(body []byte) ([]Sibling, error) {
 	if err != nil {
 		return nil, permanentErr("parse TJK sibling HTML failed", 0)
 	}
+	tables := findTablesUnderClass(doc, "grid_24")
+	if len(tables) == 0 {
+		// The live provider uses this exact, provider-owned response when the
+		// horse authoritatively has no same-dam siblings. Unlike an arbitrary
+		// empty 200, it is safe to replace stale sibling data with an empty list.
+		if hasExactElementText(doc, "span", "Bu atın aynı anneden kardeşi yoktur.") {
+			return []Sibling{}, nil
+		}
+		return nil, transientErr("unrecognized TJK sibling page", 0)
+	}
 	var out []Sibling
-	for _, table := range findTablesUnderClass(doc, "grid_24") {
+	for _, table := range tables {
 		for _, row := range tableBodyRows(table) {
 			cells := rowCellTexts(row)
 			if len(cells) == 0 {
@@ -348,6 +442,25 @@ func parseSiblings(body []byte) ([]Sibling, error) {
 		}
 	}
 	return out, nil
+}
+
+func hasExactElementText(doc *html.Node, element, text string) bool {
+	found := false
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if found {
+			return
+		}
+		if n.Type == html.ElementNode && n.Data == element && normalizedText(n) == text {
+			found = true
+			return
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(doc)
+	return found
 }
 
 func findTablesUnderClass(doc *html.Node, className string) []*html.Node {

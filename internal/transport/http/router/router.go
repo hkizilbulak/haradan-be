@@ -17,7 +17,8 @@ const APIBasePath = "/api"
 
 // Options configures optional router dependencies.
 type Options struct {
-	AuthService *appauth.Service
+	AuthService        *appauth.Service
+	CORSAllowedOrigins []string
 }
 
 // New builds the Gin engine with foundation middleware and OpenAPI routes.
@@ -32,6 +33,7 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 	if len(opts) > 0 {
 		opt = opts[0]
 	}
+	r.Use(middleware.CORS(opt.CORSAllowedOrigins))
 	if opt.AuthService != nil {
 		protected := make([]authn.ProtectedRoute, 0,
 			len(authn.AccountSessionProtectedRoutes)+len(authn.AdvertOwnerProtectedRoutes)+

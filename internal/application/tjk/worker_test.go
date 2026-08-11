@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -24,20 +25,32 @@ type fakeRepo struct {
 	failMessage string
 }
 
-func (f *fakeRepo) ClaimTJKJob(context.Context, string, time.Time, time.Time) (uuid.UUID, domain.Run, bool, error) {
+func (f *fakeRepo) ClaimTJKJob(context.Context, string, time.Time, time.Time) (domain.PageJob, domain.Run, bool, error) {
 	f.claimCount++
-	return uuid.New(), f.run, true, nil
+	page := 0
+	var cp struct {
+		Page json.RawMessage `json:"page"`
+	}
+	if json.Unmarshal(f.run.Checkpoint, &cp) == nil {
+		if json.Unmarshal(cp.Page, &page) != nil {
+			var text string
+			if json.Unmarshal(cp.Page, &text) == nil {
+				_, _ = fmt.Sscanf(text, "%d", &page)
+			}
+		}
+	}
+	return domain.PageJob{ID: uuid.New(), Page: page}, f.run, true, nil
 }
-func (f *fakeRepo) ApplyTJKPage(_ context.Context, _ uuid.UUID, _ domain.Run, horses []domain.HorseInput, next string, _ time.Time) error {
-	f.applied = next
-	f.appliedIn = append([]domain.HorseInput(nil), horses...)
+func (f *fakeRepo) ApplyTJKPage(_ context.Context, job domain.PageJob, _ domain.Run, page domain.PageResult, _ time.Time) error {
+	f.applied = fmt.Sprintf("%d", job.Page+1)
+	f.appliedIn = append([]domain.HorseInput(nil), page.Horses...)
 	return nil
 }
-func (f *fakeRepo) FinishTJKRun(context.Context, uuid.UUID, domain.Run, time.Time) error {
+func (f *fakeRepo) FinishTJKRun(context.Context, domain.PageJob, domain.Run, time.Time) error {
 	f.finished = true
 	return nil
 }
-func (f *fakeRepo) FailTJKJob(_ context.Context, _ uuid.UUID, message string, _ time.Time, retryable bool) error {
+func (f *fakeRepo) FailTJKJob(_ context.Context, _ domain.PageJob, _ uuid.UUID, message string, _ time.Time, retryable bool) error {
 	f.failed = true
 	f.failMessage = message
 	f.retryable = &retryable
@@ -46,16 +59,16 @@ func (f *fakeRepo) FailTJKJob(_ context.Context, _ uuid.UUID, message string, _ 
 
 type fakeFetcher struct {
 	cursor string
-	horses []domain.HorseInput
+	page   domain.PageResult
 	err    error
 }
 
-func (f *fakeFetcher) FetchPage(_ context.Context, cursor string) ([]domain.HorseInput, error) {
+func (f *fakeFetcher) FetchPage(_ context.Context, cursor string) (domain.PageResult, error) {
 	f.cursor = cursor
 	if f.err != nil {
-		return nil, f.err
+		return domain.PageResult{}, f.err
 	}
-	return f.horses, nil
+	return f.page, nil
 }
 
 type transientErr struct{}
@@ -70,7 +83,7 @@ func (permanentErr) Retryable() bool { return false }
 
 func TestWorkerStartsAtPageZero(t *testing.T) {
 	repo := &fakeRepo{run: domain.Run{ID: uuid.New(), Checkpoint: json.RawMessage(`{"page":0}`)}}
-	fetcher := &fakeFetcher{horses: []domain.HorseInput{{Number: "1", Name: "A", Detail: json.RawMessage(`{"pedigree":[{"father":"F","mother":"M"}]}`)}}}
+	fetcher := &fakeFetcher{page: domain.PageResult{Fingerprint: "page-0", Horses: []domain.HorseInput{{Number: "1", Name: "A", Detail: json.RawMessage(`{"pedigree":[{"father":"F","mother":"M"}]}`)}}}}
 	w, err := apptjk.NewWorker(repo, fetcher, "worker-1")
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +105,7 @@ func TestWorkerStartsAtPageZero(t *testing.T) {
 
 func TestWorkerUsesCheckpointPage(t *testing.T) {
 	repo := &fakeRepo{run: domain.Run{ID: uuid.New(), Checkpoint: json.RawMessage(`{"page":"3"}`)}}
-	fetcher := &fakeFetcher{horses: []domain.HorseInput{{Number: "1", Name: "A"}}}
+	fetcher := &fakeFetcher{page: domain.PageResult{Fingerprint: "page-3", Horses: []domain.HorseInput{{Number: "1", Name: "A"}}}}
 	w, err := apptjk.NewWorker(repo, fetcher, "worker-1")
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +120,7 @@ func TestWorkerUsesCheckpointPage(t *testing.T) {
 
 func TestWorkerFinishesOnEmptyPage(t *testing.T) {
 	repo := &fakeRepo{run: domain.Run{ID: uuid.New(), Checkpoint: json.RawMessage(`{"page":0}`)}}
-	fetcher := &fakeFetcher{}
+	fetcher := &fakeFetcher{page: domain.PageResult{EndOfSource: true}}
 	w, err := apptjk.NewWorker(repo, fetcher, "worker-1")
 	if err != nil {
 		t.Fatal(err)
@@ -116,6 +129,20 @@ func TestWorkerFinishesOnEmptyPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !repo.finished || repo.failed {
+		t.Fatalf("finished=%v failed=%v", repo.finished, repo.failed)
+	}
+}
+
+func TestWorkerDoesNotFinishOnUnverifiedEmptyResult(t *testing.T) {
+	repo := &fakeRepo{run: domain.Run{ID: uuid.New(), Checkpoint: json.RawMessage(`{"page":0}`)}}
+	w, err := apptjk.NewWorker(repo, &fakeFetcher{}, "worker-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.ProcessOnce(context.Background(), time.Second); err == nil {
+		t.Fatal("expected unverified empty result to fail")
+	}
+	if repo.finished || !repo.failed {
 		t.Fatalf("finished=%v failed=%v", repo.finished, repo.failed)
 	}
 }
@@ -169,5 +196,22 @@ func TestWorkerTreatsDeadlineAsRetryable(t *testing.T) {
 	// Empty checkpoint must still request page 0.
 	if fetcher.cursor != "0" {
 		t.Fatalf("cursor = %q", fetcher.cursor)
+	}
+}
+
+func TestWorkerRejectsRepeatedPageFingerprint(t *testing.T) {
+	repo := &fakeRepo{run: domain.Run{ID: uuid.New(), Checkpoint: json.RawMessage(`{"page":2,"lastFingerprint":"same"}`)}}
+	fetcher := &fakeFetcher{page: domain.PageResult{
+		Fingerprint: "same", Horses: []domain.HorseInput{{Number: "1", Name: "A"}},
+	}}
+	w, err := apptjk.NewWorker(repo, fetcher, "worker-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.ProcessOnce(context.Background(), time.Second); err == nil {
+		t.Fatal("expected repeated page failure")
+	}
+	if !repo.failed || repo.retryable == nil || !*repo.retryable || repo.applied != "" {
+		t.Fatalf("failed=%v retryable=%v applied=%q", repo.failed, repo.retryable, repo.applied)
 	}
 }

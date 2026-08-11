@@ -44,6 +44,12 @@ func (f *cancelFakeRepo) EnqueueRun(_ context.Context, id uuid.UUID, _ time.Time
 	f.triggers++
 	return nil
 }
+func (f *cancelFakeRepo) CreateRunAndEnqueue(ctx context.Context, run domain.Run, now time.Time) error {
+	if err := f.CreateRun(ctx, run); err != nil {
+		return err
+	}
+	return f.EnqueueRun(ctx, run.ID, now)
+}
 func (*cancelFakeRepo) ListRuns(context.Context, *string, *string, int) ([]domain.Run, bool, error) {
 	return nil, false, nil
 }
