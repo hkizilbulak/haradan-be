@@ -23,6 +23,8 @@ const (
 	pathDetail      = "/TR/YarisSever/Query/ConnectedPage/AtKosuBilgileri"
 	pathPedigree    = "/TR/YarisSever/Query/Pedigri/Pedigri"
 	pathSibling     = "/TR/YarisSever/Query/Kardes/Kardes"
+	pathMating      = "/TR/YarisSever/Query/AsimRaporu/AsimRaporu"
+	pathOffspring   = "/TR/YarisSever/Query/Yavru/Yavru"
 )
 
 var ErrUnconfigured = permanentErr("tjk adapter is not configured", 0)
@@ -91,13 +93,39 @@ type Sibling struct {
 	Earning    string
 }
 
+// MatingEntry is one breeding/mating statistic record (e.g. for stallion/mare).
+type MatingEntry struct {
+	Year       string `json:"year,omitempty"`
+	SireName   string `json:"sireName,omitempty"`
+	DamName    string `json:"damName,omitempty"`
+	CoverCount string `json:"coverCount,omitempty"`
+	FoalCount  string `json:"foalCount,omitempty"`
+	Status     string `json:"status,omitempty"`
+}
+
+// OffspringEntry is one offspring (yavru) race and earnings record.
+type OffspringEntry struct {
+	Name      string `json:"name,omitempty"`
+	BirthYear string `json:"birthYear,omitempty"`
+	SireName  string `json:"sireName,omitempty"`
+	DamName   string `json:"damName,omitempty"`
+	RaceCount string `json:"raceCount,omitempty"`
+	First     string `json:"first,omitempty"`
+	Second    string `json:"second,omitempty"`
+	Third     string `json:"third,omitempty"`
+	Fourth    string `json:"fourth,omitempty"`
+	Earning   string `json:"earning,omitempty"`
+}
+
 // DetailDocument is the controlled subset of horse.detail JSONB keys that this
-// adapter can populate from pedigree/sibling/statistics responses.
+// adapter can populate from pedigree/sibling/statistics/mating/offspring responses.
 type DetailDocument struct {
-	Profile    *DetailProfile   `json:"profile,omitempty"`
-	Pedigree   *[]PedigreeEntry `json:"pedigree,omitempty"`
-	Siblings   *[]Sibling       `json:"siblings,omitempty"`
-	Statistics *[]RaceStatistic `json:"statistics,omitempty"`
+	Profile    *DetailProfile    `json:"profile,omitempty"`
+	Pedigree   *[]PedigreeEntry  `json:"pedigree,omitempty"`
+	Siblings   *[]Sibling        `json:"siblings,omitempty"`
+	Statistics *[]RaceStatistic  `json:"statistics,omitempty"`
+	Mating     *[]MatingEntry    `json:"mating,omitempty"`
+	Offspring  *[]OffspringEntry `json:"offspring,omitempty"`
 }
 
 // DetailProfile preserves useful values available from AtKosuBilgileri that do
@@ -227,6 +255,36 @@ func (c *Client) FetchSiblings(ctx context.Context, atID string) ([]Sibling, err
 		return nil, err
 	}
 	return parseSiblings(body)
+}
+
+// FetchMating requests AsimRaporu for the given Atkodu.
+func (c *Client) FetchMating(ctx context.Context, atID string) ([]MatingEntry, error) {
+	atID = strings.TrimSpace(atID)
+	if atID == "" {
+		return nil, permanentErr("TJK Atkodu is required", 0)
+	}
+	q := url.Values{}
+	q.Set("Atkodu", atID)
+	body, err := c.get(ctx, pathMating, q)
+	if err != nil {
+		return nil, err
+	}
+	return parseMating(body)
+}
+
+// FetchOffspring requests Yavru for the given Atkodu.
+func (c *Client) FetchOffspring(ctx context.Context, atID string) ([]OffspringEntry, error) {
+	atID = strings.TrimSpace(atID)
+	if atID == "" {
+		return nil, permanentErr("TJK Atkodu is required", 0)
+	}
+	q := url.Values{}
+	q.Set("Atkodu", atID)
+	body, err := c.get(ctx, pathOffspring, q)
+	if err != nil {
+		return nil, err
+	}
+	return parseOffspring(body)
 }
 
 func (c *Client) get(ctx context.Context, path string, query url.Values) ([]byte, error) {
