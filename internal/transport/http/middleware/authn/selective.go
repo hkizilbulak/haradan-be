@@ -171,6 +171,18 @@ var AdvertUrgentProtectedRoutes = []ProtectedRoute{
 	{Method: "DELETE", Path: "/api/v1/adverts/:advertId/urgent"},
 }
 
+var CouponAdminProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/admin/coupons"},
+	{Method: "POST", Path: "/api/v1/admin/coupons"},
+	{Method: "GET", Path: "/api/v1/admin/coupons/:id"},
+	{Method: "PUT", Path: "/api/v1/admin/coupons/:id"},
+	{Method: "PATCH", Path: "/api/v1/admin/coupons/:id/active"},
+}
+
+var CouponUserProtectedRoutes = []ProtectedRoute{
+	{Method: "POST", Path: "/api/v1/coupons/validate"},
+}
+
 // Selective runs Bearer access-token auth only for the listed method+path pairs.
 // Unlisted routes (including public Health/Geo/Catalog/Auth and remaining 501 FE_AUTH
 // stubs) are left untouched.

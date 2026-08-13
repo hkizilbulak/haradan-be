@@ -444,6 +444,114 @@ func parseSiblings(body []byte) ([]Sibling, error) {
 	return out, nil
 }
 
+func parseMating(body []byte) ([]MatingEntry, error) {
+	doc, err := html.Parse(bytes.NewReader(body))
+	if err != nil {
+		return nil, permanentErr("parse TJK mating HTML failed", 0)
+	}
+	tables := findTablesUnderClass(doc, "grid_24")
+	if len(tables) == 0 {
+		if hasExactElementText(doc, "span", "Bu atın aşım kaydı bulunmamaktadır.") ||
+			hasExactElementText(doc, "span", "Bu atın aşım raporu bulunmamaktadır.") {
+			return []MatingEntry{}, nil
+		}
+		return nil, transientErr("unrecognized TJK mating page", 0)
+	}
+	var out []MatingEntry
+	for _, table := range tables {
+		for _, row := range tableBodyRows(table) {
+			cells := rowCellTexts(row)
+			if len(cells) == 0 {
+				continue
+			}
+			m := MatingEntry{}
+			if len(cells) > 0 {
+				m.Year = cells[0]
+			}
+			if len(cells) > 1 {
+				m.SireName = cells[1]
+			}
+			if len(cells) > 2 {
+				m.DamName = cells[2]
+			}
+			if len(cells) > 3 {
+				m.CoverCount = cells[3]
+			}
+			if len(cells) > 4 {
+				m.FoalCount = cells[4]
+			}
+			if len(cells) > 5 {
+				m.Status = cells[5]
+			}
+			if m.Year == "" && m.SireName == "" && m.DamName == "" {
+				continue
+			}
+			out = append(out, m)
+		}
+	}
+	return out, nil
+}
+
+func parseOffspring(body []byte) ([]OffspringEntry, error) {
+	doc, err := html.Parse(bytes.NewReader(body))
+	if err != nil {
+		return nil, permanentErr("parse TJK offspring HTML failed", 0)
+	}
+	tables := findTablesUnderClass(doc, "grid_24")
+	if len(tables) == 0 {
+		if hasExactElementText(doc, "span", "Bu atın kaydolmuş yavrusu bulunmamaktadır.") ||
+			hasExactElementText(doc, "span", "Bu atın yavrusu bulunmamaktadır.") {
+			return []OffspringEntry{}, nil
+		}
+		return nil, transientErr("unrecognized TJK offspring page", 0)
+	}
+	var out []OffspringEntry
+	for _, table := range tables {
+		for _, row := range tableBodyRows(table) {
+			cells := rowCellTexts(row)
+			if len(cells) == 0 {
+				continue
+			}
+			o := OffspringEntry{}
+			if len(cells) > 0 {
+				o.Name = cells[0]
+			}
+			if len(cells) > 1 {
+				o.BirthYear = cells[1]
+			}
+			if len(cells) > 2 {
+				o.SireName = cells[2]
+			}
+			if len(cells) > 3 {
+				o.DamName = cells[3]
+			}
+			if len(cells) > 4 {
+				o.RaceCount = cells[4]
+			}
+			if len(cells) > 5 {
+				o.First = cells[5]
+			}
+			if len(cells) > 6 {
+				o.Second = cells[6]
+			}
+			if len(cells) > 7 {
+				o.Third = cells[7]
+			}
+			if len(cells) > 8 {
+				o.Fourth = cells[8]
+			}
+			if len(cells) > 9 {
+				o.Earning = cells[9]
+			}
+			if o.Name == "" {
+				continue
+			}
+			out = append(out, o)
+		}
+	}
+	return out, nil
+}
+
 func hasExactElementText(doc *html.Node, element, text string) bool {
 	found := false
 	var walk func(*html.Node)

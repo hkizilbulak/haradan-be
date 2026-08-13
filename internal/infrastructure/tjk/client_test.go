@@ -230,8 +230,34 @@ func TestClientFetchDetailPedigreeSiblings(t *testing.T) {
 		t.Fatalf("siblings = %#v", sibs)
 	}
 
-	doc := DetailDocument{Pedigree: &ped, Siblings: &sibs, Statistics: &d.Statistics}
-	if doc.Pedigree == nil || len(*doc.Pedigree) == 0 || doc.Siblings == nil || len(*doc.Siblings) != 1 || doc.Statistics == nil || len(*doc.Statistics) != 1 {
+	mating, err := parseMating([]byte(`
+<div class="grid_24">
+<table class="tablesorter"><tbody>
+<tr><td>2023</td><td>StallionA</td><td>MareB</td><td>15</td><td>12</td><td>Gebe</td></tr>
+</tbody></table>
+</div>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mating) != 1 || mating[0].Year != "2023" || mating[0].SireName != "StallionA" || mating[0].CoverCount != "15" {
+		t.Fatalf("mating = %#v", mating)
+	}
+
+	offspring, err := parseOffspring([]byte(`
+<div class="grid_24">
+<table class="tablesorter"><tbody>
+<tr><td>FoalA</td><td>2021</td><td>SireA</td><td>DamB</td><td>10</td><td>3</td><td>2</td><td>1</td><td>0</td><td>150.000</td></tr>
+</tbody></table>
+</div>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(offspring) != 1 || offspring[0].Name != "FoalA" || offspring[0].BirthYear != "2021" || offspring[0].Earning != "150.000" {
+		t.Fatalf("offspring = %#v", offspring)
+	}
+
+	doc := DetailDocument{Pedigree: &ped, Siblings: &sibs, Statistics: &d.Statistics, Mating: &mating, Offspring: &offspring}
+	if doc.Pedigree == nil || len(*doc.Pedigree) == 0 || doc.Siblings == nil || len(*doc.Siblings) != 1 || doc.Statistics == nil || len(*doc.Statistics) != 1 || doc.Mating == nil || len(*doc.Mating) != 1 || doc.Offspring == nil || len(*doc.Offspring) != 1 {
 		t.Fatalf("detail doc = %#v", doc)
 	}
 }

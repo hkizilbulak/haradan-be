@@ -40,6 +40,8 @@ import (
 	notificationtplhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/notificationtpl"
 	packaginghandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/packaging"
 	tjkhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/tjk"
+	appcoupon "github.com/hkizilbulak/haradan-be/internal/application/coupon"
+	couponhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/coupon"
 )
 
 // DependencyChecker is a minimal health dependency contract.
@@ -69,6 +71,33 @@ type Server struct {
 	account      *accounthandler.Handler
 	adminuser    *adminuserhandler.Handler
 	tjk          *tjkhandler.Handler
+	coupon       *couponhandler.Handler
+}
+
+func (s *Server) WithCouponService(svc *appcoupon.Service) *Server {
+	if svc != nil {
+		s.coupon = couponhandler.NewHandler(svc, s.logger, respondError)
+	}
+	return s
+}
+
+func (s *Server) RegisterCouponRoutes(r gin.IRouter) {
+	if s.coupon == nil {
+		return
+	}
+	v1Admin := r.Group("/v1/admin/coupons")
+	{
+		v1Admin.GET("", s.coupon.AdminList)
+		v1Admin.POST("", s.coupon.AdminCreate)
+		v1Admin.GET("/:id", s.coupon.AdminGetByID)
+		v1Admin.PUT("/:id", s.coupon.AdminUpdate)
+		v1Admin.PATCH("/:id/active", s.coupon.AdminSetActive)
+	}
+
+	v1Public := r.Group("/v1/coupons")
+	{
+		v1Public.POST("/validate", s.coupon.UserValidate)
+	}
 }
 
 func (s *Server) WithTJKService(svc *apptjk.Service) *Server {

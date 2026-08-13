@@ -42,7 +42,8 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 				len(authn.AdvertUrgentProtectedRoutes)+len(authn.NotificationInboxProtectedRoutes)+
 				len(authn.BannerAdminProtectedRoutes)+len(authn.AdminUserProtectedRoutes)+
 				len(authn.TJKAdminProtectedRoutes)+len(authn.CatalogAdminProtectedRoutes)+
-				len(authn.MediaAdminProtectedRoutes))
+				len(authn.MediaAdminProtectedRoutes)+len(authn.CouponAdminProtectedRoutes)+
+				len(authn.CouponUserProtectedRoutes))
 		protected = append(protected, authn.AccountSessionProtectedRoutes...)
 		protected = append(protected, authn.AdvertOwnerProtectedRoutes...)
 		protected = append(protected, authn.MediaProtectedRoutes...)
@@ -56,6 +57,8 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 		protected = append(protected, authn.TJKAdminProtectedRoutes...)
 		protected = append(protected, authn.CatalogAdminProtectedRoutes...)
 		protected = append(protected, authn.MediaAdminProtectedRoutes...)
+		protected = append(protected, authn.CouponAdminProtectedRoutes...)
+		protected = append(protected, authn.CouponUserProtectedRoutes...)
 		r.Use(authn.Selective(opt.AuthService, logger, protected))
 	}
 
@@ -63,6 +66,10 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 		BaseURL:      APIBasePath,
 		ErrorHandler: generatedParseErrorHandler(logger),
 	})
+
+	if srv, ok := server.(*handler.Server); ok {
+		srv.RegisterCouponRoutes(r.Group(APIBasePath))
+	}
 	return r
 }
 
