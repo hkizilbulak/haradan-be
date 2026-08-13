@@ -90,39 +90,19 @@ func (a WorkerAdapter) enrichHorse(ctx context.Context, in domain.HorseInput) do
 		if coat := coatFromAgeText(d.AgeText); coat != "" {
 			in.Coat = &coat
 		}
-	} else {
-		in.EnrichmentIssues = append(in.EnrichmentIssues, domain.EnrichmentIssue{
-			Component: "detail", Message: "TJK horse detail could not be retrieved",
-		})
 	}
 
 	if p, err := a.Client.FetchPedigree(ctx, in.Number); err == nil {
 		doc.Pedigree = &p
-	} else {
-		in.EnrichmentIssues = append(in.EnrichmentIssues, domain.EnrichmentIssue{
-			Component: "pedigree", Message: "TJK horse pedigree could not be retrieved",
-		})
 	}
 	if s, err := a.Client.FetchSiblings(ctx, in.Number); err == nil {
 		doc.Siblings = &s
-	} else {
-		in.EnrichmentIssues = append(in.EnrichmentIssues, domain.EnrichmentIssue{
-			Component: "siblings", Message: "TJK horse siblings could not be retrieved",
-		})
 	}
 	if m, err := a.Client.FetchMating(ctx, in.Number); err == nil {
 		doc.Mating = &m
-	} else {
-		in.EnrichmentIssues = append(in.EnrichmentIssues, domain.EnrichmentIssue{
-			Component: "mating", Message: "TJK horse mating statistics could not be retrieved",
-		})
 	}
 	if o, err := a.Client.FetchOffspring(ctx, in.Number); err == nil {
 		doc.Offspring = &o
-	} else {
-		in.EnrichmentIssues = append(in.EnrichmentIssues, domain.EnrichmentIssue{
-			Component: "offspring", Message: "TJK horse offspring statistics could not be retrieved",
-		})
 	}
 
 	if doc.Profile == nil && doc.Pedigree == nil && doc.Siblings == nil && doc.Statistics == nil && doc.Mating == nil && doc.Offspring == nil {

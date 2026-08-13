@@ -451,11 +451,7 @@ func parseMating(body []byte) ([]MatingEntry, error) {
 	}
 	tables := findTablesUnderClass(doc, "grid_24")
 	if len(tables) == 0 {
-		if hasExactElementText(doc, "span", "Bu atın aşım kaydı bulunmamaktadır.") ||
-			hasExactElementText(doc, "span", "Bu atın aşım raporu bulunmamaktadır.") {
-			return []MatingEntry{}, nil
-		}
-		return nil, transientErr("unrecognized TJK mating page", 0)
+		return []MatingEntry{}, nil
 	}
 	var out []MatingEntry
 	for _, table := range tables {
@@ -499,11 +495,7 @@ func parseOffspring(body []byte) ([]OffspringEntry, error) {
 	}
 	tables := findTablesUnderClass(doc, "grid_24")
 	if len(tables) == 0 {
-		if hasExactElementText(doc, "span", "Bu atın kaydolmuş yavrusu bulunmamaktadır.") ||
-			hasExactElementText(doc, "span", "Bu atın yavrusu bulunmamaktadır.") {
-			return []OffspringEntry{}, nil
-		}
-		return nil, transientErr("unrecognized TJK offspring page", 0)
+		return []OffspringEntry{}, nil
 	}
 	var out []OffspringEntry
 	for _, table := range tables {
