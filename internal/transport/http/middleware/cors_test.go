@@ -61,6 +61,64 @@ func TestCORSDisallowedOrigin(t *testing.T) {
 	}
 }
 
+func TestCORSLoopbackPreflightInDevelopment(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(transportmiddleware.CORSWithLoopback([]string{"https://app.example.com"}, true))
+	r.POST("/v1/auth/password/forgot", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	for _, origin := range []string{
+		"http://localhost:8083",
+		"http://127.0.0.1:8081",
+		"http://[::1]:19006",
+	} {
+		req := httptest.NewRequest(http.MethodOptions, "/v1/auth/password/forgot", nil)
+		req.Header.Set("Origin", origin)
+		req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+		req.Header.Set("Access-Control-Request-Headers", "content-type")
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("origin %s status=%d", origin, rec.Code)
+		}
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != origin {
+			t.Fatalf("origin %s allow=%q", origin, got)
+		}
+		if rec.Header().Get("Access-Control-Allow-Credentials") != "" {
+			t.Fatalf("credentials must stay unset")
+		}
+	}
+}
+
+func TestCORSLoopbackRejectedWhenDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(transportmiddleware.CORSWithLoopback(nil, false))
+	r.POST("/v1/auth/password/forgot", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodOptions, "/v1/auth/password/forgot", nil)
+	req.Header.Set("Origin", "http://localhost:8083")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status=%d", rec.Code)
+	}
+}
+
+func TestCORSLoopbackRejectsSpoofedHost(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(transportmiddleware.CORSWithLoopback(nil, true))
+
+	req := httptest.NewRequest(http.MethodOptions, "/resource", nil)
+	req.Header.Set("Origin", "http://localhost.evil.com")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status=%d", rec.Code)
+	}
+}
+
 func TestCORSNativeRequestWithoutOriginPasses(t *testing.T) {
 	r := corsEngine()
 	req := httptest.NewRequest(http.MethodGet, "/resource", nil)

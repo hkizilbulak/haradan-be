@@ -21,6 +21,9 @@ type Config struct {
 	HTTPIdleTimeout     time.Duration
 	HTTPShutdownTimeout time.Duration
 	CORSAllowedOrigins  []string
+	// CORSAllowLoopback reflects http(s)://localhost|127.0.0.1|[::1][:port]
+	// in development only. Production/staging stay on the explicit allowlist.
+	CORSAllowLoopback bool
 
 	DatabaseURL       string
 	DBMaxConns        int32
@@ -176,6 +179,7 @@ func Load() (Config, error) {
 	if cfg.CORSAllowedOrigins, err = corsAllowedOriginsEnv("CORS_ALLOWED_ORIGINS"); err != nil {
 		return Config{}, err
 	}
+	cfg.CORSAllowLoopback = !isProductionLike(cfg.AppEnv)
 
 	cfg.DatabaseURL = strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if cfg.DatabaseURL == "" {

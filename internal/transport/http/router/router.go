@@ -19,6 +19,7 @@ const APIBasePath = "/api"
 type Options struct {
 	AuthService        *appauth.Service
 	CORSAllowedOrigins []string
+	CORSAllowLoopback  bool
 }
 
 // New builds the Gin engine with foundation middleware and OpenAPI routes.
@@ -33,7 +34,7 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 	if len(opts) > 0 {
 		opt = opts[0]
 	}
-	r.Use(middleware.CORS(opt.CORSAllowedOrigins))
+	r.Use(middleware.CORSWithLoopback(opt.CORSAllowedOrigins, opt.CORSAllowLoopback))
 	if opt.AuthService != nil {
 		protected := make([]authn.ProtectedRoute, 0,
 			len(authn.AccountSessionProtectedRoutes)+len(authn.AdvertOwnerProtectedRoutes)+

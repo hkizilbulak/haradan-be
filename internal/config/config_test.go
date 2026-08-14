@@ -21,6 +21,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.AppEnv != "development" || cfg.HTTPAddr != ":8080" {
 		t.Fatalf("unexpected base cfg: %+v", cfg)
 	}
+	if !cfg.CORSAllowLoopback {
+		t.Fatal("development must allow loopback CORS")
+	}
 	if cfg.DBMaxConns != 10 || cfg.DBMinConns != 2 {
 		t.Fatalf("unexpected pool defaults: %+v", cfg)
 	}
@@ -58,6 +61,9 @@ func TestLoadCORSAllowedOrigins(t *testing.T) {
 		if cfg.CORSAllowedOrigins[i] != want[i] {
 			t.Fatalf("origins=%v", cfg.CORSAllowedOrigins)
 		}
+	}
+	if !cfg.CORSAllowLoopback {
+		t.Fatal("development must allow loopback CORS")
 	}
 }
 
@@ -162,6 +168,9 @@ func TestLoadValidTimeoutsAndDB(t *testing.T) {
 	}
 	if cfg.DBHealthTimeout != 1500*time.Millisecond {
 		t.Fatalf("health timeout=%v", cfg.DBHealthTimeout)
+	}
+	if cfg.CORSAllowLoopback {
+		t.Fatal("production must not allow loopback CORS")
 	}
 }
 

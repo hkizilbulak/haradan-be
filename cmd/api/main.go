@@ -278,9 +278,12 @@ func run() error {
 		WithAdminUserService(adminUserSvc).
 		WithTJKService(tjkSvc).
 		WithEmailTemplateDiscovery(emailDiscovery).
-		WithJobAdminService(jobAdminSvc).
-		WithCouponService(couponSvc)
-	engine := router.New(srvHandler, log, router.Options{AuthService: authSvc, CORSAllowedOrigins: cfg.CORSAllowedOrigins})
+		WithJobAdminService(jobAdminSvc)
+	engine := router.New(srvHandler, log, router.Options{
+		AuthService:        authSvc,
+		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
+		CORSAllowLoopback:  cfg.CORSAllowLoopback,
+	})
 
 	httpServer := &http.Server{
 		Addr:         cfg.HTTPAddr,
