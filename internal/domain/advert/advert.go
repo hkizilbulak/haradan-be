@@ -93,6 +93,7 @@ type OwnerView struct {
 	MediaVersion           int
 	CategoryID             *uuid.UUID
 	DistrictID             *uuid.UUID
+	ProvinceID             *uuid.UUID
 	HorseID                *uuid.UUID
 	Title                  *string
 	Description            *string
@@ -101,6 +102,7 @@ type OwnerView struct {
 	Media                  []MediaRelation
 	PublishedAt            *time.Time
 	DeletedAt              *time.Time
+	UpdatedAt              time.Time
 	CategoryClearedWarning *bool
 }
 
@@ -133,8 +135,8 @@ func EmptyProperties() json.RawMessage {
 	return json.RawMessage(`{}`)
 }
 
-// ToOwnerView projects the aggregate for its owner. Media stays empty here; the
-// media domain fills the relation list when it is wired.
+// ToOwnerView projects the aggregate for its owner. Media and province are
+// filled by the application layer after the core row is loaded.
 func (a Advert) ToOwnerView() OwnerView {
 	props := a.Properties
 	if len(props) == 0 {
@@ -155,6 +157,7 @@ func (a Advert) ToOwnerView() OwnerView {
 		Media:        []MediaRelation{},
 		PublishedAt:  a.PublishedAt,
 		DeletedAt:    a.DeletedAt,
+		UpdatedAt:    a.UpdatedAt,
 	}
 }
 

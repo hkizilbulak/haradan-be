@@ -142,7 +142,9 @@ func (s *Service) advertDeliveryAllowed(ctx context.Context, assetID uuid.UUID, 
 		if isAdmin {
 			return true, nil
 		}
-		if viewer.UserID != uuid.Nil && viewer.UserID == row.OwnerUserID && ownerPreviewAdvertStatus(row.Status) {
+		// Owner may preview every attached asset on their own advert
+		// (draft, pending review, rejected, sold, …) so İlanlarım cards work.
+		if viewer.UserID != uuid.Nil && viewer.UserID == row.OwnerUserID {
 			return true, nil
 		}
 	}
@@ -175,15 +177,6 @@ func (s *Service) bannerDeliveryAllowed(ctx context.Context, assetID uuid.UUID, 
 // clock is accepted so a future window can plug in without changing callers.
 func bannerPubliclyDisplayable(_ domainmedia.BannerMediaAccess, _ time.Time) bool {
 	return true
-}
-
-func ownerPreviewAdvertStatus(status string) bool {
-	switch status {
-	case "DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED":
-		return true
-	default:
-		return false
-	}
 }
 
 // HeadPublicObject returns provider metadata for a resolved delivery key.

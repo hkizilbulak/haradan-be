@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -81,14 +82,14 @@ func (h *Handler) ListMyAdverts(c *gin.Context, params generated.ListMyAdvertsPa
 		h.respond(c, h.logger, err)
 		return
 	}
-	items := make([]generated.OwnerAdvertResponse, 0, len(out.Items))
+	items := make([]ownerAdvertJSON, 0, len(out.Items))
 	for _, item := range out.Items {
 		items = append(items, mapOwnerView(item))
 	}
-	c.JSON(http.StatusOK, generated.OwnerAdvertListResponse{
-		Items:      items,
-		HasMore:    out.HasMore,
-		NextCursor: out.NextCursor,
+	c.JSON(http.StatusOK, gin.H{
+		"items":      items,
+		"hasMore":    out.HasMore,
+		"nextCursor": out.NextCursor,
 	})
 }
 
@@ -281,13 +282,28 @@ func moneyResponse(m *domainadvert.Money) *generated.Money {
 	return &generated.Money{AmountMinor: int(m.AmountMinor), Currency: m.Currency}
 }
 
-func mapOwnerView(v domainadvert.OwnerView) generated.OwnerAdvertResponse {
+type ownerAdvertJSON struct {
+	generated.OwnerAdvertResponse
+	ProvinceId *uuid.UUID `json:"provinceId"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+}
+
+func mapOwnerAdvertBase(v domainadvert.OwnerView) generated.OwnerAdvertResponse {
 	props := map[string]interface{}{}
 	if len(v.Properties) > 0 {
 		_ = json.Unmarshal(v.Properties, &props)
 		if props == nil {
 			props = map[string]interface{}{}
 		}
+	}
+	media := make([]generated.OwnerMediaRelationItem, 0, len(v.Media))
+	for _, m := range v.Media {
+		media = append(media, generated.OwnerMediaRelationItem{
+			AssetId:         m.AssetID,
+			DisplayOrder:    m.DisplayOrder,
+			IsCover:         m.IsCover,
+			LifecycleStatus: generated.MediaAssetLifecycle(m.LifecycleStatus),
+		})
 	}
 	return generated.OwnerAdvertResponse{
 		Id:                     v.ID,
@@ -301,10 +317,20 @@ func mapOwnerView(v domainadvert.OwnerView) generated.OwnerAdvertResponse {
 		Description:            v.Description,
 		Price:                  moneyResponse(v.Price),
 		Properties:             props,
-		Media:                  []generated.OwnerMediaRelationItem{},
+		Media:                  media,
 		PublishedAt:            v.PublishedAt,
 		DeletedAt:              v.DeletedAt,
 		CategoryClearedWarning: v.CategoryClearedWarning,
+	}
+}
+
+func mapOwnerView(v domainadvert.OwnerView) ownerAdvertJSON {
+	// provinceId + updatedAt are owner-list card fields used by FE; kept as
+	// additive JSON so OpenAPI regen is not required for this read path.
+	return ownerAdvertJSON{
+		OwnerAdvertResponse: mapOwnerAdvertBase(v),
+		ProvinceId:          v.ProvinceID,
+		UpdatedAt:           v.UpdatedAt,
 	}
 }
 

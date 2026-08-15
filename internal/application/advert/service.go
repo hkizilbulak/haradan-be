@@ -225,9 +225,9 @@ func (s *Service) ListMyAdverts(ctx context.Context, ownerID uuid.UUID, in ListI
 	if hasMore {
 		rows = rows[:limit]
 	}
-	items := make([]domainadvert.OwnerView, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, row.ToOwnerView())
+	items, err := s.projectOwnerViews(ctx, rows)
+	if err != nil {
+		return ListResult{}, err
 	}
 	var next *string
 	if hasMore && len(rows) > 0 {
@@ -244,7 +244,11 @@ func (s *Service) GetMyAdvert(ctx context.Context, ownerID, advertID uuid.UUID) 
 	if err != nil {
 		return domainadvert.OwnerView{}, err
 	}
-	return found.ToOwnerView(), nil
+	items, err := s.projectOwnerViews(ctx, []domainadvert.Advert{found})
+	if err != nil {
+		return domainadvert.OwnerView{}, err
+	}
+	return items[0], nil
 }
 
 // UpdateAdvertDraftDetails implements ADVERT-OWNER-04. The category is not
@@ -701,6 +705,34 @@ func (s *Service) withTx(ctx context.Context, fn func(context.Context, Repositor
 		return apperr.Internal(fmt.Errorf("commit advert tx: %w", err))
 	}
 	return nil
+}
+
+// projectOwnerViews attaches media relations and province ids for owner reads.
+func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Advert) ([]domainadvert.OwnerView, error) {
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	mediaByAdvert, err := s.repo.ListMediaRelations(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]domainadvert.OwnerView, 0, len(rows))
+	for _, row := range rows {
+		view := row.ToOwnerView()
+		if media := mediaByAdvert[row.ID]; len(media) > 0 {
+			view.Media = media
+		}
+		if row.DistrictID != nil {
+			district, geoErr := s.geo.GetActiveDistrict(ctx, *row.DistrictID)
+			if geoErr == nil {
+				pid := district.ProvinceID
+				view.ProvinceID = &pid
+			}
+		}
+		items = append(items, view)
+	}
+	return items, nil
 }
 
 // guardVersionAndStatus rejects a stale snapshot before judging the status: when

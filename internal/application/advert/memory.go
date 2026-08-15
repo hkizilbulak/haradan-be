@@ -253,6 +253,12 @@ func (r MemoryRepository) ListStatusHistory(_ context.Context, advertID uuid.UUI
 	return out, nil
 }
 
+// ListMediaRelations returns no media in the memory store (tests seed empty).
+func (r MemoryRepository) ListMediaRelations(_ context.Context, advertIDs []uuid.UUID) (map[uuid.UUID][]domainadvert.MediaRelation, error) {
+	out := make(map[uuid.UUID][]domainadvert.MediaRelation, len(advertIDs))
+	return out, nil
+}
+
 // ListByOwner returns non-deleted adverts newest first with keyset paging.
 func (r MemoryRepository) ListByOwner(
 	_ context.Context,

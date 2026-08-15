@@ -82,7 +82,7 @@ WHERE a.id = $1 AND a.status = 'PUBLISHED' AND a.deleted_at IS NULL`
 		return domainadvert.PublicDetail{}, apperr.Internal(fmt.Errorf("get published advert: %w", pg.SanitizeErr(err)))
 	}
 	const metadata = `
-SELECT a.description, c.name, c.slug, d.name, p.name, h.id, h.name, h.tjk_number, a.properties
+SELECT a.description, c.name, c.slug, d.name, p.name, h.id, h.original_name, h.tjk_number, a.properties
 FROM hrd_adverts a
 JOIN hrd_categories c ON c.id = a.category_id
 JOIN hrd_districts d ON d.id = a.district_id
@@ -148,7 +148,8 @@ LEFT JOIN LATERAL (
   FROM hrd_advert_media am
   JOIN hrd_media_assets ma ON ma.id = am.asset_id AND ma.lifecycle_status = 'MASTER_READY'
   LEFT JOIN hrd_media_variants v ON v.asset_id = ma.id AND v.transform_profile = 'SEARCH' AND v.lifecycle_status = 'READY'
-  WHERE am.advert_id = a.id AND am.is_cover = true
+  WHERE am.advert_id = a.id
+  ORDER BY (v.object_key IS NOT NULL) DESC, am.is_cover DESC, am.display_order ASC, am.asset_id ASC
   LIMIT 1
 ) cover ON true`
 }
@@ -189,8 +190,19 @@ func scanPublicCard(row interface{ Scan(...any) error }) (domainadvert.PublicCar
 	if amount != nil && currency != nil {
 		card.Price = &domainadvert.Money{AmountMinor: *amount, Currency: *currency}
 	}
-	if coverAsset != nil && coverOrder != nil && coverIsCover != nil && coverKey != nil {
-		card.Cover = &domainadvert.PublicMedia{AssetID: *coverAsset, DisplayOrder: *coverOrder, IsCover: *coverIsCover, ObjectKey: *coverKey}
+	if coverAsset != nil && coverOrder != nil && coverIsCover != nil {
+		// object_key may be null while MASTER_READY (variant still pending);
+		// public URL is projected from asset id, so cover must still surface.
+		key := ""
+		if coverKey != nil {
+			key = *coverKey
+		}
+		card.Cover = &domainadvert.PublicMedia{
+			AssetID:      *coverAsset,
+			DisplayOrder: *coverOrder,
+			IsCover:      *coverIsCover,
+			ObjectKey:    key,
+		}
 	}
 	return card, nil
 }

@@ -43,6 +43,9 @@ type Repository interface {
 		limit int,
 	) ([]domainadvert.Advert, error)
 
+	// ListMediaRelations returns owner-visible media links for the given adverts.
+	ListMediaRelations(ctx context.Context, advertIDs []uuid.UUID) (map[uuid.UUID][]domainadvert.MediaRelation, error)
+
 	// ListForModeration returns non-deleted adverts matching status with keyset paging.
 	ListForModeration(
 		ctx context.Context,

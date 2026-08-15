@@ -145,6 +145,21 @@ func TestResolvePublicDeliveryOwnerPreviewDraft(t *testing.T) {
 	}
 }
 
+func TestResolvePublicDeliveryOwnerPreviewRejected(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	assetID := f.seedAsset(f.owner, domainmedia.AssetMasterReady)
+	seedReadyVariant(t, f, assetID, domainmedia.ProfileDetail, "rejected")
+	advertID := f.seedAdvert(f.owner, "REJECTED", 1)
+	attachAdvert(t, f, advertID, assetID)
+
+	viewer := appmedia.PublicDeliveryViewer{UserID: f.owner, Role: string(domainuser.RoleUser)}
+	if _, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileDetail, viewer); err != nil {
+		t.Fatalf("owner preview rejected advert: %v", err)
+	}
+}
+
 func TestResolvePublicDeliveryAdminPreviewPending(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()

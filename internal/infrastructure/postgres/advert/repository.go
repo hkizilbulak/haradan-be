@@ -209,6 +209,36 @@ ORDER BY created_at ASC, id ASC`
 	return out, nil
 }
 
+// ListMediaRelations returns advert/media links with asset lifecycle for owner views.
+func (r *Repository) ListMediaRelations(ctx context.Context, advertIDs []uuid.UUID) (map[uuid.UUID][]domainadvert.MediaRelation, error) {
+	out := make(map[uuid.UUID][]domainadvert.MediaRelation, len(advertIDs))
+	if len(advertIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.db.Query(ctx, `
+SELECT am.advert_id, am.asset_id, am.display_order, am.is_cover, ma.lifecycle_status
+FROM hrd_advert_media am
+JOIN hrd_media_assets ma ON ma.id = am.asset_id
+WHERE am.advert_id = ANY($1)
+ORDER BY am.advert_id, am.display_order, am.asset_id`, advertIDs)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list owner advert media: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var advertID uuid.UUID
+		var rel domainadvert.MediaRelation
+		if err := rows.Scan(&advertID, &rel.AssetID, &rel.DisplayOrder, &rel.IsCover, &rel.LifecycleStatus); err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan owner advert media: %w", pg.SanitizeErr(err)))
+		}
+		out[advertID] = append(out[advertID], rel)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("iterate owner advert media: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
+}
+
 // ListByOwner returns non-deleted adverts newest first with keyset paging.
 func (r *Repository) ListByOwner(
 	ctx context.Context,

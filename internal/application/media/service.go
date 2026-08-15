@@ -399,7 +399,8 @@ func (s *Service) AttachMediaToAdvert(
 		}
 
 		// The first attached image whose master is ready becomes the cover; the
-		// owner may change it later.
+		// owner may change it later. Non-ready first attaches stay non-cover
+		// until SetCover / a later ready attach.
 		isCover := !hasCover && asset.LifecycleStatus == domainmedia.AssetMasterReady
 		if err := repo.AttachAdvertMedia(ctx, domainmedia.AdvertMediaRelation{
 			ID:           uuid.New(),

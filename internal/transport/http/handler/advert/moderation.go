@@ -36,7 +36,7 @@ func (h *Handler) ListAdvertModerationQueue(c *gin.Context, params generated.Lis
 	}
 	items := make([]generated.OwnerAdvertResponse, 0, len(out.Items))
 	for _, item := range out.Items {
-		items = append(items, mapOwnerView(item))
+		items = append(items, mapOwnerAdvertBase(item))
 	}
 	c.JSON(http.StatusOK, generated.ModerationQueueResponse{
 		Items:      items,
@@ -147,7 +147,7 @@ func (h *Handler) adminReasonInput(c *gin.Context) (uuid.UUID, appadvert.Moderat
 }
 
 func mapModerationDetail(v domainadvert.ModerationDetailView) generated.ModerationAdvertDetailResponse {
-	owner := mapOwnerView(v.OwnerView)
+	owner := mapOwnerAdvertBase(v.OwnerView)
 	history := make([]generated.StatusHistoryItem, 0, len(v.StatusHistory))
 	for _, h := range v.StatusHistory {
 		item := generated.StatusHistoryItem{
