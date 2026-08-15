@@ -72,12 +72,17 @@ func (s AssignmentSource) Valid() bool {
 type FeatureCode string
 
 const (
-	FeatureCodeUrgent FeatureCode = "URGENT"
+	FeatureCodeUrgent   FeatureCode = "URGENT"
+	FeatureCodeFeatured FeatureCode = "FEATURED"
 )
 
 // Valid reports whether c is a known feature code.
 func (c FeatureCode) Valid() bool {
-	return c == FeatureCodeUrgent
+	switch c {
+	case FeatureCodeUrgent, FeatureCodeFeatured:
+		return true
+	}
+	return false
 }
 
 // FeatureActivationStatus is the feature activation lifecycle CHECK set.
@@ -110,6 +115,7 @@ type Package struct {
 	DefaultDurationDays     *int
 	AllowsUrgent            bool
 	ShowcaseEligible        bool
+	FeaturedDays            *int
 	SearchPriority          int
 	BroadcastOnPublish      bool
 	IsActive                bool
@@ -122,6 +128,14 @@ type Package struct {
 // AllowsUrgentFeature reports whether this package may host URGENT.
 func (p Package) AllowsUrgentFeature() bool {
 	return p.AllowsUrgent
+}
+
+// FeaturedDurationDays returns the timed FEATURED window when the package includes it.
+func (p Package) FeaturedDurationDays() (int, bool) {
+	if p.FeaturedDays == nil || *p.FeaturedDays <= 0 {
+		return 0, false
+	}
+	return *p.FeaturedDays, true
 }
 
 // EmitsPublishBroadcast reports whether assigning/publishing with this package
@@ -177,7 +191,7 @@ func ValidTimeRange(startsAt time.Time, endsAt *time.Time) bool {
 	return !endsAt.Before(startsAt)
 }
 
-// AdvertFeatureActivation is an URGENT (or future feature) activation row.
+// AdvertFeatureActivation is an URGENT / FEATURED activation row.
 type AdvertFeatureActivation struct {
 	ID                  uuid.UUID
 	AdvertID            uuid.UUID
@@ -186,6 +200,7 @@ type AdvertFeatureActivation struct {
 	Status              FeatureActivationStatus
 	ActivatedByUserID   uuid.UUID
 	ActivatedAt         time.Time
+	EndsAt              *time.Time
 	DeactivatedAt       *time.Time
 	Reason              *string
 	ActivationVersion   int
@@ -193,9 +208,20 @@ type AdvertFeatureActivation struct {
 	UpdatedAt           time.Time
 }
 
-// IsActive reports status == ACTIVE.
+// IsActive reports status == ACTIVE (does not evaluate ends_at).
 func (a AdvertFeatureActivation) IsActive() bool {
 	return a.Status == FeatureActivationStatusActive
+}
+
+// IsEffectiveAt reports whether an ACTIVE activation covers instant t.
+func (a AdvertFeatureActivation) IsEffectiveAt(t time.Time) bool {
+	if a.Status != FeatureActivationStatusActive {
+		return false
+	}
+	if a.EndsAt != nil && !t.Before(*a.EndsAt) {
+		return false
+	}
+	return true
 }
 
 // ValidActivationVersion reports activation_version >= 1.

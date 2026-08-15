@@ -78,6 +78,32 @@ func (s *Server) ListHomepageShowcase(c *gin.Context, params generated.ListHomep
 	c.JSON(http.StatusOK, generated.HomepageShowcaseResponse{Items: items, Seed: out.Seed})
 }
 
+func (s *Server) ListHomepageUrgent(c *gin.Context, params generated.ListHomepageUrgentParams) {
+	if s.advert == nil || !s.publicService().PublicEnabled() {
+		respondNotImplemented(c)
+		return
+	}
+	out, err := s.publicService().ListHomepageUrgent(c.Request.Context(), params.Limit, publicActor(c))
+	if err != nil {
+		respondError(c, s.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, mapPublicPage(out))
+}
+
+func (s *Server) ListHomepageFeatured(c *gin.Context, params generated.ListHomepageFeaturedParams) {
+	if s.advert == nil || !s.publicService().PublicEnabled() {
+		respondNotImplemented(c)
+		return
+	}
+	out, err := s.publicService().ListHomepageFeatured(c.Request.Context(), params.Limit, publicActor(c))
+	if err != nil {
+		respondError(c, s.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, mapPublicPage(out))
+}
+
 // Server owns the application service already; this small accessor keeps the
 // public transport in the root handler without widening child handler APIs.
 func (s *Server) publicService() *appadvert.Service { return s.advert.Service() }
@@ -102,7 +128,8 @@ func mapPublicCard(v domainadvert.PublicCard) generated.PublishedAdvertCard {
 	return generated.PublishedAdvertCard{Id: v.ID, CategoryId: v.CategoryID, DistrictId: v.DistrictID, ProvinceId: v.ProvinceID,
 		HorseId: v.HorseID, Title: v.Title, Price: mapPublicMoney(v.Price), PublishedAt: v.PublishedAt, Cover: mapPublicMedia(v.Cover),
 		PackageCode: mapPackageCode(v.PackageCode), PackageDisplayName: v.PackageDisplayName, PackageBadgeText: v.PackageBadgeText,
-		IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt, IsFavorite: v.IsFavorite}
+		IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt, IsFeatured: v.IsFeatured, FeaturedUntil: v.FeaturedUntil,
+		IsFavorite: v.IsFavorite}
 }
 func mapPublicDetail(v domainadvert.PublicDetail) generated.PublishedAdvertDetailResponse {
 	media := make([]generated.PublicMediaItem, 0, len(v.Media))
@@ -122,7 +149,8 @@ func mapPublicDetail(v domainadvert.PublicDetail) generated.PublishedAdvertDetai
 		Category: generated.PublicCategorySummary{Id: v.CategoryID, Name: v.CategoryName, Slug: v.CategorySlug},
 		Location: generated.PublicLocationSummary{DistrictId: v.DistrictID, DistrictName: v.DistrictName, ProvinceId: v.ProvinceID, ProvinceName: v.ProvinceName},
 		Horse:    horse, Media: media, Properties: props, PackageCode: mapPackageCode(v.PackageCode), PackageDisplayName: v.PackageDisplayName,
-		PackageBadgeText: v.PackageBadgeText, IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt, IsFavorite: v.IsFavorite}
+		PackageBadgeText: v.PackageBadgeText, IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt,
+		IsFeatured: v.IsFeatured, FeaturedUntil: v.FeaturedUntil, IsFavorite: v.IsFavorite}
 }
 func mapPublicMedia(v *domainadvert.PublicMedia) *generated.PublicMediaItem {
 	if v == nil {

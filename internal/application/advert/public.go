@@ -138,6 +138,36 @@ func (s *Service) ListHomepageShowcase(ctx context.Context, seed *string, limit 
 	return HomepageShowcaseResult{Seed: outSeed, Items: items}, nil
 }
 
+func (s *Service) ListHomepageUrgent(ctx context.Context, limit *int, actorUserID *uuid.UUID) (PublicSearchResult, error) {
+	if s.public == nil {
+		return PublicSearchResult{}, apperr.Internal(fmt.Errorf("public advert repository is not configured"))
+	}
+	resolved, err := resolvePublicLimit(limit, defaultShowcaseLimit, maxShowcaseLimit)
+	if err != nil {
+		return PublicSearchResult{}, err
+	}
+	items, err := s.public.ListHomepageUrgent(ctx, resolved, actorUserID)
+	if err != nil {
+		return PublicSearchResult{}, err
+	}
+	return PublicSearchResult{Items: items, HasMore: false}, nil
+}
+
+func (s *Service) ListHomepageFeatured(ctx context.Context, limit *int, actorUserID *uuid.UUID) (PublicSearchResult, error) {
+	if s.public == nil {
+		return PublicSearchResult{}, apperr.Internal(fmt.Errorf("public advert repository is not configured"))
+	}
+	resolved, err := resolvePublicLimit(limit, defaultShowcaseLimit, maxShowcaseLimit)
+	if err != nil {
+		return PublicSearchResult{}, err
+	}
+	items, err := s.public.ListHomepageFeatured(ctx, resolved, actorUserID)
+	if err != nil {
+		return PublicSearchResult{}, err
+	}
+	return PublicSearchResult{Items: items, HasMore: false}, nil
+}
+
 func (s *Service) GetPublishedAdvertDetail(ctx context.Context, advertID uuid.UUID, actorUserID *uuid.UUID) (PublicDetail, error) {
 	if s.public == nil {
 		return PublicDetail{}, apperr.Internal(fmt.Errorf("public advert repository is not configured"))

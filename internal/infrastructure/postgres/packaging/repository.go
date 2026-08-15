@@ -26,14 +26,15 @@ const (
 
 const packageColumns = `id, code, display_name, description, badge_text, benefits,
 display_price_amount_minor, currency_code, default_duration_days, allows_urgent,
-showcase_eligible, search_priority, broadcast_on_publish, is_active, sort_order, version, created_at, updated_at`
+showcase_eligible, featured_days, search_priority, broadcast_on_publish, is_active,
+sort_order, version, created_at, updated_at`
 
 const assignmentColumns = `id, advert_id, package_id, status, starts_at, ends_at,
 assigned_by_user_id, assigned_at, superseded_at, expired_at, cancelled_at, reason,
 source, version, created_at, updated_at`
 
 const featureColumns = `id, advert_id, package_assignment_id, feature_code, status,
-activated_by_user_id, activated_at, deactivated_at, reason, activation_version,
+activated_by_user_id, activated_at, ends_at, deactivated_at, reason, activation_version,
 created_at, updated_at`
 
 // Querier is implemented by *pgxpool.Pool and pgx.Tx.
@@ -119,15 +120,15 @@ func (r *Repository) CreatePackage(ctx context.Context, p domainpackaging.Packag
 INSERT INTO hrd_packages (
   id, code, display_name, description, badge_text, benefits,
   display_price_amount_minor, currency_code, default_duration_days, allows_urgent,
-  showcase_eligible, search_priority, broadcast_on_publish, is_active, sort_order,
-  version, created_at, updated_at
+  showcase_eligible, featured_days, search_priority, broadcast_on_publish, is_active,
+  sort_order, version, created_at, updated_at
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
 )`
 	_, err := r.db.Exec(ctx, q,
 		p.ID, string(p.Code), p.DisplayName, p.Description, p.BadgeText, p.BenefitsJSON,
 		p.DisplayPriceAmountMinor, p.CurrencyCode, p.DefaultDurationDays, p.AllowsUrgent,
-		p.ShowcaseEligible, p.SearchPriority, p.BroadcastOnPublish, p.IsActive, p.SortOrder,
+		p.ShowcaseEligible, p.FeaturedDays, p.SearchPriority, p.BroadcastOnPublish, p.IsActive, p.SortOrder,
 		p.Version, p.CreatedAt, p.UpdatedAt,
 	)
 	if err != nil {
@@ -159,11 +160,12 @@ SET display_name = $3,
     default_duration_days = $9,
     allows_urgent = $10,
     showcase_eligible = $11,
-    search_priority = $12,
-    broadcast_on_publish = $13,
-    is_active = $14,
-    sort_order = $15,
-    updated_at = $16,
+    featured_days = $12,
+    search_priority = $13,
+    broadcast_on_publish = $14,
+    is_active = $15,
+    sort_order = $16,
+    updated_at = $17,
     version = version + 1
 WHERE code = $1 AND version = $2
 RETURNING ` + packageColumns
@@ -171,7 +173,7 @@ RETURNING ` + packageColumns
 		string(p.Code), expectedVersion,
 		p.DisplayName, p.Description, p.BadgeText, p.BenefitsJSON,
 		p.DisplayPriceAmountMinor, p.CurrencyCode, p.DefaultDurationDays,
-		p.AllowsUrgent, p.ShowcaseEligible, p.SearchPriority, p.BroadcastOnPublish,
+		p.AllowsUrgent, p.ShowcaseEligible, p.FeaturedDays, p.SearchPriority, p.BroadcastOnPublish,
 		p.IsActive, p.SortOrder,
 		p.UpdatedAt,
 	)
@@ -483,13 +485,13 @@ func (r *Repository) CreateFeatureActivation(ctx context.Context, a domainpackag
 	const q = `
 INSERT INTO hrd_advert_feature_activations (
   id, advert_id, package_assignment_id, feature_code, status, activated_by_user_id,
-  activated_at, deactivated_at, reason, activation_version, created_at, updated_at
+  activated_at, ends_at, deactivated_at, reason, activation_version, created_at, updated_at
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
 )`
 	_, err := r.db.Exec(ctx, q,
 		a.ID, a.AdvertID, a.PackageAssignmentID, string(a.FeatureCode), string(a.Status), a.ActivatedByUserID,
-		a.ActivatedAt, a.DeactivatedAt, a.Reason, a.ActivationVersion, a.CreatedAt, a.UpdatedAt,
+		a.ActivatedAt, a.EndsAt, a.DeactivatedAt, a.Reason, a.ActivationVersion, a.CreatedAt, a.UpdatedAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -541,7 +543,7 @@ func scanPackage(row rowScanner) (domainpackaging.Package, error) {
 	err := row.Scan(
 		&p.ID, &code, &p.DisplayName, &p.Description, &p.BadgeText, &p.BenefitsJSON,
 		&p.DisplayPriceAmountMinor, &p.CurrencyCode, &p.DefaultDurationDays, &p.AllowsUrgent,
-		&p.ShowcaseEligible, &p.SearchPriority, &p.BroadcastOnPublish, &p.IsActive, &p.SortOrder,
+		&p.ShowcaseEligible, &p.FeaturedDays, &p.SearchPriority, &p.BroadcastOnPublish, &p.IsActive, &p.SortOrder,
 		&p.Version, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
@@ -578,7 +580,7 @@ func scanFeature(row rowScanner) (domainpackaging.AdvertFeatureActivation, error
 	)
 	err := row.Scan(
 		&a.ID, &a.AdvertID, &a.PackageAssignmentID, &featureCode, &status,
-		&a.ActivatedByUserID, &a.ActivatedAt, &a.DeactivatedAt, &a.Reason, &a.ActivationVersion,
+		&a.ActivatedByUserID, &a.ActivatedAt, &a.EndsAt, &a.DeactivatedAt, &a.Reason, &a.ActivationVersion,
 		&a.CreatedAt, &a.UpdatedAt,
 	)
 	if err != nil {

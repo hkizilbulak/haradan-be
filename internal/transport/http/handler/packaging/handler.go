@@ -222,6 +222,30 @@ func (h *Handler) AssignAdminAdvertPackage(c *gin.Context, advertID generated.Ad
 	c.JSON(http.StatusOK, mapAssignmentView(out))
 }
 
+// AssignOwnerAdvertPackage handles PUT /v1/me/adverts/{advertId}/package.
+func (h *Handler) AssignOwnerAdvertPackage(c *gin.Context, advertID generated.AdvertIdPath) {
+	principal, ok := authctx.PrincipalFromContext(c.Request.Context())
+	if !ok {
+		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "Oturum gerekli."))
+		return
+	}
+	var req generated.AssignOwnerAdvertPackageRequest
+	if !bind.JSONBody(c, &req) {
+		return
+	}
+	out, err := h.svc.AssignOwnerAdvertPackage(
+		c.Request.Context(),
+		principal.UserID,
+		advertID,
+		domainpackaging.PackageCode(req.PackageCode),
+	)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, mapAssignmentView(out))
+}
+
 // ListAdminAdvertPackageHistory handles GET /v1/admin/adverts/{advertId}/package-history.
 func (h *Handler) ListAdminAdvertPackageHistory(
 	c *gin.Context,

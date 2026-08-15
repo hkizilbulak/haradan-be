@@ -91,7 +91,7 @@ type systemClock struct{}
 
 func (systemClock) Now() time.Time { return time.Now().UTC() }
 
-// AssignAdvertPackageInput is the admin package assignment request.
+// AssignAdvertPackageInput is the package assignment request (admin or owner).
 type AssignAdvertPackageInput struct {
 	ActorUserID uuid.UUID
 	AdvertID    uuid.UUID
@@ -99,6 +99,7 @@ type AssignAdvertPackageInput struct {
 	StartsAt    *time.Time
 	EndsAt      *time.Time
 	Reason      *string
+	Source      domainpackaging.AssignmentSource // empty → ADMIN (legacy admin callers)
 }
 
 // CancelAdvertPackageInput cancels the active assignment for an advert.
@@ -398,8 +399,16 @@ func (s *Service) UpdatePackage(ctx context.Context, in UpdatePackageInput) (dom
 
 // AssignAdvertPackage assigns an active package to an advert (ADMIN only).
 func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackageInput) (AssignmentView, error) {
-	if err := s.requireAdmin(ctx, in.ActorUserID); err != nil {
-		return AssignmentView{}, err
+	source := in.Source
+	if source == "" {
+		source = domainpackaging.AssignmentSourceAdmin
+	}
+	if source == domainpackaging.AssignmentSourceAdmin {
+		if err := s.requireAdmin(ctx, in.ActorUserID); err != nil {
+			return AssignmentView{}, err
+		}
+	} else if source != domainpackaging.AssignmentSourceSystem {
+		return AssignmentView{}, apperr.Validation("Geçersiz paket atama kaynağı.")
 	}
 	if !in.PackageCode.Valid() {
 		return AssignmentView{}, apperr.Validation("Geçersiz paket kodu.")
@@ -430,6 +439,18 @@ func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackag
 		if err := assertAdvertAssignable(advert); err != nil {
 			return err
 		}
+		if source == domainpackaging.AssignmentSourceSystem {
+			if advert.OwnerUserID != in.ActorUserID {
+				return apperr.Forbidden(apperr.CodeForbidden, forbiddenMessage)
+			}
+			actor, err := s.users.FindByID(ctx, in.ActorUserID)
+			if err != nil {
+				return err
+			}
+			if !actor.IsActive() {
+				return apperr.Forbidden(apperr.CodeForbidden, forbiddenMessage)
+			}
+		}
 
 		current, err := assignments.LockActiveByAdvertID(ctx, in.AdvertID)
 		hasCurrent := false
@@ -440,14 +461,14 @@ func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackag
 		}
 		if hasCurrent && isIdempotentAssignment(current, pkg.ID, startsAt, endsAt, startsExplicit, endsExplicit) {
 			out = AssignmentView{Assignment: current, Package: pkg}
-			return nil
+			return applyPackageFeatures(ctx, features, in.ActorUserID, advert, current, pkg, now)
 		}
 
 		if hasCurrent {
 			if err := assignments.MarkSuperseded(ctx, current.ID, now, now); err != nil {
 				return err
 			}
-			if err := deactivateUrgentForPackageLoss(ctx, features, in.AdvertID, now); err != nil {
+			if err := deactivateFeaturesForPackageLoss(ctx, features, in.AdvertID, now); err != nil {
 				return err
 			}
 		}
@@ -462,7 +483,7 @@ func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackag
 			AssignedByUserID: in.ActorUserID,
 			AssignedAt:       now,
 			Reason:           trimReason(in.Reason),
-			Source:           domainpackaging.AssignmentSourceAdmin,
+			Source:           source,
 			Version:          1,
 			CreatedAt:        now,
 			UpdatedAt:        now,
@@ -470,8 +491,9 @@ func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackag
 		if err := assignments.Create(ctx, created); err != nil {
 			return err
 		}
-		// Urgent feature activations are always deactivated on supersede,
-		// including when the replacement package also allows urgent listings.
+		if err := applyPackageFeatures(ctx, features, in.ActorUserID, advert, created, pkg, now); err != nil {
+			return err
+		}
 		out = AssignmentView{Assignment: created, Package: pkg}
 		if s.notifications != nil && pkg.EmitsPublishBroadcast() {
 			advert, err := s.adverts.FindByID(ctx, in.AdvertID)
@@ -490,6 +512,21 @@ func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackag
 		return AssignmentView{}, err
 	}
 	return out, nil
+}
+
+// AssignOwnerAdvertPackage assigns an active catalog package for the advert owner.
+// Source is SYSTEM (payment entitlement lands later). Package features are applied immediately.
+func (s *Service) AssignOwnerAdvertPackage(
+	ctx context.Context,
+	ownerUserID, advertID uuid.UUID,
+	packageCode domainpackaging.PackageCode,
+) (AssignmentView, error) {
+	return s.AssignAdvertPackage(ctx, AssignAdvertPackageInput{
+		ActorUserID: ownerUserID,
+		AdvertID:    advertID,
+		PackageCode: packageCode,
+		Source:      domainpackaging.AssignmentSourceSystem,
+	})
 }
 
 // GetAdvertPackage returns the currently effective ACTIVE assignment, if any.
@@ -551,7 +588,7 @@ func (s *Service) CancelAdvertPackage(ctx context.Context, in CancelAdvertPackag
 		if err := assignments.MarkCancelled(ctx, current.ID, now, now, trimReason(in.Reason)); err != nil {
 			return err
 		}
-		return deactivateUrgentForPackageLoss(ctx, features, in.AdvertID, now)
+		return deactivateFeaturesForPackageLoss(ctx, features, in.AdvertID, now)
 	})
 }
 
@@ -726,9 +763,111 @@ func (s *Service) DeactivateUrgent(ctx context.Context, actorUserID, advertID uu
 	})
 }
 
-// deactivateUrgentForPackageLoss is the internal SYSTEM helper used when an
-// assignment is superseded or otherwise loses URGENT eligibility. It must run
-// inside an existing packaging transaction via FeatureRepository.WithTx.
+// deactivateFeaturesForPackageLoss clears URGENT + FEATURED when entitlement changes.
+func deactivateFeaturesForPackageLoss(
+	ctx context.Context,
+	features FeatureRepository,
+	advertID uuid.UUID,
+	now time.Time,
+) error {
+	if _, err := features.DeactivateActive(
+		ctx, advertID, domainpackaging.FeatureCodeUrgent, now, strPtr(packageLossUrgentReason), now,
+	); err != nil {
+		return err
+	}
+	_, err := features.DeactivateActive(
+		ctx, advertID, domainpackaging.FeatureCodeFeatured, now, strPtr(packageLossUrgentReason), now,
+	)
+	return err
+}
+
+// applyPackageFeatures activates catalog capabilities for the effective assignment.
+func applyPackageFeatures(
+	ctx context.Context,
+	features FeatureRepository,
+	actorUserID uuid.UUID,
+	advert domainadvert.Advert,
+	assignment domainpackaging.AdvertPackageAssignment,
+	pkg domainpackaging.Package,
+	now time.Time,
+) error {
+	if !assignment.IsEffectiveAt(now) {
+		return nil
+	}
+	if pkg.AllowsUrgentFeature() && domainpackaging.AdvertStatusAllowsUrgent(string(advert.Status)) {
+		if err := ensureFeatureActivation(
+			ctx, features, actorUserID, advert.ID, assignment.ID,
+			domainpackaging.FeatureCodeUrgent, nil, now,
+		); err != nil {
+			return err
+		}
+	}
+	if days, ok := pkg.FeaturedDurationDays(); ok {
+		ends := now.AddDate(0, 0, days)
+		if assignment.EndsAt != nil && ends.After(*assignment.EndsAt) {
+			ends = *assignment.EndsAt
+		}
+		if err := ensureFeatureActivation(
+			ctx, features, actorUserID, advert.ID, assignment.ID,
+			domainpackaging.FeatureCodeFeatured, &ends, now,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureFeatureActivation(
+	ctx context.Context,
+	features FeatureRepository,
+	actorUserID, advertID, assignmentID uuid.UUID,
+	code domainpackaging.FeatureCode,
+	endsAt *time.Time,
+	now time.Time,
+) error {
+	existing, err := features.LockActiveByAdvertIDAndCode(ctx, advertID, code)
+	if err == nil {
+		if existing.IsEffectiveAt(now) {
+			return nil
+		}
+		if _, err := features.DeactivateActive(ctx, advertID, code, now, strPtr(packageLossUrgentReason), now); err != nil {
+			return err
+		}
+	} else if !isNotFound(err) {
+		return err
+	}
+
+	latest, err := features.FindLatestActivationVersion(ctx, advertID, code)
+	if err != nil {
+		return err
+	}
+	nextVersion := latest + 1
+	if !domainpackaging.ValidActivationVersion(nextVersion) {
+		return apperr.Internal(fmt.Errorf("invalid activation version"))
+	}
+	created := domainpackaging.AdvertFeatureActivation{
+		ID:                  uuid.New(),
+		AdvertID:            advertID,
+		PackageAssignmentID: assignmentID,
+		FeatureCode:         code,
+		Status:              domainpackaging.FeatureActivationStatusActive,
+		ActivatedByUserID:   actorUserID,
+		ActivatedAt:         now,
+		EndsAt:              endsAt,
+		ActivationVersion:   nextVersion,
+		CreatedAt:           now,
+		UpdatedAt:           now,
+	}
+	if err := features.Create(ctx, created); err != nil {
+		if isConflict(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+// deactivateUrgentForPackageLoss is kept for callers that only clear URGENT.
 func deactivateUrgentForPackageLoss(
 	ctx context.Context,
 	features FeatureRepository,

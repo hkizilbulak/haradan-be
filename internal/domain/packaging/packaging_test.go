@@ -64,8 +64,11 @@ func TestValidTimeRangeAndActivationVersion(t *testing.T) {
 	if !domainpackaging.ValidActivationVersion(1) || domainpackaging.ValidActivationVersion(0) {
 		t.Fatal("activation version")
 	}
+	if !domainpackaging.FeatureCode("FEATURED").Valid() {
+		t.Fatal("FEATURED must be valid")
+	}
 	if domainpackaging.FeatureCode("BOOST").Valid() {
-		t.Fatal("only URGENT")
+		t.Fatal("unknown feature codes rejected")
 	}
 }
 

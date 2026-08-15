@@ -21,6 +21,7 @@ func mapPackageAdminView(p domainpackaging.Package) generated.PackageAdminView {
 		DefaultDurationDays: p.DefaultDurationDays,
 		AllowsUrgent:        p.AllowsUrgent,
 		ShowcaseEligible:    p.ShowcaseEligible,
+		FeaturedDays:        p.FeaturedDays,
 		SearchPriority:      p.SearchPriority,
 		BroadcastOnPublish:  p.BroadcastOnPublish,
 		IsActive:            p.IsActive,
@@ -42,6 +43,7 @@ func mapPublicPackage(p domainpackaging.Package) generated.PublicPackage {
 		DefaultDurationDays: p.DefaultDurationDays,
 		AllowsUrgent:        p.AllowsUrgent,
 		ShowcaseEligible:    p.ShowcaseEligible,
+		FeaturedDays:        p.FeaturedDays,
 		SearchPriority:      p.SearchPriority,
 		SortOrder:           p.SortOrder,
 	}

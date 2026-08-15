@@ -58,6 +58,7 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 		protected = append(protected, authn.CatalogAdminProtectedRoutes...)
 		protected = append(protected, authn.MediaAdminProtectedRoutes...)
 		r.Use(authn.Selective(opt.AuthService, logger, protected))
+		r.Use(authn.OptionalSelective(opt.AuthService, logger, authn.PublicFavoriteEnrichmentRoutes))
 	}
 
 	generated.RegisterHandlersWithOptions(r, server, generated.GinServerOptions{

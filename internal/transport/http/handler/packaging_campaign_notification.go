@@ -77,6 +77,15 @@ func (s *Server) AssignAdminAdvertPackage(c *gin.Context, advertId generated.Adv
 	s.packaging.AssignAdminAdvertPackage(c, advertId)
 }
 
+// AssignOwnerAdvertPackage implements owner advert package assign.
+func (s *Server) AssignOwnerAdvertPackage(c *gin.Context, advertId generated.AdvertIdPath) {
+	if s.packaging == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.packaging.AssignOwnerAdvertPackage(c, advertId)
+}
+
 // ListAdminAdvertPackageHistory implements admin advert package history.
 func (s *Server) ListAdminAdvertPackageHistory(
 	c *gin.Context,

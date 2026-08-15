@@ -978,6 +978,11 @@ type AssignAdvertPackageRequest struct {
 	StartsAt    *time.Time  `json:"startsAt,omitempty"`
 }
 
+// AssignOwnerAdvertPackageRequest defines model for AssignOwnerAdvertPackageRequest.
+type AssignOwnerAdvertPackageRequest struct {
+	PackageCode PackageCode `json:"packageCode"`
+}
+
 // AttachMediaToAdvertRequest defines model for AttachMediaToAdvertRequest.
 type AttachMediaToAdvertRequest struct {
 	AssetId              openapi_types.UUID `json:"assetId"`
@@ -1614,6 +1619,7 @@ type PackageAdminView struct {
 	Description         *string            `json:"description,omitempty"`
 	DisplayName         string             `json:"displayName"`
 	DisplayPrice        *Money             `json:"displayPrice,omitempty"`
+	FeaturedDays        *int               `json:"featuredDays,omitempty"`
 	Id                  openapi_types.UUID `json:"id"`
 	IsActive            bool               `json:"isActive"`
 	SearchPriority      int                `json:"searchPriority"`
@@ -1699,9 +1705,12 @@ type PublicPackage struct {
 	Description         *string     `json:"description,omitempty"`
 	DisplayName         string      `json:"displayName"`
 	DisplayPrice        *Money      `json:"displayPrice,omitempty"`
-	SearchPriority      int         `json:"searchPriority"`
-	ShowcaseEligible    bool        `json:"showcaseEligible"`
-	SortOrder           int         `json:"sortOrder"`
+
+	// FeaturedDays Timed FEATURED window in days; null when package has no öne çıkan entitlement
+	FeaturedDays     *int `json:"featuredDays,omitempty"`
+	SearchPriority   int  `json:"searchPriority"`
+	ShowcaseEligible bool `json:"showcaseEligible"`
+	SortOrder        int  `json:"sortOrder"`
 }
 
 // PublicPackageListResponse defines model for PublicPackageListResponse.
@@ -1719,14 +1728,18 @@ type PublicPropertyValue struct {
 
 // PublishedAdvertCard defines model for PublishedAdvertCard.
 type PublishedAdvertCard struct {
-	CategoryId openapi_types.UUID  `json:"categoryId"`
-	Cover      *PublicMediaItem    `json:"cover"`
-	DistrictId openapi_types.UUID  `json:"districtId"`
-	HorseId    *openapi_types.UUID `json:"horseId,omitempty"`
-	Id         openapi_types.UUID  `json:"id"`
+	CategoryId    openapi_types.UUID  `json:"categoryId"`
+	Cover         *PublicMediaItem    `json:"cover"`
+	DistrictId    openapi_types.UUID  `json:"districtId"`
+	FeaturedUntil *time.Time          `json:"featuredUntil,omitempty"`
+	HorseId       *openapi_types.UUID `json:"horseId,omitempty"`
+	Id            openapi_types.UUID  `json:"id"`
 
 	// IsFavorite Present when optional auth; null/omitted semantics: always present as nullable for anonymous=false enrichment path — anonymous callers get null
 	IsFavorite *bool `json:"isFavorite"`
+
+	// IsFeatured True while an ACTIVE FEATURED activation is within its ends_at window
+	IsFeatured bool `json:"isFeatured"`
 
 	// IsUrgent True while an ACTIVE URGENT feature activation exists
 	IsUrgent         bool    `json:"isUrgent"`
@@ -1744,11 +1757,15 @@ type PublishedAdvertCard struct {
 
 // PublishedAdvertDetailResponse defines model for PublishedAdvertDetailResponse.
 type PublishedAdvertDetailResponse struct {
-	Category    PublicCategorySummary `json:"category"`
-	Description string                `json:"description"`
-	Horse       *HorseSelectionItem   `json:"horse"`
-	Id          openapi_types.UUID    `json:"id"`
-	IsFavorite  *bool                 `json:"isFavorite"`
+	Category      PublicCategorySummary `json:"category"`
+	Description   string                `json:"description"`
+	FeaturedUntil *time.Time            `json:"featuredUntil,omitempty"`
+	Horse         *HorseSelectionItem   `json:"horse"`
+	Id            openapi_types.UUID    `json:"id"`
+	IsFavorite    *bool                 `json:"isFavorite"`
+
+	// IsFeatured True while an ACTIVE FEATURED activation is within its ends_at window
+	IsFeatured bool `json:"isFeatured"`
 
 	// IsUrgent True while an ACTIVE URGENT feature activation exists
 	IsUrgent         bool                  `json:"isUrgent"`
@@ -2370,6 +2387,11 @@ type SearchDistrictsParams struct {
 	Limit      *Limit              `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListHomepageFeaturedParams defines parameters for ListHomepageFeatured.
+type ListHomepageFeaturedParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListHomepageNewAdvertsParams defines parameters for ListHomepageNewAdverts.
 type ListHomepageNewAdvertsParams struct {
 	// Cursor Opaque cursor
@@ -2383,6 +2405,11 @@ type ListHomepageShowcaseParams struct {
 
 	// Seed Opaque; omit to get a server-generated seed back in the response
 	Seed *string `form:"seed,omitempty" json:"seed,omitempty"`
+}
+
+// ListHomepageUrgentParams defines parameters for ListHomepageUrgent.
+type ListHomepageUrgentParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // SearchHorsesForSelectionParams defines parameters for SearchHorsesForSelection.
@@ -2589,6 +2616,9 @@ type SetAdvertCoverJSONRequestBody = SetAdvertCoverRequest
 
 // ReorderAdvertMediaJSONRequestBody defines body for ReorderAdvertMedia for application/json ContentType.
 type ReorderAdvertMediaJSONRequestBody = ReorderAdvertMediaRequest
+
+// AssignOwnerAdvertPackageJSONRequestBody defines body for AssignOwnerAdvertPackage for application/json ContentType.
+type AssignOwnerAdvertPackageJSONRequestBody = AssignOwnerAdvertPackageRequest
 
 // ReplaceAdvertDynamicPropertiesJSONRequestBody defines body for ReplaceAdvertDynamicProperties for application/json ContentType.
 type ReplaceAdvertDynamicPropertiesJSONRequestBody = ReplaceAdvertDynamicPropertiesRequest
@@ -2868,12 +2898,18 @@ type ServerInterface interface {
 	// SearchDistricts SearchDistricts
 	// (GET /v1/districts/search)
 	SearchDistricts(c *gin.Context, params SearchDistrictsParams)
+	// ListHomepageFeatured ListHomepageFeatured
+	// (GET /v1/homepage/featured)
+	ListHomepageFeatured(c *gin.Context, params ListHomepageFeaturedParams)
 	// ListHomepageNewAdverts ListHomepageNewAdverts
 	// (GET /v1/homepage/new-adverts)
 	ListHomepageNewAdverts(c *gin.Context, params ListHomepageNewAdvertsParams)
 	// ListHomepageShowcase ListHomepageShowcase
 	// (GET /v1/homepage/showcase)
 	ListHomepageShowcase(c *gin.Context, params ListHomepageShowcaseParams)
+	// ListHomepageUrgent ListHomepageUrgent
+	// (GET /v1/homepage/urgent)
+	ListHomepageUrgent(c *gin.Context, params ListHomepageUrgentParams)
 	// SearchHorsesForSelection SearchHorsesForSelection
 	// (GET /v1/horses)
 	SearchHorsesForSelection(c *gin.Context, params SearchHorsesForSelectionParams)
@@ -2919,6 +2955,9 @@ type ServerInterface interface {
 	// DetachMediaFromAdvert DetachMediaFromAdvert
 	// (DELETE /v1/me/adverts/{advertId}/media/{assetId})
 	DetachMediaFromAdvert(c *gin.Context, advertId AdvertIdPath, assetId AssetIdPath, params DetachMediaFromAdvertParams)
+	// AssignOwnerAdvertPackage AssignOwnerAdvertPackage
+	// (PUT /v1/me/adverts/{advertId}/package)
+	AssignOwnerAdvertPackage(c *gin.Context, advertId AdvertIdPath)
 	// ReplaceAdvertDynamicProperties ReplaceAdvertDynamicProperties
 	// (PUT /v1/me/adverts/{advertId}/properties)
 	ReplaceAdvertDynamicProperties(c *gin.Context, advertId AdvertIdPath)
@@ -5167,6 +5206,33 @@ func (siw *ServerInterfaceWrapper) SearchDistricts(c *gin.Context) {
 	siw.Handler.SearchDistricts(c, params)
 }
 
+// ListHomepageFeatured operation middleware
+func (siw *ServerInterfaceWrapper) ListHomepageFeatured(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListHomepageFeaturedParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListHomepageFeatured(c, params)
+}
+
 // ListHomepageNewAdverts operation middleware
 func (siw *ServerInterfaceWrapper) ListHomepageNewAdverts(c *gin.Context) {
 
@@ -5235,6 +5301,33 @@ func (siw *ServerInterfaceWrapper) ListHomepageShowcase(c *gin.Context) {
 	}
 
 	siw.Handler.ListHomepageShowcase(c, params)
+}
+
+// ListHomepageUrgent operation middleware
+func (siw *ServerInterfaceWrapper) ListHomepageUrgent(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListHomepageUrgentParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListHomepageUrgent(c, params)
 }
 
 // SearchHorsesForSelection operation middleware
@@ -5641,6 +5734,31 @@ func (siw *ServerInterfaceWrapper) DetachMediaFromAdvert(c *gin.Context) {
 	}
 
 	siw.Handler.DetachMediaFromAdvert(c, advertId, assetId, params)
+}
+
+// AssignOwnerAdvertPackage operation middleware
+func (siw *ServerInterfaceWrapper) AssignOwnerAdvertPackage(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "advertId" -------------
+	var advertId AdvertIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AssignOwnerAdvertPackage(c, advertId)
 }
 
 // ReplaceAdvertDynamicProperties operation middleware
@@ -6293,6 +6411,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/packages", wrapper.ListPublicPackages)
 	router.GET(options.BaseURL+"/v1/homepage/new-adverts", wrapper.ListHomepageNewAdverts)
 	router.GET(options.BaseURL+"/v1/homepage/showcase", wrapper.ListHomepageShowcase)
+	router.GET(options.BaseURL+"/v1/homepage/urgent", wrapper.ListHomepageUrgent)
+	router.GET(options.BaseURL+"/v1/homepage/featured", wrapper.ListHomepageFeatured)
 	router.POST(options.BaseURL+"/v1/auth/email/confirm", wrapper.ConfirmEmailChange)
 	router.POST(options.BaseURL+"/v1/auth/login", wrapper.Login)
 	router.POST(options.BaseURL+"/v1/auth/logout", wrapper.LogoutCurrentSession)
@@ -6316,6 +6436,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/v1/me/adverts/:advertId", wrapper.SoftDeleteAdvertDraft)
 	router.GET(options.BaseURL+"/v1/me/adverts/:advertId", wrapper.GetMyAdvert)
 	router.PATCH(options.BaseURL+"/v1/me/adverts/:advertId", wrapper.UpdateAdvertDraftDetails)
+	router.PUT(options.BaseURL+"/v1/me/adverts/:advertId/package", wrapper.AssignOwnerAdvertPackage)
 	router.POST(options.BaseURL+"/v1/me/adverts/:advertId/archive", wrapper.ArchiveAdvert)
 	router.PUT(options.BaseURL+"/v1/me/adverts/:advertId/category", wrapper.ChangeAdvertDraftCategory)
 	router.POST(options.BaseURL+"/v1/me/adverts/:advertId/media", wrapper.AttachMediaToAdvert)

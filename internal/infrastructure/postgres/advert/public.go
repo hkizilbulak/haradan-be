@@ -71,6 +71,25 @@ ORDER BY md5(a.id::text || $1), a.id LIMIT $2`
 	return scanPublicCards(rows, err, "list homepage showcase")
 }
 
+func (r *Repository) ListHomepageUrgent(ctx context.Context, limit int, actorUserID *uuid.UUID) ([]domainadvert.PublicCard, error) {
+	sql := publicCardSelect("$2") + `
+WHERE a.status = 'PUBLISHED' AND a.deleted_at IS NULL
+  AND urgent.id IS NOT NULL
+ORDER BY urgent.activated_at DESC, a.id DESC LIMIT $1`
+	rows, err := r.db.Query(ctx, sql, limit, actorUserID)
+	return scanPublicCards(rows, err, "list homepage urgent")
+}
+
+func (r *Repository) ListHomepageFeatured(ctx context.Context, limit int, actorUserID *uuid.UUID) ([]domainadvert.PublicCard, error) {
+	sql := publicCardSelect("$2") + `
+WHERE a.status = 'PUBLISHED' AND a.deleted_at IS NULL
+  AND featured.id IS NOT NULL
+ORDER BY COALESCE(pkg.search_priority, 0) DESC, featured.ends_at NULLS LAST, a.published_at DESC, a.id DESC
+LIMIT $1`
+	rows, err := r.db.Query(ctx, sql, limit, actorUserID)
+	return scanPublicCards(rows, err, "list homepage featured")
+}
+
 func (r *Repository) GetPublishedDetail(ctx context.Context, advertID uuid.UUID, actorUserID *uuid.UUID) (domainadvert.PublicDetail, error) {
 	sql := publicCardSelect("$2") + `
 WHERE a.id = $1 AND a.status = 'PUBLISHED' AND a.deleted_at IS NULL`
@@ -124,6 +143,7 @@ SELECT a.id, a.category_id, a.district_id, d.province_id, a.horse_id, a.title,
        cover.asset_id, cover.display_order, cover.is_cover, cover.object_key,
        pkg.code, pkg.display_name, pkg.badge_text, COALESCE(pkg.search_priority, 0),
        (urgent.id IS NOT NULL), urgent.activated_at,
+       (featured.id IS NOT NULL), featured.ends_at,
        CASE WHEN ` + actorArg + `::uuid IS NULL THEN NULL ELSE EXISTS (
            SELECT 1 FROM hrd_favorites f WHERE f.advert_id = a.id AND f.user_id = ` + actorArg + `
        ) END
@@ -143,6 +163,13 @@ LEFT JOIN LATERAL (
   WHERE fa.advert_id = a.id AND fa.feature_code = 'URGENT' AND fa.status = 'ACTIVE'
   LIMIT 1
 ) urgent ON true
+LEFT JOIN LATERAL (
+  SELECT fa.id, fa.ends_at
+  FROM hrd_advert_feature_activations fa
+  WHERE fa.advert_id = a.id AND fa.feature_code = 'FEATURED' AND fa.status = 'ACTIVE'
+    AND (fa.ends_at IS NULL OR fa.ends_at > now())
+  LIMIT 1
+) featured ON true
 LEFT JOIN LATERAL (
   SELECT am.asset_id, am.display_order, am.is_cover, COALESCE(v.object_key, ma.master_object_key) AS object_key
   FROM hrd_advert_media am
@@ -184,7 +211,7 @@ func scanPublicCard(row interface{ Scan(...any) error }) (domainadvert.PublicCar
 	if err := row.Scan(&card.ID, &card.CategoryID, &card.DistrictID, &card.ProvinceID, &card.HorseID, &card.Title,
 		&amount, &currency, &card.PublishedAt, &coverAsset, &coverOrder, &coverIsCover, &coverKey,
 		&card.PackageCode, &card.PackageDisplayName, &card.PackageBadgeText, &card.SearchPriority,
-		&card.IsUrgent, &card.UrgentActivatedAt, &card.IsFavorite); err != nil {
+		&card.IsUrgent, &card.UrgentActivatedAt, &card.IsFeatured, &card.FeaturedUntil, &card.IsFavorite); err != nil {
 		return card, err
 	}
 	if amount != nil && currency != nil {

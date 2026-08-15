@@ -2661,6 +2661,94 @@ paths:
         - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
+  "/v1/homepage/urgent":
+    get:
+      operationId: ListHomepageUrgent
+      summary: ListHomepageUrgent
+      description: 'Exposure PUBLIC. Actor: Anonymous or ACTIVE. Optional BearerAuth
+        for favorite enrichment. ACTIVE URGENT feature activations only; ordered by
+        urgent activated_at DESC'
+      tags:
+      - Homepage
+      x-function-id: HOMEPAGE-03
+      x-exposure: PUBLIC
+      x-actor: Anonymous or ACTIVE
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PublishedAdvertSearchResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - {}
+      - BearerAuth: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+  "/v1/homepage/featured":
+    get:
+      operationId: ListHomepageFeatured
+      summary: ListHomepageFeatured
+      description: 'Exposure PUBLIC. Actor: Anonymous or ACTIVE. Optional BearerAuth
+        for favorite enrichment. ACTIVE FEATURED activations within ends_at window;
+        ordered by package search_priority DESC then published_at DESC'
+      tags:
+      - Homepage
+      x-function-id: HOMEPAGE-04
+      x-exposure: PUBLIC
+      x-actor: Anonymous or ACTIVE
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PublishedAdvertSearchResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - {}
+      - BearerAuth: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
   "/v1/auth/email/confirm":
     post:
       operationId: ConfirmEmailChange
@@ -3619,6 +3707,66 @@ paths:
         '409':
         - INVALID_STATE
         - STALE_VERSION
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/adverts/{advertId}/package":
+    put:
+      operationId: AssignOwnerAdvertPackage
+      summary: AssignOwnerAdvertPackage
+      description: 'Exposure USER_AUTH. Actor: owner. Assigns an active catalog package
+        (source=SYSTEM), applies package features (URGENT/FEATURED) immediately.
+        Idempotent for the same package with default schedule.'
+      tags:
+      - AdvertsOwner
+      x-function-id: PACKAGE-OWNER-01
+      x-exposure: USER_AUTH
+      x-actor: Owner
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdvertPackageAssignmentView"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/AssignOwnerAdvertPackageRequest"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        '422':
+        - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
   "/v1/me/adverts/{advertId}/archive":
@@ -7220,6 +7368,7 @@ components:
       - cover
       - isFavorite
       - isUrgent
+      - isFeatured
       properties:
         id:
           type: string
@@ -7274,6 +7423,13 @@ components:
           type: string
           format: date-time
           nullable: true
+        isFeatured:
+          type: boolean
+          description: True while an ACTIVE FEATURED activation is within its ends_at window
+        featuredUntil:
+          type: string
+          format: date-time
+          nullable: true
     PublishedAdvertSearchResponse:
       type: object
       additionalProperties: false
@@ -7306,6 +7462,7 @@ components:
       - media
       - isFavorite
       - isUrgent
+      - isFeatured
       properties:
         id:
           type: string
@@ -7355,6 +7512,13 @@ components:
           type: boolean
           description: True while an ACTIVE URGENT feature activation exists
         urgentActivatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        isFeatured:
+          type: boolean
+          description: True while an ACTIVE FEATURED activation is within its ends_at window
+        featuredUntil:
           type: string
           format: date-time
           nullable: true
@@ -8836,6 +9000,10 @@ components:
           type: boolean
         showcaseEligible:
           type: boolean
+        featuredDays:
+          type: integer
+          nullable: true
+          minimum: 1
         searchPriority:
           type: integer
           minimum: 0
@@ -9031,6 +9199,14 @@ components:
         updatedAt:
           type: string
           format: date-time
+    AssignOwnerAdvertPackageRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - packageCode
+      properties:
+        packageCode:
+          "$ref": "#/components/schemas/PackageCode"
     AssignAdvertPackageRequest:
       type: object
       additionalProperties: false
@@ -9578,6 +9754,11 @@ components:
           type: boolean
         showcaseEligible:
           type: boolean
+        featuredDays:
+          type: integer
+          nullable: true
+          minimum: 1
+          description: Timed FEATURED window in days; null when package has no öne çıkan entitlement
         searchPriority:
           type: integer
           minimum: 0

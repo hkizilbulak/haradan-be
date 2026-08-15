@@ -63,6 +63,12 @@ func (r *fakePublicRepository) ListHomepageShowcase(_ context.Context, seed stri
 	r.seed = seed
 	return []domainadvert.PublicCard{}, nil
 }
+func (r *fakePublicRepository) ListHomepageUrgent(context.Context, int, *uuid.UUID) ([]domainadvert.PublicCard, error) {
+	return []domainadvert.PublicCard{}, nil
+}
+func (r *fakePublicRepository) ListHomepageFeatured(context.Context, int, *uuid.UUID) ([]domainadvert.PublicCard, error) {
+	return []domainadvert.PublicCard{}, nil
+}
 func (r *fakePublicRepository) GetPublishedDetail(context.Context, uuid.UUID, *uuid.UUID) (domainadvert.PublicDetail, error) {
 	return domainadvert.PublicDetail{}, nil
 }

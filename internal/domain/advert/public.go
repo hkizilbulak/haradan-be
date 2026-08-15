@@ -22,6 +22,8 @@ type PublicCard struct {
 	PackageBadgeText   *string
 	IsUrgent           bool
 	UrgentActivatedAt  *time.Time
+	IsFeatured         bool
+	FeaturedUntil      *time.Time
 	IsFavorite         *bool
 	SearchPriority     int
 }

@@ -475,7 +475,7 @@ func (r *Repository) DeactivateActiveUrgentForAdvert(
 	const q = `
 UPDATE hrd_advert_feature_activations
 SET status = 'DEACTIVATED', deactivated_at = $2, reason = $3, updated_at = $4
-WHERE advert_id = $1 AND feature_code = 'URGENT' AND status = 'ACTIVE'`
+WHERE advert_id = $1 AND feature_code IN ('URGENT', 'FEATURED') AND status = 'ACTIVE'`
 	tag, err := r.db.Exec(ctx, q, advertID, deactivatedAt, reason, updatedAt)
 	if err != nil {
 		return false, apperr.Internal(fmt.Errorf("deactivate urgent for advert: %w", pg.SanitizeErr(err)))

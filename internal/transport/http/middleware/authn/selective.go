@@ -39,6 +39,7 @@ var AdvertOwnerProtectedRoutes = []ProtectedRoute{
 	{Method: "DELETE", Path: "/api/v1/me/adverts/:advertId"},
 	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/sold"},
 	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/archive"},
+	{Method: "PUT", Path: "/api/v1/me/adverts/:advertId/package"},
 }
 
 // MediaProtectedRoutes are MEDIA-01..07 owner-scoped routes. Admin media
@@ -193,6 +194,34 @@ func Selective(svc *appauth.Service, logger *slog.Logger, routes []ProtectedRout
 		allow[r.Method+" "+r.Path] = struct{}{}
 	}
 	inner := Middleware(svc, logger)
+	return func(c *gin.Context) {
+		key := c.Request.Method + " " + c.FullPath()
+		if _, ok := allow[key]; !ok {
+			c.Next()
+			return
+		}
+		inner(c)
+	}
+}
+
+// PublicFavoriteEnrichmentRoutes are PUBLIC routes that optionally accept Bearer
+// so PublishedAdvertCard.isFavorite can be enriched for logged-in buyers.
+var PublicFavoriteEnrichmentRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/adverts"},
+	{Method: "GET", Path: "/api/v1/adverts/:advertId"},
+	{Method: "GET", Path: "/api/v1/homepage/new-adverts"},
+	{Method: "GET", Path: "/api/v1/homepage/showcase"},
+	{Method: "GET", Path: "/api/v1/homepage/urgent"},
+	{Method: "GET", Path: "/api/v1/homepage/featured"},
+}
+
+// OptionalSelective runs soft Bearer auth on the listed public routes.
+func OptionalSelective(svc *appauth.Service, logger *slog.Logger, routes []ProtectedRoute) gin.HandlerFunc {
+	allow := make(map[string]struct{}, len(routes))
+	for _, r := range routes {
+		allow[r.Method+" "+r.Path] = struct{}{}
+	}
+	inner := OptionalMiddleware(svc, logger)
 	return func(c *gin.Context) {
 		key := c.Request.Method + " " + c.FullPath()
 		if _, ok := allow[key]; !ok {

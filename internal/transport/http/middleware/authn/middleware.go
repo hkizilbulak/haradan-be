@@ -39,6 +39,34 @@ func Middleware(svc *appauth.Service, _ *slog.Logger) gin.HandlerFunc {
 	}
 }
 
+// OptionalMiddleware enriches the request with a Principal when a valid Bearer
+// token is present. Missing Authorization is allowed (anonymous). A present but
+// invalid/revoked token is rejected so callers cannot silently appear anonymous.
+func OptionalMiddleware(svc *appauth.Service, _ *slog.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		header := c.GetHeader("Authorization")
+		if strings.TrimSpace(header) == "" {
+			c.Next()
+			return
+		}
+		tok, err := bind.BearerToken(c)
+		if err != nil {
+			writeAuthError(c, err)
+			c.Abort()
+			return
+		}
+		principal, err := svc.AuthenticateAccessToken(c.Request.Context(), tok)
+		if err != nil {
+			writeAuthError(c, err)
+			c.Abort()
+			return
+		}
+		ctx := authctx.WithPrincipal(c.Request.Context(), principal)
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	}
+}
+
 func writeAuthError(c *gin.Context, err error) {
 	traceID := middleware.RequestIDFromContext(c.Request.Context())
 	ae, ok := apperr.As(err)

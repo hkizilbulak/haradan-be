@@ -271,6 +271,58 @@ func TestAssignIdempotentSamePackageAndDates(t *testing.T) {
 	}
 }
 
+func TestAssignOwnerAppliesUrgentAndFeatured(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	days := 7
+	premium := domainpackaging.Package{
+		ID: uuid.New(), Code: domainpackaging.PackageCode("PREMIUM"), DisplayName: "Premium",
+		CurrencyCode: "TRY", DefaultDurationDays: intPtr(45), AllowsUrgent: true, FeaturedDays: &days,
+		SearchPriority: 50, IsActive: true, SortOrder: 25, Version: 1,
+		CreatedAt: f.clock.Now(), UpdatedAt: f.clock.Now(),
+	}
+	f.store.PutPackage(premium)
+
+	view, err := f.svc.AssignOwnerAdvertPackage(ctx, f.owner.ID, f.advert.ID, premium.Code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Assignment.Source != domainpackaging.AssignmentSourceSystem {
+		t.Fatalf("source=%s", view.Assignment.Source)
+	}
+
+	var urgentActive, featuredActive bool
+	var featuredEnds *time.Time
+	for _, feat := range f.store.Features() {
+		if feat.AdvertID != f.advert.ID || feat.Status != domainpackaging.FeatureActivationStatusActive {
+			continue
+		}
+		switch feat.FeatureCode {
+		case domainpackaging.FeatureCodeUrgent:
+			urgentActive = true
+		case domainpackaging.FeatureCodeFeatured:
+			featuredActive = true
+			featuredEnds = feat.EndsAt
+		}
+	}
+	if !urgentActive {
+		t.Fatal("expected auto URGENT")
+	}
+	if !featuredActive || featuredEnds == nil {
+		t.Fatal("expected timed FEATURED")
+	}
+	wantEnds := f.clock.Now().AddDate(0, 0, 7)
+	if !featuredEnds.Equal(wantEnds) {
+		t.Fatalf("featured ends=%s want=%s", featuredEnds, wantEnds)
+	}
+
+	_, err = f.svc.AssignOwnerAdvertPackage(ctx, f.other.ID, f.advert.ID, premium.Code)
+	if err == nil {
+		t.Fatal("expected forbidden for non-owner")
+	}
+	requireKind(t, err, apperr.KindForbidden)
+}
+
 func TestAssignDeactivatesUrgentOnPackageChange(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
