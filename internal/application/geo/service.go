@@ -20,6 +20,7 @@ const (
 // Service implements Geo use cases.
 type Service struct {
 	repo domaingeo.Repository
+	sync *CatalogSync
 }
 
 // NewService constructs a Geo application service.
@@ -27,13 +28,40 @@ func NewService(repo domaingeo.Repository) *Service {
 	return &Service{repo: repo}
 }
 
+// WithCatalogSync attaches a live catalog refresher. Optional.
+func (s *Service) WithCatalogSync(sync *CatalogSync) *Service {
+	if s == nil {
+		return s
+	}
+	s.sync = sync
+	return s
+}
+
+func (s *Service) ensureCatalog(ctx context.Context) error {
+	if s == nil || s.sync == nil {
+		return nil
+	}
+	return s.sync.Ensure(ctx)
+}
+
+// WarmCatalog refreshes the local catalog if needed. Used at process start.
+func (s *Service) WarmCatalog(ctx context.Context) error {
+	return s.ensureCatalog(ctx)
+}
+
 // ListActiveProvinces returns active provinces in deterministic order.
 func (s *Service) ListActiveProvinces(ctx context.Context) ([]domaingeo.Province, error) {
+	if err := s.ensureCatalog(ctx); err != nil {
+		return nil, err
+	}
 	items, err := s.repo.ListActiveProvinces(ctx)
 	if err != nil {
 		return nil, apperr.WrapInternal(err)
 	}
-	if items == nil {
+	if len(items) == 0 {
+		if s.sync != nil {
+			return nil, apperr.DependencyUnavailable("İl listesi şu anda alınamıyor.")
+		}
 		return []domaingeo.Province{}, nil
 	}
 	return items, nil
@@ -41,6 +69,9 @@ func (s *Service) ListActiveProvinces(ctx context.Context) ([]domaingeo.Province
 
 // SearchProvinces searches active provinces by Turkish-normalized prefix.
 func (s *Service) SearchProvinces(ctx context.Context, q *string, limit *int) ([]domaingeo.Province, error) {
+	if err := s.ensureCatalog(ctx); err != nil {
+		return nil, err
+	}
 	lim, err := resolveLimit(limit)
 	if err != nil {
 		return nil, err
@@ -61,6 +92,9 @@ func (s *Service) SearchProvinces(ctx context.Context, q *string, limit *int) ([
 
 // ListDistrictsByProvince lists active districts for an existing active province.
 func (s *Service) ListDistrictsByProvince(ctx context.Context, provinceID uuid.UUID) ([]domaingeo.District, error) {
+	if err := s.ensureCatalog(ctx); err != nil {
+		return nil, err
+	}
 	if _, err := s.repo.GetActiveProvinceID(ctx, provinceID); err != nil {
 		return nil, mapRepoErr(err)
 	}
@@ -76,6 +110,9 @@ func (s *Service) ListDistrictsByProvince(ctx context.Context, provinceID uuid.U
 
 // SearchDistricts searches active districts by prefix with optional province scope.
 func (s *Service) SearchDistricts(ctx context.Context, q *string, provinceID *uuid.UUID, limit *int) ([]domaingeo.District, error) {
+	if err := s.ensureCatalog(ctx); err != nil {
+		return nil, err
+	}
 	lim, err := resolveLimit(limit)
 	if err != nil {
 		return nil, err

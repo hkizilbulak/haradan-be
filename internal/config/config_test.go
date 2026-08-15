@@ -36,6 +36,12 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.TJKEnabled || cfg.TJKBaseURL != "" {
 		t.Fatalf("TJK should be disabled by default: enabled=%v url=%q", cfg.TJKEnabled, cfg.TJKBaseURL)
 	}
+	if !cfg.GeoCatalogEnabled || cfg.GeoCatalogBaseURL != "https://api.turkiyeapi.dev" {
+		t.Fatalf("geo catalog default: enabled=%v url=%q", cfg.GeoCatalogEnabled, cfg.GeoCatalogBaseURL)
+	}
+	if cfg.GeoCatalogHTTPTimeout != 15*time.Second || cfg.GeoCatalogTTL != 24*time.Hour {
+		t.Fatalf("geo catalog timeouts: timeout=%v ttl=%v", cfg.GeoCatalogHTTPTimeout, cfg.GeoCatalogTTL)
+	}
 	if cfg.TJKHTTPTimeout != 60*time.Second {
 		t.Fatalf("TJK timeout default = %v", cfg.TJKHTTPTimeout)
 	}
@@ -122,6 +128,20 @@ func TestLoadTJKEnabledDefaultsBaseURL(t *testing.T) {
 	}
 	if cfg.TJKHTTPTimeout != 60*time.Second {
 		t.Fatalf("timeout = %v", cfg.TJKHTTPTimeout)
+	}
+}
+
+func TestLoadGeoCatalogCanBeDisabled(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("GEO_CATALOG_ENABLED", "false")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.GeoCatalogEnabled {
+		t.Fatal("expected geo catalog disabled")
 	}
 }
 
@@ -877,6 +897,7 @@ func clearConfigEnv(t *testing.T) {
 		"WORKER_ID", "WORKER_SHUTDOWN_TIMEOUT", "WORKER_RETRY_BASE_DELAY", "WORKER_RETRY_MAX_DELAY",
 		"WORKER_LEASE_RECOVERY_INTERVAL",
 		"TJK_ENABLED", "TJK_BASE_URL", "TJK_HTTP_TIMEOUT", "TJK_PAGE_TIMEOUT", "TJK_MAX_BODY_BYTES",
+		"GEO_CATALOG_ENABLED", "GEO_CATALOG_URL", "GEO_CATALOG_HTTP_TIMEOUT", "GEO_CATALOG_TTL", "GEO_CATALOG_MAX_BODY_BYTES",
 	}
 	for _, key := range keys {
 		prev, had := os.LookupEnv(key)

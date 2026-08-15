@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	appadminuser "github.com/hkizilbulak/haradan-be/internal/application/adminuser"
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
@@ -15,7 +16,6 @@ import (
 	appbanner "github.com/hkizilbulak/haradan-be/internal/application/banner"
 	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
-	appcoupon "github.com/hkizilbulak/haradan-be/internal/application/coupon"
 	appemail "github.com/hkizilbulak/haradan-be/internal/application/email"
 	appfavorite "github.com/hkizilbulak/haradan-be/internal/application/favorite"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
@@ -32,7 +32,6 @@ import (
 	pgadminuser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/adminuser"
 	pgadvert "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/advert"
 	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
-	pgcoupon "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/coupon"
 	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
 	pghorse "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/horse"
 	pgjobdef "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/jobdef"
@@ -40,6 +39,7 @@ import (
 	pgtjk "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/tjk"
 	pguser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/user"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/storage/s3storage"
+	"github.com/hkizilbulak/haradan-be/internal/infrastructure/turkiyeapi"
 	"github.com/hkizilbulak/haradan-be/internal/platform/database"
 	applogger "github.com/hkizilbulak/haradan-be/internal/platform/logger"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/password"
@@ -145,6 +145,26 @@ func run() error {
 	catalogRepo := pgcatalog.NewRepository(db.Pool())
 	horseRepo := pghorse.NewRepository(db.Pool())
 	geoSvc := appgeo.NewService(geoRepo)
+	if cfg.GeoCatalogEnabled {
+		geoClient, err := turkiyeapi.New(turkiyeapi.Config{
+			BaseURL:      cfg.GeoCatalogBaseURL,
+			HTTPTimeout:  cfg.GeoCatalogHTTPTimeout,
+			MaxBodyBytes: cfg.GeoCatalogMaxBodyBytes,
+		})
+		if err != nil {
+			return fmt.Errorf("geo catalog client: %w", err)
+		}
+		geoSvc.WithCatalogSync(appgeo.NewCatalogSync(geoClient, geoRepo, cfg.GeoCatalogTTL))
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			if err := geoSvc.WarmCatalog(ctx); err != nil {
+				log.Warn("geo catalog warmup failed", "err", err)
+				return
+			}
+			log.Info("geo catalog ready")
+		}()
+	}
 	catalogSvc := appcatalog.NewService(catalogRepo)
 	horseSvc := apphorse.NewService(horseRepo)
 	// Storage uses B2 when STORAGE_PROVIDER=b2; otherwise UnconfiguredStorage.
@@ -261,13 +281,6 @@ func run() error {
 	})
 	if err != nil {
 		return fmt.Errorf("job admin service: %w", err)
-	}
-
-	couponSvc, err := appcoupon.NewService(appcoupon.Config{
-		Repo: pgcoupon.NewRepository(db.Pool()),
-	})
-	if err != nil {
-		return fmt.Errorf("coupon service: %w", err)
 	}
 
 	srvHandler := handler.NewServer(

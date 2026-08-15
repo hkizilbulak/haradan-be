@@ -24,6 +24,16 @@ func (s *Server) ConfirmMediaUpload(c *gin.Context, assetId generated.AssetIdPat
 	s.media.ConfirmMediaUpload(c, assetId)
 }
 
+// PutMediaAssetContent accepts raw image bytes for browser uploads that cannot
+// PUT directly to object storage (CORS).
+func (s *Server) PutMediaAssetContent(c *gin.Context) {
+	if s.media == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.media.PutMediaAssetContent(c)
+}
+
 // GetMediaProcessingStatus implements MEDIA-03.
 func (s *Server) GetMediaProcessingStatus(c *gin.Context, assetId generated.AssetIdPath) {
 	if s.media == nil {

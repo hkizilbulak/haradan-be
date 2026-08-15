@@ -196,6 +196,15 @@ func TestInitiateMediaUploadSuccess(t *testing.T) {
 	if asset.ContentType != nil {
 		t.Fatalf("declared content type must not be trusted: %v", asset.ContentType)
 	}
+
+	body := []byte("fake-jpeg-bytes")
+	if err := f.svc.PutMediaAssetContent(ctx, f.owner, view.AssetID, "image/jpeg", body); err != nil {
+		t.Fatalf("put content: %v", err)
+	}
+	info, err := f.storage.HeadObject(ctx, domainmedia.RawObjectKey(view.AssetID))
+	if err != nil || !info.Exists || info.ByteSize != int64(len(body)) {
+		t.Fatalf("stored object info=%+v err=%v", info, err)
+	}
 }
 
 func TestInitiateMediaUploadDependencyUnavailableWhenConfigUnset(t *testing.T) {

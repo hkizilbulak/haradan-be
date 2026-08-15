@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -184,5 +185,19 @@ func TestSearchDistrictsScoped(t *testing.T) {
 	}
 	if repo.lastDistPrefix != "can" || repo.lastLimit != 20 {
 		t.Fatalf("prefix=%q limit=%d", repo.lastDistPrefix, repo.lastLimit)
+	}
+}
+
+func TestListActiveProvincesUnavailableWhenSyncLeavesEmpty(t *testing.T) {
+	src := &fakeSource{cat: domaingeo.Catalog{
+		Provinces: []domaingeo.Province{{Name: "Ankara"}},
+		Districts: []domaingeo.District{{Name: "Çankaya"}},
+	}}
+	store := &fakeStore{}
+	svc := appgeo.NewService(&fakeGeoRepo{}).WithCatalogSync(appgeo.NewCatalogSync(src, store, time.Hour))
+	_, err := svc.ListActiveProvinces(context.Background())
+	ae, ok := apperr.As(err)
+	if !ok || ae.Kind != apperr.KindDependencyUnavailable {
+		t.Fatalf("want unavailable, got %v", err)
 	}
 }

@@ -121,9 +121,19 @@ type Config struct {
 	TJKHTTPTimeout  time.Duration
 	TJKPageTimeout  time.Duration
 	TJKMaxBodyBytes int64
+
+	// Geo catalog is live-fetched from the official Turkey admin API and
+	// materialized into hrd_provinces/hrd_districts. Default on: listing
+	// cannot be submitted without a district foreign key.
+	GeoCatalogEnabled      bool
+	GeoCatalogBaseURL      string
+	GeoCatalogHTTPTimeout  time.Duration
+	GeoCatalogTTL          time.Duration
+	GeoCatalogMaxBodyBytes int64
 }
 
 const defaultTJKBaseURL = "https://www.tjk.org"
+const defaultGeoCatalogBaseURL = "https://api.turkiyeapi.dev"
 
 // Supported STORAGE_PROVIDER values after normalization.
 const (
@@ -461,6 +471,37 @@ func Load() (Config, error) {
 	}
 	if cfg.TJKPageTimeout >= cfg.WorkerLeaseDuration {
 		return Config{}, fmt.Errorf("TJK_PAGE_TIMEOUT must be less than WORKER_LEASE_DURATION")
+	}
+
+	cfg.GeoCatalogEnabled = true
+	rawGeoEnabled := strings.TrimSpace(os.Getenv("GEO_CATALOG_ENABLED"))
+	if rawGeoEnabled != "" {
+		cfg.GeoCatalogEnabled, err = strconv.ParseBool(rawGeoEnabled)
+		if err != nil {
+			return Config{}, fmt.Errorf("GEO_CATALOG_ENABLED is not a valid boolean")
+		}
+	}
+	cfg.GeoCatalogBaseURL = strings.TrimSpace(os.Getenv("GEO_CATALOG_URL"))
+	if cfg.GeoCatalogHTTPTimeout, err = durationEnv("GEO_CATALOG_HTTP_TIMEOUT", 15*time.Second); err != nil {
+		return Config{}, err
+	}
+	if cfg.GeoCatalogTTL, err = durationEnv("GEO_CATALOG_TTL", 24*time.Hour); err != nil {
+		return Config{}, err
+	}
+	if cfg.GeoCatalogMaxBodyBytes, err = int64Env("GEO_CATALOG_MAX_BODY_BYTES", 2<<20); err != nil {
+		return Config{}, err
+	}
+	if cfg.GeoCatalogEnabled {
+		if cfg.GeoCatalogBaseURL == "" {
+			cfg.GeoCatalogBaseURL = defaultGeoCatalogBaseURL
+		}
+		u, parseErr := url.Parse(cfg.GeoCatalogBaseURL)
+		if parseErr != nil || u.Scheme == "" || u.Host == "" || u.User != nil {
+			return Config{}, fmt.Errorf("GEO_CATALOG_URL is not a valid URL")
+		}
+	}
+	if cfg.GeoCatalogMaxBodyBytes < 1 {
+		return Config{}, fmt.Errorf("GEO catalog body limit must be greater than zero")
 	}
 
 	return cfg, nil

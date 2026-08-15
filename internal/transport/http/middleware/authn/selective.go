@@ -47,6 +47,7 @@ var AdvertOwnerProtectedRoutes = []ProtectedRoute{
 var MediaProtectedRoutes = []ProtectedRoute{
 	{Method: "POST", Path: "/api/v1/media/uploads"},
 	{Method: "POST", Path: "/api/v1/media/assets/:assetId/confirm"},
+	{Method: "PUT", Path: "/api/v1/media/assets/:assetId/content"},
 	{Method: "GET", Path: "/api/v1/media/assets/:assetId"},
 	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/media"},
 	{Method: "DELETE", Path: "/api/v1/me/adverts/:advertId/media/:assetId"},

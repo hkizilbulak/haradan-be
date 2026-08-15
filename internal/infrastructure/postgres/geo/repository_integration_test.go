@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	domaingeo "github.com/hkizilbulak/haradan-be/internal/domain/geo"
 	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/testutil"
 )
@@ -68,5 +69,33 @@ VALUES ($1, 'İstanbul', 'istanbul', true, 1, $2, $2)`, id, now)
 	}
 	if !found {
 		t.Fatalf("prefix search missed istanbul: %+v", got)
+	}
+}
+
+func TestRepositoryReplaceCatalogIntegration(t *testing.T) {
+	ctx, tx, cleanup := testutil.OpenTestTx(t)
+	defer cleanup()
+
+	pID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	dID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	repo := pggeo.NewRepository(tx)
+	err := repo.ReplaceCatalog(ctx, []domaingeo.Province{{
+		ID: pID, Name: "HaradanTestİl", SortOrder: 6, IsActive: true,
+	}}, []domaingeo.District{{
+		ID: dID, ProvinceID: pID, Name: "HaradanTestİlçe", SortOrder: 1, IsActive: true,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := repo.CountActiveProvinces(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n < 1 {
+		t.Fatalf("count=%d", n)
+	}
+	got, err := repo.ListActiveDistrictsByProvince(ctx, pID)
+	if err != nil || len(got) != 1 || got[0].Name != "HaradanTestİlçe" {
+		t.Fatalf("districts=%v err=%v", got, err)
 	}
 }

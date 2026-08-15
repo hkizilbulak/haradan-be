@@ -3,8 +3,10 @@ package media
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -85,6 +87,51 @@ func (h *Handler) ConfirmMediaUpload(c *gin.Context, assetID generated.AssetIdPa
 		return
 	}
 	c.JSON(http.StatusAccepted, mapProcessingView(out))
+}
+
+// PutMediaAssetContent handles PUT /v1/media/assets/{assetId}/content.
+// Browser clients that cannot reach B2 directly (CORS) upload bytes here; the
+// server writes to storage with PutObject, then the client calls confirm.
+func (h *Handler) PutMediaAssetContent(c *gin.Context) {
+	ownerID, ok := h.requirePrincipal(c)
+	if !ok {
+		return
+	}
+	rawID := strings.TrimSpace(c.Param("assetId"))
+	assetID, err := uuid.Parse(rawID)
+	if err != nil {
+		h.respond(c, h.logger, apperr.Validation("Geçersiz istek.", apperr.FieldError{
+			Field:   "assetId",
+			Message: "Geçersiz görsel kimliği.",
+		}))
+		return
+	}
+	contentType := c.GetHeader("Content-Type")
+	if i := strings.IndexByte(contentType, ';'); i >= 0 {
+		contentType = contentType[:i]
+	}
+	contentType = strings.TrimSpace(contentType)
+	const maxRead = (64 << 20) + 1
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxRead))
+	if err != nil {
+		h.respond(c, h.logger, apperr.Validation("Geçersiz istek.", apperr.FieldError{
+			Field:   "body",
+			Message: "Dosya okunamadı.",
+		}))
+		return
+	}
+	if len(body) >= maxRead {
+		h.respond(c, h.logger, apperr.Validation("Geçersiz istek.", apperr.FieldError{
+			Field:   "body",
+			Message: "Dosya izin verilen boyuttan büyük.",
+		}))
+		return
+	}
+	if err := h.svc.PutMediaAssetContent(c.Request.Context(), ownerID, assetID, contentType, body); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // GetMediaProcessingStatus handles GET /v1/media/assets/{assetId} (MEDIA-03).

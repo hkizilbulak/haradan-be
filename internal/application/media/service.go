@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -209,6 +210,53 @@ func (s *Service) InitiateMediaUpload(
 			RequiredHeaders:     headerNames(auth.Headers),
 		},
 	}, nil
+}
+
+// PutMediaAssetContent writes raw bytes for an UPLOAD_PENDING owner asset via
+// the storage adapter. Used when the browser cannot PUT directly to the
+// provider (CORS). Presigned upload remains available for native clients.
+func (s *Service) PutMediaAssetContent(
+	ctx context.Context,
+	ownerID, assetID uuid.UUID,
+	contentType string,
+	body []byte,
+) error {
+	if err := requireAssetID(assetID); err != nil {
+		return err
+	}
+	if len(s.allowedContentTypes) == 0 {
+		return apperr.DependencyUnavailable(mediaNotConfiguredMessage)
+	}
+	maxBytes := effectiveMaxByteSize(s.maxByteSize)
+	ct := strings.ToLower(strings.TrimSpace(contentType))
+	if ct == "" {
+		return apperr.Validation(invalidRequest, apperr.FieldError{
+			Field:   "contentType",
+			Message: "İçerik türü zorunludur.",
+		})
+	}
+	declared := ct
+	if _, err := validateDeclaredContentType(s.allowedContentTypes, &declared); err != nil {
+		return err
+	}
+	size := int64(len(body))
+	if err := validateDeclaredByteSize(maxBytes, &size); err != nil {
+		return err
+	}
+
+	current, err := s.repo.FindAssetByIDForOwner(ctx, ownerID, assetID)
+	if err != nil {
+		return err
+	}
+	if current.LifecycleStatus != domainmedia.AssetUploadPending {
+		return apperr.InvalidState(assetNotConfirmableMessage)
+	}
+
+	rawKey := domainmedia.RawObjectKey(assetID)
+	if err := s.storage.PutObject(ctx, rawKey, ct, body); err != nil {
+		return err
+	}
+	return nil
 }
 
 // ConfirmMediaUpload implements MEDIA-02. The provider HEAD check runs outside
