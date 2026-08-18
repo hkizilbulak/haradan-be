@@ -43,7 +43,7 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 				len(authn.AdvertUrgentProtectedRoutes)+len(authn.NotificationInboxProtectedRoutes)+
 				len(authn.BannerAdminProtectedRoutes)+len(authn.AdminUserProtectedRoutes)+
 				len(authn.TJKAdminProtectedRoutes)+len(authn.CatalogAdminProtectedRoutes)+
-				len(authn.MediaAdminProtectedRoutes))
+				len(authn.MediaAdminProtectedRoutes)+len(authn.AdvertCommentProtectedRoutes))
 		protected = append(protected, authn.AccountSessionProtectedRoutes...)
 		protected = append(protected, authn.AdvertOwnerProtectedRoutes...)
 		protected = append(protected, authn.MediaProtectedRoutes...)
@@ -57,6 +57,7 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 		protected = append(protected, authn.TJKAdminProtectedRoutes...)
 		protected = append(protected, authn.CatalogAdminProtectedRoutes...)
 		protected = append(protected, authn.MediaAdminProtectedRoutes...)
+		protected = append(protected, authn.AdvertCommentProtectedRoutes...)
 		r.Use(authn.Selective(opt.AuthService, logger, protected))
 		r.Use(authn.OptionalSelective(opt.AuthService, logger, authn.PublicFavoriteEnrichmentRoutes))
 	}

@@ -185,6 +185,10 @@ var CouponUserProtectedRoutes = []ProtectedRoute{
 	{Method: "POST", Path: "/api/v1/coupons/validate"},
 }
 
+var AdvertCommentProtectedRoutes = []ProtectedRoute{
+	{Method: "POST", Path: "/api/v1/adverts/:advertId/comments"},
+}
+
 // Selective runs Bearer access-token auth only for the listed method+path pairs.
 // Unlisted routes (including public Health/Geo/Catalog/Auth and remaining 501 FE_AUTH
 // stubs) are left untouched.

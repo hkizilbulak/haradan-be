@@ -42,6 +42,8 @@ import (
 	tjkhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/tjk"
 	appcoupon "github.com/hkizilbulak/haradan-be/internal/application/coupon"
 	couponhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/coupon"
+	appcomment "github.com/hkizilbulak/haradan-be/internal/application/comment"
+	commenthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/comment"
 )
 
 // DependencyChecker is a minimal health dependency contract.
@@ -72,6 +74,14 @@ type Server struct {
 	adminuser    *adminuserhandler.Handler
 	tjk          *tjkhandler.Handler
 	coupon       *couponhandler.Handler
+	comment      *commenthandler.Handler
+}
+
+func (s *Server) WithCommentService(svc *appcomment.Service) *Server {
+	if svc != nil {
+		s.comment = commenthandler.NewHandler(svc, s.logger, respondError)
+	}
+	return s
 }
 
 func (s *Server) WithCouponService(svc *appcoupon.Service) *Server {
