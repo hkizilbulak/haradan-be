@@ -2549,6 +2549,98 @@ paths:
         - NOT_FOUND
         '500':
         - INTERNAL_ERROR
+  "/v1/adverts/{advertId}/comments":
+    get:
+      operationId: ListAdvertComments
+      summary: ListAdvertComments
+      description: 'Exposure PUBLIC. Actor: Anonymous or ACTIVE. Fetches published comments for an advert.'
+      tags:
+      - AdvertsPublic
+      x-function-id: ADVERT-PUBLIC-03
+      x-exposure: PUBLIC
+      x-actor: Anonymous or ACTIVE
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 20
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdvertCommentListResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+    post:
+      operationId: CreateAdvertComment
+      summary: CreateAdvertComment
+      description: 'Exposure FE_AUTH. Actor: ACTIVE. Posts a new comment for a published advert.'
+      tags:
+      - AdvertsPublic
+      x-function-id: ADVERT-PUBLIC-04
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/CreateAdvertCommentRequest"
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdvertCommentItem"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '404':
+        - NOT_FOUND
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
   "/v1/packages":
     get:
       operationId: ListPublicPackages
@@ -6652,6 +6744,54 @@ components:
         format: uuid
 
   schemas:
+    CreateAdvertCommentRequest:
+      type: object
+      required:
+      - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Comment content (1-1000 characters)
+    AdvertCommentItem:
+      type: object
+      required:
+      - id
+      - advertId
+      - userId
+      - authorName
+      - content
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        advertId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        authorName:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    AdvertCommentListResponse:
+      type: object
+      required:
+      - items
+      - totalCount
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/AdvertCommentItem"
+        totalCount:
+          type: integer
     AdvertStatus:
       type: string
       enum:

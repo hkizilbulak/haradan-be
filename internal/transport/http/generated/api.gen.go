@@ -891,6 +891,22 @@ type AdminUserListResponse struct {
 	NextCursor *string             `json:"nextCursor,omitempty"`
 }
 
+// AdvertCommentItem defines model for AdvertCommentItem.
+type AdvertCommentItem struct {
+	AdvertId   openapi_types.UUID `json:"advertId"`
+	AuthorName string             `json:"authorName"`
+	Content    string             `json:"content"`
+	CreatedAt  time.Time          `json:"createdAt"`
+	Id         openapi_types.UUID `json:"id"`
+	UserId     openapi_types.UUID `json:"userId"`
+}
+
+// AdvertCommentListResponse defines model for AdvertCommentListResponse.
+type AdvertCommentListResponse struct {
+	Items      []AdvertCommentItem `json:"items"`
+	TotalCount int                 `json:"totalCount"`
+}
+
 // AdvertMediaCollectionResponse defines model for AdvertMediaCollectionResponse.
 type AdvertMediaCollectionResponse struct {
 	AdvertId     openapi_types.UUID       `json:"advertId"`
@@ -1123,6 +1139,12 @@ type CreateAdminUserRequest struct {
 	LastName  string              `json:"lastName"`
 	Phone     *string             `json:"phone,omitempty"`
 	Role      UserRole            `json:"role"`
+}
+
+// CreateAdvertCommentRequest defines model for CreateAdvertCommentRequest.
+type CreateAdvertCommentRequest struct {
+	// Content Comment content (1-1000 characters)
+	Content string `json:"content"`
 }
 
 // CreateAdvertDraftRequest defines model for CreateAdvertDraftRequest.
@@ -2375,6 +2397,12 @@ type SearchPublishedAdvertsParams struct {
 // SearchPublishedAdvertsParamsSort defines parameters for SearchPublishedAdverts.
 type SearchPublishedAdvertsParamsSort string
 
+// ListAdvertCommentsParams defines parameters for ListAdvertComments.
+type ListAdvertCommentsParams struct {
+	Limit  *int `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // ListActiveBannersByPlacementParams defines parameters for ListActiveBannersByPlacement.
 type ListActiveBannersByPlacementParams struct {
 	Placement BannerPlacement `form:"placement" json:"placement"`
@@ -2568,6 +2596,9 @@ type ChangeUserRoleJSONRequestBody = ChangeUserRoleRequest
 
 // ChangeUserStatusJSONRequestBody defines body for ChangeUserStatus for application/json ContentType.
 type ChangeUserStatusJSONRequestBody = ChangeUserStatusRequest
+
+// CreateAdvertCommentJSONRequestBody defines body for CreateAdvertComment for application/json ContentType.
+type CreateAdvertCommentJSONRequestBody = CreateAdvertCommentRequest
 
 // ConfirmEmailChangeJSONRequestBody defines body for ConfirmEmailChange for application/json ContentType.
 type ConfirmEmailChangeJSONRequestBody = TokenRequest
@@ -2850,6 +2881,12 @@ type ServerInterface interface {
 	// GetPublishedAdvertDetail GetPublishedAdvertDetail
 	// (GET /v1/adverts/{advertId})
 	GetPublishedAdvertDetail(c *gin.Context, advertId AdvertIdPath)
+	// ListAdvertComments ListAdvertComments
+	// (GET /v1/adverts/{advertId}/comments)
+	ListAdvertComments(c *gin.Context, advertId AdvertIdPath, params ListAdvertCommentsParams)
+	// CreateAdvertComment CreateAdvertComment
+	// (POST /v1/adverts/{advertId}/comments)
+	CreateAdvertComment(c *gin.Context, advertId AdvertIdPath)
 	// DeactivateAdvertUrgent DeactivateAdvertUrgent
 	// (DELETE /v1/adverts/{advertId}/urgent)
 	DeactivateAdvertUrgent(c *gin.Context, advertId AdvertIdPath)
@@ -4918,6 +4955,75 @@ func (siw *ServerInterfaceWrapper) GetPublishedAdvertDetail(c *gin.Context) {
 	siw.Handler.GetPublishedAdvertDetail(c, advertId)
 }
 
+// ListAdvertComments operation middleware
+func (siw *ServerInterfaceWrapper) ListAdvertComments(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "advertId" -------------
+	var advertId AdvertIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdvertCommentsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", c.Request.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdvertComments(c, advertId, params)
+}
+
+// CreateAdvertComment operation middleware
+func (siw *ServerInterfaceWrapper) CreateAdvertComment(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "advertId" -------------
+	var advertId AdvertIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateAdvertComment(c, advertId)
+}
+
 // DeactivateAdvertUrgent operation middleware
 func (siw *ServerInterfaceWrapper) DeactivateAdvertUrgent(c *gin.Context) {
 
@@ -6408,6 +6514,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/v1/admin/users/:userId/status", wrapper.ChangeUserStatus)
 	router.GET(options.BaseURL+"/v1/adverts", wrapper.SearchPublishedAdverts)
 	router.GET(options.BaseURL+"/v1/adverts/:advertId", wrapper.GetPublishedAdvertDetail)
+	router.GET(options.BaseURL+"/v1/adverts/:advertId/comments", wrapper.ListAdvertComments)
+	router.POST(options.BaseURL+"/v1/adverts/:advertId/comments", wrapper.CreateAdvertComment)
 	router.GET(options.BaseURL+"/v1/packages", wrapper.ListPublicPackages)
 	router.GET(options.BaseURL+"/v1/homepage/new-adverts", wrapper.ListHomepageNewAdverts)
 	router.GET(options.BaseURL+"/v1/homepage/showcase", wrapper.ListHomepageShowcase)

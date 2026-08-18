@@ -35,7 +35,7 @@ func TestGeneratedErrorHandlerOpenAPIContractDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := string(spec)
+	text := strings.ReplaceAll(string(spec), "\r\n", "\n")
 
 	var missing400, missingCode, badRef []string
 	for _, oid := range sortedKeys(ehOps) {

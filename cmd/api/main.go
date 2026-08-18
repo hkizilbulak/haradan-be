@@ -18,6 +18,7 @@ import (
 	appbanner "github.com/hkizilbulak/haradan-be/internal/application/banner"
 	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
+	appcomment "github.com/hkizilbulak/haradan-be/internal/application/comment"
 	appemail "github.com/hkizilbulak/haradan-be/internal/application/email"
 	appfavorite "github.com/hkizilbulak/haradan-be/internal/application/favorite"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
@@ -233,6 +234,10 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("favorite service: %w", err)
 	}
+	commentSvc, err := appcomment.NewPostgresService(db.Pool())
+	if err != nil {
+		return fmt.Errorf("comment service: %w", err)
+	}
 
 	advertRepo := pgadvert.NewRepository(db.Pool())
 	userRepo := pguser.NewRepository(db.Pool())
@@ -297,7 +302,8 @@ func run() error {
 		WithAdminUserService(adminUserSvc).
 		WithTJKService(tjkSvc).
 		WithEmailTemplateDiscovery(emailDiscovery).
-		WithJobAdminService(jobAdminSvc)
+		WithJobAdminService(jobAdminSvc).
+		WithCommentService(commentSvc)
 	engine := router.New(srvHandler, log, router.Options{
 		AuthService:        authSvc,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
