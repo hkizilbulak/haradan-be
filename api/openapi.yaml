@@ -6824,6 +6824,8 @@ components:
       type: string
       enum:
       - HOMEPAGE
+      - HOMEPAGE_HERO
+      - HOMEPAGE_PROMO
       - LISTING_DETAIL
       - SEARCH
     BannerStatus:
