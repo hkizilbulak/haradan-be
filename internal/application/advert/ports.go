@@ -114,6 +114,7 @@ type PublicRepository interface {
 	ListHomepageUrgent(ctx context.Context, limit int, actorUserID *uuid.UUID) ([]domainadvert.PublicCard, error)
 	ListHomepageFeatured(ctx context.Context, limit int, actorUserID *uuid.UUID) ([]domainadvert.PublicCard, error)
 	GetPublishedDetail(ctx context.Context, advertID uuid.UUID, actorUserID *uuid.UUID) (domainadvert.PublicDetail, error)
+	RecordView(ctx context.Context, advertID uuid.UUID, ipAddress string) error
 }
 
 // CatalogReader reads the category metadata the advert core depends on.
