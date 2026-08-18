@@ -96,6 +96,7 @@ type Service struct {
 	email             EmailSender
 	emailVerifyTTL    time.Duration
 	dummyPasswordHash string
+	autoVerifyEmail   bool
 }
 
 // Config wires auth application dependencies.
@@ -109,6 +110,10 @@ type Config struct {
 	EmailSender       EmailSender
 	EmailVerifyTTL    time.Duration
 	DummyPasswordHash string
+	// AutoVerifyEmail skips the email verification step and marks new accounts
+	// as verified immediately on registration. Use when email delivery is not
+	// configured (e.g. EMAIL_PROVIDER=unconfigured).
+	AutoVerifyEmail bool
 }
 
 // NewService constructs the auth application service.
@@ -143,6 +148,7 @@ func NewService(cfg Config) (*Service, error) {
 		email:             email,
 		emailVerifyTTL:    cfg.EmailVerifyTTL,
 		dummyPasswordHash: dummy,
+		autoVerifyEmail:   cfg.AutoVerifyEmail,
 	}, nil
 }
 
@@ -285,6 +291,11 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResul
 		return RegisterResult{}, apperr.Internal(err)
 	}
 
+	var verifiedAt *time.Time
+	if s.autoVerifyEmail {
+		t := now
+		verifiedAt = &t
+	}
 	user := domainuser.User{
 		ID:              uuid.New(),
 		Email:           email,
@@ -296,9 +307,23 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResul
 		LastName:        last,
 		Phone:           normalizedPhone,
 		SecurityStamp:   uuid.New(),
+		EmailVerifiedAt: verifiedAt,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
+
+	if s.autoVerifyEmail {
+		if err := s.withTx(ctx, func(ctx context.Context, users UserRepository, _ SessionRepository) error {
+			return users.Create(ctx, user)
+		}); err != nil {
+			if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindConflict {
+				return RegisterResult{Message: registerSuccessMessage}, nil
+			}
+			return RegisterResult{}, err
+		}
+		return RegisterResult{Message: registerSuccessMessage}, nil
+	}
+
 	cred := domainauth.OneTimeCredential{
 		ID:                    uuid.New(),
 		UserID:                user.ID,

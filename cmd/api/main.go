@@ -126,6 +126,7 @@ func run() error {
 		EmailSender:       emailSender,
 		EmailVerifyTTL:    cfg.EmailVerificationTTL,
 		DummyPasswordHash: password.DummyHash(hasher),
+		AutoVerifyEmail:   cfg.EmailProvider == config.EmailProviderUnconfigured,
 	})
 	if err != nil {
 		return fmt.Errorf("auth service: %w", err)
