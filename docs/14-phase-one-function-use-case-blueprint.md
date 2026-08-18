@@ -55,7 +55,7 @@ Exact application error seti (HTTP mapping sonraki aşama):
 | `UNAUTHENTICATED` | Authentication failure |
 | `FORBIDDEN` | Authorization failure (role/context) |
 | `ACCOUNT_INACTIVE` | DISABLED/CLOSED account |
-| `EMAIL_NOT_VERIFIED` | Verification gate (ör. submit) |
+| `EMAIL_NOT_VERIFIED` | Verification gate (ör. login / e-posta değişikliği) |
 | `NOT_FOUND` | Not found (enumeration-safe olduğu yerlerde generic) |
 | `CONFLICT` | Unique/state conflict |
 | `STALE_VERSION` | Optimistic concurrency conflict |
@@ -1417,7 +1417,7 @@ Her fonksiyon tek exposure altında bir kez sayılır.
 | Exposure | `FE_AUTH` |
 | Actor | ACTIVE user (owner) |
 | Purpose | DRAFT→PENDING_REVIEW full validation ile. |
-| Preconditions | ACTIVE; owner; email_verified; status=DRAFT; expected version. |
+| Preconditions | ACTIVE; owner; status=DRAFT; expected version. |
 | Input summary | Expected version. |
 | Output summary | Status PENDING_REVIEW + version. |
 | Reads | `hrd_adverts`, `hrd_categories`, `hrd_category_properties`, `hrd_districts`, `hrd_horses`, `hrd_advert_media`, `hrd_media_assets`, `hrd_media_variants`, `hrd_users` |
@@ -1426,7 +1426,7 @@ Her fonksiyon tek exposure altında bir kez sayılır.
 | Concurrency | `version` |
 | Idempotency | Non-idempotent |
 | Side effects | History; no payment wait |
-| Primary domain errors | `EMAIL_NOT_VERIFIED`, `VALIDATION_ERROR`, `PROCESSING_NOT_READY`, `INVALID_STATE`, `STALE_VERSION` |
+| Primary domain errors | `VALIDATION_ERROR`, `PROCESSING_NOT_READY`, `INVALID_STATE`, `STALE_VERSION` |
 | Notes | Horse/min media/price required category metadata + açık ürün kararlarına bağlı. |
 #### `ADVERT-OWNER-08` — `ResubmitAdvertForReview`
 
@@ -1438,7 +1438,7 @@ Her fonksiyon tek exposure altında bir kez sayılır.
 | Exposure | `FE_AUTH` |
 | Actor | ACTIVE user (owner) |
 | Purpose | CHANGES_REQUESTED→PENDING_REVIEW. |
-| Preconditions | ACTIVE; owner; email_verified; status=CHANGES_REQUESTED; expected version. |
+| Preconditions | ACTIVE; owner; status=CHANGES_REQUESTED; expected version. |
 | Input summary | Expected version. |
 | Output summary | Status PENDING_REVIEW. |
 | Reads | `hrd_users`, `hrd_adverts`, `hrd_categories`, `hrd_category_properties`, `hrd_districts`, `hrd_horses`, `hrd_advert_media`, `hrd_media_assets`, `hrd_media_variants` |
@@ -1447,7 +1447,7 @@ Her fonksiyon tek exposure altında bir kez sayılır.
 | Concurrency | `version` |
 | Idempotency | Non-idempotent |
 | Side effects | Status history via INTERNAL-02 |
-| Primary domain errors | `EMAIL_NOT_VERIFIED`, `VALIDATION_ERROR`, `PROCESSING_NOT_READY`, `INVALID_STATE`, `STALE_VERSION`, `OWNERSHIP_REQUIRED` |
+| Primary domain errors | `VALIDATION_ERROR`, `PROCESSING_NOT_READY`, `INVALID_STATE`, `STALE_VERSION`, `OWNERSHIP_REQUIRED` |
 | Notes | Category change hâlâ yasak. |
 
 #### `ADVERT-OWNER-09` — `SoftDeleteAdvertDraft`
@@ -2722,7 +2722,7 @@ Repository CRUD değildir. Outer use-case TX’ine katılır; kendi başına ayr
 | Concurrency | read-only |
 | Idempotency | Idempotent |
 | Side effects | None |
-| Primary domain errors | `VALIDATION_ERROR`, `EMAIL_NOT_VERIFIED`, `PROCESSING_NOT_READY` |
+| Primary domain errors | `VALIDATION_ERROR`, `PROCESSING_NOT_READY` |
 | Notes | Horse/min media/price required açık ürün kararlarına bağlı. |
 
 #### `INTERNAL-05` — `ValidateDynamicProperties`
@@ -2856,7 +2856,7 @@ Media relation create (`MEDIA-04`, banner create/update asset change) ve `MEDIA-
 
 - Seller DISABLED/CLOSED iken PUBLISHED visibility
 - Pasif category × PUBLISHED behavior
-- Email verification’ın login vs publication/submit etkisi nüansları (submit’te EMAIL_NOT_VERIFIED kapısı varsayıldı)
+- Email verification’ın login vs publication/submit etkisi nüansları (submit e-posta doğrulaması gerektirmez)
 - Unverified user draft create izni
 - Telefon zorunluluğu
 - Own-advert favorite

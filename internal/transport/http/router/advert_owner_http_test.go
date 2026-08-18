@@ -79,7 +79,7 @@ func newAdvertEngine(t *testing.T) *advertTestEnv {
 
 // registerAndLogin registers and logs a fresh user in via the real HTTP auth
 // flow, then seeds the advert store's own user record with a matching id so
-// the advert service's owner lookups (active/email-verified) resolve.
+// the advert service's owner lookups (active account) resolve.
 func (env *advertTestEnv) registerAndLogin(t *testing.T, email string, emailVerified bool) (bearer string, ownerID uuid.UUID) {
 	t.Helper()
 	rec := env.do(http.MethodPost, "/api/v1/auth/register",
@@ -270,7 +270,7 @@ func TestUpdateAdvertDraftDetailsMalformedHTTP(t *testing.T) {
 	}
 }
 
-func TestSubmitAdvertForReviewEmailNotVerifiedHTTP(t *testing.T) {
+func TestSubmitAdvertForReviewUnverifiedEmailHTTP(t *testing.T) {
 	env := newAdvertEngine(t)
 	auth, _ := env.registerAndLogin(t, "unverified@example.com", false)
 
@@ -279,12 +279,15 @@ func TestSubmitAdvertForReviewEmailNotVerifiedHTTP(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &created)
 
 	rec = env.do(http.MethodPost, "/api/v1/me/adverts/"+created.Id.String()+"/submit", `{"expectedVersion":1}`, auth)
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	if rec.Code == http.StatusForbidden {
+		t.Fatalf("unverified owner must not be blocked on submit: %s", rec.Body.String())
 	}
 	var errBody generated.ErrorResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &errBody)
-	if string(errBody.Code) != "EMAIL_NOT_VERIFIED" {
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if errBody.Code != generated.DomainErrorCodeVALIDATIONERROR {
 		t.Fatalf("%+v", errBody)
 	}
 }

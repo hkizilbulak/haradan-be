@@ -4311,7 +4311,6 @@ paths:
         - UNAUTHENTICATED
         - SESSION_REVOKED
         '403':
-        - EMAIL_NOT_VERIFIED
         - OWNERSHIP_REQUIRED
         - FORBIDDEN
         - ACCOUNT_INACTIVE
@@ -4429,7 +4428,6 @@ paths:
         - UNAUTHENTICATED
         - SESSION_REVOKED
         '403':
-        - EMAIL_NOT_VERIFIED
         - FORBIDDEN
         - ACCOUNT_INACTIVE
         '404':

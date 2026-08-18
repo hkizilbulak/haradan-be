@@ -435,7 +435,7 @@ func (s *Service) submitForReview(
 	if err := requireExpectedVersion(expectedVersion); err != nil {
 		return domainadvert.OwnerView{}, err
 	}
-	if err := s.requireVerifiedOwner(ctx, ownerID); err != nil {
+	if err := s.requireActiveOwner(ctx, ownerID); err != nil {
 		return domainadvert.OwnerView{}, err
 	}
 
@@ -640,7 +640,7 @@ func (s *Service) buildDetailsPatch(ctx context.Context, in UpdateDetailsInput) 
 	return patch, nil
 }
 
-func (s *Service) requireVerifiedOwner(ctx context.Context, ownerID uuid.UUID) error {
+func (s *Service) requireActiveOwner(ctx context.Context, ownerID uuid.UUID) error {
 	owner, err := s.users.FindByID(ctx, ownerID)
 	if err != nil {
 		if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindNotFound {
@@ -650,9 +650,6 @@ func (s *Service) requireVerifiedOwner(ctx context.Context, ownerID uuid.UUID) e
 	}
 	if !owner.IsActive() {
 		return apperr.Forbidden(apperr.CodeAccountInactive, "Hesap aktif değil.")
-	}
-	if owner.EmailVerifiedAt == nil {
-		return apperr.Forbidden(apperr.CodeEmailNotVerified, "E-posta adresi doğrulanmadı.")
 	}
 	return nil
 }

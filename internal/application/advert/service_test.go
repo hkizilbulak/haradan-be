@@ -693,16 +693,21 @@ func TestSoftDeleteAdvertDraftAllowsPublished(t *testing.T) {
 	}
 }
 
-func TestSubmitAdvertForReviewEmailNotVerified(t *testing.T) {
+func TestSubmitAdvertForReviewUnverifiedEmailAllowed(t *testing.T) {
 	f := newFixture(t)
 	unverified := uuid.New()
 	f.store.PutUser(domainuser.User{ID: unverified, Status: domainuser.StatusActive})
 	draft := f.seed(t, unverified, domainadvert.StatusDraft, nil)
 
-	_, err := f.svc.SubmitAdvertForReview(context.Background(), unverified, draft.ID, 1)
-	requireCode(t, err, apperr.CodeEmailNotVerified)
-	if len(f.store.History()) != 0 {
-		t.Fatalf("failed submit must not write history: %+v", f.store.History())
+	view, err := f.svc.SubmitAdvertForReview(context.Background(), unverified, draft.ID, 1)
+	if err != nil {
+		t.Fatalf("unverified owner must be able to submit: %v", err)
+	}
+	if view.Status != domainadvert.StatusPendingReview {
+		t.Fatalf("status=%s", view.Status)
+	}
+	if len(f.store.History()) != 1 {
+		t.Fatalf("history=%+v", f.store.History())
 	}
 }
 
