@@ -146,7 +146,8 @@ SELECT a.id, a.category_id, a.district_id, d.province_id, a.horse_id, a.title,
        (featured.id IS NOT NULL), featured.ends_at,
        CASE WHEN ` + actorArg + `::uuid IS NULL THEN NULL ELSE EXISTS (
            SELECT 1 FROM hrd_favorites f WHERE f.advert_id = a.id AND f.user_id = ` + actorArg + `
-       ) END
+       ) END,
+       a.view_count
 FROM hrd_adverts a
 JOIN hrd_districts d ON d.id = a.district_id
 LEFT JOIN LATERAL (
@@ -181,6 +182,27 @@ LEFT JOIN LATERAL (
 ) cover ON true`
 }
 
+func (r *Repository) RecordView(ctx context.Context, advertID uuid.UUID, ipAddress string) error {
+	if ipAddress == "" {
+		return nil
+	}
+	const q = `
+WITH new_view AS (
+    INSERT INTO hrd_advert_views (advert_id, ip_address, created_at)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (advert_id, ip_address) DO NOTHING
+    RETURNING advert_id
+)
+UPDATE hrd_adverts
+SET view_count = view_count + 1
+WHERE id IN (SELECT advert_id FROM new_view)`
+	_, err := r.db.Exec(ctx, q, advertID, ipAddress, time.Now().UTC())
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("record advert view: %w", pg.SanitizeErr(err)))
+	}
+	return nil
+}
+
 func scanPublicCards(rows pgx.Rows, queryErr error, op string) ([]domainadvert.PublicCard, error) {
 	if queryErr != nil {
 		return nil, apperr.Internal(fmt.Errorf("%s: %w", op, pg.SanitizeErr(queryErr)))
@@ -211,7 +233,7 @@ func scanPublicCard(row interface{ Scan(...any) error }) (domainadvert.PublicCar
 	if err := row.Scan(&card.ID, &card.CategoryID, &card.DistrictID, &card.ProvinceID, &card.HorseID, &card.Title,
 		&amount, &currency, &card.PublishedAt, &coverAsset, &coverOrder, &coverIsCover, &coverKey,
 		&card.PackageCode, &card.PackageDisplayName, &card.PackageBadgeText, &card.SearchPriority,
-		&card.IsUrgent, &card.UrgentActivatedAt, &card.IsFeatured, &card.FeaturedUntil, &card.IsFavorite); err != nil {
+		&card.IsUrgent, &card.UrgentActivatedAt, &card.IsFeatured, &card.FeaturedUntil, &card.IsFavorite, &card.ViewCount); err != nil {
 		return card, err
 	}
 	if amount != nil && currency != nil {

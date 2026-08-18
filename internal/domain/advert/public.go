@@ -26,6 +26,7 @@ type PublicCard struct {
 	FeaturedUntil      *time.Time
 	IsFavorite         *bool
 	SearchPriority     int
+	ViewCount          int
 }
 type PublicMedia struct {
 	AssetID      uuid.UUID

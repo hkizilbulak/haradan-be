@@ -168,9 +168,12 @@ func (s *Service) ListHomepageFeatured(ctx context.Context, limit *int, actorUse
 	return PublicSearchResult{Items: items, HasMore: false}, nil
 }
 
-func (s *Service) GetPublishedAdvertDetail(ctx context.Context, advertID uuid.UUID, actorUserID *uuid.UUID) (PublicDetail, error) {
+func (s *Service) GetPublishedAdvertDetail(ctx context.Context, advertID uuid.UUID, actorUserID *uuid.UUID, clientIP string) (PublicDetail, error) {
 	if s.public == nil {
 		return PublicDetail{}, apperr.Internal(fmt.Errorf("public advert repository is not configured"))
+	}
+	if clientIP != "" {
+		_ = s.public.RecordView(ctx, advertID, clientIP)
 	}
 	return s.public.GetPublishedDetail(ctx, advertID, actorUserID)
 }

@@ -40,7 +40,7 @@ func (s *Server) GetPublishedAdvertDetail(c *gin.Context, advertID generated.Adv
 		respondNotImplemented(c)
 		return
 	}
-	out, err := s.publicService().GetPublishedAdvertDetail(c.Request.Context(), uuid.UUID(advertID), publicActor(c))
+	out, err := s.publicService().GetPublishedAdvertDetail(c.Request.Context(), uuid.UUID(advertID), publicActor(c), c.ClientIP())
 	if err != nil {
 		respondError(c, s.logger, err)
 		return
@@ -129,7 +129,7 @@ func mapPublicCard(v domainadvert.PublicCard) generated.PublishedAdvertCard {
 		HorseId: v.HorseID, Title: v.Title, Price: mapPublicMoney(v.Price), PublishedAt: v.PublishedAt, Cover: mapPublicMedia(v.Cover),
 		PackageCode: mapPackageCode(v.PackageCode), PackageDisplayName: v.PackageDisplayName, PackageBadgeText: v.PackageBadgeText,
 		IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt, IsFeatured: v.IsFeatured, FeaturedUntil: v.FeaturedUntil,
-		IsFavorite: v.IsFavorite}
+		IsFavorite: v.IsFavorite, ViewCount: v.ViewCount}
 }
 func mapPublicDetail(v domainadvert.PublicDetail) generated.PublishedAdvertDetailResponse {
 	media := make([]generated.PublicMediaItem, 0, len(v.Media))
@@ -150,7 +150,7 @@ func mapPublicDetail(v domainadvert.PublicDetail) generated.PublishedAdvertDetai
 		Location: generated.PublicLocationSummary{DistrictId: v.DistrictID, DistrictName: v.DistrictName, ProvinceId: v.ProvinceID, ProvinceName: v.ProvinceName},
 		Horse:    horse, Media: media, Properties: props, PackageCode: mapPackageCode(v.PackageCode), PackageDisplayName: v.PackageDisplayName,
 		PackageBadgeText: v.PackageBadgeText, IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt,
-		IsFeatured: v.IsFeatured, FeaturedUntil: v.FeaturedUntil, IsFavorite: v.IsFavorite}
+		IsFeatured: v.IsFeatured, FeaturedUntil: v.FeaturedUntil, IsFavorite: v.IsFavorite, ViewCount: v.ViewCount}
 }
 func mapPublicMedia(v *domainadvert.PublicMedia) *generated.PublicMediaItem {
 	if v == nil {

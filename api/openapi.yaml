@@ -7509,6 +7509,7 @@ components:
       - isFavorite
       - isUrgent
       - isFeatured
+      - viewCount
       properties:
         id:
           type: string
@@ -7570,6 +7571,11 @@ components:
           type: string
           format: date-time
           nullable: true
+        viewCount:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Total unique IP views
     PublishedAdvertSearchResponse:
       type: object
       additionalProperties: false
@@ -7603,6 +7609,7 @@ components:
       - isFavorite
       - isUrgent
       - isFeatured
+      - viewCount
       properties:
         id:
           type: string
@@ -7637,6 +7644,11 @@ components:
         isFavorite:
           type: boolean
           nullable: true
+        viewCount:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Total unique IP views
         packageCode:
           nullable: true
           allOf:

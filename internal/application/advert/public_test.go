@@ -72,6 +72,9 @@ func (r *fakePublicRepository) ListHomepageFeatured(context.Context, int, *uuid.
 func (r *fakePublicRepository) GetPublishedDetail(context.Context, uuid.UUID, *uuid.UUID) (domainadvert.PublicDetail, error) {
 	return domainadvert.PublicDetail{}, nil
 }
+func (r *fakePublicRepository) RecordView(context.Context, uuid.UUID, string) error {
+	return nil
+}
 
 func intPtr(v int) *int          { return &v }
 func stringPtr(v string) *string { return &v }

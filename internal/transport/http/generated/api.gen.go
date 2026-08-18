@@ -1775,6 +1775,9 @@ type PublishedAdvertCard struct {
 	PublishedAt        time.Time          `json:"publishedAt"`
 	Title              string             `json:"title"`
 	UrgentActivatedAt  *time.Time         `json:"urgentActivatedAt,omitempty"`
+
+	// ViewCount Total unique IP views
+	ViewCount int `json:"viewCount"`
 }
 
 // PublishedAdvertDetailResponse defines model for PublishedAdvertDetailResponse.
@@ -1803,6 +1806,9 @@ type PublishedAdvertDetailResponse struct {
 	PublishedAt        time.Time             `json:"publishedAt"`
 	Title              string                `json:"title"`
 	UrgentActivatedAt  *time.Time            `json:"urgentActivatedAt,omitempty"`
+
+	// ViewCount Total unique IP views
+	ViewCount int `json:"viewCount"`
 }
 
 // PublishedAdvertSearchResponse defines model for PublishedAdvertSearchResponse.
