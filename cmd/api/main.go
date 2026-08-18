@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -28,8 +30,8 @@ import (
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	appnotification "github.com/hkizilbulak/haradan-be/internal/application/notification"
 	apppackaging "github.com/hkizilbulak/haradan-be/internal/application/packaging"
-	appworker "github.com/hkizilbulak/haradan-be/internal/application/worker"
 	apptjk "github.com/hkizilbulak/haradan-be/internal/application/tjk"
+	appworker "github.com/hkizilbulak/haradan-be/internal/application/worker"
 	"github.com/hkizilbulak/haradan-be/internal/config"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/email/resendemail"
@@ -48,10 +50,13 @@ import (
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/turkiyeapi"
 	"github.com/hkizilbulak/haradan-be/internal/platform/database"
 	applogger "github.com/hkizilbulak/haradan-be/internal/platform/logger"
+	"github.com/hkizilbulak/haradan-be/internal/platform/migration"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/password"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/token"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/router"
+	"github.com/hkizilbulak/haradan-be/migrations"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func main() {
@@ -68,6 +73,10 @@ func run() error {
 	}
 
 	log := applogger.New(cfg.AppEnv)
+
+	if err := applyMigrations(cfg.DatabaseURL, cfg.DBHealthTimeout, log); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
 
 	db, err := database.Open(context.Background(), database.Config{
 		DatabaseURL:     cfg.DatabaseURL,
@@ -339,15 +348,15 @@ func run() error {
 	var notificationEmail appnotification.NotificationEmailSender
 	if cfg.EmailProvider == config.EmailProviderResend {
 		sender, err := resendemail.New(resendemail.Config{
-			APIKey: cfg.ResendAPIKey,
-			BaseURL: cfg.ResendBaseURL,
-			HTTPTimeout: cfg.EmailHTTPTimeout,
-			FromEmail: cfg.FromEmail,
-			FromName: cfg.FromName,
-			FrontendURL: cfg.FrontendURL,
-			WelcomeTemplateID: cfg.ResendWelcomeTemplateID,
+			APIKey:                  cfg.ResendAPIKey,
+			BaseURL:                 cfg.ResendBaseURL,
+			HTTPTimeout:             cfg.EmailHTTPTimeout,
+			FromEmail:               cfg.FromEmail,
+			FromName:                cfg.FromName,
+			FrontendURL:             cfg.FrontendURL,
+			WelcomeTemplateID:       cfg.ResendWelcomeTemplateID,
 			ResetPasswordTemplateID: cfg.ResendResetPasswordTemplateID,
-			TemplateID: cfg.ResendRegistrationVerificationTemplateID,
+			TemplateID:              cfg.ResendRegistrationVerificationTemplateID,
 		})
 		if err != nil {
 			return fmt.Errorf("notification email sender: %w", err)
@@ -525,4 +534,36 @@ func runTJKWorker(ctx context.Context, worker *apptjk.Worker, lease, poll, jobTi
 		case <-time.After(poll):
 		}
 	}
+}
+
+func applyMigrations(databaseURL string, pingTimeout time.Duration, log *slog.Logger) error {
+	if strings.TrimSpace(os.Getenv("SKIP_MIGRATIONS")) == "1" {
+		log.Info("migrations skipped")
+		return nil
+	}
+	db, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	defer db.Close()
+
+	pingCtx, cancel := context.WithTimeout(context.Background(), pingTimeout)
+	defer cancel()
+	if err := db.PingContext(pingCtx); err != nil {
+		return fmt.Errorf("ping database failed")
+	}
+
+	runner := &migration.Runner{
+		DB:     db,
+		FS:     migrations.FS,
+		Logger: log,
+	}
+	ctx, cancelRun := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancelRun()
+	log.Info("applying database migrations")
+	if err := runner.Run(ctx, "up"); err != nil {
+		return err
+	}
+	log.Info("database migrations applied")
+	return nil
 }
