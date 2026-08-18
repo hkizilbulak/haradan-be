@@ -585,7 +585,8 @@ func (s *Service) validateForSubmission(ctx context.Context, a domainadvert.Adve
 	}
 	hasCover := false
 	for _, rel := range mediaByAdvert[a.ID] {
-		if rel.IsCover && rel.LifecycleStatus == string(domainmedia.AssetMasterReady) {
+		lifecycle := domainmedia.AssetLifecycle(rel.LifecycleStatus)
+		if rel.IsCover && domainmedia.IsAttachableAssetLifecycle(lifecycle) && lifecycle != domainmedia.AssetUploadPending {
 			hasCover = true
 			break
 		}

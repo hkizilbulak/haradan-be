@@ -773,6 +773,34 @@ func TestSubmitAdvertForReviewFullValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("missing cover image", func(t *testing.T) {
+		draft := f.seed(t, f.owner, domainadvert.StatusDraft, nil)
+		f.store.PutMediaRelations(draft.ID, nil)
+		_, err := f.svc.SubmitAdvertForReview(ctx, f.owner, draft.ID, 1)
+		ae := requireCode(t, err, apperr.CodeValidation)
+		if len(ae.FieldErrors) != 1 || ae.FieldErrors[0].Field != "media" {
+			t.Fatalf("fields=%+v", ae.FieldErrors)
+		}
+	})
+
+	t.Run("uploaded or validating cover image succeeds", func(t *testing.T) {
+		draft := f.seed(t, f.owner, domainadvert.StatusDraft, nil)
+		assetID := uuid.New()
+		f.store.PutMediaRelations(draft.ID, []domainadvert.MediaRelation{{
+			AssetID:         assetID,
+			DisplayOrder:    0,
+			IsCover:         true,
+			LifecycleStatus: string(domainmedia.AssetUploaded),
+		}})
+		view, err := f.svc.SubmitAdvertForReview(ctx, f.owner, draft.ID, 1)
+		if err != nil {
+			t.Fatalf("submit with uploaded cover: %v", err)
+		}
+		if view.Status != domainadvert.StatusPendingReview {
+			t.Fatalf("status=%s", view.Status)
+		}
+	})
+
 	t.Run("wrong status and stale version", func(t *testing.T) {
 		pending := f.seed(t, f.owner, domainadvert.StatusPendingReview, nil)
 		_, err := f.svc.SubmitAdvertForReview(ctx, f.owner, pending.ID, 1)
