@@ -100,6 +100,8 @@ func (e AuthTokenResponseTokenType) Valid() bool {
 // Defines values for BannerPlacement.
 const (
 	BannerPlacementHOMEPAGE      BannerPlacement = "HOMEPAGE"
+	BannerPlacementHOMEPAGEHERO  BannerPlacement = "HOMEPAGE_HERO"
+	BannerPlacementHOMEPAGEPROMO BannerPlacement = "HOMEPAGE_PROMO"
 	BannerPlacementLISTINGDETAIL BannerPlacement = "LISTING_DETAIL"
 	BannerPlacementSEARCH        BannerPlacement = "SEARCH"
 )
@@ -108,6 +110,10 @@ const (
 func (e BannerPlacement) Valid() bool {
 	switch e {
 	case BannerPlacementHOMEPAGE:
+		return true
+	case BannerPlacementHOMEPAGEHERO:
+		return true
+	case BannerPlacementHOMEPAGEPROMO:
 		return true
 	case BannerPlacementLISTINGDETAIL:
 		return true

@@ -12,12 +12,18 @@ type Placement string
 
 const (
 	PlacementHomepage      Placement = "HOMEPAGE"
+	PlacementHomepageHero  Placement = "HOMEPAGE_HERO"
+	PlacementHomepagePromo Placement = "HOMEPAGE_PROMO"
 	PlacementListingDetail Placement = "LISTING_DETAIL"
 	PlacementSearch        Placement = "SEARCH"
 )
 
 func (p Placement) Valid() bool {
-	return p == PlacementHomepage || p == PlacementListingDetail || p == PlacementSearch
+	return p == PlacementHomepage ||
+		p == PlacementHomepageHero ||
+		p == PlacementHomepagePromo ||
+		p == PlacementListingDetail ||
+		p == PlacementSearch
 }
 
 type Status string
