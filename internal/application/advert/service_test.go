@@ -13,6 +13,7 @@ import (
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	domaincatalog "github.com/hkizilbulak/haradan-be/internal/domain/catalog"
 	domaingeo "github.com/hkizilbulak/haradan-be/internal/domain/geo"
 	domainhorse "github.com/hkizilbulak/haradan-be/internal/domain/horse"
@@ -138,6 +139,21 @@ func (f *fixture) seed(t *testing.T, ownerID uuid.UUID, status domainadvert.Stat
 		mutate(&a)
 	}
 	f.store.PutAdvert(a)
+
+	// Submission/approval requires a READY cover attachment. Seed a MASTER_READY
+	// cover so submit-path and moderation approval tests can focus on core/
+	// property logic.
+	if status == domainadvert.StatusDraft ||
+		status == domainadvert.StatusChangesRequested ||
+		status == domainadvert.StatusPendingReview {
+		assetID := uuid.New()
+		f.store.PutMediaRelations(a.ID, []domainadvert.MediaRelation{{
+			AssetID:         assetID,
+			DisplayOrder:    0,
+			IsCover:         true,
+			LifecycleStatus: string(domainmedia.AssetMasterReady),
+		}})
+	}
 	return a
 }
 

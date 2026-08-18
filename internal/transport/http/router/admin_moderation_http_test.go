@@ -18,6 +18,7 @@ import (
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	domaincatalog "github.com/hkizilbulak/haradan-be/internal/domain/catalog"
 	domaingeo "github.com/hkizilbulak/haradan-be/internal/domain/geo"
+	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler"
@@ -158,6 +159,16 @@ func (env *moderationTestEnv) seedPending(ownerID uuid.UUID) domainadvert.Advert
 		Version:    1, MediaVersion: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	env.advertStore.PutAdvert(a)
+
+	// Moderation approval runs validateForSubmission which now requires an
+	// attached READY cover. Seed a MASTER_READY cover relation in-memory.
+	assetID := uuid.New()
+	env.advertStore.PutMediaRelations(a.ID, []domainadvert.MediaRelation{{
+		AssetID:         assetID,
+		DisplayOrder:    0,
+		IsCover:         true,
+		LifecycleStatus: string(domainmedia.AssetMasterReady),
+	}})
 	return a
 }
 

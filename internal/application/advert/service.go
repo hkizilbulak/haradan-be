@@ -15,6 +15,7 @@ import (
 
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 )
 
 const (
@@ -576,6 +577,27 @@ func (s *Service) validateForSubmission(ctx context.Context, a domainadvert.Adve
 	}
 	if _, err := validateDynamicProperties(defs, a.Properties, propertyModeSubmit); err != nil {
 		return err
+	}
+
+	// Submission must include a READY cover attachment; otherwise the advert
+	// can become PUBLISHED without any public media linkage (cover/gallery
+	// would stay empty).
+	mediaByAdvert, err := s.repo.ListMediaRelations(ctx, []uuid.UUID{a.ID})
+	if err != nil {
+		return err
+	}
+	hasCover := false
+	for _, rel := range mediaByAdvert[a.ID] {
+		if rel.IsCover && rel.LifecycleStatus == string(domainmedia.AssetMasterReady) {
+			hasCover = true
+			break
+		}
+	}
+	if !hasCover {
+		return apperr.Validation(invalidRequest, apperr.FieldError{
+			Field:   "media",
+			Message: "Kapak görseli zorunludur.",
+		})
 	}
 	return nil
 }

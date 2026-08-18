@@ -29,6 +29,10 @@ type MemoryStore struct {
 	adverts map[uuid.UUID]domainadvert.Advert
 	history []domainadvert.StatusHistory
 
+	// mediaRelations stores advert -> visible media links for advert-owner tests.
+	// In production the media domain owns these relations in hrd_advert_media.
+	mediaRelations map[uuid.UUID][]domainadvert.MediaRelation
+
 	categories map[uuid.UUID]domaincatalog.Category
 	children   map[uuid.UUID]int
 	formProps  map[uuid.UUID][]domaincatalog.Property
@@ -47,6 +51,7 @@ func NewMemoryStore() *MemoryStore {
 		districts:  map[uuid.UUID]domaingeo.District{},
 		horses:     map[uuid.UUID]domainhorse.Horse{},
 		users:      map[uuid.UUID]domainuser.User{},
+		mediaRelations: map[uuid.UUID][]domainadvert.MediaRelation{},
 	}
 }
 
@@ -116,6 +121,13 @@ func (s *MemoryStore) Users() UserReader { return memoryUsers{store: s} }
 
 // Repo returns the Repository view of the store.
 func (s *MemoryStore) Repo() Repository { return MemoryRepository{store: s} }
+
+// PutMediaRelations seeds advert-visible media relations for tests.
+func (s *MemoryStore) PutMediaRelations(advertID uuid.UUID, rels []domainadvert.MediaRelation) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mediaRelations[advertID] = append([]domainadvert.MediaRelation(nil), rels...)
+}
 
 // NewMemoryService builds an advert service backed entirely by the store.
 func NewMemoryService(store *MemoryStore, clock Clock) (*Service, error) {
@@ -253,9 +265,19 @@ func (r MemoryRepository) ListStatusHistory(_ context.Context, advertID uuid.UUI
 	return out, nil
 }
 
-// ListMediaRelations returns no media in the memory store (tests seed empty).
+// ListMediaRelations returns owner-visible media links for the given adverts.
 func (r MemoryRepository) ListMediaRelations(_ context.Context, advertIDs []uuid.UUID) (map[uuid.UUID][]domainadvert.MediaRelation, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+
 	out := make(map[uuid.UUID][]domainadvert.MediaRelation, len(advertIDs))
+	for _, id := range advertIDs {
+		if rels, ok := r.store.mediaRelations[id]; ok {
+			out[id] = append([]domainadvert.MediaRelation(nil), rels...)
+		} else {
+			out[id] = nil
+		}
+	}
 	return out, nil
 }
 
