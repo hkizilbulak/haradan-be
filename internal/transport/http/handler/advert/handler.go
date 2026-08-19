@@ -286,6 +286,7 @@ type ownerAdvertJSON struct {
 	generated.OwnerAdvertResponse
 	ProvinceId *uuid.UUID `json:"provinceId"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
+	SoldAt     *time.Time `json:"soldAt,omitempty"`
 }
 
 func mapOwnerAdvertBase(v domainadvert.OwnerView) generated.OwnerAdvertResponse {
@@ -325,12 +326,13 @@ func mapOwnerAdvertBase(v domainadvert.OwnerView) generated.OwnerAdvertResponse 
 }
 
 func mapOwnerView(v domainadvert.OwnerView) ownerAdvertJSON {
-	// provinceId + updatedAt are owner-list card fields used by FE; kept as
-	// additive JSON so OpenAPI regen is not required for this read path.
+	// provinceId + updatedAt + soldAt are owner-list card fields used by FE;
+	// kept as additive JSON so OpenAPI regen is not required for this read path.
 	return ownerAdvertJSON{
 		OwnerAdvertResponse: mapOwnerAdvertBase(v),
 		ProvinceId:          v.ProvinceID,
 		UpdatedAt:           v.UpdatedAt,
+		SoldAt:              v.SoldAt,
 	}
 }
 

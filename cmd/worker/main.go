@@ -13,6 +13,7 @@ import (
 
 	appjobadmin "github.com/hkizilbulak/haradan-be/internal/application/jobadmin"
 	"github.com/hkizilbulak/haradan-be/internal/application/jobscheduler"
+	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	appnotification "github.com/hkizilbulak/haradan-be/internal/application/notification"
 	apptjk "github.com/hkizilbulak/haradan-be/internal/application/tjk"
@@ -198,12 +199,37 @@ func run() error {
 		go runTJKWorker(runCtx, tjkWorker, cfg.WorkerLeaseDuration, cfg.WorkerPollInterval, cfg.TJKPageTimeout, log)
 	}
 
+	// Auto-archive: sold adverts older than 24 h are moved to ARCHIVED.
+	advertSvc, advertSvcErr := appadvert.NewPostgresAutoArchiveService(db.Pool())
+	if advertSvcErr == nil {
+		go runAutoArchive(runCtx, advertSvc, cfg.WorkerPollInterval, log)
+	} else {
+		log.Warn("auto-archive worker skipped", "err", advertSvcErr)
+	}
+
 	if err := runner.Run(runCtx); err != nil {
 		return fmt.Errorf("runner: %w", err)
 	}
 	defScheduler.Wait()
 	log.Info("worker stopped", "workerId", workerID)
 	return nil
+}
+
+// runAutoArchive polls every interval and archives SOLD adverts older than 24 h.
+func runAutoArchive(ctx context.Context, svc *appadvert.Service, interval time.Duration, log *slog.Logger) {
+	tick := time.NewTicker(interval)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+			res := svc.AutoArchiveSold(ctx, 100)
+			if res.Archived > 0 || res.Errors > 0 {
+				log.Info("auto-archive sold adverts", "archived", res.Archived, "errors", res.Errors)
+			}
+		}
+	}
 }
 
 func supportedJobTypes(mediaEnabled, emailEnabled bool) []domainmedia.JobType {

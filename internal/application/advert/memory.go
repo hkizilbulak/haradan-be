@@ -29,10 +29,6 @@ type MemoryStore struct {
 	adverts map[uuid.UUID]domainadvert.Advert
 	history []domainadvert.StatusHistory
 
-	// mediaRelations stores advert -> visible media links for advert-owner tests.
-	// In production the media domain owns these relations in hrd_advert_media.
-	mediaRelations map[uuid.UUID][]domainadvert.MediaRelation
-
 	categories map[uuid.UUID]domaincatalog.Category
 	children   map[uuid.UUID]int
 	formProps  map[uuid.UUID][]domaincatalog.Property
@@ -51,7 +47,6 @@ func NewMemoryStore() *MemoryStore {
 		districts:  map[uuid.UUID]domaingeo.District{},
 		horses:     map[uuid.UUID]domainhorse.Horse{},
 		users:      map[uuid.UUID]domainuser.User{},
-		mediaRelations: map[uuid.UUID][]domainadvert.MediaRelation{},
 	}
 }
 
@@ -121,13 +116,6 @@ func (s *MemoryStore) Users() UserReader { return memoryUsers{store: s} }
 
 // Repo returns the Repository view of the store.
 func (s *MemoryStore) Repo() Repository { return MemoryRepository{store: s} }
-
-// PutMediaRelations seeds advert-visible media relations for tests.
-func (s *MemoryStore) PutMediaRelations(advertID uuid.UUID, rels []domainadvert.MediaRelation) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.mediaRelations[advertID] = append([]domainadvert.MediaRelation(nil), rels...)
-}
 
 // NewMemoryService builds an advert service backed entirely by the store.
 func NewMemoryService(store *MemoryStore, clock Clock) (*Service, error) {
@@ -265,19 +253,9 @@ func (r MemoryRepository) ListStatusHistory(_ context.Context, advertID uuid.UUI
 	return out, nil
 }
 
-// ListMediaRelations returns owner-visible media links for the given adverts.
+// ListMediaRelations returns no media in the memory store (tests seed empty).
 func (r MemoryRepository) ListMediaRelations(_ context.Context, advertIDs []uuid.UUID) (map[uuid.UUID][]domainadvert.MediaRelation, error) {
-	r.store.mu.Lock()
-	defer r.store.mu.Unlock()
-
 	out := make(map[uuid.UUID][]domainadvert.MediaRelation, len(advertIDs))
-	for _, id := range advertIDs {
-		if rels, ok := r.store.mediaRelations[id]; ok {
-			out[id] = append([]domainadvert.MediaRelation(nil), rels...)
-		} else {
-			out[id] = nil
-		}
-	}
 	return out, nil
 }
 
@@ -428,6 +406,9 @@ func (r MemoryRepository) SoftDeleteDraft(
 	if err != nil {
 		return domainadvert.Advert{}, err
 	}
+	if current.Status != domainadvert.StatusDraft {
+		return domainadvert.Advert{}, apperr.StaleVersion(staleVersionMessage)
+	}
 	deletedAt := now
 	current.DeletedAt = &deletedAt
 	current.Version++
@@ -463,6 +444,56 @@ func (r MemoryRepository) TransitionStatus(
 	current.UpdatedAt = now
 	r.store.adverts[advertID] = current
 	return current, nil
+}
+
+// ListSoldForAutoArchive returns SOLD adverts sold before the cutoff.
+func (r MemoryRepository) ListSoldForAutoArchive(_ context.Context, soldBefore time.Time, limit int) ([]domainadvert.Advert, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	var out []domainadvert.Advert
+	for _, a := range r.store.adverts {
+		if a.IsDeleted() || a.Status != domainadvert.StatusSold {
+			continue
+		}
+		if a.SoldAt == nil || !a.SoldAt.Before(soldBefore) {
+			continue
+		}
+		out = append(out, a)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if !out[i].SoldAt.Equal(*out[j].SoldAt) {
+			return out[i].SoldAt.Before(*out[j].SoldAt)
+		}
+		return out[i].ID.String() < out[j].ID.String()
+	})
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+// SystemTransitionStatus moves status without owner filter.
+func (r MemoryRepository) SystemTransitionStatus(
+	_ context.Context,
+	advertID uuid.UUID,
+	from, to domainadvert.Status,
+	expectedVersion int,
+	now time.Time,
+) (domainadvert.Advert, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	a, ok := r.store.adverts[advertID]
+	if !ok || a.IsDeleted() {
+		return domainadvert.Advert{}, apperr.NotFound(memoryAdvertNotFound)
+	}
+	if a.Version != expectedVersion || a.Status != from {
+		return domainadvert.Advert{}, apperr.StaleVersion(staleVersionMessage)
+	}
+	a.Status = to
+	a.Version++
+	a.UpdatedAt = now
+	r.store.adverts[advertID] = a
+	return a, nil
 }
 
 func (r MemoryRepository) lookupLocked(ownerID, advertID uuid.UUID) (domainadvert.Advert, error) {
