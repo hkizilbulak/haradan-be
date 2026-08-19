@@ -157,6 +157,7 @@ func run() error {
 			WelcomeTemplateID:       cfg.ResendWelcomeTemplateID,
 			ResetPasswordTemplateID: cfg.ResendResetPasswordTemplateID,
 			TemplateID:              cfg.ResendRegistrationVerificationTemplateID,
+			Logger:                  log,
 		})
 		if err != nil {
 			return fmt.Errorf("email sender: %w", err)
@@ -387,6 +388,7 @@ func run() error {
 			WelcomeTemplateID:       cfg.ResendWelcomeTemplateID,
 			ResetPasswordTemplateID: cfg.ResendResetPasswordTemplateID,
 			TemplateID:              cfg.ResendRegistrationVerificationTemplateID,
+			Logger:                  log,
 		})
 		if err != nil {
 			return fmt.Errorf("notification email sender: %w", err)

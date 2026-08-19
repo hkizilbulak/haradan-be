@@ -25,6 +25,11 @@ type resendClient struct {
 	baseURL *url.URL
 	http    httpDoer
 	from    string
+	logger  resendLogger
+}
+
+type resendLogger interface {
+	Error(msg string, args ...any)
 }
 
 type sendTemplateRequest struct {
@@ -96,7 +101,10 @@ func (c *resendClient) sendTemplateWithIdempotency(
 		// Duplicate idempotency key: treat as success per provider contract.
 		return nil
 	}
-	_ = readErrorBody(resp.Body)
+	errBody := readErrorBody(resp.Body)
+	if c.logger != nil && len(errBody) > 0 {
+		c.logger.Error("resend API error", "status", resp.StatusCode, "body", string(errBody))
+	}
 	return mapResendStatus(resp.StatusCode)
 }
 
