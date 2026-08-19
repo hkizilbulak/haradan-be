@@ -25,6 +25,8 @@ type Config struct {
 	ResetPasswordTemplateID string
 	// TemplateID is a legacy alias for WelcomeTemplateID (registration verification).
 	TemplateID string
+	// Logger receives Resend API error details. Optional; nil silences error body logging.
+	Logger resendLogger
 }
 
 func (c Config) validate() error {
