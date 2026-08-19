@@ -218,7 +218,7 @@ func Load() (Config, error) {
 	if cfg.DBMaxConnIdleTime, err = durationEnv("DB_MAX_CONN_IDLE_TIME", 5*time.Minute); err != nil {
 		return Config{}, err
 	}
-	if cfg.DBHealthTimeout, err = durationEnv("DB_HEALTH_TIMEOUT", 2*time.Second); err != nil {
+	if cfg.DBHealthTimeout, err = durationEnv("DB_HEALTH_TIMEOUT", 10*time.Second); err != nil {
 		return Config{}, err
 	}
 

@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -73,6 +75,36 @@ func run() error {
 	}
 
 	log := applogger.New(cfg.AppEnv)
+
+	// ready gates /api/health: 503 during startup/migration, 200 once ready.
+	// The listener is bound immediately so Railway sees an open port and gets
+	// a timely 503 instead of a TCP-connection-refused 502.
+	ready := &readinessGate{}
+
+	runCtx, cancelRun := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancelRun()
+
+	ln, err := net.Listen("tcp", cfg.HTTPAddr)
+	if err != nil {
+		return fmt.Errorf("bind port: %w", err)
+	}
+	log.Info("port bound, starting health listener", "addr", cfg.HTTPAddr)
+
+	// mux is swapped atomically: startup health handler until ready.MarkReady(),
+	// then replaced by the full Gin engine once wiring is complete.
+	mux := newSwappableMux(ready)
+	startupServer := &http.Server{
+		Handler:      mux,
+		ReadTimeout:  cfg.HTTPReadTimeout,
+		WriteTimeout: cfg.HTTPWriteTimeout,
+		IdleTimeout:  cfg.HTTPIdleTimeout,
+	}
+	serverErrCh := make(chan error, 1)
+	go func() {
+		if err := startupServer.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErrCh <- err
+		}
+	}()
 
 	if err := applyMigrations(cfg.DatabaseURL, cfg.DBHealthTimeout, log); err != nil {
 		return fmt.Errorf("migrate: %w", err)
@@ -322,8 +354,6 @@ func run() error {
 	// Background worker runs inside the API process so Railway can run a single
 	// service while still executing TJK+media pipelines.
 	workerDone := make(chan error, 1)
-	runCtx, cancelRun := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancelRun()
 
 	mediaEnabled := cfg.StorageProvider == config.StorageProviderB2 &&
 		cfg.ImageProcessorProvider == config.ImageProcessorProviderTinify
@@ -435,24 +465,10 @@ func run() error {
 		workerDone <- workerErr
 	}()
 
-	httpServer := &http.Server{
-		Addr:         cfg.HTTPAddr,
-		Handler:      engine,
-		ReadTimeout:  cfg.HTTPReadTimeout,
-		WriteTimeout: cfg.HTTPWriteTimeout,
-		IdleTimeout:  cfg.HTTPIdleTimeout,
-	}
-
-	errCh := make(chan error, 1)
-	go func() {
-		log.Info("http server starting", "addr", cfg.HTTPAddr, "env", cfg.AppEnv)
-		err := httpServer.ListenAndServe()
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-			return
-		}
-		errCh <- nil
-	}()
+	// Swap handler to the full engine and mark ready; health returns 200.
+	mux.Swap(engine)
+	ready.MarkReady()
+	log.Info("http server ready", "addr", cfg.HTTPAddr, "env", cfg.AppEnv)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -460,7 +476,7 @@ func run() error {
 	select {
 	case sig := <-sigCh:
 		log.Info("shutdown signal received", "signal", sig.String())
-	case err := <-errCh:
+	case err := <-serverErrCh:
 		if err != nil {
 			cancelRun()
 			return fmt.Errorf("http server: %w", err)
@@ -468,17 +484,12 @@ func run() error {
 		cancelRun()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.HTTPShutdownTimeout)
-	defer cancel()
+	shutCtx, shutCancel := context.WithTimeout(context.Background(), cfg.HTTPShutdownTimeout)
+	defer shutCancel()
 
 	log.Info("http server shutting down")
-	if err := httpServer.Shutdown(ctx); err != nil {
+	if err := startupServer.Shutdown(shutCtx); err != nil {
 		return fmt.Errorf("graceful shutdown: %w", err)
-	}
-
-	if err := <-errCh; err != nil {
-		cancelRun()
-		return fmt.Errorf("http server: %w", err)
 	}
 
 	select {
@@ -566,4 +577,37 @@ func applyMigrations(databaseURL string, pingTimeout time.Duration, log *slog.Lo
 	}
 	log.Info("database migrations applied")
 	return nil
+}
+
+// readinessGate is set once all wiring is complete so /api/health returns 200.
+type readinessGate struct{ v atomic.Bool }
+
+func (g *readinessGate) MarkReady()  { g.v.Store(true) }
+func (g *readinessGate) IsReady() bool { return g.v.Load() }
+
+// swappableMux forwards requests to a swappable http.Handler.
+// Before Swap is called it serves a lightweight startup health response.
+type swappableMux struct {
+	ready *readinessGate
+	h     atomic.Pointer[http.Handler]
+}
+
+func newSwappableMux(ready *readinessGate) *swappableMux { return &swappableMux{ready: ready} }
+
+func (m *swappableMux) Swap(h http.Handler) { m.h.Store(&h) }
+
+func (m *swappableMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if p := m.h.Load(); p != nil {
+		(*p).ServeHTTP(w, r)
+		return
+	}
+	// Full engine not wired yet — serve minimal health only.
+	w.Header().Set("Content-Type", "application/json")
+	if r.URL.Path == "/api/health" {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"status":"starting"}`))
+		return
+	}
+	w.WriteHeader(http.StatusServiceUnavailable)
+	_, _ = w.Write([]byte(`{"status":"starting"}`))
 }

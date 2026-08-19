@@ -30,7 +30,7 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.DBMaxConnLifetime != 30*time.Minute || cfg.DBMaxConnIdleTime != 5*time.Minute {
 		t.Fatalf("unexpected pool durations: %+v", cfg)
 	}
-	if cfg.DBHealthTimeout != 2*time.Second {
+	if cfg.DBHealthTimeout != 10*time.Second {
 		t.Fatalf("unexpected health timeout: %v", cfg.DBHealthTimeout)
 	}
 	if cfg.TJKEnabled || cfg.TJKBaseURL != "" {
