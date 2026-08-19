@@ -30,7 +30,7 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.DBMaxConnLifetime != 30*time.Minute || cfg.DBMaxConnIdleTime != 5*time.Minute {
 		t.Fatalf("unexpected pool durations: %+v", cfg)
 	}
-	if cfg.DBHealthTimeout != 10*time.Second {
+	if cfg.DBHealthTimeout != 2*time.Second {
 		t.Fatalf("unexpected health timeout: %v", cfg.DBHealthTimeout)
 	}
 	if cfg.TJKEnabled || cfg.TJKBaseURL != "" {
@@ -723,7 +723,7 @@ func TestLoadEmailProviderDefaultsAndResend(t *testing.T) {
 	if cfg.FromEmail != "noreply@example.com" || cfg.FromName != "Haradan" {
 		t.Fatalf("from fields: email=%q name=%q", cfg.FromEmail, cfg.FromName)
 	}
-	if cfg.ResendWelcomeTemplateID != "welcome-email" {
+	if cfg.ResendWelcomeTemplateID != "haradan-welcome" {
 		t.Fatalf("welcome template id=%q", cfg.ResendWelcomeTemplateID)
 	}
 	if cfg.ResendResetPasswordTemplateID != "reset-password" {

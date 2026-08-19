@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	defaultWelcomeTemplateID       = "welcome-email"
+	defaultWelcomeTemplateID       = "haradan-welcome"
 	defaultResetPasswordTemplateID = "reset-password"
 )
 
