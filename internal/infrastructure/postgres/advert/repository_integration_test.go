@@ -334,7 +334,8 @@ func TestRepositoryAdvertModerationIntegration(t *testing.T) {
 		t.Fatalf("create pending: %v", err)
 	}
 
-	listed, err := repo.ListForModeration(ctx, domainadvert.StatusPendingReview, nil, nil, 10)
+	status := domainadvert.StatusPendingReview
+	listed, err := repo.ListForModeration(ctx, &status, nil, nil, 10)
 	if err != nil {
 		t.Fatalf("list moderation: %v", err)
 	}

@@ -130,27 +130,37 @@ func (r *Repository) FindByIDForUpdate(ctx context.Context, advertID uuid.UUID) 
 	return r.queryOne(ctx, "find advert by id for update", q, advertID)
 }
 
-// ListForModeration returns non-deleted adverts matching status, newest first.
+// ListForModeration returns non-deleted adverts matching status (optional), newest first.
 func (r *Repository) ListForModeration(
 	ctx context.Context,
-	status domainadvert.Status,
+	status *domainadvert.Status,
 	afterCreated *time.Time,
 	afterID *uuid.UUID,
 	limit int,
 ) ([]domainadvert.Advert, error) {
-	const q = `
-SELECT ` + advertColumns + `
-FROM hrd_adverts
-WHERE deleted_at IS NULL
-  AND status = $1::varchar
-  AND (
-    $2::timestamptz IS NULL
-    OR (created_at, id) < ($2::timestamptz, $3::uuid)
-  )
-ORDER BY created_at DESC, id DESC
-LIMIT $4`
+	var (
+		q    string
+		args []any
+	)
+	if afterCreated != nil && afterID != nil {
+		if status != nil {
+			q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE deleted_at IS NULL AND status = $1 AND (created_at, id) < ($2, $3) ORDER BY created_at DESC, id DESC LIMIT $4`
+			args = []any{string(*status), *afterCreated, *afterID, limit}
+		} else {
+			q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE deleted_at IS NULL AND (created_at, id) < ($1, $2) ORDER BY created_at DESC, id DESC LIMIT $3`
+			args = []any{*afterCreated, *afterID, limit}
+		}
+	} else {
+		if status != nil {
+			q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE deleted_at IS NULL AND status = $1 ORDER BY created_at DESC, id DESC LIMIT $2`
+			args = []any{string(*status), limit}
+		} else {
+			q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC LIMIT $1`
+			args = []any{limit}
+		}
+	}
 
-	rows, err := r.db.Query(ctx, q, string(status), afterCreated, afterID, limit)
+	rows, err := r.db.Query(ctx, q, args...)
 	if err != nil {
 		return nil, apperr.Internal(fmt.Errorf("list moderation adverts: %w", pg.SanitizeErr(err)))
 	}

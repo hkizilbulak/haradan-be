@@ -35,17 +35,28 @@ func TestListAdvertModerationQueueDefaultAndEmpty(t *testing.T) {
 		a.DeletedAt = &now
 	})
 
+	// When status is omitted, all 3 non-deleted adverts are returned
 	got, err = f.svc.ListAdvertModerationQueue(context.Background(), appadvert.ModerationListInput{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Items) != 1 || got.Items[0].ID != pending.ID {
-		t.Fatalf("%+v", got)
+	if len(got.Items) != 3 {
+		t.Fatalf("expected 3 items, got %+v", got)
 	}
 	for _, item := range got.Items {
 		if item.ID == deleted.ID {
 			t.Fatal("soft-deleted must be excluded")
 		}
+	}
+
+	// When status is filtered by PENDING_REVIEW, only 1 is returned
+	pendingStatus := string(domainadvert.StatusPendingReview)
+	got, err = f.svc.ListAdvertModerationQueue(context.Background(), appadvert.ModerationListInput{Status: &pendingStatus})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Items) != 1 || got.Items[0].ID != pending.ID {
+		t.Fatalf("expected only pending item, got %+v", got)
 	}
 }
 
@@ -73,7 +84,7 @@ func TestListAdvertModerationQueuePaginationAndFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if second.HasMore || len(second.Items) != 1 {
+	if second.HasMore || len(second.Items) != 2 {
 		t.Fatalf("%+v", second)
 	}
 

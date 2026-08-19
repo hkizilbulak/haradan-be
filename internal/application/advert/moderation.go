@@ -32,19 +32,19 @@ type ModerationReasonInput struct {
 }
 
 // ListAdvertModerationQueue implements ADVERT-ADMIN-01.
-// Default status filter is PENDING_REVIEW when status is omitted.
+// When status is omitted, all non-deleted adverts are returned.
 func (s *Service) ListAdvertModerationQueue(ctx context.Context, in ModerationListInput) (ListResult, error) {
 	limit, err := resolveLimit(in.Limit)
 	if err != nil {
 		return ListResult{}, err
 	}
-	status := domainadvert.StatusPendingReview
-	if in.Status != nil && strings.TrimSpace(*in.Status) != "" {
+	var status *domainadvert.Status
+	if in.Status != nil && strings.TrimSpace(*in.Status) != "" && !strings.EqualFold(strings.TrimSpace(*in.Status), "ALL") {
 		parsed, ok := domainadvert.ParseStatus(strings.TrimSpace(*in.Status))
 		if !ok {
 			return ListResult{}, apperr.BadRequest(apperr.CodeValidation, "Geçersiz ilan durumu.")
 		}
-		status = parsed
+		status = &parsed
 	}
 	var afterCreated *time.Time
 	var afterID *uuid.UUID
