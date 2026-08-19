@@ -614,7 +614,7 @@ func applyDefaultMediaProfileDimensions(cfg Config) Config {
 
 const (
 	defaultResendWelcomeTemplateID       = "haradan-welcome"
-	defaultResendResetPasswordTemplateID = "reset-password"
+	defaultResendResetPasswordTemplateID = "haradan-reset-password"
 )
 
 func applyDefaultResendTemplateIDs(cfg Config) Config {

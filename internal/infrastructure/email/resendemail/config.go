@@ -10,7 +10,7 @@ import (
 
 const (
 	defaultWelcomeTemplateID       = "haradan-welcome"
-	defaultResetPasswordTemplateID = "reset-password"
+	defaultResetPasswordTemplateID = "haradan-reset-password"
 )
 
 // Config holds Resend adapter settings. Values come from process configuration.
@@ -25,8 +25,6 @@ type Config struct {
 	ResetPasswordTemplateID string
 	// TemplateID is a legacy alias for WelcomeTemplateID (registration verification).
 	TemplateID string
-	// Logger is optional; when set, Resend API errors are logged with their body.
-	Logger interface{ Error(string, ...any) }
 }
 
 func (c Config) validate() error {

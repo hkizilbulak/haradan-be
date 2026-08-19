@@ -726,7 +726,7 @@ func TestLoadEmailProviderDefaultsAndResend(t *testing.T) {
 	if cfg.ResendWelcomeTemplateID != "haradan-welcome" {
 		t.Fatalf("welcome template id=%q", cfg.ResendWelcomeTemplateID)
 	}
-	if cfg.ResendResetPasswordTemplateID != "reset-password" {
+	if cfg.ResendResetPasswordTemplateID != "haradan-reset-password" {
 		t.Fatalf("reset template id=%q", cfg.ResendResetPasswordTemplateID)
 	}
 }
