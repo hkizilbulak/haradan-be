@@ -114,6 +114,7 @@ func (f *fixture) seed(t *testing.T, ownerID uuid.UUID, status domainadvert.Stat
 	t.Helper()
 	title := "Satılık at"
 	description := "Sağlıklı, eğitimli."
+	address := "Ataköy Mah. No:1"
 	category := f.category
 	district := f.district
 	now := f.clock.Now()
@@ -124,6 +125,7 @@ func (f *fixture) seed(t *testing.T, ownerID uuid.UUID, status domainadvert.Stat
 		DistrictID:   &district,
 		Title:        &title,
 		Description:  &description,
+		Address:      &address,
 		Status:       status,
 		Properties:   json.RawMessage(`{"age":5}`),
 		Version:      1,
@@ -759,10 +761,11 @@ func TestSubmitAdvertForReviewFullValidation(t *testing.T) {
 			a.DistrictID = nil
 			a.Title = nil
 			a.Description = ptr("   ")
+			a.Address = nil
 		})
 		_, err := f.svc.SubmitAdvertForReview(ctx, f.owner, draft.ID, 1)
 		ae := requireCode(t, err, apperr.CodeValidation)
-		if len(ae.FieldErrors) != 4 {
+		if len(ae.FieldErrors) != 5 {
 			t.Fatalf("fields=%+v", ae.FieldErrors)
 		}
 	})

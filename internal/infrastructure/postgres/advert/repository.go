@@ -22,7 +22,7 @@ const (
 	staleVersionMessage   = "İlan başka bir yerden güncellendi; sayfayı yenileyin."
 )
 
-const advertColumns = `id, owner_user_id, category_id, district_id, horse_id, title, description,
+const advertColumns = `id, owner_user_id, category_id, district_id, horse_id, title, description, address,
 price_amount_minor, price_currency, status, properties, published_at, version, media_version,
 deleted_at, created_at, updated_at`
 
@@ -65,15 +65,15 @@ func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 func (r *Repository) Create(ctx context.Context, a domainadvert.Advert) error {
 	const q = `
 INSERT INTO hrd_adverts (
-  id, owner_user_id, category_id, district_id, horse_id, title, description,
+  id, owner_user_id, category_id, district_id, horse_id, title, description, address,
   price_amount_minor, price_currency, status, properties, published_at, version, media_version,
   deleted_at, created_at, updated_at
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18
 )`
 	amount, currency := splitMoney(a.Price)
 	_, err := r.db.Exec(ctx, q,
-		a.ID, a.OwnerUserID, a.CategoryID, a.DistrictID, a.HorseID, a.Title, a.Description,
+		a.ID, a.OwnerUserID, a.CategoryID, a.DistrictID, a.HorseID, a.Title, a.Description, a.Address,
 		amount, currency, string(a.Status), propertiesOrEmpty(a.Properties), a.PublishedAt,
 		a.Version, a.MediaVersion, a.DeletedAt, a.CreatedAt, a.UpdatedAt,
 	)
@@ -301,10 +301,11 @@ SET district_id = CASE WHEN $4 THEN $5::uuid ELSE district_id END,
     horse_id = CASE WHEN $6 THEN $7::uuid ELSE horse_id END,
     title = CASE WHEN $8 THEN $9::varchar ELSE title END,
     description = CASE WHEN $10 THEN $11::text ELSE description END,
-    price_amount_minor = CASE WHEN $12 THEN $13::bigint ELSE price_amount_minor END,
-    price_currency = CASE WHEN $12 THEN $14::varchar ELSE price_currency END,
+    address = CASE WHEN $12 THEN $13::text ELSE address END,
+    price_amount_minor = CASE WHEN $14 THEN $15::bigint ELSE price_amount_minor END,
+    price_currency = CASE WHEN $14 THEN $16::varchar ELSE price_currency END,
     version = version + 1,
-    updated_at = $15
+    updated_at = $17
 WHERE id = $1
   AND owner_user_id = $2
   AND version = $3
@@ -319,6 +320,7 @@ RETURNING ` + advertColumns
 		patch.HorseIDSet, patch.HorseID,
 		patch.TitleSet, patch.Title,
 		patch.DescriptionSet, patch.Description,
+		patch.AddressSet, patch.Address,
 		patch.PriceSet, amount, currency,
 		now,
 	)
@@ -454,7 +456,7 @@ func scanAdvert(row rowScanner) (domainadvert.Advert, error) {
 		props    []byte
 	)
 	if err := row.Scan(
-		&a.ID, &a.OwnerUserID, &a.CategoryID, &a.DistrictID, &a.HorseID, &a.Title, &a.Description,
+		&a.ID, &a.OwnerUserID, &a.CategoryID, &a.DistrictID, &a.HorseID, &a.Title, &a.Description, &a.Address,
 		&amount, &currency, &status, &props, &a.PublishedAt, &a.Version, &a.MediaVersion,
 		&a.DeletedAt, &a.CreatedAt, &a.UpdatedAt,
 	); err != nil {
