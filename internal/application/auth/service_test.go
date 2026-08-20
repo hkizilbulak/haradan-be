@@ -724,7 +724,7 @@ func TestConcurrentResendKeepsOneActive(t *testing.T) {
 	}
 }
 
-func TestRequestEmailChangeAllowedWithoutPriorVerification(t *testing.T) {
+func TestRequestEmailChangeDirectUpdate(t *testing.T) {
 	mail := &recordingEmail{}
 	svc, store, _ := NewMemoryServiceForTestWithEmail(t, mail)
 	_, err := svc.Register(context.Background(), RegisterInput{
@@ -734,10 +734,8 @@ func TestRequestEmailChangeAllowedWithoutPriorVerification(t *testing.T) {
 		t.Fatal(err)
 	}
 	var uid uuid.UUID
-	for id, u := range store.users {
+	for id := range store.users {
 		uid = id
-		u.EmailVerifiedAt = nil
-		store.users[id] = u
 	}
 
 	out, err := svc.RequestEmailChange(context.Background(), RequestEmailChangeInput{
@@ -746,27 +744,14 @@ func TestRequestEmailChangeAllowedWithoutPriorVerification(t *testing.T) {
 		ClientIP: "127.0.0.1",
 	})
 	if err != nil {
-		t.Fatalf("RequestEmailChange should succeed without prior verification: %v", err)
+		t.Fatalf("RequestEmailChange failed: %v", err)
 	}
-	if out.Message == "" {
+	if out.Message != "E-posta adresi güncellendi." {
 		t.Fatalf("expected message in out, got %+v", out)
-	}
-	mail.mu.Lock()
-	tok := mail.lastToken
-	mail.mu.Unlock()
-	if tok == "" {
-		t.Fatal("expected verification token sent to new address")
-	}
-
-	confirmOut, err := svc.ConfirmEmailChange(context.Background(), ConfirmEmailChangeInput{Token: tok})
-	if err != nil {
-		t.Fatalf("ConfirmEmailChange failed: %v", err)
-	}
-	if confirmOut.Message != "E-posta adresi güncellendi." {
-		t.Fatalf("confirmOut=%+v", confirmOut)
 	}
 	u := store.users[uid]
 	if u.Email != "new-address@example.com" || u.EmailVerifiedAt == nil {
-		t.Fatalf("user email not updated or not verified: %+v", u)
+		t.Fatalf("user email not directly updated or not verified: %+v", u)
 	}
 }
+

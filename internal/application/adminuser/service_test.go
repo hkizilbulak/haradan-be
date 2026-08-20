@@ -183,6 +183,19 @@ func (r *fakeRepo) UpdateProfile(_ context.Context, userID uuid.UUID, firstName,
 	}
 	return domainuser.User{}, apperr.NotFound("user not found")
 }
+func (r *fakeRepo) UpdateEmail(_ context.Context, userID uuid.UUID, email, emailNormalized string, _ uuid.UUID, now time.Time) (domainuser.User, error) {
+	for i, u := range r.users {
+		if u.ID == userID {
+			u.Email = email
+			u.EmailNormalized = emailNormalized
+			u.EmailVerifiedAt = &now
+			u.UpdatedAt = now
+			r.users[i] = u
+			return u, nil
+		}
+	}
+	return domainuser.User{}, apperr.NotFound("user not found")
+}
 func (r *fakeRepo) FindUserByNormalizedEmail(_ context.Context, normalized string) (domainuser.User, error) {
 	for _, u := range append(r.created, r.users...) {
 		if u.EmailNormalized == normalized {
@@ -662,57 +675,11 @@ func TestUpdateProfileAndRequestEmailChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if email.calls != 1 {
-		t.Fatalf("expected verification email, calls=%d", email.calls)
+	if repo.users[0].Email != "New.Mail@Example.com" || repo.users[0].EmailVerifiedAt == nil {
+		t.Fatalf("email must be directly updated and verified, got: %#v", repo.users[0])
 	}
-	if repo.users[0].Email != "old@example.com" {
-		t.Fatal("current email must remain until confirm")
-	}
-	var hasEmailChange, hasPasswordReset bool
-	for _, cred := range repo.otc {
-		if cred.Purpose == domainauth.PurposeEmailChangeVerification {
-			hasEmailChange = true
-			if cred.TargetEmailNormalized != "new.mail@example.com" {
-				t.Fatalf("unexpected target: %#v", cred)
-			}
-		}
-		if cred.Purpose == domainauth.PurposePasswordReset {
-			hasPasswordReset = true
-		}
-	}
-	if !hasEmailChange {
-		t.Fatal("expected EMAIL_CHANGE OTC")
-	}
-	if !hasPasswordReset {
-		t.Fatal("PASSWORD_RESET invitation OTC must not be invalidated by email change")
-	}
-}
-
-func TestRequestEmailChangeUnconfiguredKeepsCurrentEmail(t *testing.T) {
-	now := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
-	userID := uuid.New()
-	repo := &fakeRepo{
-		txMode: true,
-		users: []domainuser.User{{
-			ID: userID, Email: "keep@example.com", EmailNormalized: "keep@example.com",
-			FirstName: "K", LastName: "Eep", Role: domainuser.RoleUser, Status: domainuser.StatusActive, UpdatedAt: now,
-		}},
-	}
-	svc, err := NewService(Config{Repository: repo, Hasher: fakeHasher{}, EmailConfigured: false})
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = svc.RequestEmailChange(context.Background(), RequestEmailChangeInput{
-		ActorUserID: uuid.New(), UserID: userID, NewEmail: "other@example.com",
-	})
-	if err == nil {
-		t.Fatal("expected dependency unavailable")
-	}
-	if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindDependencyUnavailable {
-		t.Fatalf("expected dependency unavailable, got %v", err)
-	}
-	if repo.users[0].Email != "keep@example.com" || len(repo.otc) != 0 {
-		t.Fatal("email and OTC must be unchanged when provider unconfigured")
+	if len(repo.events) == 0 || repo.events[len(repo.events)-1].EventType != domainauth.EventEmailChange {
+		t.Fatalf("expected EventEmailChange security event, got: %#v", repo.events)
 	}
 }
 

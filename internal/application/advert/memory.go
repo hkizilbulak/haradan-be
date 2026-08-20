@@ -26,8 +26,9 @@ type MemoryStore struct {
 	mu   sync.Mutex
 	txMu sync.Mutex // serializes BeginTx..Commit like a coarse row lock
 
-	adverts map[uuid.UUID]domainadvert.Advert
-	history []domainadvert.StatusHistory
+	adverts        map[uuid.UUID]domainadvert.Advert
+	mediaRelations map[uuid.UUID][]domainadvert.MediaRelation
+	history        []domainadvert.StatusHistory
 
 	categories map[uuid.UUID]domaincatalog.Category
 	children   map[uuid.UUID]int
@@ -40,13 +41,14 @@ type MemoryStore struct {
 // NewMemoryStore builds an empty in-memory store.
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		adverts:    map[uuid.UUID]domainadvert.Advert{},
-		categories: map[uuid.UUID]domaincatalog.Category{},
-		children:   map[uuid.UUID]int{},
-		formProps:  map[uuid.UUID][]domaincatalog.Property{},
-		districts:  map[uuid.UUID]domaingeo.District{},
-		horses:     map[uuid.UUID]domainhorse.Horse{},
-		users:      map[uuid.UUID]domainuser.User{},
+		adverts:        map[uuid.UUID]domainadvert.Advert{},
+		mediaRelations: map[uuid.UUID][]domainadvert.MediaRelation{},
+		categories:     map[uuid.UUID]domaincatalog.Category{},
+		children:       map[uuid.UUID]int{},
+		formProps:      map[uuid.UUID][]domaincatalog.Property{},
+		districts:      map[uuid.UUID]domaingeo.District{},
+		horses:         map[uuid.UUID]domainhorse.Horse{},
+		users:          map[uuid.UUID]domainuser.User{},
 	}
 }
 
@@ -55,6 +57,16 @@ func (s *MemoryStore) PutAdvert(a domainadvert.Advert) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.adverts[a.ID] = a
+}
+
+// PutMediaRelations seeds media relations for an advert.
+func (s *MemoryStore) PutMediaRelations(advertID uuid.UUID, rels []domainadvert.MediaRelation) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.mediaRelations == nil {
+		s.mediaRelations = make(map[uuid.UUID][]domainadvert.MediaRelation)
+	}
+	s.mediaRelations[advertID] = rels
 }
 
 // Advert returns a seeded advert.
@@ -253,9 +265,16 @@ func (r MemoryRepository) ListStatusHistory(_ context.Context, advertID uuid.UUI
 	return out, nil
 }
 
-// ListMediaRelations returns no media in the memory store (tests seed empty).
+// ListMediaRelations returns media relations from the memory store.
 func (r MemoryRepository) ListMediaRelations(_ context.Context, advertIDs []uuid.UUID) (map[uuid.UUID][]domainadvert.MediaRelation, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
 	out := make(map[uuid.UUID][]domainadvert.MediaRelation, len(advertIDs))
+	for _, id := range advertIDs {
+		if rels, ok := r.store.mediaRelations[id]; ok {
+			out[id] = rels
+		}
+	}
 	return out, nil
 }
 

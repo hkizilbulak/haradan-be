@@ -406,6 +406,7 @@ RETURNING ` + advertColumns
 
 // TransitionStatus moves the status when owner, id, version and from status all
 // still match. published_at is only overwritten when a value is supplied.
+// sold_at is stamped automatically when transitioning to SOLD.
 func (r *Repository) TransitionStatus(
 	ctx context.Context,
 	ownerID, advertID uuid.UUID,
@@ -414,10 +415,16 @@ func (r *Repository) TransitionStatus(
 	publishedAt *time.Time,
 	now time.Time,
 ) (domainadvert.Advert, error) {
+	// sold_at is set only on the first SOLD transition; other transitions leave it unchanged.
+	var soldAt *time.Time
+	if to == domainadvert.StatusSold {
+		soldAt = &now
+	}
 	const q = `
 UPDATE hrd_adverts
 SET status = $5::varchar,
     published_at = COALESCE($6::timestamptz, published_at),
+    sold_at = CASE WHEN $8::timestamptz IS NOT NULL THEN $8::timestamptz ELSE sold_at END,
     version = version + 1,
     updated_at = $7
 WHERE id = $1
@@ -428,7 +435,64 @@ WHERE id = $1
 RETURNING ` + advertColumns
 
 	return r.updateOne(ctx, "transition advert status", q,
-		advertID, ownerID, expectedVersion, string(from), string(to), publishedAt, now)
+		advertID, ownerID, expectedVersion, string(from), string(to), publishedAt, now, soldAt)
+}
+
+// ListSoldForAutoArchive returns non-deleted SOLD adverts whose sold_at is
+// older than the given cutoff. Used by the 24-hour auto-archive background job.
+func (r *Repository) ListSoldForAutoArchive(ctx context.Context, soldBefore time.Time, limit int) ([]domainadvert.Advert, error) {
+	const q = `
+SELECT ` + advertColumns + `
+FROM hrd_adverts
+WHERE status = 'SOLD'
+  AND deleted_at IS NULL
+  AND sold_at IS NOT NULL
+  AND sold_at < $1
+ORDER BY sold_at ASC, id ASC
+LIMIT $2`
+
+	rows, err := r.db.Query(ctx, q, soldBefore, limit)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list sold for auto-archive: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+
+	out := make([]domainadvert.Advert, 0, limit)
+	for rows.Next() {
+		a, err := scanAdvert(rows)
+		if err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan sold advert: %w", pg.SanitizeErr(err)))
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("iterate sold adverts: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
+}
+
+// SystemTransitionStatus moves status when id, version and from status match
+// (no owner filter). Used by background jobs such as auto-archive.
+func (r *Repository) SystemTransitionStatus(
+	ctx context.Context,
+	advertID uuid.UUID,
+	from, to domainadvert.Status,
+	expectedVersion int,
+	now time.Time,
+) (domainadvert.Advert, error) {
+	const q = `
+UPDATE hrd_adverts
+SET status = $4::varchar,
+    version = version + 1,
+    updated_at = $5
+WHERE id = $1
+  AND version = $2
+  AND deleted_at IS NULL
+  AND status = $3::varchar
+RETURNING ` + advertColumns
+
+	return r.updateOne(ctx, "system transition advert status", q,
+		advertID, expectedVersion, string(from), string(to), now)
 }
 
 func (r *Repository) queryOne(ctx context.Context, op, q string, args ...any) (domainadvert.Advert, error) {

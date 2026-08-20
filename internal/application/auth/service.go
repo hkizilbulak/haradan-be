@@ -338,6 +338,10 @@ func (s *Service) VerifyEmail(ctx context.Context, in VerifyEmailInput) (VerifyE
 	now := s.clock.Now()
 
 	var subjectUserID uuid.UUID
+	var eventType domainauth.SecurityEventType = domainauth.EventEmailVerification
+	eventMeta := map[string]any{}
+	successMessage := verifySuccessMessage
+
 	err := s.withTx(ctx, func(ctx context.Context, users UserRepository, sessions SessionRepository) error {
 		cred, err := sessions.FindOneTimeCredentialByHashForUpdate(ctx, hash)
 		if err != nil {
@@ -346,6 +350,38 @@ func (s *Service) VerifyEmail(ctx context.Context, in VerifyEmailInput) (VerifyE
 			}
 			return err
 		}
+
+		if cred.Purpose == domainauth.PurposeEmailChangeVerification {
+			if !cred.IsActive() {
+				return apperr.TokenInvalid(genericTokenFailure)
+			}
+			if cred.IsExpired(now) {
+				return apperr.TokenExpired("Doğrulama jetonunun süresi dolmuş.")
+			}
+			user, err := users.FindByIDForUpdate(ctx, cred.UserID)
+			if err != nil {
+				return apperr.TokenInvalid(genericTokenFailure)
+			}
+			subjectUserID = user.ID
+			if err := sessions.ConsumeOneTimeCredential(ctx, cred.ID, now); err != nil {
+				return err
+			}
+			if err := users.UpdateEmail(ctx, user.ID, cred.TargetEmail, cred.TargetEmailNormalized, uuid.New(), now); err != nil {
+				return err
+			}
+			if err := users.MarkEmailVerified(ctx, user.ID, now); err != nil {
+				return err
+			}
+			eventType = domainauth.EventEmailChange
+			eventMeta = map[string]any{
+				"reason":        "EMAIL_CHANGE_CONFIRMED",
+				"previousEmail": user.Email,
+				"newEmail":      cred.TargetEmail,
+			}
+			successMessage = "E-posta adresi güncellendi."
+			return sessions.RevokeAllSessionsForUser(ctx, user.ID, now, "EMAIL_CHANGE")
+		}
+
 		if cred.Purpose != domainauth.PurposeEmailVerification {
 			return apperr.TokenInvalid(genericTokenFailure)
 		}
@@ -381,22 +417,25 @@ func (s *Service) VerifyEmail(ctx context.Context, in VerifyEmailInput) (VerifyE
 			}
 			return err
 		}
-		return users.MarkEmailVerified(ctx, user.ID, now)
+		if err := users.MarkEmailVerified(ctx, user.ID, now); err != nil {
+			return err
+		}
+		return nil
 	})
 	if err != nil {
 		return VerifyEmailResult{}, err
 	}
 
-	uid := subjectUserID
 	s.bestEffortEvent(ctx, domainauth.SecurityEvent{
 		ID:            uuid.New(),
-		SubjectUserID: &uid,
-		ActorUserID:   &uid,
-		EventType:     domainauth.EventEmailVerification,
-		Metadata:      map[string]any{},
+		SubjectUserID: &subjectUserID,
+		ActorUserID:   &subjectUserID,
+		EventType:     eventType,
+		Metadata:      eventMeta,
 		CreatedAt:     now,
 	})
-	return VerifyEmailResult{Message: verifySuccessMessage}, nil
+
+	return VerifyEmailResult{Message: successMessage}, nil
 }
 
 // ResendVerification implements AUTH-03 (enumeration-safe).
@@ -569,23 +608,30 @@ func (s *Service) RequestEmailChange(ctx context.Context, in RequestEmailChangeI
 	} else if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
 		return LogoutResult{}, err
 	}
-	plain, hash, err := token.NewOpaqueToken()
-	if err != nil {
-		return LogoutResult{}, apperr.Internal(err)
-	}
-	cred := domainauth.OneTimeCredential{ID: uuid.New(), UserID: user.ID, Purpose: domainauth.PurposeEmailChangeVerification, TokenHash: hash, TargetEmail: email, TargetEmailNormalized: normalized, ExpiresAt: now.Add(s.emailVerifyTTL), CreatedAt: now, RequestIPHash: hashIP(in.ClientIP)}
-	if err := s.withTx(ctx, func(ctx context.Context, _ UserRepository, sessions SessionRepository) error {
-		if err := sessions.InvalidateActiveOneTimeCredentials(ctx, user.ID, cred.Purpose, now); err != nil {
+	previousEmail := user.Email
+	if err := s.withTx(ctx, func(ctx context.Context, users UserRepository, sessions SessionRepository) error {
+		if err := sessions.InvalidateActiveOneTimeCredentials(ctx, user.ID, domainauth.PurposeEmailChangeVerification, now); err != nil {
 			return err
 		}
-		return sessions.CreateOneTimeCredential(ctx, cred)
+		if err := users.UpdateEmail(ctx, user.ID, email, normalized, uuid.New(), now); err != nil {
+			return err
+		}
+		if err := users.MarkEmailVerified(ctx, user.ID, now); err != nil {
+			return err
+		}
+		return sessions.RevokeAllSessionsForUser(ctx, user.ID, now, "EMAIL_CHANGE")
 	}); err != nil {
 		return LogoutResult{}, err
 	}
-	if err := s.email.SendRegistrationVerification(ctx, email, plain, displayFullName(user.FirstName, user.LastName)); err != nil {
-		return LogoutResult{}, apperr.DependencyUnavailable("E-posta servisi şu anda kullanılamıyor.")
-	}
-	return LogoutResult{Message: resendSuccessMessage}, nil
+	s.bestEffortEvent(ctx, domainauth.SecurityEvent{
+		ID:            uuid.New(),
+		SubjectUserID: &user.ID,
+		ActorUserID:   &user.ID,
+		EventType:     domainauth.EventEmailChange,
+		Metadata:      map[string]any{"reason": "USER_EMAIL_CHANGE_DIRECT", "newEmail": email, "previousEmail": previousEmail},
+		CreatedAt:     now,
+	})
+	return LogoutResult{Message: "E-posta adresi güncellendi."}, nil
 }
 
 func (s *Service) ConfirmEmailChange(ctx context.Context, in ConfirmEmailChangeInput) (LogoutResult, error) {
@@ -594,6 +640,8 @@ func (s *Service) ConfirmEmailChange(ctx context.Context, in ConfirmEmailChangeI
 	}
 	now := s.clock.Now()
 	var uid uuid.UUID
+	var previousEmail string
+	var newEmail string
 	err := s.withTx(ctx, func(ctx context.Context, users UserRepository, sessions SessionRepository) error {
 		cred, err := sessions.FindOneTimeCredentialByHashForUpdate(ctx, token.HashOpaqueToken(strings.TrimSpace(in.Token)))
 		if err != nil {
@@ -610,6 +658,8 @@ func (s *Service) ConfirmEmailChange(ctx context.Context, in ConfirmEmailChangeI
 			return apperr.TokenInvalid(genericTokenFailure)
 		}
 		uid = user.ID
+		previousEmail = user.Email
+		newEmail = cred.TargetEmail
 		if err := sessions.ConsumeOneTimeCredential(ctx, cred.ID, now); err != nil {
 			return err
 		}
@@ -625,7 +675,14 @@ func (s *Service) ConfirmEmailChange(ctx context.Context, in ConfirmEmailChangeI
 	if err != nil {
 		return LogoutResult{}, err
 	}
-	s.bestEffortEvent(ctx, domainauth.SecurityEvent{ID: uuid.New(), SubjectUserID: &uid, ActorUserID: &uid, EventType: domainauth.EventEmailChange, Metadata: map[string]any{}, CreatedAt: now})
+	s.bestEffortEvent(ctx, domainauth.SecurityEvent{
+		ID:            uuid.New(),
+		SubjectUserID: &uid,
+		ActorUserID:   &uid,
+		EventType:     domainauth.EventEmailChange,
+		Metadata:      map[string]any{"reason": "EMAIL_CHANGE_CONFIRMED", "newEmail": newEmail, "previousEmail": previousEmail},
+		CreatedAt:     now,
+	})
 	return LogoutResult{Message: "E-posta adresi güncellendi."}, nil
 }
 
