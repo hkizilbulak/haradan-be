@@ -49,6 +49,7 @@ type PublicHorse struct {
 type PublicDetail struct {
 	PublicCard
 	Description  string
+	Address      *string
 	CategoryName string
 	CategorySlug string
 	DistrictName string

@@ -91,6 +91,7 @@ type CreateDraftInput struct {
 	HorseID     *uuid.UUID
 	Title       *string
 	Description *string
+	Address     *string
 	Price       *MoneyInput
 }
 
@@ -123,6 +124,9 @@ type UpdateDetailsInput struct {
 
 	DescriptionSet bool
 	Description    *string
+
+	AddressSet bool
+	Address    *string
 
 	PriceSet bool
 	Price    *MoneyInput
@@ -176,6 +180,7 @@ func (s *Service) CreateAdvertDraft(ctx context.Context, ownerID uuid.UUID, in C
 		HorseID:      in.HorseID,
 		Title:        title,
 		Description:  normalizeDescription(in.Description),
+		Address:      normalizeDescription(in.Address),
 		Price:        price,
 		Status:       domainadvert.StatusDraft,
 		Properties:   domainadvert.EmptyProperties(),
@@ -612,6 +617,9 @@ func (s *Service) validateForSubmission(ctx context.Context, a domainadvert.Adve
 	if a.Description == nil || strings.TrimSpace(*a.Description) == "" {
 		fields = append(fields, apperr.FieldError{Field: "description", Message: "Açıklama zorunludur."})
 	}
+	if a.Address == nil || strings.TrimSpace(*a.Address) == "" {
+		fields = append(fields, apperr.FieldError{Field: "address", Message: "Açık adres zorunludur."})
+	}
 	if len(fields) > 0 {
 		return apperr.Validation(invalidRequest, fields...)
 	}
@@ -646,6 +654,7 @@ func (s *Service) buildDetailsPatch(ctx context.Context, in UpdateDetailsInput) 
 		HorseID:        in.HorseID,
 		TitleSet:       in.TitleSet,
 		DescriptionSet: in.DescriptionSet,
+		AddressSet:     in.AddressSet,
 		PriceSet:       in.PriceSet,
 	}
 	if in.TitleSet {
@@ -657,6 +666,9 @@ func (s *Service) buildDetailsPatch(ctx context.Context, in UpdateDetailsInput) 
 	}
 	if in.DescriptionSet {
 		patch.Description = normalizeDescription(in.Description)
+	}
+	if in.AddressSet {
+		patch.Address = normalizeDescription(in.Address)
 	}
 	if in.PriceSet {
 		price, err := validateMoney("price", in.Price)

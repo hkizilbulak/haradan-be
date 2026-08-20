@@ -101,7 +101,7 @@ WHERE a.id = $1 AND a.status = 'PUBLISHED' AND a.deleted_at IS NULL`
 		return domainadvert.PublicDetail{}, apperr.Internal(fmt.Errorf("get published advert: %w", pg.SanitizeErr(err)))
 	}
 	const metadata = `
-SELECT a.description, c.name, c.slug, d.name, p.name, h.id, h.original_name, h.tjk_number, a.properties
+SELECT a.description, a.address, c.name, c.slug, d.name, p.name, h.id, h.original_name, h.tjk_number, a.properties
 FROM hrd_adverts a
 JOIN hrd_categories c ON c.id = a.category_id
 JOIN hrd_districts d ON d.id = a.district_id
@@ -114,7 +114,7 @@ WHERE a.id = $1`
 	var horseName *string
 	var horseTJKNumber *string
 	var props []byte
-	if err := r.db.QueryRow(ctx, metadata, advertID).Scan(&out.Description, &out.CategoryName, &out.CategorySlug, &out.DistrictName, &out.ProvinceName, &horseID, &horseName, &horseTJKNumber, &props); err != nil {
+	if err := r.db.QueryRow(ctx, metadata, advertID).Scan(&out.Description, &out.Address, &out.CategoryName, &out.CategorySlug, &out.DistrictName, &out.ProvinceName, &horseID, &horseName, &horseTJKNumber, &props); err != nil {
 		return domainadvert.PublicDetail{}, apperr.Internal(fmt.Errorf("get published advert metadata: %w", pg.SanitizeErr(err)))
 	}
 	if horseID != nil && horseName != nil {

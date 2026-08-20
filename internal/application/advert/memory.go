@@ -191,10 +191,10 @@ func (r MemoryRepository) FindByIDForUpdate(ctx context.Context, advertID uuid.U
 	return r.FindByID(ctx, advertID)
 }
 
-// ListForModeration returns non-deleted adverts matching status, newest first.
+// ListForModeration returns non-deleted adverts matching status (optional) with keyset paging.
 func (r MemoryRepository) ListForModeration(
 	_ context.Context,
-	status domainadvert.Status,
+	status *domainadvert.Status,
 	afterCreated *time.Time,
 	afterID *uuid.UUID,
 	limit int,
@@ -204,7 +204,7 @@ func (r MemoryRepository) ListForModeration(
 
 	var out []domainadvert.Advert
 	for _, a := range r.store.adverts {
-		if a.IsDeleted() || a.Status != status {
+		if a.IsDeleted() || (status != nil && a.Status != *status) {
 			continue
 		}
 		out = append(out, a)

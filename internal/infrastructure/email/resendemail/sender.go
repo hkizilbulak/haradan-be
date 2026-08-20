@@ -87,6 +87,51 @@ func formatFromHeader(name, email string) string {
 	return (&mail.Address{Name: name, Address: email}).String()
 }
 
+// SendWelcome delivers the welcome/registered template email ("Kayıt oldunuz").
+// Variables: frontendUrl, recipientEmail, loginUrl; fullName and fullname when non-empty after trim.
+func (s *Sender) SendWelcome(ctx context.Context, toEmail, fullName string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil || s.client == nil {
+		return dependencyError()
+	}
+	tmplID := strings.TrimSpace(s.welcomeTemplateID)
+	if tmplID == "" {
+		return dependencyError()
+	}
+
+	recipient, err := normalizeRecipient(toEmail)
+	if err != nil {
+		return sanitizeErr(err)
+	}
+
+	loginURL := ""
+	if base := strings.TrimRight(strings.TrimSpace(s.frontendURL), "/"); base != "" {
+		loginURL = base + "/auth/login"
+	}
+
+	variables := map[string]any{
+		"frontendUrl":     s.frontendURL,
+		"recipientEmail":  recipient,
+		"loginUrl":        loginURL,
+		"resetUrl":        loginURL,
+		"verificationUrl": loginURL,
+	}
+	if name := strings.TrimSpace(fullName); name != "" {
+		variables["fullName"] = name
+		variables["fullname"] = name
+	} else {
+		variables["fullName"] = ""
+		variables["fullname"] = ""
+	}
+
+	if err := s.client.sendTemplate(ctx, recipient, tmplID, variables); err != nil {
+		return sanitizeErr(err)
+	}
+	return nil
+}
+
 // SendRegistrationVerification delivers the welcome/verification template email.
 // Variables: verificationUrl; fullName only when non-empty after trim. Fails
 // closed when the welcome template id is unset rather than reusing the
@@ -135,15 +180,18 @@ func (s *Sender) sendAuthTemplate(
 	}
 
 	variables := map[string]any{
-		urlVar:           link,
-		"frontendUrl":    s.frontendURL,
-		"recipientEmail": recipient,
+		urlVar:            link,
+		"resetUrl":        link,
+		"verificationUrl": link,
+		"frontendUrl":     s.frontendURL,
+		"recipientEmail":  recipient,
 	}
 	if name := strings.TrimSpace(fullName); name != "" {
 		variables["fullName"] = name
-		// The established company templates use the legacy lower-case key.
-		// Keep both spellings while Haradan-specific templates are introduced.
 		variables["fullname"] = name
+	} else {
+		variables["fullName"] = ""
+		variables["fullname"] = ""
 	}
 	// Keep the raw token available for templates that still expect it.
 	if urlVar == "verificationUrl" {

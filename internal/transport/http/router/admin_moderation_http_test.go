@@ -149,11 +149,12 @@ func (env *moderationTestEnv) registerAdminBO(t *testing.T, email string) (strin
 func (env *moderationTestEnv) seedPending(ownerID uuid.UUID) domainadvert.Advert {
 	title := "Moderasyon ilanı"
 	desc := "Açıklama"
+	addr := "Ataköy Mah. No:1"
 	now := time.Now().UTC()
 	a := domainadvert.Advert{
 		ID: uuid.New(), OwnerUserID: ownerID,
 		CategoryID: &env.category, DistrictID: &env.district,
-		Title: &title, Description: &desc,
+		Title: &title, Description: &desc, Address: &addr,
 		Status:     domainadvert.StatusPendingReview,
 		Properties: json.RawMessage(`{"age":5}`),
 		Version:    1, MediaVersion: 1, CreatedAt: now, UpdatedAt: now,

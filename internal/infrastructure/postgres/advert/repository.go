@@ -22,7 +22,7 @@ const (
 	staleVersionMessage   = "İlan başka bir yerden güncellendi; sayfayı yenileyin."
 )
 
-const advertColumns = `id, owner_user_id, category_id, district_id, horse_id, title, description,
+const advertColumns = `id, owner_user_id, category_id, district_id, horse_id, title, description, address,
 price_amount_minor, price_currency, status, properties, published_at, sold_at, version, media_version,
 deleted_at, created_at, updated_at`
 
@@ -65,15 +65,15 @@ func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 func (r *Repository) Create(ctx context.Context, a domainadvert.Advert) error {
 	const q = `
 INSERT INTO hrd_adverts (
-  id, owner_user_id, category_id, district_id, horse_id, title, description,
+  id, owner_user_id, category_id, district_id, horse_id, title, description, address,
   price_amount_minor, price_currency, status, properties, published_at, sold_at, version, media_version,
   deleted_at, created_at, updated_at
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18,$19
 )`
 	amount, currency := splitMoney(a.Price)
 	_, err := r.db.Exec(ctx, q,
-		a.ID, a.OwnerUserID, a.CategoryID, a.DistrictID, a.HorseID, a.Title, a.Description,
+		a.ID, a.OwnerUserID, a.CategoryID, a.DistrictID, a.HorseID, a.Title, a.Description, a.Address,
 		amount, currency, string(a.Status), propertiesOrEmpty(a.Properties), a.PublishedAt, a.SoldAt,
 		a.Version, a.MediaVersion, a.DeletedAt, a.CreatedAt, a.UpdatedAt,
 	)
@@ -98,7 +98,7 @@ INSERT INTO hrd_advert_status_history (
 	}
 	_, err := r.db.Exec(ctx, q,
 		h.ID, h.AdvertID, from, string(h.ToStatus), h.ActorUserID, h.IsSystem, h.Reason, h.CreatedAt,
-	)
+		)
 	if err != nil {
 		return apperr.Internal(fmt.Errorf("insert advert status history: %w", pg.SanitizeErr(err)))
 	}
@@ -130,27 +130,37 @@ func (r *Repository) FindByIDForUpdate(ctx context.Context, advertID uuid.UUID) 
 	return r.queryOne(ctx, "find advert by id for update", q, advertID)
 }
 
-// ListForModeration returns non-deleted adverts matching status, newest first.
+// ListForModeration returns non-deleted adverts matching status (optional), newest first.
 func (r *Repository) ListForModeration(
 	ctx context.Context,
-	status domainadvert.Status,
+	status *domainadvert.Status,
 	afterCreated *time.Time,
 	afterID *uuid.UUID,
 	limit int,
 ) ([]domainadvert.Advert, error) {
-	const q = `
-SELECT ` + advertColumns + `
-FROM hrd_adverts
-WHERE deleted_at IS NULL
-  AND status = $1::varchar
-  AND (
-    $2::timestamptz IS NULL
-    OR (created_at, id) < ($2::timestamptz, $3::uuid)
-  )
-ORDER BY created_at DESC, id DESC
-LIMIT $4`
+	var (
+		q    string
+		args []any
+	)
+	if afterCreated != nil && afterID != nil {
+		if status != nil {
+			q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE deleted_at IS NULL AND status = $1 AND (created_at, id) < ($2, $3) ORDER BY created_at DESC, id DESC LIMIT $4`
+			args = []any{string(*status), *afterCreated, *afterID, limit}
+		} else {
+			q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE deleted_at IS NULL AND (created_at, id) < ($1, $2) ORDER BY created_at DESC, id DESC LIMIT $3`
+			args = []any{*afterCreated, *afterID, limit}
+		}
+	} else {
+		if status != nil {
+			q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE deleted_at IS NULL AND status = $1 ORDER BY created_at DESC, id DESC LIMIT $2`
+			args = []any{string(*status), limit}
+		} else {
+			q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC LIMIT $1`
+			args = []any{limit}
+		}
+	}
 
-	rows, err := r.db.Query(ctx, q, string(status), afterCreated, afterID, limit)
+	rows, err := r.db.Query(ctx, q, args...)
 	if err != nil {
 		return nil, apperr.Internal(fmt.Errorf("list moderation adverts: %w", pg.SanitizeErr(err)))
 	}
@@ -301,10 +311,11 @@ SET district_id = CASE WHEN $4 THEN $5::uuid ELSE district_id END,
     horse_id = CASE WHEN $6 THEN $7::uuid ELSE horse_id END,
     title = CASE WHEN $8 THEN $9::varchar ELSE title END,
     description = CASE WHEN $10 THEN $11::text ELSE description END,
-    price_amount_minor = CASE WHEN $12 THEN $13::bigint ELSE price_amount_minor END,
-    price_currency = CASE WHEN $12 THEN $14::varchar ELSE price_currency END,
+    address = CASE WHEN $12 THEN $13::text ELSE address END,
+    price_amount_minor = CASE WHEN $14 THEN $15::bigint ELSE price_amount_minor END,
+    price_currency = CASE WHEN $14 THEN $16::varchar ELSE price_currency END,
     version = version + 1,
-    updated_at = $15
+    updated_at = $17
 WHERE id = $1
   AND owner_user_id = $2
   AND version = $3
@@ -319,6 +330,7 @@ RETURNING ` + advertColumns
 		patch.HorseIDSet, patch.HorseID,
 		patch.TitleSet, patch.Title,
 		patch.DescriptionSet, patch.Description,
+		patch.AddressSet, patch.Address,
 		patch.PriceSet, amount, currency,
 		now,
 	)
@@ -387,7 +399,6 @@ WHERE id = $1
   AND owner_user_id = $2
   AND version = $3
   AND deleted_at IS NULL
-  AND status = 'DRAFT'
 RETURNING ` + advertColumns
 
 	return r.updateOne(ctx, "soft delete advert draft", q, advertID, ownerID, expectedVersion, now)
@@ -395,7 +406,6 @@ RETURNING ` + advertColumns
 
 // TransitionStatus moves the status when owner, id, version and from status all
 // still match. published_at is only overwritten when a value is supplied.
-// sold_at is stamped automatically when transitioning to SOLD.
 func (r *Repository) TransitionStatus(
 	ctx context.Context,
 	ownerID, advertID uuid.UUID,
@@ -404,16 +414,10 @@ func (r *Repository) TransitionStatus(
 	publishedAt *time.Time,
 	now time.Time,
 ) (domainadvert.Advert, error) {
-	// sold_at is set only on the first SOLD transition; other transitions leave it unchanged.
-	var soldAt *time.Time
-	if to == domainadvert.StatusSold {
-		soldAt = &now
-	}
 	const q = `
 UPDATE hrd_adverts
 SET status = $5::varchar,
     published_at = COALESCE($6::timestamptz, published_at),
-    sold_at = CASE WHEN $8::timestamptz IS NOT NULL THEN $8::timestamptz ELSE sold_at END,
     version = version + 1,
     updated_at = $7
 WHERE id = $1
@@ -424,64 +428,7 @@ WHERE id = $1
 RETURNING ` + advertColumns
 
 	return r.updateOne(ctx, "transition advert status", q,
-		advertID, ownerID, expectedVersion, string(from), string(to), publishedAt, now, soldAt)
-}
-
-// ListSoldForAutoArchive returns non-deleted SOLD adverts whose sold_at is
-// older than the given cutoff. Used by the 24-hour auto-archive background job.
-func (r *Repository) ListSoldForAutoArchive(ctx context.Context, soldBefore time.Time, limit int) ([]domainadvert.Advert, error) {
-	const q = `
-SELECT ` + advertColumns + `
-FROM hrd_adverts
-WHERE status = 'SOLD'
-  AND deleted_at IS NULL
-  AND sold_at IS NOT NULL
-  AND sold_at < $1
-ORDER BY sold_at ASC, id ASC
-LIMIT $2`
-
-	rows, err := r.db.Query(ctx, q, soldBefore, limit)
-	if err != nil {
-		return nil, apperr.Internal(fmt.Errorf("list sold for auto-archive: %w", pg.SanitizeErr(err)))
-	}
-	defer rows.Close()
-
-	out := make([]domainadvert.Advert, 0, limit)
-	for rows.Next() {
-		a, err := scanAdvert(rows)
-		if err != nil {
-			return nil, apperr.Internal(fmt.Errorf("scan sold advert: %w", pg.SanitizeErr(err)))
-		}
-		out = append(out, a)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, apperr.Internal(fmt.Errorf("iterate sold adverts: %w", pg.SanitizeErr(err)))
-	}
-	return out, nil
-}
-
-// SystemTransitionStatus moves status when id, version and from status match
-// (no owner filter). Used by background jobs such as auto-archive.
-func (r *Repository) SystemTransitionStatus(
-	ctx context.Context,
-	advertID uuid.UUID,
-	from, to domainadvert.Status,
-	expectedVersion int,
-	now time.Time,
-) (domainadvert.Advert, error) {
-	const q = `
-UPDATE hrd_adverts
-SET status = $4::varchar,
-    version = version + 1,
-    updated_at = $5
-WHERE id = $1
-  AND version = $2
-  AND deleted_at IS NULL
-  AND status = $3::varchar
-RETURNING ` + advertColumns
-
-	return r.updateOne(ctx, "system transition advert status", q,
-		advertID, expectedVersion, string(from), string(to), now)
+		advertID, ownerID, expectedVersion, string(from), string(to), publishedAt, now)
 }
 
 func (r *Repository) queryOne(ctx context.Context, op, q string, args ...any) (domainadvert.Advert, error) {
@@ -519,7 +466,7 @@ func scanAdvert(row rowScanner) (domainadvert.Advert, error) {
 		props    []byte
 	)
 	if err := row.Scan(
-		&a.ID, &a.OwnerUserID, &a.CategoryID, &a.DistrictID, &a.HorseID, &a.Title, &a.Description,
+		&a.ID, &a.OwnerUserID, &a.CategoryID, &a.DistrictID, &a.HorseID, &a.Title, &a.Description, &a.Address,
 		&amount, &currency, &status, &props, &a.PublishedAt, &a.SoldAt, &a.Version, &a.MediaVersion,
 		&a.DeletedAt, &a.CreatedAt, &a.UpdatedAt,
 	); err != nil {

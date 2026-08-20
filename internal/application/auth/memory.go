@@ -408,3 +408,19 @@ func (s *memStore) RevokeSession(sessionID uuid.UUID, now time.Time, reason stri
 	sess.RevokeReason = &reason
 	s.sessions[sessionID] = sess
 }
+
+// SetUserEmailVerified mutates a user's EmailVerifiedAt for HTTP/unit tests.
+func (s *memStore) SetUserEmailVerified(email string, verifiedAt *time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id, ok := s.byEmail[email]
+	if !ok {
+		return
+	}
+	u, ok := s.users[id]
+	if !ok {
+		return
+	}
+	u.EmailVerifiedAt = verifiedAt
+	s.users[id] = u
+}
