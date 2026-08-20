@@ -58,6 +58,7 @@ type Advert struct {
 	Status       Status
 	Properties   json.RawMessage
 	PublishedAt  *time.Time
+	SoldAt       *time.Time
 	Version      int
 	MediaVersion int
 	DeletedAt    *time.Time

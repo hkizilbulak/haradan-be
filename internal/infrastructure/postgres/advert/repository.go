@@ -23,7 +23,7 @@ const (
 )
 
 const advertColumns = `id, owner_user_id, category_id, district_id, horse_id, title, description, address,
-price_amount_minor, price_currency, status, properties, published_at, version, media_version,
+price_amount_minor, price_currency, status, properties, published_at, sold_at, version, media_version,
 deleted_at, created_at, updated_at`
 
 // Querier is implemented by *pgxpool.Pool and pgx.Tx.
@@ -66,15 +66,15 @@ func (r *Repository) Create(ctx context.Context, a domainadvert.Advert) error {
 	const q = `
 INSERT INTO hrd_adverts (
   id, owner_user_id, category_id, district_id, horse_id, title, description, address,
-  price_amount_minor, price_currency, status, properties, published_at, version, media_version,
+  price_amount_minor, price_currency, status, properties, published_at, sold_at, version, media_version,
   deleted_at, created_at, updated_at
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18,$19
 )`
 	amount, currency := splitMoney(a.Price)
 	_, err := r.db.Exec(ctx, q,
 		a.ID, a.OwnerUserID, a.CategoryID, a.DistrictID, a.HorseID, a.Title, a.Description, a.Address,
-		amount, currency, string(a.Status), propertiesOrEmpty(a.Properties), a.PublishedAt,
+		amount, currency, string(a.Status), propertiesOrEmpty(a.Properties), a.PublishedAt, a.SoldAt,
 		a.Version, a.MediaVersion, a.DeletedAt, a.CreatedAt, a.UpdatedAt,
 	)
 	if err != nil {
@@ -467,7 +467,7 @@ func scanAdvert(row rowScanner) (domainadvert.Advert, error) {
 	)
 	if err := row.Scan(
 		&a.ID, &a.OwnerUserID, &a.CategoryID, &a.DistrictID, &a.HorseID, &a.Title, &a.Description, &a.Address,
-		&amount, &currency, &status, &props, &a.PublishedAt, &a.Version, &a.MediaVersion,
+		&amount, &currency, &status, &props, &a.PublishedAt, &a.SoldAt, &a.Version, &a.MediaVersion,
 		&a.DeletedAt, &a.CreatedAt, &a.UpdatedAt,
 	); err != nil {
 		return domainadvert.Advert{}, err
