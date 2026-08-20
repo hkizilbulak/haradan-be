@@ -190,14 +190,19 @@ func TestAuthOpsNoLonger501(t *testing.T) {
 func TestAuthVerifyAndResendHTTP(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	var lastToken string
+	var welcomeEmail string
 	var mu sync.Mutex
-	sender := appauth.EmailSenderFunc(func(_ context.Context, _, plaintext, _ string) error {
+	sender := appauth.EmailSenderFunc(func(_ context.Context, toEmail, plaintext, _ string) error {
 		mu.Lock()
-		lastToken = plaintext
+		if plaintext != "" {
+			lastToken = plaintext
+		} else {
+			welcomeEmail = toEmail
+		}
 		mu.Unlock()
 		return nil
 	})
-	svc, _, _ := appauth.NewMemoryServiceForTestWithEmail(t, sender)
+	svc, store, _ := appauth.NewMemoryServiceForTestWithEmail(t, sender)
 	engine := router.New(handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, svc), log)
 	do := func(method, path, body string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(method, path, strings.NewReader(body))
@@ -213,11 +218,14 @@ func TestAuthVerifyAndResendHTTP(t *testing.T) {
 		t.Fatalf("register=%d %s", rec.Code, rec.Body.String())
 	}
 	mu.Lock()
-	tok := lastToken
+	we := welcomeEmail
 	mu.Unlock()
-	if tok == "" {
-		t.Fatal("missing verification token")
+	if we != "verifyhttp@example.com" {
+		t.Fatalf("expected welcome email to verifyhttp@example.com, got %q", we)
 	}
+
+	// For resend testing on an unverified user:
+	store.SetUserEmailVerified("verifyhttp@example.com", nil)
 
 	unknown := do(http.MethodPost, "/api/v1/auth/resend-verification", `{"email":"nobody@example.com"}`)
 	pending := do(http.MethodPost, "/api/v1/auth/resend-verification", `{"email":"verifyhttp@example.com"}`)
@@ -232,8 +240,12 @@ func TestAuthVerifyAndResendHTTP(t *testing.T) {
 	}
 
 	mu.Lock()
-	tok = lastToken
+	tok := lastToken
 	mu.Unlock()
+	if tok == "" {
+		t.Fatal("missing verification token after resend")
+	}
+
 	rec = do(http.MethodPost, "/api/v1/auth/verify-email", `{"token":"`+tok+`"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("verify=%d %s", rec.Code, rec.Body.String())

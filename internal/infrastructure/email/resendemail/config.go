@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	defaultWelcomeTemplateID       = "welcome-email"
-	defaultResetPasswordTemplateID = "reset-password"
+	defaultWelcomeTemplateID       = "haradan-welcome"
+	defaultResetPasswordTemplateID = "haradan-reset-password"
 )
 
 // Config holds Resend adapter settings. Values come from process configuration.

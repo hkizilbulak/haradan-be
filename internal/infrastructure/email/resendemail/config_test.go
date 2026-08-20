@@ -16,8 +16,8 @@ func TestConfigValidate(t *testing.T) {
 		FromEmail:               "noreply@example.com",
 		FromName:                "Haradan",
 		FrontendURL:             "https://app.example.com",
-		WelcomeTemplateID:       "welcome-email",
-		ResetPasswordTemplateID: "reset-password",
+		WelcomeTemplateID:       "haradan-welcome",
+		ResetPasswordTemplateID: "haradan-reset-password",
 	}
 	if err := valid.validate(); err != nil {
 		t.Fatalf("valid config: %v", err)

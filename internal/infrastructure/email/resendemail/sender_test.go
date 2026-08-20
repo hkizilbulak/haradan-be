@@ -36,7 +36,7 @@ func testConfig(baseURL string) Config {
 		FromName:                testFromName,
 		FrontendURL:             testFrontendURL,
 		WelcomeTemplateID:       testTemplateID,
-		ResetPasswordTemplateID: "reset-password",
+		ResetPasswordTemplateID: "haradan-reset-password",
 	}
 }
 
@@ -72,6 +72,129 @@ func TestNewValidatesWithoutNetwork(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected http base URL error")
+	}
+}
+
+func TestSendWelcomeSuccessContract(t *testing.T) {
+	t.Parallel()
+
+	var gotAuth string
+	var gotBody map[string]any
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/emails" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if r.Header.Get("Content-Type") != "application/json" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if r.Header.Get("Accept") != "application/json" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		gotAuth = r.Header.Get("Authorization")
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"msg_test"}`))
+	}))
+	defer srv.Close()
+
+	sender, err := New(testConfig(srv.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := srv.Client()
+	client.Timeout = sender.client.http.(*http.Client).Timeout
+	client.CheckRedirect = sender.client.http.(*http.Client).CheckRedirect
+	sender.client.http = client
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := sender.SendWelcome(ctx, "  "+testRecipient+"  ", "Ada Lovelace"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	if gotAuth != "Bearer "+testAPIKey {
+		t.Fatalf("authorization mismatch")
+	}
+	wantFrom := (&mail.Address{Name: testFromName, Address: testFromEmail}).String()
+	if gotBody["from"] != wantFrom {
+		t.Fatalf("from=%v want %q", gotBody["from"], wantFrom)
+	}
+	to, ok := gotBody["to"].([]any)
+	if !ok || len(to) != 1 || to[0] != testRecipient {
+		t.Fatalf("to=%v", gotBody["to"])
+	}
+	tmpl, ok := gotBody["template"].(map[string]any)
+	if !ok {
+		t.Fatalf("template=%v", gotBody["template"])
+	}
+	if tmpl["id"] != testTemplateID {
+		t.Fatalf("template id=%v", tmpl["id"])
+	}
+	vars, ok := tmpl["variables"].(map[string]any)
+	if !ok {
+		t.Fatalf("variables=%v", tmpl["variables"])
+	}
+	if vars["recipientEmail"] != testRecipient {
+		t.Fatalf("recipientEmail=%v", vars["recipientEmail"])
+	}
+	if vars["frontendUrl"] != testFrontendURL {
+		t.Fatalf("frontendUrl=%v", vars["frontendUrl"])
+	}
+	if vars["loginUrl"] != testFrontendURL+"/auth/login" {
+		t.Fatalf("loginUrl=%v", vars["loginUrl"])
+	}
+	if vars["fullName"] != "Ada Lovelace" {
+		t.Fatalf("fullName=%v", vars["fullName"])
+	}
+	if vars["fullname"] != "Ada Lovelace" {
+		t.Fatalf("legacy fullname=%v", vars["fullname"])
+	}
+}
+
+func TestSendWelcomeOmitsEmptyFullName(t *testing.T) {
+	t.Parallel()
+
+	var gotBody map[string]any
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"msg_test"}`))
+	}))
+	defer srv.Close()
+
+	sender, err := New(testConfig(srv.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := srv.Client()
+	client.Timeout = sender.client.http.(*http.Client).Timeout
+	client.CheckRedirect = sender.client.http.(*http.Client).CheckRedirect
+	sender.client.http = client
+
+	if err := sender.SendWelcome(context.Background(), testRecipient, "  "); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	tmpl, ok := gotBody["template"].(map[string]any)
+	if !ok {
+		t.Fatalf("template=%v", gotBody["template"])
+	}
+	vars, ok := tmpl["variables"].(map[string]any)
+	if !ok {
+		t.Fatalf("variables=%v", tmpl["variables"])
+	}
+	if vars["fullName"] != "" {
+		t.Fatalf("empty fullName must be empty string, got %v", vars["fullName"])
+	}
+	if vars["fullname"] != "" {
+		t.Fatalf("empty legacy fullname must be empty string, got %v", vars["fullname"])
+	}
+	if vars["resetUrl"] != testFrontendURL+"/auth/login" {
+		t.Fatalf("resetUrl=%v", vars["resetUrl"])
 	}
 }
 
@@ -194,11 +317,11 @@ func TestSendOmitsEmptyFullName(t *testing.T) {
 	if !ok {
 		t.Fatalf("variables=%v", tmpl["variables"])
 	}
-	if _, present := vars["fullName"]; present {
-		t.Fatalf("empty fullName must be omitted, got %v", vars["fullName"])
+	if vars["fullName"] != "" {
+		t.Fatalf("empty fullName must be empty string, got %v", vars["fullName"])
 	}
-	if _, present := vars["fullname"]; present {
-		t.Fatalf("empty legacy fullname must be omitted, got %v", vars["fullname"])
+	if vars["fullname"] != "" {
+		t.Fatalf("empty legacy fullname must be empty string, got %v", vars["fullname"])
 	}
 	if vars["verificationUrl"] != testFrontendURL+"/verify-email?token="+testToken {
 		t.Fatalf("verificationUrl=%v", vars["verificationUrl"])
@@ -237,8 +360,8 @@ func TestSendPasswordResetVariablesOmitEmptyFullName(t *testing.T) {
 	if !ok {
 		t.Fatalf("variables=%v", tmpl["variables"])
 	}
-	if _, present := vars["fullName"]; present {
-		t.Fatalf("empty fullName must be omitted, got %v", vars["fullName"])
+	if vars["fullName"] != "" {
+		t.Fatalf("empty fullName must be empty string, got %v", vars["fullName"])
 	}
 	if vars["resetUrl"] != testFrontendURL+"/reset-password?token="+testToken {
 		t.Fatalf("resetUrl=%v", vars["resetUrl"])
@@ -246,8 +369,8 @@ func TestSendPasswordResetVariablesOmitEmptyFullName(t *testing.T) {
 	if vars["resetToken"] != testToken {
 		t.Fatalf("resetToken mismatch")
 	}
-	if _, present := vars["fullname"]; present {
-		t.Fatalf("empty legacy fullname must be omitted, got %v", vars["fullname"])
+	if vars["fullname"] != "" {
+		t.Fatalf("empty legacy fullname must be empty string, got %v", vars["fullname"])
 	}
 }
 

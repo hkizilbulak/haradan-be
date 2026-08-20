@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
 	domainauth "github.com/hkizilbulak/haradan-be/internal/domain/auth"
 	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
@@ -27,11 +29,11 @@ func TestRegisterSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Message == "" || len(store.users) != 1 || len(store.otc) != 1 {
+	if out.Message != registerSuccessMessage || len(store.users) != 1 || len(store.otc) != 0 {
 		t.Fatalf("out=%+v users=%d otc=%d", out, len(store.users), len(store.otc))
 	}
 	for _, u := range store.users {
-		if u.EmailNormalized != "user@example.com" || strings.Contains(u.PasswordHash, "Password1") {
+		if u.EmailNormalized != "user@example.com" || strings.Contains(u.PasswordHash, "Password1") || u.EmailVerifiedAt == nil {
 			t.Fatalf("user=%+v", u)
 		}
 	}
@@ -208,21 +210,26 @@ func TestRegisterEmailFailureLeavesUserWithoutResendInThisSlice(t *testing.T) {
 	if ae == nil || ae.Code != apperr.CodeDependencyUnavailable {
 		t.Fatalf("err=%v", err)
 	}
-	if len(store.users) != 1 || len(store.otc) != 1 {
+	if len(store.users) != 1 || len(store.otc) != 0 {
 		t.Fatalf("committed user/otc users=%d otc=%d", len(store.users), len(store.otc))
 	}
 	if len(store.sessions) != 0 {
 		t.Fatal("register must not create sessions")
 	}
-	// Retry is enumeration-safe success and does not resend (AUTH-03 out of scope).
+	for _, u := range store.users {
+		if u.EmailVerifiedAt == nil {
+			t.Fatal("expected user to be verified upon registration")
+		}
+	}
+	// Retry is enumeration-safe success and does not create OTC.
 	out, err := svc.Register(context.Background(), RegisterInput{
 		Email: "mailfail@example.com", Password: "Password1", FirstName: "A", LastName: "B",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Message == "" || len(store.otc) != 1 {
-		t.Fatalf("retry must not create new OTC silently; otc=%d out=%+v", len(store.otc), out)
+	if out.Message != registerSuccessMessage || len(store.otc) != 0 {
+		t.Fatalf("retry must not create new OTC; otc=%d out=%+v", len(store.otc), out)
 	}
 }
 
@@ -429,11 +436,23 @@ func TestRefreshInactiveUser(t *testing.T) {
 }
 
 type recordingEmail struct {
-	mu    sync.Mutex
-	calls int
-	last  string
-	fail  bool
-	failN int // fail first N calls when >0
+	mu        sync.Mutex
+	calls     int
+	last      string
+	lastToken string
+	fail      bool
+	failN     int // fail first N calls when >0
+}
+
+func (r *recordingEmail) SendWelcome(_ context.Context, toEmail, _ string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls++
+	if r.fail || (r.failN > 0 && r.calls <= r.failN) {
+		return errors.New("smtp down")
+	}
+	r.last = toEmail
+	return nil
 }
 
 func (r *recordingEmail) SendRegistrationVerification(_ context.Context, _, plaintextToken, _ string) error {
@@ -443,7 +462,7 @@ func (r *recordingEmail) SendRegistrationVerification(_ context.Context, _, plai
 	if r.fail || (r.failN > 0 && r.calls <= r.failN) {
 		return errors.New("smtp down")
 	}
-	r.last = plaintextToken
+	r.lastToken = plaintextToken
 	return nil
 }
 
@@ -461,8 +480,13 @@ func TestRegisterEmailFailureRecoveredByResendThenVerify(t *testing.T) {
 	if ae == nil || ae.Code != apperr.CodeDependencyUnavailable {
 		t.Fatalf("register err=%v", err)
 	}
-	if len(store.users) != 1 || len(store.otc) != 1 {
+	if len(store.users) != 1 || len(store.otc) != 0 {
 		t.Fatalf("users=%d otc=%d", len(store.users), len(store.otc))
+	}
+
+	for id, u := range store.users {
+		u.EmailVerifiedAt = nil
+		store.users[id] = u
 	}
 
 	out, err := svc.ResendVerification(context.Background(), ResendVerificationInput{Email: "recover@example.com"})
@@ -470,7 +494,7 @@ func TestRegisterEmailFailureRecoveredByResendThenVerify(t *testing.T) {
 		t.Fatalf("resend err=%v out=%+v", err, out)
 	}
 	mail.mu.Lock()
-	tokenPlain := mail.last
+	tokenPlain := mail.lastToken
 	calls := mail.calls
 	mail.mu.Unlock()
 	if calls != 2 || tokenPlain == "" {
@@ -507,6 +531,12 @@ func TestResendEnumerationSafe(t *testing.T) {
 	_, _ = svc.Register(context.Background(), RegisterInput{
 		Email: "pending@example.com", Password: "Password1", FirstName: "A", LastName: "B",
 	})
+	for id, u := range store.users {
+		if u.EmailNormalized == "pending@example.com" {
+			u.EmailVerifiedAt = nil
+			store.users[id] = u
+		}
+	}
 	// Mark verified user.
 	_, _ = svc.Register(context.Background(), RegisterInput{
 		Email: "done@example.com", Password: "Password1", FirstName: "A", LastName: "B",
@@ -546,12 +576,16 @@ func TestResendEnumerationSafe(t *testing.T) {
 
 func TestResendEmailFailureThenRetry(t *testing.T) {
 	mail := &recordingEmail{}
-	svc, _, _ := NewMemoryServiceForTestWithEmail(t, mail)
+	svc, store, _ := NewMemoryServiceForTestWithEmail(t, mail)
 	_, err := svc.Register(context.Background(), RegisterInput{
 		Email: "retry@example.com", Password: "Password1", FirstName: "A", LastName: "B",
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	for id, u := range store.users {
+		u.EmailVerifiedAt = nil
+		store.users[id] = u
 	}
 	mail.mu.Lock()
 	mail.fail = true
@@ -576,8 +610,13 @@ func TestVerifyEmailSuccessAndErrors(t *testing.T) {
 	_, _ = svc.Register(context.Background(), RegisterInput{
 		Email: "v@example.com", Password: "Password1", FirstName: "A", LastName: "B",
 	})
+	for id, u := range store.users {
+		u.EmailVerifiedAt = nil
+		store.users[id] = u
+	}
+	_, _ = svc.ResendVerification(context.Background(), ResendVerificationInput{Email: "v@example.com"})
 	mail.mu.Lock()
-	tok := mail.last
+	tok := mail.lastToken
 	mail.mu.Unlock()
 
 	if _, err := svc.VerifyEmail(context.Background(), VerifyEmailInput{Token: "nope"}); err == nil {
@@ -614,8 +653,13 @@ func TestConcurrentVerifyOnlyOneConsumes(t *testing.T) {
 	_, _ = svc.Register(context.Background(), RegisterInput{
 		Email: "race@example.com", Password: "Password1", FirstName: "A", LastName: "B",
 	})
+	for id, u := range store.users {
+		u.EmailVerifiedAt = nil
+		store.users[id] = u
+	}
+	_, _ = svc.ResendVerification(context.Background(), ResendVerificationInput{Email: "race@example.com"})
 	mail.mu.Lock()
-	tok := mail.last
+	tok := mail.lastToken
 	mail.mu.Unlock()
 
 	var wg sync.WaitGroup
@@ -656,6 +700,10 @@ func TestConcurrentResendKeepsOneActive(t *testing.T) {
 	_, _ = svc.Register(context.Background(), RegisterInput{
 		Email: "cresend@example.com", Password: "Password1", FirstName: "A", LastName: "B",
 	})
+	for id, u := range store.users {
+		u.EmailVerifiedAt = nil
+		store.users[id] = u
+	}
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
@@ -673,5 +721,52 @@ func TestConcurrentResendKeepsOneActive(t *testing.T) {
 	}
 	if active != 1 {
 		t.Fatalf("active=%d want 1", active)
+	}
+}
+
+func TestRequestEmailChangeAllowedWithoutPriorVerification(t *testing.T) {
+	mail := &recordingEmail{}
+	svc, store, _ := NewMemoryServiceForTestWithEmail(t, mail)
+	_, err := svc.Register(context.Background(), RegisterInput{
+		Email: "change@example.com", Password: "Password1", FirstName: "A", LastName: "B",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var uid uuid.UUID
+	for id, u := range store.users {
+		uid = id
+		u.EmailVerifiedAt = nil
+		store.users[id] = u
+	}
+
+	out, err := svc.RequestEmailChange(context.Background(), RequestEmailChangeInput{
+		UserID:   uid,
+		NewEmail: "new-address@example.com",
+		ClientIP: "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("RequestEmailChange should succeed without prior verification: %v", err)
+	}
+	if out.Message == "" {
+		t.Fatalf("expected message in out, got %+v", out)
+	}
+	mail.mu.Lock()
+	tok := mail.lastToken
+	mail.mu.Unlock()
+	if tok == "" {
+		t.Fatal("expected verification token sent to new address")
+	}
+
+	confirmOut, err := svc.ConfirmEmailChange(context.Background(), ConfirmEmailChangeInput{Token: tok})
+	if err != nil {
+		t.Fatalf("ConfirmEmailChange failed: %v", err)
+	}
+	if confirmOut.Message != "E-posta adresi güncellendi." {
+		t.Fatalf("confirmOut=%+v", confirmOut)
+	}
+	u := store.users[uid]
+	if u.Email != "new-address@example.com" || u.EmailVerifiedAt == nil {
+		t.Fatalf("user email not updated or not verified: %+v", u)
 	}
 }

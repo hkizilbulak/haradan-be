@@ -723,10 +723,10 @@ func TestLoadEmailProviderDefaultsAndResend(t *testing.T) {
 	if cfg.FromEmail != "noreply@example.com" || cfg.FromName != "Haradan" {
 		t.Fatalf("from fields: email=%q name=%q", cfg.FromEmail, cfg.FromName)
 	}
-	if cfg.ResendWelcomeTemplateID != "welcome-email" {
+	if cfg.ResendWelcomeTemplateID != "haradan-welcome" {
 		t.Fatalf("welcome template id=%q", cfg.ResendWelcomeTemplateID)
 	}
-	if cfg.ResendResetPasswordTemplateID != "reset-password" {
+	if cfg.ResendResetPasswordTemplateID != "haradan-reset-password" {
 		t.Fatalf("reset template id=%q", cfg.ResendResetPasswordTemplateID)
 	}
 }

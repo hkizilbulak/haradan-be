@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	registerSuccessMessage = "Kayıt alındı. E-posta doğrulama talimatları gönderildi."
+	registerSuccessMessage = "Kayıt başarılı."
 	resendSuccessMessage   = "Doğrulama e-postası talimatları gönderildi."
 	verifySuccessMessage   = "E-posta adresi doğrulandı."
 	logoutSuccessMessage   = "Oturum kapatıldı."
@@ -50,16 +50,21 @@ type Clock interface {
 	Now() time.Time
 }
 
-// EmailSender delivers verification and password-reset emails after commit.
+// EmailSender delivers verification, welcome, and password-reset emails after commit.
 // fullName is a trimmed display name; empty means the sender must omit fullName
 // from template variables rather than sending an empty string.
 type EmailSender interface {
+	SendWelcome(ctx context.Context, toEmail, fullName string) error
 	SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken, fullName string) error
 	SendPasswordReset(ctx context.Context, toEmail, plaintextToken, fullName string) error
 }
 
 // NoopEmailSender acknowledges delivery without sending.
 type NoopEmailSender struct{}
+
+func (NoopEmailSender) SendWelcome(context.Context, string, string) error {
+	return nil
+}
 
 func (NoopEmailSender) SendRegistrationVerification(context.Context, string, string, string) error {
 	return nil
@@ -69,9 +74,13 @@ func (NoopEmailSender) SendPasswordReset(context.Context, string, string, string
 	return nil
 }
 
-// EmailSenderFunc adapts a function to EmailSender (registration path only).
-// Prefer a concrete fake when password-reset coverage is needed.
+// EmailSenderFunc adapts a function to EmailSender.
+// Prefer a concrete fake when password-reset or verification coverage is needed.
 type EmailSenderFunc func(ctx context.Context, toEmail, plaintextToken, fullName string) error
+
+func (f EmailSenderFunc) SendWelcome(ctx context.Context, toEmail, fullName string) error {
+	return f(ctx, toEmail, "", fullName)
+}
 
 func (f EmailSenderFunc) SendRegistrationVerification(ctx context.Context, toEmail, plaintextToken, fullName string) error {
 	return f(ctx, toEmail, plaintextToken, fullName)
@@ -286,16 +295,8 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResul
 	if err != nil {
 		return RegisterResult{}, apperr.Internal(fmt.Errorf("hash password: %w", err))
 	}
-	verifyPlain, verifyHash, err := token.NewOpaqueToken()
-	if err != nil {
-		return RegisterResult{}, apperr.Internal(err)
-	}
 
-	var verifiedAt *time.Time
-	if s.autoVerifyEmail {
-		t := now
-		verifiedAt = &t
-	}
+	verifiedAt := now
 	user := domainuser.User{
 		ID:              uuid.New(),
 		Email:           email,
@@ -307,43 +308,13 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResul
 		LastName:        last,
 		Phone:           normalizedPhone,
 		SecurityStamp:   uuid.New(),
-		EmailVerifiedAt: verifiedAt,
+		EmailVerifiedAt: &verifiedAt,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
 
-	if s.autoVerifyEmail {
-		if err := s.withTx(ctx, func(ctx context.Context, users UserRepository, _ SessionRepository) error {
-			return users.Create(ctx, user)
-		}); err != nil {
-			if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindConflict {
-				return RegisterResult{Message: registerSuccessMessage}, nil
-			}
-			return RegisterResult{}, err
-		}
-		return RegisterResult{Message: registerSuccessMessage}, nil
-	}
-
-	cred := domainauth.OneTimeCredential{
-		ID:                    uuid.New(),
-		UserID:                user.ID,
-		Purpose:               domainauth.PurposeEmailVerification,
-		TokenHash:             verifyHash,
-		TargetEmail:           email,
-		TargetEmailNormalized: normalized,
-		ExpiresAt:             now.Add(s.emailVerifyTTL),
-		CreatedAt:             now,
-		RequestIPHash:         hashIP(in.ClientIP),
-	}
-
-	if err := s.withTx(ctx, func(ctx context.Context, users UserRepository, sessions SessionRepository) error {
-		if err := users.Create(ctx, user); err != nil {
-			return err
-		}
-		if err := sessions.InvalidateActiveOneTimeCredentials(ctx, user.ID, domainauth.PurposeEmailVerification, now); err != nil {
-			return err
-		}
-		return sessions.CreateOneTimeCredential(ctx, cred)
+	if err := s.withTx(ctx, func(ctx context.Context, users UserRepository, _ SessionRepository) error {
+		return users.Create(ctx, user)
 	}); err != nil {
 		if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindConflict {
 			return RegisterResult{Message: registerSuccessMessage}, nil
@@ -351,7 +322,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResul
 		return RegisterResult{}, err
 	}
 
-	if err := s.email.SendRegistrationVerification(ctx, email, verifyPlain, displayFullName(first, last)); err != nil {
+	if err := s.email.SendWelcome(ctx, email, displayFullName(first, last)); err != nil {
 		return RegisterResult{}, apperr.DependencyUnavailable("E-posta servisi şu anda kullanılamıyor.")
 	}
 	return RegisterResult{Message: registerSuccessMessage}, nil
@@ -589,9 +560,6 @@ func (s *Service) RequestEmailChange(ctx context.Context, in RequestEmailChangeI
 	user, err := s.requireActiveUser(ctx, in.UserID)
 	if err != nil {
 		return LogoutResult{}, err
-	}
-	if user.EmailVerifiedAt == nil {
-		return LogoutResult{}, apperr.Forbidden(apperr.CodeForbidden, "E-posta doğrulanmamış.")
 	}
 	if user.EmailNormalized == normalized {
 		return LogoutResult{}, apperr.Conflict("email already registered")

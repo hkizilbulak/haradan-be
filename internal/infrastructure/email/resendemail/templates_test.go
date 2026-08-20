@@ -41,8 +41,8 @@ func TestSendPasswordResetUsesSeparateTemplate(t *testing.T) {
 	if !ok {
 		t.Fatalf("template=%v", gotBody["template"])
 	}
-	if tmpl["id"] != "reset-password" {
-		t.Fatalf("template id=%v want reset-password", tmpl["id"])
+	if tmpl["id"] != "haradan-reset-password" {
+		t.Fatalf("template id=%v want haradan-reset-password", tmpl["id"])
 	}
 	vars, ok := tmpl["variables"].(map[string]any)
 	if !ok {
