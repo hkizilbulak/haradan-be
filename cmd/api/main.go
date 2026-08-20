@@ -13,25 +13,23 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
+	_ "github.com/jackc/pgx/v5/stdlib"
+
 	appadminuser "github.com/hkizilbulak/haradan-be/internal/application/adminuser"
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	appbanner "github.com/hkizilbulak/haradan-be/internal/application/banner"
 	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
-	appcomment "github.com/hkizilbulak/haradan-be/internal/application/comment"
 	appemail "github.com/hkizilbulak/haradan-be/internal/application/email"
 	appfavorite "github.com/hkizilbulak/haradan-be/internal/application/favorite"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
 	apphorse "github.com/hkizilbulak/haradan-be/internal/application/horse"
 	appjobadmin "github.com/hkizilbulak/haradan-be/internal/application/jobadmin"
-	jobscheduler "github.com/hkizilbulak/haradan-be/internal/application/jobscheduler"
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	appnotification "github.com/hkizilbulak/haradan-be/internal/application/notification"
 	apppackaging "github.com/hkizilbulak/haradan-be/internal/application/packaging"
 	apptjk "github.com/hkizilbulak/haradan-be/internal/application/tjk"
-	appworker "github.com/hkizilbulak/haradan-be/internal/application/worker"
 	"github.com/hkizilbulak/haradan-be/internal/config"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/email/resendemail"
@@ -46,17 +44,15 @@ import (
 	pgtjk "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/tjk"
 	pguser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/user"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/storage/s3storage"
-	tjkclient "github.com/hkizilbulak/haradan-be/internal/infrastructure/tjk"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/turkiyeapi"
 	"github.com/hkizilbulak/haradan-be/internal/platform/database"
 	applogger "github.com/hkizilbulak/haradan-be/internal/platform/logger"
 	"github.com/hkizilbulak/haradan-be/internal/platform/migration"
+	"github.com/hkizilbulak/haradan-be/migrations"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/password"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/token"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/router"
-	"github.com/hkizilbulak/haradan-be/migrations"
-	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func main() {
@@ -125,6 +121,7 @@ func run() error {
 			WelcomeTemplateID:       cfg.ResendWelcomeTemplateID,
 			ResetPasswordTemplateID: cfg.ResendResetPasswordTemplateID,
 			TemplateID:              cfg.ResendRegistrationVerificationTemplateID,
+			Logger:                  log,
 		})
 		if err != nil {
 			return fmt.Errorf("email sender: %w", err)
@@ -141,7 +138,6 @@ func run() error {
 		EmailSender:       emailSender,
 		EmailVerifyTTL:    cfg.EmailVerificationTTL,
 		DummyPasswordHash: password.DummyHash(hasher),
-		AutoVerifyEmail:   cfg.EmailProvider == config.EmailProviderUnconfigured,
 	})
 	if err != nil {
 		return fmt.Errorf("auth service: %w", err)
@@ -243,10 +239,6 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("favorite service: %w", err)
 	}
-	commentSvc, err := appcomment.NewPostgresService(db.Pool())
-	if err != nil {
-		return fmt.Errorf("comment service: %w", err)
-	}
 
 	advertRepo := pgadvert.NewRepository(db.Pool())
 	userRepo := pguser.NewRepository(db.Pool())
@@ -311,129 +303,12 @@ func run() error {
 		WithAdminUserService(adminUserSvc).
 		WithTJKService(tjkSvc).
 		WithEmailTemplateDiscovery(emailDiscovery).
-		WithJobAdminService(jobAdminSvc).
-		WithCommentService(commentSvc)
+		WithJobAdminService(jobAdminSvc)
 	engine := router.New(srvHandler, log, router.Options{
 		AuthService:        authSvc,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
 		CORSAllowLoopback:  cfg.CORSAllowLoopback,
 	})
-
-	// Background worker runs inside the API process so Railway can run a single
-	// service while still executing TJK+media pipelines.
-	workerDone := make(chan error, 1)
-	runCtx, cancelRun := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancelRun()
-
-	mediaEnabled := cfg.StorageProvider == config.StorageProviderB2 &&
-		cfg.ImageProcessorProvider == config.ImageProcessorProviderTinify
-	emailJobsEnabled := cfg.EmailProvider == config.EmailProviderResend
-	workerID := cfg.WorkerID
-	if workerID == "" {
-		workerID = "api-worker-" + uuid.NewString()
-	}
-
-	mediaWorker, err := appmedia.NewPostgresWorker(db.Pool(), appmedia.WorkerConfig{
-		Storage:   mediaStorage,
-		Processor: mediaProcessor,
-	})
-	if err != nil {
-		return fmt.Errorf("media worker: %w", err)
-	}
-	queue, err := appmedia.NewPostgresJobQueue(db.Pool())
-	if err != nil {
-		return fmt.Errorf("job queue: %w", err)
-	}
-
-	var notificationEmail appnotification.NotificationEmailSender
-	if cfg.EmailProvider == config.EmailProviderResend {
-		sender, err := resendemail.New(resendemail.Config{
-			APIKey:                  cfg.ResendAPIKey,
-			BaseURL:                 cfg.ResendBaseURL,
-			HTTPTimeout:             cfg.EmailHTTPTimeout,
-			FromEmail:               cfg.FromEmail,
-			FromName:                cfg.FromName,
-			FrontendURL:             cfg.FrontendURL,
-			WelcomeTemplateID:       cfg.ResendWelcomeTemplateID,
-			ResetPasswordTemplateID: cfg.ResendResetPasswordTemplateID,
-			TemplateID:              cfg.ResendRegistrationVerificationTemplateID,
-		})
-		if err != nil {
-			return fmt.Errorf("notification email sender: %w", err)
-		}
-		notificationEmail = sender
-	}
-	notificationWorker, err := appnotification.NewPostgresRuntimeWorker(db.Pool(), notificationEmail, cfg.FrontendURL, nil)
-	if err != nil {
-		return fmt.Errorf("notification runtime: %w", err)
-	}
-
-	jobRepo := pgjobdef.NewRepository(db.Pool())
-	caps := appjobadmin.ProviderCapabilities{
-		TJKEnabled:    cfg.TJKEnabled,
-		B2Enabled:     cfg.StorageProvider == config.StorageProviderB2,
-		TinifyEnabled: cfg.ImageProcessorProvider == config.ImageProcessorProviderTinify,
-	}
-	loc, err := time.LoadLocation(cfg.PackageExpiryTimezone)
-	if err != nil {
-		return fmt.Errorf("job scheduler timezone: %w", err)
-	}
-	defScheduler, err := jobscheduler.New(jobscheduler.Config{
-		Definitions:     jobRepo,
-		Enqueuer:        jobRepo,
-		Capabilities:    caps,
-		RefreshInterval: cfg.JobSchedulerRefreshInterval,
-		Location:        loc,
-		Logger:          log,
-	})
-	if err != nil {
-		return fmt.Errorf("job definition scheduler: %w", err)
-	}
-
-	supported := supportedJobTypes(mediaEnabled, emailJobsEnabled)
-	runner, err := appworker.NewRunner(appworker.Config{
-		WorkerID:              workerID,
-		Concurrency:           cfg.WorkerConcurrency,
-		PollInterval:          cfg.WorkerPollInterval,
-		LeaseDuration:         cfg.WorkerLeaseDuration,
-		JobTimeout:            cfg.WorkerJobTimeout,
-		MaxJobTimeout:         cfg.WorkerMaxJobTimeout,
-		ShutdownTimeout:       cfg.WorkerShutdownTimeout,
-		RetryBaseDelay:        cfg.WorkerRetryBaseDelay,
-		RetryMaxDelay:         cfg.WorkerRetryMaxDelay,
-		LeaseRecoveryInterval: cfg.WorkerLeaseRecoveryInterval,
-		SupportedJobTypes:     supported,
-		Queue:                 queue,
-		Handler:               mediaWorker,
-		NotificationHandler:   notificationWorker,
-		Logger:                log,
-		Backoff: appworker.Backoff{
-			Base: cfg.WorkerRetryBaseDelay,
-			Max:  cfg.WorkerRetryMaxDelay,
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("runner: %w", err)
-	}
-
-	go defScheduler.Run(runCtx)
-	if cfg.TJKEnabled {
-		client, err := tjkclient.NewClient(tjkclient.Config{BaseURL: cfg.TJKBaseURL, HTTPTimeout: cfg.TJKHTTPTimeout, MaxBodyBytes: cfg.TJKMaxBodyBytes})
-		if err != nil {
-			return fmt.Errorf("TJK client: %w", err)
-		}
-		tjkWorker, err := apptjk.NewWorker(pgtjk.NewRepository(db.Pool()), tjkclient.WorkerAdapter{Client: client}, workerID)
-		if err != nil {
-			return fmt.Errorf("TJK worker: %w", err)
-		}
-		go runTJKWorker(runCtx, tjkWorker, cfg.WorkerLeaseDuration, cfg.WorkerPollInterval, cfg.TJKPageTimeout, log)
-	}
-
-	go func() {
-		workerErr := runner.Run(runCtx)
-		defScheduler.Wait()
-		workerDone <- workerErr
-	}()
 
 	httpServer := &http.Server{
 		Addr:         cfg.HTTPAddr,
@@ -462,10 +337,9 @@ func run() error {
 		log.Info("shutdown signal received", "signal", sig.String())
 	case err := <-errCh:
 		if err != nil {
-			cancelRun()
 			return fmt.Errorf("http server: %w", err)
 		}
-		cancelRun()
+		return nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.HTTPShutdownTimeout)
@@ -477,63 +351,11 @@ func run() error {
 	}
 
 	if err := <-errCh; err != nil {
-		cancelRun()
 		return fmt.Errorf("http server: %w", err)
-	}
-
-	select {
-	case werr := <-workerDone:
-		if werr != nil {
-			return fmt.Errorf("worker: %w", werr)
-		}
-	case <-time.After(cfg.WorkerShutdownTimeout):
-		log.Info("worker shutdown timeout")
 	}
 
 	log.Info("http server stopped")
 	return nil
-}
-
-func supportedJobTypes(mediaEnabled, emailEnabled bool) []domainmedia.JobType {
-	types := []domainmedia.JobType{
-		domainmedia.JobNotificationFanoutPackageAdvert,
-		domainmedia.JobNotificationFanoutAdvancedAdvert, // historical rows
-		domainmedia.JobNotificationFanoutUrgentAdvert,
-		domainmedia.JobPackageExpiryReminderScan,
-	}
-	if mediaEnabled {
-		types = append(types,
-			domainmedia.JobValidateAndNormalize,
-			domainmedia.JobGenerateVariant,
-			domainmedia.JobDeleteObjects,
-			domainmedia.JobReconcile,
-		)
-	}
-	if emailEnabled {
-		types = append(types,
-			domainmedia.JobEmailSendAdvertNotificationChunk,
-			domainmedia.JobEmailSendPackageExpiryReminder,
-		)
-	}
-	return types
-}
-
-func runTJKWorker(ctx context.Context, worker *apptjk.Worker, lease, poll, jobTimeout time.Duration, log *slog.Logger) {
-	for ctx.Err() == nil {
-		jobCtx, cancel := context.WithTimeout(ctx, jobTimeout)
-		claimed, err := worker.ProcessOnce(jobCtx, lease)
-		cancel()
-		if err != nil {
-			log.Error("TJK job failed", "err", "dependency unavailable")
-		}
-		if claimed {
-			continue
-		}
-		select {
-		case <-ctx.Done():
-		case <-time.After(poll):
-		}
-	}
 }
 
 func applyMigrations(databaseURL string, pingTimeout time.Duration, log *slog.Logger) error {

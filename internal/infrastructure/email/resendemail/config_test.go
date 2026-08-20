@@ -49,7 +49,7 @@ func TestConfigValidate(t *testing.T) {
 			c.WelcomeTemplateID = ""
 			c.TemplateID = ""
 			c.ResetPasswordTemplateID = "reset-password"
-		}, want: ""}, // defaults fill welcome-email
+		}, want: ""}, // defaults fill haradan-welcome
 		{name: "same templates", mut: func(c *Config) {
 			c.WelcomeTemplateID = "same"
 			c.ResetPasswordTemplateID = "same"

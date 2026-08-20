@@ -98,7 +98,7 @@ INSERT INTO hrd_advert_status_history (
 	}
 	_, err := r.db.Exec(ctx, q,
 		h.ID, h.AdvertID, from, string(h.ToStatus), h.ActorUserID, h.IsSystem, h.Reason, h.CreatedAt,
-	)
+		)
 	if err != nil {
 		return apperr.Internal(fmt.Errorf("insert advert status history: %w", pg.SanitizeErr(err)))
 	}

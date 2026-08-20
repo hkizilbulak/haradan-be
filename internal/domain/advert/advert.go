@@ -104,6 +104,7 @@ type OwnerView struct {
 	Properties             json.RawMessage
 	Media                  []MediaRelation
 	PublishedAt            *time.Time
+	SoldAt                 *time.Time
 	DeletedAt              *time.Time
 	UpdatedAt              time.Time
 	CategoryClearedWarning *bool
@@ -163,6 +164,7 @@ func (a Advert) ToOwnerView() OwnerView {
 		Properties:   props,
 		Media:        []MediaRelation{},
 		PublishedAt:  a.PublishedAt,
+		SoldAt:       a.SoldAt,
 		DeletedAt:    a.DeletedAt,
 		UpdatedAt:    a.UpdatedAt,
 	}

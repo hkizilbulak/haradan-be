@@ -102,6 +102,18 @@ type Repository interface {
 		publishedAt *time.Time,
 		now time.Time,
 	) (domainadvert.Advert, error)
+
+	// ListSoldForAutoArchive returns SOLD adverts sold before the cutoff.
+	ListSoldForAutoArchive(ctx context.Context, soldBefore time.Time, limit int) ([]domainadvert.Advert, error)
+
+	// SystemTransitionStatus moves status without owner filter (background jobs).
+	SystemTransitionStatus(
+		ctx context.Context,
+		advertID uuid.UUID,
+		from, to domainadvert.Status,
+		expectedVersion int,
+		now time.Time,
+	) (domainadvert.Advert, error)
 }
 
 // PublicRepository returns denormalized buyer-facing projections. It is kept
@@ -114,7 +126,7 @@ type PublicRepository interface {
 	ListHomepageUrgent(ctx context.Context, limit int, actorUserID *uuid.UUID) ([]domainadvert.PublicCard, error)
 	ListHomepageFeatured(ctx context.Context, limit int, actorUserID *uuid.UUID) ([]domainadvert.PublicCard, error)
 	GetPublishedDetail(ctx context.Context, advertID uuid.UUID, actorUserID *uuid.UUID) (domainadvert.PublicDetail, error)
-	RecordView(ctx context.Context, advertID uuid.UUID, ipAddress string) error
+	RecordView(ctx context.Context, advertID uuid.UUID, clientIP string) error
 }
 
 // CatalogReader reads the category metadata the advert core depends on.

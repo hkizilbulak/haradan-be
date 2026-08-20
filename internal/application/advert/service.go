@@ -15,7 +15,6 @@ import (
 
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
-	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 )
 
 const (
@@ -56,6 +55,19 @@ func NewService(cfg Config) (*Service, error) {
 	if cfg.Repo == nil || cfg.Catalog == nil || cfg.Geo == nil || cfg.Horses == nil || cfg.Users == nil {
 		return nil, fmt.Errorf("advert service dependencies are required")
 	}
+	return newService(cfg)
+}
+
+// NewAutoArchiveService constructs a minimal service wired only for AutoArchiveSold.
+// Caller must not invoke owner-facing or public methods on the returned service.
+func NewAutoArchiveService(repo Repository) (*Service, error) {
+	if repo == nil {
+		return nil, fmt.Errorf("advert repository is required")
+	}
+	return &Service{repo: repo, clock: systemClock{}}, nil
+}
+
+func newService(cfg Config) (*Service, error) {
 	clock := cfg.Clock
 	if clock == nil {
 		clock = systemClock{}
@@ -412,6 +424,9 @@ func (s *Service) SoftDeleteAdvertDraft(ctx context.Context, ownerID, advertID u
 		if current.Version != expectedVersion {
 			return apperr.StaleVersion(staleVersionMessage)
 		}
+		if current.Status != domainadvert.StatusDraft {
+			return apperr.InvalidState("Yalnız taslak ilanlar silinebilir.")
+		}
 		updated, err = repo.SoftDeleteDraft(ctx, ownerID, advertID, expectedVersion, s.clock.Now())
 		return err
 	})
@@ -431,6 +446,51 @@ func (s *Service) ArchiveAdvert(ctx context.Context, ownerID, advertID uuid.UUID
 	return s.ownerTransition(ctx, ownerID, advertID, expectedVersion, domainadvert.StatusPublished, domainadvert.StatusArchived)
 }
 
+// AutoArchiveSoldResult summarises one auto-archive batch run.
+type AutoArchiveSoldResult struct {
+	Archived int
+	Errors   int
+}
+
+// AutoArchiveSold transitions SOLD adverts older than 24 h to ARCHIVED.
+// It is invoked by the background worker and is safe to call concurrently;
+// each row is updated under an optimistic version guard so a racing call
+// simply skips that row.
+func (s *Service) AutoArchiveSold(ctx context.Context, batchSize int) AutoArchiveSoldResult {
+	if batchSize <= 0 {
+		batchSize = 100
+	}
+	cutoff := s.clock.Now().Add(-24 * time.Hour)
+	rows, err := s.repo.ListSoldForAutoArchive(ctx, cutoff, batchSize)
+	if err != nil {
+		return AutoArchiveSoldResult{Errors: 1}
+	}
+	var res AutoArchiveSoldResult
+	now := s.clock.Now()
+	for _, row := range rows {
+		_, err := s.repo.SystemTransitionStatus(
+			ctx, row.ID, domainadvert.StatusSold, domainadvert.StatusArchived, row.Version, now,
+		)
+		if err != nil {
+			res.Errors++
+			continue
+		}
+		_ = s.repo.InsertHistory(ctx, domainadvert.StatusHistory{
+			ID:       uuid.New(),
+			AdvertID: row.ID,
+			FromStatus: func() *domainadvert.Status {
+				s := domainadvert.StatusSold
+				return &s
+			}(),
+			ToStatus:  domainadvert.StatusArchived,
+			IsSystem:  true,
+			CreatedAt: now,
+		})
+		res.Archived++
+	}
+	return res
+}
+
 func (s *Service) submitForReview(
 	ctx context.Context,
 	ownerID, advertID uuid.UUID,
@@ -440,7 +500,7 @@ func (s *Service) submitForReview(
 	if err := requireExpectedVersion(expectedVersion); err != nil {
 		return domainadvert.OwnerView{}, err
 	}
-	if err := s.requireActiveOwner(ctx, ownerID); err != nil {
+	if err := s.requireVerifiedOwner(ctx, ownerID); err != nil {
 		return domainadvert.OwnerView{}, err
 	}
 
@@ -583,28 +643,6 @@ func (s *Service) validateForSubmission(ctx context.Context, a domainadvert.Adve
 	if _, err := validateDynamicProperties(defs, a.Properties, propertyModeSubmit); err != nil {
 		return err
 	}
-
-	// Submission must include a READY cover attachment; otherwise the advert
-	// can become PUBLISHED without any public media linkage (cover/gallery
-	// would stay empty).
-	mediaByAdvert, err := s.repo.ListMediaRelations(ctx, []uuid.UUID{a.ID})
-	if err != nil {
-		return err
-	}
-	hasCover := false
-	for _, rel := range mediaByAdvert[a.ID] {
-		lifecycle := domainmedia.AssetLifecycle(rel.LifecycleStatus)
-		if rel.IsCover && domainmedia.IsAttachableAssetLifecycle(lifecycle) && lifecycle != domainmedia.AssetUploadPending {
-			hasCover = true
-			break
-		}
-	}
-	if !hasCover {
-		return apperr.Validation(invalidRequest, apperr.FieldError{
-			Field:   "media",
-			Message: "Kapak görseli zorunludur.",
-		})
-	}
 	return nil
 }
 
@@ -652,7 +690,7 @@ func (s *Service) buildDetailsPatch(ctx context.Context, in UpdateDetailsInput) 
 	return patch, nil
 }
 
-func (s *Service) requireActiveOwner(ctx context.Context, ownerID uuid.UUID) error {
+func (s *Service) requireVerifiedOwner(ctx context.Context, ownerID uuid.UUID) error {
 	owner, err := s.users.FindByID(ctx, ownerID)
 	if err != nil {
 		if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindNotFound {
@@ -662,6 +700,9 @@ func (s *Service) requireActiveOwner(ctx context.Context, ownerID uuid.UUID) err
 	}
 	if !owner.IsActive() {
 		return apperr.Forbidden(apperr.CodeAccountInactive, "Hesap aktif değil.")
+	}
+	if owner.EmailVerifiedAt == nil {
+		return apperr.Forbidden(apperr.CodeEmailNotVerified, "E-posta adresi doğrulanmadı.")
 	}
 	return nil
 }

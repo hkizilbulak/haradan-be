@@ -19,6 +19,14 @@ func (r pgAdvertRepo) WithTx(tx pgx.Tx) Repository {
 	return pgAdvertRepo{r.Repository.WithTx(tx)}
 }
 
+// NewPostgresAutoArchiveService constructs a minimal Service wired only for AutoArchiveSold.
+func NewPostgresAutoArchiveService(pool *pgxpool.Pool) (*Service, error) {
+	if pool == nil {
+		return nil, fmt.Errorf("postgres pool is required")
+	}
+	return NewAutoArchiveService(pgAdvertRepo{pgadvert.NewRepository(pool)})
+}
+
 // NewPostgresService constructs a Service backed by PostgreSQL repositories.
 func NewPostgresService(pool *pgxpool.Pool, cfg Config) (*Service, error) {
 	if pool == nil {
