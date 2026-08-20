@@ -29,24 +29,26 @@ type MemoryStore struct {
 	adverts map[uuid.UUID]domainadvert.Advert
 	history []domainadvert.StatusHistory
 
-	categories map[uuid.UUID]domaincatalog.Category
-	children   map[uuid.UUID]int
-	formProps  map[uuid.UUID][]domaincatalog.Property
-	districts  map[uuid.UUID]domaingeo.District
-	horses     map[uuid.UUID]domainhorse.Horse
-	users      map[uuid.UUID]domainuser.User
+	categories     map[uuid.UUID]domaincatalog.Category
+	children       map[uuid.UUID]int
+	formProps      map[uuid.UUID][]domaincatalog.Property
+	districts      map[uuid.UUID]domaingeo.District
+	horses         map[uuid.UUID]domainhorse.Horse
+	users          map[uuid.UUID]domainuser.User
+	mediaRelations map[uuid.UUID][]domainadvert.MediaRelation
 }
 
 // NewMemoryStore builds an empty in-memory store.
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		adverts:    map[uuid.UUID]domainadvert.Advert{},
-		categories: map[uuid.UUID]domaincatalog.Category{},
-		children:   map[uuid.UUID]int{},
-		formProps:  map[uuid.UUID][]domaincatalog.Property{},
-		districts:  map[uuid.UUID]domaingeo.District{},
-		horses:     map[uuid.UUID]domainhorse.Horse{},
-		users:      map[uuid.UUID]domainuser.User{},
+		adverts:        map[uuid.UUID]domainadvert.Advert{},
+		categories:     map[uuid.UUID]domaincatalog.Category{},
+		children:       map[uuid.UUID]int{},
+		formProps:      map[uuid.UUID][]domaincatalog.Property{},
+		districts:      map[uuid.UUID]domaingeo.District{},
+		horses:         map[uuid.UUID]domainhorse.Horse{},
+		users:          map[uuid.UUID]domainuser.User{},
+		mediaRelations: map[uuid.UUID][]domainadvert.MediaRelation{},
 	}
 }
 
@@ -100,6 +102,16 @@ func (s *MemoryStore) PutUser(u domainuser.User) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.users[u.ID] = u
+}
+
+// PutMediaRelations seeds media relations for an advert.
+func (s *MemoryStore) PutMediaRelations(advertID uuid.UUID, media []domainadvert.MediaRelation) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.mediaRelations == nil {
+		s.mediaRelations = map[uuid.UUID][]domainadvert.MediaRelation{}
+	}
+	s.mediaRelations[advertID] = media
 }
 
 // Catalog returns the CatalogReader view of the store.
@@ -253,9 +265,16 @@ func (r MemoryRepository) ListStatusHistory(_ context.Context, advertID uuid.UUI
 	return out, nil
 }
 
-// ListMediaRelations returns no media in the memory store (tests seed empty).
+// ListMediaRelations returns stored media relations for requested advert IDs.
 func (r MemoryRepository) ListMediaRelations(_ context.Context, advertIDs []uuid.UUID) (map[uuid.UUID][]domainadvert.MediaRelation, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
 	out := make(map[uuid.UUID][]domainadvert.MediaRelation, len(advertIDs))
+	for _, id := range advertIDs {
+		if rels, ok := r.store.mediaRelations[id]; ok {
+			out[id] = rels
+		}
+	}
 	return out, nil
 }
 
@@ -405,9 +424,6 @@ func (r MemoryRepository) SoftDeleteDraft(
 	current, err := r.conditionLocked(ownerID, advertID, expectedVersion)
 	if err != nil {
 		return domainadvert.Advert{}, err
-	}
-	if current.Status != domainadvert.StatusDraft {
-		return domainadvert.Advert{}, apperr.StaleVersion(staleVersionMessage)
 	}
 	deletedAt := now
 	current.DeletedAt = &deletedAt
