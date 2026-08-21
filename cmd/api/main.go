@@ -409,7 +409,7 @@ func applyMigrations(databaseURL string, pingTimeout time.Duration, log *slog.Lo
 	pingCtx, cancel := context.WithTimeout(context.Background(), pingTimeout)
 	defer cancel()
 	if err := db.PingContext(pingCtx); err != nil {
-		return fmt.Errorf("ping database failed")
+		return fmt.Errorf("ping database failed: %w", err)
 	}
 
 	runner := &migration.Runner{
