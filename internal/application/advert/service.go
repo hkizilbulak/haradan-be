@@ -595,7 +595,7 @@ func (s *Service) ownerTransition(
 }
 
 // validateForSubmission is INTERNAL-04: everything the moderation queue needs
-// before a submit is accepted. No media/horse/price requirement is invented.
+// before a submit is accepted. Description is optional; price and address are required.
 func (s *Service) validateForSubmission(ctx context.Context, a domainadvert.Advert) error {
 	var fields []apperr.FieldError
 	if a.CategoryID == nil {
@@ -612,11 +612,11 @@ func (s *Service) validateForSubmission(ctx context.Context, a domainadvert.Adve
 			Message: fmt.Sprintf("Başlık en fazla %d karakter olabilir.", maxTitleRunes),
 		})
 	}
-	if a.Description == nil || strings.TrimSpace(*a.Description) == "" {
-		fields = append(fields, apperr.FieldError{Field: "description", Message: "Açıklama zorunludur."})
-	}
 	if a.Address == nil || strings.TrimSpace(*a.Address) == "" {
 		fields = append(fields, apperr.FieldError{Field: "address", Message: "Açık adres zorunludur."})
+	}
+	if a.Price == nil || a.Price.AmountMinor <= 0 {
+		fields = append(fields, apperr.FieldError{Field: "price", Message: "Fiyat zorunludur."})
 	}
 	mediaByAdvert, err := s.repo.ListMediaRelations(ctx, []uuid.UUID{a.ID})
 	if err != nil {

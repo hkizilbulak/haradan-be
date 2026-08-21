@@ -126,6 +126,7 @@ func (f *fixture) seed(t *testing.T, ownerID uuid.UUID, status domainadvert.Stat
 		Title:        &title,
 		Description:  &description,
 		Address:      &address,
+		Price:        &domainadvert.Money{AmountMinor: 100000, Currency: "TRY"},
 		Status:       status,
 		Properties:   json.RawMessage(`{"age":5}`),
 		Version:      1,
@@ -760,11 +761,13 @@ func TestSubmitAdvertForReviewFullValidation(t *testing.T) {
 			a.CategoryID = nil
 			a.DistrictID = nil
 			a.Title = nil
-			a.Description = ptr("   ")
+			a.Description = nil // optional on submit
 			a.Address = nil
+			a.Price = nil
 		})
 		_, err := f.svc.SubmitAdvertForReview(ctx, f.owner, draft.ID, 1)
 		ae := requireCode(t, err, apperr.CodeValidation)
+		// categoryId, districtId, title, address, price (cover media still seeded)
 		if len(ae.FieldErrors) != 5 {
 			t.Fatalf("fields=%+v", ae.FieldErrors)
 		}
