@@ -12,7 +12,6 @@ import (
 	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/emailnorm"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/phone"
-	"github.com/hkizilbulak/haradan-be/internal/platform/security/token"
 )
 
 type UpdateProfileInput struct {
@@ -74,12 +73,8 @@ func (s *Service) UpdateProfile(ctx context.Context, in UpdateProfileInput) (Det
 	return out, err
 }
 
-// RequestEmailChange issues EMAIL_CHANGE_VERIFICATION to the new address without
-// changing the current email. Does not invalidate PASSWORD_RESET invitation OTCs.
+// RequestEmailChange directly updates the target user's email without requiring email verification.
 func (s *Service) RequestEmailChange(ctx context.Context, in RequestEmailChangeInput) error {
-	if !s.emailConfigured {
-		return apperr.DependencyUnavailable("E-posta servisi henüz yapılandırılmamış. E-posta gerektirmeyen işlemlere devam edebilirsiniz.")
-	}
 	email := strings.TrimSpace(in.NewEmail)
 	if !emailnorm.ValidFormat(email) {
 		return apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "newEmail", Message: "Geçerli bir e-posta girin."})
@@ -105,21 +100,7 @@ func (s *Service) RequestEmailChange(ctx context.Context, in RequestEmailChangeI
 		}
 	}
 
-	plain, hash, err := token.NewOpaqueToken()
-	if err != nil {
-		return apperr.Internal(err)
-	}
-	cred := domainauth.OneTimeCredential{
-		ID:                    uuid.New(),
-		UserID:                user.ID,
-		Purpose:               domainauth.PurposeEmailChangeVerification,
-		TokenHash:             hash,
-		TargetEmail:           email,
-		TargetEmailNormalized: normalized,
-		ExpiresAt:             now.Add(s.invitationTTL),
-		CreatedAt:             now,
-	}
-	err = s.withTx(ctx, func(repo Repository) error {
+	return s.withTx(ctx, func(repo Repository) error {
 		locked, err := repo.FindUserForUpdate(ctx, user.ID)
 		if err != nil {
 			return err
@@ -130,23 +111,14 @@ func (s *Service) RequestEmailChange(ctx context.Context, in RequestEmailChangeI
 		if err := repo.InvalidateActiveOneTimeCredentials(ctx, locked.ID, domainauth.PurposeEmailChangeVerification, now); err != nil {
 			return err
 		}
-		if err := repo.CreateOneTimeCredential(ctx, cred); err != nil {
+		if _, err := repo.UpdateEmail(ctx, locked.ID, email, normalized, uuid.New(), now); err != nil {
 			return err
 		}
 		return repo.InsertSecurityEvent(ctx, domainauth.SecurityEvent{
 			ID: uuid.New(), SubjectUserID: &locked.ID, ActorUserID: &in.ActorUserID,
 			EventType: domainauth.EventEmailChange,
-			Metadata:  map[string]any{"reason": "ADMIN_EMAIL_CHANGE_REQUEST", "pendingEmail": email},
+			Metadata:  map[string]any{"reason": "ADMIN_EMAIL_CHANGE_DIRECT", "newEmail": email, "previousEmail": locked.Email},
 			CreatedAt: now,
 		})
 	})
-	if err != nil {
-		return err
-	}
-
-	fullName := strings.TrimSpace(user.FirstName + " " + user.LastName)
-	if err := s.email.SendRegistrationVerification(ctx, email, plain, fullName); err != nil {
-		return apperr.DependencyUnavailable("E-posta servisine şu anda ulaşılamıyor. Lütfen daha sonra tekrar deneyin.")
-	}
-	return nil
 }

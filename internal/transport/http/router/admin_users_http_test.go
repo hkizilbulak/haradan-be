@@ -89,6 +89,19 @@ func (r *adminUserHTTPRepo) UpdateProfile(_ context.Context, userID uuid.UUID, f
 	}
 	return domainuser.User{}, apperr.NotFound("user not found")
 }
+func (r *adminUserHTTPRepo) UpdateEmail(_ context.Context, userID uuid.UUID, email, emailNormalized string, _ uuid.UUID, now time.Time) (domainuser.User, error) {
+	for i, u := range r.users {
+		if u.ID == userID {
+			u.Email = email
+			u.EmailNormalized = emailNormalized
+			u.EmailVerifiedAt = &now
+			u.UpdatedAt = now
+			r.users[i] = u
+			return u, nil
+		}
+	}
+	return domainuser.User{}, apperr.NotFound("user not found")
+}
 func (r *adminUserHTTPRepo) FindUserByNormalizedEmail(_ context.Context, normalized string) (domainuser.User, error) {
 	for _, u := range r.users {
 		if u.EmailNormalized == normalized {

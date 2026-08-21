@@ -149,6 +149,21 @@ RETURNING `+userColumns, userID, firstName, lastName, phone, now))
 	}
 	return user, nil
 }
+
+func (r *Repository) UpdateEmail(ctx context.Context, userID uuid.UUID, email, emailNormalized string, securityStamp uuid.UUID, now time.Time) (domainuser.User, error) {
+	user, err := scanUser(r.db.QueryRow(ctx, `UPDATE hrd_users SET email = $2, email_normalized = $3, email_verified_at = $4, security_stamp = $5, updated_at = $4 WHERE id = $1 RETURNING `+userColumns, userID, email, emailNormalized, now, securityStamp))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domainuser.User{}, apperr.NotFound("user not found")
+	}
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domainuser.User{}, apperr.Conflict("Bu e-posta adresi zaten kayıtlı.")
+		}
+		return domainuser.User{}, apperr.Internal(fmt.Errorf("update admin user email: %w", pg.SanitizeErr(err)))
+	}
+	return user, nil
+}
+
 func (r *Repository) FindUserByNormalizedEmail(ctx context.Context, normalized string) (domainuser.User, error) {
 	user, err := scanUser(r.db.QueryRow(ctx, `SELECT `+userColumns+` FROM hrd_users WHERE email_normalized = $1`, normalized))
 	if errors.Is(err, pgx.ErrNoRows) {

@@ -26,8 +26,9 @@ type MemoryStore struct {
 	mu   sync.Mutex
 	txMu sync.Mutex // serializes BeginTx..Commit like a coarse row lock
 
-	adverts map[uuid.UUID]domainadvert.Advert
-	history []domainadvert.StatusHistory
+	adverts        map[uuid.UUID]domainadvert.Advert
+	mediaRelations map[uuid.UUID][]domainadvert.MediaRelation
+	history        []domainadvert.StatusHistory
 
 	categories     map[uuid.UUID]domaincatalog.Category
 	children       map[uuid.UUID]int
@@ -35,7 +36,6 @@ type MemoryStore struct {
 	districts      map[uuid.UUID]domaingeo.District
 	horses         map[uuid.UUID]domainhorse.Horse
 	users          map[uuid.UUID]domainuser.User
-	mediaRelations map[uuid.UUID][]domainadvert.MediaRelation
 }
 
 // NewMemoryStore builds an empty in-memory store.
@@ -57,6 +57,16 @@ func (s *MemoryStore) PutAdvert(a domainadvert.Advert) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.adverts[a.ID] = a
+}
+
+// PutMediaRelations seeds media relations for an advert.
+func (s *MemoryStore) PutMediaRelations(advertID uuid.UUID, rels []domainadvert.MediaRelation) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.mediaRelations == nil {
+		s.mediaRelations = make(map[uuid.UUID][]domainadvert.MediaRelation)
+	}
+	s.mediaRelations[advertID] = rels
 }
 
 // Advert returns a seeded advert.
@@ -102,16 +112,6 @@ func (s *MemoryStore) PutUser(u domainuser.User) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.users[u.ID] = u
-}
-
-// PutMediaRelations seeds media relations for an advert.
-func (s *MemoryStore) PutMediaRelations(advertID uuid.UUID, media []domainadvert.MediaRelation) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.mediaRelations == nil {
-		s.mediaRelations = map[uuid.UUID][]domainadvert.MediaRelation{}
-	}
-	s.mediaRelations[advertID] = media
 }
 
 // Catalog returns the CatalogReader view of the store.

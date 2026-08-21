@@ -30,6 +30,7 @@ type Repository interface {
 
 	CreateUser(ctx context.Context, user domainuser.User) error
 	UpdateProfile(ctx context.Context, userID uuid.UUID, firstName, lastName string, phone *string, now time.Time) (domainuser.User, error)
+	UpdateEmail(ctx context.Context, userID uuid.UUID, email, emailNormalized string, securityStamp uuid.UUID, now time.Time) (domainuser.User, error)
 	FindUserByNormalizedEmail(ctx context.Context, normalized string) (domainuser.User, error)
 	CountActiveAdmins(ctx context.Context) (int, error)
 	// LockActiveAdminGuard serializes last-active-admin checks inside the current TX
