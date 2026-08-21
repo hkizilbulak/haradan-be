@@ -29,11 +29,13 @@ import (
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	appnotification "github.com/hkizilbulak/haradan-be/internal/application/notification"
 	apppackaging "github.com/hkizilbulak/haradan-be/internal/application/packaging"
+	apppaytr "github.com/hkizilbulak/haradan-be/internal/application/paytr"
 	apptjk "github.com/hkizilbulak/haradan-be/internal/application/tjk"
 	"github.com/hkizilbulak/haradan-be/internal/config"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/email/resendemail"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/imageprocessor/tinifyprocessor"
+	paytrclient "github.com/hkizilbulak/haradan-be/internal/infrastructure/paytr"
 	pgadminuser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/adminuser"
 	pgadvert "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/advert"
 	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
@@ -41,6 +43,7 @@ import (
 	pghorse "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/horse"
 	pgjobdef "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/jobdef"
 	pgmedia "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/media"
+	pgpaytr "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/paytr"
 	pgtjk "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/tjk"
 	pguser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/user"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/storage/s3storage"
@@ -295,6 +298,39 @@ func run() error {
 		return fmt.Errorf("job admin service: %w", err)
 	}
 
+	var paytrSvc *apppaytr.Service
+	if cfg.PayTREnabled {
+		gateway, err := paytrclient.New(paytrclient.Config{
+			MerchantID:     cfg.PayTRMerchantID,
+			MerchantKey:    cfg.PayTRMerchantKey,
+			MerchantSalt:   cfg.PayTRMerchantSalt,
+			HTTPTimeout:    cfg.PayTRHTTPTimeout,
+			TestMode:       cfg.PayTRTestMode,
+			DebugOn:        cfg.PayTRDebugOn,
+			NoInstallment:  true,
+			MaxInstallment: "0",
+			Currency:       "TL",
+		})
+		if err != nil {
+			return fmt.Errorf("paytr client: %w", err)
+		}
+		paytrSvc, err = apppaytr.NewService(apppaytr.Config{
+			Charges:      pgpaytr.NewPostgresChargeRepository(db.Pool()),
+			Packages:     apppaytr.PackageLookup{Svc: packagingSvc},
+			Adverts:      apppaytr.AdvertRepo{Repo: advertRepo},
+			Users:        apppaytr.UserRepo{Repo: userRepo},
+			Packaging:    apppaytr.PackagingBridge{Svc: packagingSvc},
+			Submitter:    apppaytr.AdvertBridge{Svc: advertSvc},
+			Gateway:      gateway,
+			FrontendURL:  cfg.FrontendURL,
+			APIPublicURL: cfg.PayTRAPIPublicURL,
+		})
+		if err != nil {
+			return fmt.Errorf("paytr service: %w", err)
+		}
+		log.Info("paytr checkout enabled", "testMode", cfg.PayTRTestMode)
+	}
+
 	srvHandler := handler.NewServer(
 		log, db, geoSvc, catalogSvc, horseSvc, advertSvc, mediaSvc, favoriteSvc,
 		packagingSvc, campaignSvc, campaignPackages, notificationSvc, authSvc, notificationInboxSvc,
@@ -303,7 +339,8 @@ func run() error {
 		WithAdminUserService(adminUserSvc).
 		WithTJKService(tjkSvc).
 		WithEmailTemplateDiscovery(emailDiscovery).
-		WithJobAdminService(jobAdminSvc)
+		WithJobAdminService(jobAdminSvc).
+		WithPayTRService(paytrSvc)
 	engine := router.New(srvHandler, log, router.Options{
 		AuthService:        authSvc,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,

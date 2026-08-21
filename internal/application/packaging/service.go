@@ -185,6 +185,15 @@ func (s *Service) ListAdminPackages(ctx context.Context, actorUserID uuid.UUID) 
 	return s.packages.List(ctx, true)
 }
 
+// LookupPackageByCode returns a catalog package by code without admin auth.
+// Used by PayTR checkout pricing.
+func (s *Service) LookupPackageByCode(ctx context.Context, code domainpackaging.PackageCode) (domainpackaging.Package, error) {
+	if !code.Valid() {
+		return domainpackaging.Package{}, apperr.Validation("Geçersiz paket kodu.")
+	}
+	return s.packages.FindByCode(ctx, code)
+}
+
 // GetPackageByCode returns a package by code for an ACTIVE ADMIN.
 func (s *Service) GetPackageByCode(
 	ctx context.Context,
@@ -407,7 +416,7 @@ func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackag
 		if err := s.requireAdmin(ctx, in.ActorUserID); err != nil {
 			return AssignmentView{}, err
 		}
-	} else if source != domainpackaging.AssignmentSourceSystem {
+	} else if source != domainpackaging.AssignmentSourceSystem && source != domainpackaging.AssignmentSourcePayment {
 		return AssignmentView{}, apperr.Validation("Geçersiz paket atama kaynağı.")
 	}
 	if !in.PackageCode.Valid() {
@@ -439,7 +448,7 @@ func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackag
 		if err := assertAdvertAssignable(advert); err != nil {
 			return err
 		}
-		if source == domainpackaging.AssignmentSourceSystem {
+		if source == domainpackaging.AssignmentSourceSystem || source == domainpackaging.AssignmentSourcePayment {
 			if advert.OwnerUserID != in.ActorUserID {
 				return apperr.Forbidden(apperr.CodeForbidden, forbiddenMessage)
 			}

@@ -69,6 +69,12 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 	if hs, ok := server.(interface{ PutMediaAssetContent(*gin.Context) }); ok {
 		r.PUT(APIBasePath+"/v1/media/assets/:assetId/content", hs.PutMediaAssetContent)
 	}
+	if rs, ok := server.(interface{ RegisterCouponRoutes(gin.IRouter) }); ok {
+		rs.RegisterCouponRoutes(r.Group(APIBasePath))
+	}
+	if rs, ok := server.(interface{ RegisterPayTRRoutes(gin.IRouter) }); ok {
+		rs.RegisterPayTRRoutes(r.Group(APIBasePath))
+	}
 	return r
 }
 

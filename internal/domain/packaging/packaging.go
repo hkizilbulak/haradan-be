@@ -51,18 +51,19 @@ func (s AssignmentStatus) Valid() bool {
 	return false
 }
 
-// AssignmentSource is the assignment source CHECK set (no PAYMENT).
+// AssignmentSource is the assignment source CHECK set.
 type AssignmentSource string
 
 const (
-	AssignmentSourceAdmin  AssignmentSource = "ADMIN"
-	AssignmentSourceSystem AssignmentSource = "SYSTEM"
+	AssignmentSourceAdmin   AssignmentSource = "ADMIN"
+	AssignmentSourceSystem  AssignmentSource = "SYSTEM"
+	AssignmentSourcePayment AssignmentSource = "PAYMENT"
 )
 
 // Valid reports whether s is a known assignment source.
 func (s AssignmentSource) Valid() bool {
 	switch s {
-	case AssignmentSourceAdmin, AssignmentSourceSystem:
+	case AssignmentSourceAdmin, AssignmentSourceSystem, AssignmentSourcePayment:
 		return true
 	}
 	return false
