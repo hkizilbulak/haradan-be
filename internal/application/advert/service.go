@@ -622,18 +622,18 @@ func (s *Service) validateForSubmission(ctx context.Context, a domainadvert.Adve
 	if err != nil {
 		return err
 	}
-	hasCover := false
+	hasUsableMedia := false
 	for _, rel := range mediaByAdvert[a.ID] {
 		lifecycle := domainmedia.AssetLifecycle(rel.LifecycleStatus)
-		if rel.IsCover && domainmedia.IsAttachableAssetLifecycle(lifecycle) && lifecycle != domainmedia.AssetUploadPending {
-			hasCover = true
+		if domainmedia.IsAttachableAssetLifecycle(lifecycle) && lifecycle != domainmedia.AssetUploadPending {
+			hasUsableMedia = true
 			break
 		}
 	}
-	if !hasCover {
+	if !hasUsableMedia {
 		fields = append(fields, apperr.FieldError{
 			Field:   "media",
-			Message: "Kapak görseli zorunludur.",
+			Message: "En az bir görsel zorunludur.",
 		})
 	}
 	if len(fields) > 0 {

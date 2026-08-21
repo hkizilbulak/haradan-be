@@ -670,9 +670,9 @@ func TestAttachAcceptsProcessingAssetLifecycles(t *testing.T) {
 			if err != nil {
 				t.Fatalf("attach %s: %v", lifecycle, err)
 			}
-			// Only a ready master may become the automatic cover.
-			if view.Items[0].IsCover != (lifecycle == domainmedia.AssetMasterReady) {
-				t.Fatalf("isCover=%v for %s", view.Items[0].IsCover, lifecycle)
+			// First attach is always the cover; owner can change it later.
+			if !view.Items[0].IsCover {
+				t.Fatalf("isCover=false for first attach (%s)", lifecycle)
 			}
 		})
 	}
