@@ -160,8 +160,8 @@ English
 	if len(got.Horses) != 2 {
 		t.Fatalf("horses=%#v", got)
 	}
-	if len(got.Horses[0].Detail) != 0 || len(got.Horses[0].EnrichmentIssues) != 5 {
-		t.Fatalf("horse 1 should have observable missing detail, got %#v", got.Horses[0])
+	if len(got.Horses[0].Detail) != 0 || len(got.Horses[0].EnrichmentIssues) != 0 {
+		t.Fatalf("horse 1 should have missing detail without enrichment issues, got %#v", got.Horses[0])
 	}
 	var doc DetailDocument
 	if err := json.Unmarshal(got.Horses[1].Detail, &doc); err != nil {
