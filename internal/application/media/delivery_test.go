@@ -109,7 +109,7 @@ func TestResolvePublicDeliveryDeniesOrphanAndRawMaster(t *testing.T) {
 	}
 }
 
-func TestResolvePublicDeliveryDeniesDraftAdvertAnonymously(t *testing.T) {
+func TestResolvePublicDeliveryAllowsDraftAdvertMedia(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 
@@ -118,45 +118,35 @@ func TestResolvePublicDeliveryDeniesDraftAdvertAnonymously(t *testing.T) {
 	advertID := f.seedAdvert(f.owner, "DRAFT", 1)
 	attachAdvert(t, f, advertID, assetID)
 
-	_, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileDetail, appmedia.PublicDeliveryViewer{})
-	if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
-		t.Fatalf("want not found for anonymous draft, got %v", err)
+	// Draft advert media is displayable anonymously for browser <img> tags
+	delivery, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileDetail, appmedia.PublicDeliveryViewer{})
+	if err != nil {
+		t.Fatalf("resolve draft advert media: %v", err)
+	}
+	if delivery.ObjectKey == "" {
+		t.Fatalf("delivery key empty")
 	}
 }
 
-func TestResolvePublicDeliveryOwnerPreviewDraft(t *testing.T) {
+func TestResolvePublicDeliveryDeniesSoftDeletedAdvertMedia(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 
 	assetID := f.seedAsset(f.owner, domainmedia.AssetMasterReady)
-	seedReadyVariant(t, f, assetID, domainmedia.ProfileSearch, "preview")
+	seedReadyVariant(t, f, assetID, domainmedia.ProfileSearch, "deleted-advert-media")
 	advertID := f.seedAdvert(f.owner, "DRAFT", 1)
 	attachAdvert(t, f, advertID, assetID)
 
-	viewer := appmedia.PublicDeliveryViewer{UserID: f.owner, Role: string(domainuser.RoleUser)}
-	if _, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileSearch, viewer); err != nil {
-		t.Fatalf("owner preview: %v", err)
-	}
+	// Soft delete the advert
+	now := f.clock.Now()
+	f.store.PutAdvert(appmedia.MemoryAdvert{
+		ID: advertID, OwnerUserID: f.owner, Status: "DRAFT", DeletedAt: &now, MediaVersion: 1,
+	})
 
-	stranger := appmedia.PublicDeliveryViewer{UserID: f.stranger, Role: string(domainuser.RoleUser)}
-	_, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileSearch, stranger)
+	// After advert soft delete, media variant is no longer accessible
+	_, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileSearch, appmedia.PublicDeliveryViewer{})
 	if ae, ok := apperr.As(err); !ok || ae.Kind != apperr.KindNotFound {
-		t.Fatalf("want not found for stranger, got %v", err)
-	}
-}
-
-func TestResolvePublicDeliveryOwnerPreviewRejected(t *testing.T) {
-	f := newFixture(t)
-	ctx := context.Background()
-
-	assetID := f.seedAsset(f.owner, domainmedia.AssetMasterReady)
-	seedReadyVariant(t, f, assetID, domainmedia.ProfileDetail, "rejected")
-	advertID := f.seedAdvert(f.owner, "REJECTED", 1)
-	attachAdvert(t, f, advertID, assetID)
-
-	viewer := appmedia.PublicDeliveryViewer{UserID: f.owner, Role: string(domainuser.RoleUser)}
-	if _, err := f.svc.ResolvePublicDelivery(ctx, assetID, domainmedia.ProfileDetail, viewer); err != nil {
-		t.Fatalf("owner preview rejected advert: %v", err)
+		t.Fatalf("want not found for soft deleted advert media, got %v", err)
 	}
 }
 

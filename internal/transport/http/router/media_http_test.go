@@ -559,16 +559,21 @@ func TestPublicMediaHEADAndAttachmentHTTP(t *testing.T) {
 	env.attachAdvert(t, draftAdvert, draftAsset)
 	draftPath := "/api/v1/media/" + draftAsset.String() + "/" + domainmedia.ProfileHomepage
 	rec = env.do(http.MethodGet, draftPath, "", "")
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("anonymous draft status=%d", rec.Code)
+	if rec.Code != http.StatusOK || rec.Body.String() != "draft-preview" {
+		t.Fatalf("draft media status=%d body=%q", rec.Code, rec.Body.String())
 	}
 	rec = env.do(http.MethodGet, draftPath, "", auth)
 	if rec.Code != http.StatusOK || rec.Body.String() != "draft-preview" {
 		t.Fatalf("owner preview status=%d body=%q", rec.Code, rec.Body.String())
 	}
-	rec = env.do(http.MethodGet, draftPath, "", "Bearer not-a-token")
+	// Soft delete the draft advert -> media returns 404
+	now := time.Now().UTC()
+	env.mediaStore.PutAdvert(appmedia.MemoryAdvert{
+		ID: draftAdvert, OwnerUserID: ownerID, Status: "DRAFT", DeletedAt: &now, MediaVersion: 1,
+	})
+	rec = env.do(http.MethodGet, draftPath, "", "")
 	if rec.Code != http.StatusNotFound {
-		t.Fatalf("invalid bearer must stay anonymous 404, got %d", rec.Code)
+		t.Fatalf("deleted draft media must return 404, got %d", rec.Code)
 	}
 
 	bannerAsset := env.seedReadyAsset(t, ownerID, domainmedia.ProfileBanner, "banner-bytes")

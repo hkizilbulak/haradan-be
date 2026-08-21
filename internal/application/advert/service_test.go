@@ -683,17 +683,12 @@ func TestSoftDeleteAdvertDraft(t *testing.T) {
 	}
 }
 
-func TestSoftDeleteAdvertDraftAllowsPublished(t *testing.T) {
+func TestSoftDeleteAdvertDraftRejectsNonDraft(t *testing.T) {
 	f := newFixture(t)
 	published := f.seed(t, f.owner, domainadvert.StatusPublished, nil)
 
-	view, err := f.svc.SoftDeleteAdvertDraft(context.Background(), f.owner, published.ID, 1)
-	if err != nil {
-		t.Fatalf("soft delete published: %v", err)
-	}
-	if view.DeletedAt == nil {
-		t.Fatalf("published advert must be soft deleted: %+v", view)
-	}
+	_, err := f.svc.SoftDeleteAdvertDraft(context.Background(), f.owner, published.ID, 1)
+	requireCode(t, err, apperr.CodeInvalidState)
 }
 
 func TestSubmitAdvertForReviewUnverifiedEmailAllowed(t *testing.T) {

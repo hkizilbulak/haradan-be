@@ -42,23 +42,67 @@ func (h *Handler) deliverPublicMedia(c *gin.Context, assetID uuid.UUID, profile 
 		return
 	}
 
-	head, err := h.svc.HeadPublicObject(c.Request.Context(), delivery)
+	if c.Request.Method == http.MethodHead {
+		head, err := h.svc.HeadPublicObject(c.Request.Context(), delivery)
+		if err != nil {
+			h.respond(c, h.logger, err)
+			return
+		}
+
+		contentType := strings.TrimSpace(delivery.ContentType)
+		if contentType == "" {
+			contentType = strings.TrimSpace(head.ContentType)
+		}
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+
+		etag := strings.TrimSpace(head.ETag)
+		lastMod := head.LastModified
+		byteSize := head.ByteSize
+		if byteSize <= 0 && delivery.ByteSize != nil {
+			byteSize = *delivery.ByteSize
+		}
+
+		if etag != "" {
+			c.Header("ETag", etag)
+		}
+		if !lastMod.IsZero() {
+			c.Header("Last-Modified", lastMod.UTC().Format(http.TimeFormat))
+		}
+		c.Header("Cache-Control", delivery.CacheControl)
+		c.Header("Content-Type", contentType)
+		if byteSize > 0 {
+			c.Header("Content-Length", strconv.FormatInt(byteSize, 10))
+		}
+		c.Header("Content-Disposition", "inline")
+
+		if checkNotModified(c.Request, etag, lastMod) {
+			c.Status(http.StatusNotModified)
+			return
+		}
+		c.Status(http.StatusOK)
+		return
+	}
+
+	reader, err := h.svc.OpenPublicObject(c.Request.Context(), delivery)
 	if err != nil {
 		h.respond(c, h.logger, err)
 		return
 	}
+	defer reader.Body.Close()
 
-	contentType := strings.TrimSpace(delivery.ContentType)
+	contentType := strings.TrimSpace(reader.ContentType)
 	if contentType == "" {
-		contentType = strings.TrimSpace(head.ContentType)
+		contentType = strings.TrimSpace(delivery.ContentType)
 	}
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
 
-	etag := strings.TrimSpace(head.ETag)
-	lastMod := head.LastModified
-	byteSize := head.ByteSize
+	etag := strings.TrimSpace(reader.ETag)
+	lastMod := reader.LastModified
+	byteSize := reader.ByteSize
 	if byteSize <= 0 && delivery.ByteSize != nil {
 		byteSize = *delivery.ByteSize
 	}
@@ -74,38 +118,11 @@ func (h *Handler) deliverPublicMedia(c *gin.Context, assetID uuid.UUID, profile 
 	if byteSize > 0 {
 		c.Header("Content-Length", strconv.FormatInt(byteSize, 10))
 	}
-	// Inline display only — never force download.
 	c.Header("Content-Disposition", "inline")
 
 	if checkNotModified(c.Request, etag, lastMod) {
 		c.Status(http.StatusNotModified)
 		return
-	}
-
-	if c.Request.Method == http.MethodHead {
-		c.Status(http.StatusOK)
-		return
-	}
-
-	reader, err := h.svc.OpenPublicObject(c.Request.Context(), delivery)
-	if err != nil {
-		h.respond(c, h.logger, err)
-		return
-	}
-	defer reader.Body.Close()
-
-	// Prefer exact stored/detected type from the live object when present.
-	if ct := strings.TrimSpace(reader.ContentType); ct != "" {
-		c.Header("Content-Type", ct)
-	}
-	if reader.ByteSize > 0 {
-		c.Header("Content-Length", strconv.FormatInt(reader.ByteSize, 10))
-	}
-	if et := strings.TrimSpace(reader.ETag); et != "" {
-		c.Header("ETag", et)
-	}
-	if !reader.LastModified.IsZero() {
-		c.Header("Last-Modified", reader.LastModified.UTC().Format(http.TimeFormat))
 	}
 
 	c.Status(http.StatusOK)
@@ -124,6 +141,18 @@ func (h *Handler) resolvePublicDeliveryViewer(c *gin.Context) appmedia.PublicDel
 		return appmedia.PublicDeliveryViewer{}
 	}
 	tok, ok := authn.ExtractBearer(c.GetHeader("Authorization"))
+	if !ok {
+		if qtok := strings.TrimSpace(c.Query("token")); qtok != "" {
+			tok = qtok
+			ok = true
+		} else if qtok := strings.TrimSpace(c.Query("access_token")); qtok != "" {
+			tok = qtok
+			ok = true
+		} else if cookieTok, err := c.Cookie("access_token"); err == nil && strings.TrimSpace(cookieTok) != "" {
+			tok = strings.TrimSpace(cookieTok)
+			ok = true
+		}
+	}
 	if !ok {
 		return appmedia.PublicDeliveryViewer{}
 	}

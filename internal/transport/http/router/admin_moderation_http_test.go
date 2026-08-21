@@ -155,6 +155,7 @@ func (env *moderationTestEnv) seedPending(ownerID uuid.UUID) domainadvert.Advert
 		ID: uuid.New(), OwnerUserID: ownerID,
 		CategoryID: &env.category, DistrictID: &env.district,
 		Title: &title, Description: &desc, Address: &addr,
+		Price:      &domainadvert.Money{AmountMinor: 100000, Currency: "TRY"},
 		Status:     domainadvert.StatusPendingReview,
 		Properties: json.RawMessage(`{"age":5}`),
 		Version:    1, MediaVersion: 1, CreatedAt: now, UpdatedAt: now,

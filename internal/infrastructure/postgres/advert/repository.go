@@ -399,6 +399,7 @@ WHERE id = $1
   AND owner_user_id = $2
   AND version = $3
   AND deleted_at IS NULL
+  AND status = 'DRAFT'
 RETURNING ` + advertColumns
 
 	return r.updateOne(ctx, "soft delete advert draft", q, advertID, ownerID, expectedVersion, now)

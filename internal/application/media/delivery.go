@@ -136,17 +136,13 @@ func (s *Service) advertDeliveryAllowed(ctx context.Context, assetID uuid.UUID, 
 		if row.DeletedAt != nil {
 			continue
 		}
-		if row.Status == "PUBLISHED" {
-			return true, nil
-		}
-		if isAdmin {
-			return true, nil
-		}
-		// Owner may preview every attached asset on their own advert
-		// (draft, pending review, rejected, sold, …) so İlanlarım cards work.
-		if viewer.UserID != uuid.Nil && viewer.UserID == row.OwnerUserID {
-			return true, nil
-		}
+		// Any non-deleted attached advert media is displayable (covers drafts in user's panel,
+		// under review, changes requested, published, sold, etc., which are accessed via <img> tags
+		// where browser does not send Authorization headers).
+		return true, nil
+	}
+	if isAdmin {
+		return true, nil
 	}
 	return false, nil
 }
