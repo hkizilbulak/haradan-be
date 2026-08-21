@@ -30,25 +30,25 @@ type MemoryStore struct {
 	mediaRelations map[uuid.UUID][]domainadvert.MediaRelation
 	history        []domainadvert.StatusHistory
 
-	categories map[uuid.UUID]domaincatalog.Category
-	children   map[uuid.UUID]int
-	formProps  map[uuid.UUID][]domaincatalog.Property
-	districts  map[uuid.UUID]domaingeo.District
-	horses     map[uuid.UUID]domainhorse.Horse
-	users      map[uuid.UUID]domainuser.User
+	categories     map[uuid.UUID]domaincatalog.Category
+	children       map[uuid.UUID]int
+	formProps      map[uuid.UUID][]domaincatalog.Property
+	districts      map[uuid.UUID]domaingeo.District
+	horses         map[uuid.UUID]domainhorse.Horse
+	users          map[uuid.UUID]domainuser.User
 }
 
 // NewMemoryStore builds an empty in-memory store.
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		adverts:        map[uuid.UUID]domainadvert.Advert{},
-		mediaRelations: map[uuid.UUID][]domainadvert.MediaRelation{},
 		categories:     map[uuid.UUID]domaincatalog.Category{},
 		children:       map[uuid.UUID]int{},
 		formProps:      map[uuid.UUID][]domaincatalog.Property{},
 		districts:      map[uuid.UUID]domaingeo.District{},
 		horses:         map[uuid.UUID]domainhorse.Horse{},
 		users:          map[uuid.UUID]domainuser.User{},
+		mediaRelations: map[uuid.UUID][]domainadvert.MediaRelation{},
 	}
 }
 
@@ -265,7 +265,7 @@ func (r MemoryRepository) ListStatusHistory(_ context.Context, advertID uuid.UUI
 	return out, nil
 }
 
-// ListMediaRelations returns media relations from the memory store.
+// ListMediaRelations returns stored media relations for requested advert IDs.
 func (r MemoryRepository) ListMediaRelations(_ context.Context, advertIDs []uuid.UUID) (map[uuid.UUID][]domainadvert.MediaRelation, error) {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
@@ -424,9 +424,6 @@ func (r MemoryRepository) SoftDeleteDraft(
 	current, err := r.conditionLocked(ownerID, advertID, expectedVersion)
 	if err != nil {
 		return domainadvert.Advert{}, err
-	}
-	if current.Status != domainadvert.StatusDraft {
-		return domainadvert.Advert{}, apperr.StaleVersion(staleVersionMessage)
 	}
 	deletedAt := now
 	current.DeletedAt = &deletedAt

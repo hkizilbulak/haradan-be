@@ -130,6 +130,17 @@ type Config struct {
 	GeoCatalogHTTPTimeout  time.Duration
 	GeoCatalogTTL          time.Duration
 	GeoCatalogMaxBodyBytes int64
+
+	// PayTR iframe checkout. Empty credentials keep PayTR disabled; owner
+	// checkout endpoints then return DEPENDENCY_UNAVAILABLE.
+	PayTREnabled       bool
+	PayTRMerchantID    string
+	PayTRMerchantKey   string
+	PayTRMerchantSalt  string
+	PayTRTestMode      bool
+	PayTRDebugOn       bool
+	PayTRHTTPTimeout   time.Duration
+	PayTRAPIPublicURL  string // e.g. https://api.example.com/api — notify callback base
 }
 
 const defaultTJKBaseURL = "https://www.tjk.org"
@@ -502,6 +513,51 @@ func Load() (Config, error) {
 	}
 	if cfg.GeoCatalogMaxBodyBytes < 1 {
 		return Config{}, fmt.Errorf("GEO catalog body limit must be greater than zero")
+	}
+
+	cfg.PayTRMerchantID = strings.TrimSpace(os.Getenv("PAYTR_MERCHANT_ID"))
+	cfg.PayTRMerchantKey = strings.TrimSpace(os.Getenv("PAYTR_MERCHANT_KEY"))
+	cfg.PayTRMerchantSalt = strings.TrimSpace(os.Getenv("PAYTR_MERCHANT_SALT"))
+	cfg.PayTRAPIPublicURL = strings.TrimSpace(os.Getenv("PAYTR_API_PUBLIC_URL"))
+	if cfg.PayTRHTTPTimeout, err = durationEnv("PAYTR_HTTP_TIMEOUT", 30*time.Second); err != nil {
+		return Config{}, err
+	}
+	if raw, ok := os.LookupEnv("PAYTR_TEST_MODE"); ok {
+		cfg.PayTRTestMode, err = strconv.ParseBool(strings.TrimSpace(raw))
+		if err != nil {
+			return Config{}, fmt.Errorf("PAYTR_TEST_MODE is not a valid boolean")
+		}
+	} else {
+		cfg.PayTRTestMode = !isProductionLike(cfg.AppEnv)
+	}
+	if raw, ok := os.LookupEnv("PAYTR_DEBUG_ON"); ok {
+		cfg.PayTRDebugOn, err = strconv.ParseBool(strings.TrimSpace(raw))
+		if err != nil {
+			return Config{}, fmt.Errorf("PAYTR_DEBUG_ON is not a valid boolean")
+		}
+	}
+	if raw, ok := os.LookupEnv("PAYTR_ENABLED"); ok {
+		cfg.PayTREnabled, err = strconv.ParseBool(strings.TrimSpace(raw))
+		if err != nil {
+			return Config{}, fmt.Errorf("PAYTR_ENABLED is not a valid boolean")
+		}
+	} else {
+		cfg.PayTREnabled = cfg.PayTRMerchantID != "" && cfg.PayTRMerchantKey != "" && cfg.PayTRMerchantSalt != ""
+	}
+	if cfg.PayTREnabled {
+		if cfg.PayTRMerchantID == "" || cfg.PayTRMerchantKey == "" || cfg.PayTRMerchantSalt == "" {
+			return Config{}, fmt.Errorf("PAYTR_MERCHANT_ID/KEY/SALT required when PayTR is enabled")
+		}
+		if cfg.FrontendURL == "" {
+			return Config{}, fmt.Errorf("FRONTEND_URL must not be empty when PayTR is enabled")
+		}
+		if cfg.PayTRAPIPublicURL == "" {
+			return Config{}, fmt.Errorf("PAYTR_API_PUBLIC_URL must not be empty when PayTR is enabled")
+		}
+		u, parseErr := url.Parse(cfg.PayTRAPIPublicURL)
+		if parseErr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return Config{}, fmt.Errorf("PAYTR_API_PUBLIC_URL is not a valid http(s) URL")
+		}
 	}
 
 	return cfg, nil

@@ -43,6 +43,7 @@ var expectedTables = []string{
 	"hrd_coupon_usages",
 	"hrd_advert_comments",
 	"hrd_advert_views",
+	"hrd_paytr_charges",
 }
 
 var (
@@ -66,8 +67,8 @@ func ValidateEmbeddedMigrations(fsys fs.FS) error {
 		return fmt.Errorf("list migrations: %w", err)
 	}
 	sort.Strings(entries)
-	if len(entries) != 25 {
-		return fmt.Errorf("expected 25 SQL migration files, got %d", len(entries))
+	if len(entries) != 28 {
+		return fmt.Errorf("expected 28 SQL migration files, got %d", len(entries))
 	}
 
 	created := make(map[string]struct{})
@@ -135,8 +136,8 @@ func ValidateEmbeddedMigrations(fsys fs.FS) error {
 		}
 	}
 
-	if len(created) != 31 {
-		return fmt.Errorf("expected 31 CREATE TABLE statements, got %d", len(created))
+	if len(created) != 32 {
+		return fmt.Errorf("expected 32 CREATE TABLE statements, got %d", len(created))
 	}
 	for _, table := range expectedTables {
 		if _, ok := created[table]; !ok {

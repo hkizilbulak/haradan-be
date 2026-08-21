@@ -40,6 +40,8 @@ var AdvertOwnerProtectedRoutes = []ProtectedRoute{
 	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/sold"},
 	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/archive"},
 	{Method: "PUT", Path: "/api/v1/me/adverts/:advertId/package"},
+	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/paytr/checkout"},
+	{Method: "GET", Path: "/api/v1/me/adverts/:advertId/paytr/charges/:merchantOid"},
 }
 
 // MediaProtectedRoutes are MEDIA-01..07 owner-scoped routes. Admin media

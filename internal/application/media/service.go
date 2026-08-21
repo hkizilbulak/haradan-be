@@ -398,10 +398,10 @@ func (s *Service) AttachMediaToAdvert(
 			}
 		}
 
-		// The first attached image whose master is ready becomes the cover; the
-		// owner may change it later. Non-ready first attaches stay non-cover
-		// until SetCover / a later ready attach.
-		isCover := !hasCover && asset.LifecycleStatus == domainmedia.AssetMasterReady
+		// The first attached image becomes the cover regardless of processing
+		// state. Submit accepts attachable (non-pending) lifecycles; owners may
+		// change the cover later via SetCover.
+		isCover := !hasCover
 		if err := repo.AttachAdvertMedia(ctx, domainmedia.AdvertMediaRelation{
 			ID:           uuid.New(),
 			AdvertID:     advertID,
@@ -582,18 +582,26 @@ func (s *Service) SetAdvertCover(
 }
 
 // promoteCover picks the first remaining relation in display order whose asset
-// has a ready master. Variant readiness is per profile and may still be pending,
-// so MASTER_READY is the strongest signal available at this point. When nothing
-// qualifies the advert simply stays without a cover.
+// is attachable and past upload-pending. MASTER_READY is preferred when present;
+// otherwise UPLOADED/VALIDATING still qualifies so a single image draft keeps a cover.
 func promoteCover(ctx context.Context, repo Repository, advertID uuid.UUID, now time.Time) error {
 	rows, err := repo.ListAdvertMediaByAdvert(ctx, advertID)
 	if err != nil {
 		return err
 	}
+	var fallback uuid.UUID
 	for _, row := range rows {
 		if row.AssetLifecycle == domainmedia.AssetMasterReady {
 			return repo.SetAdvertCover(ctx, advertID, row.Relation.AssetID, now)
 		}
+		if fallback == uuid.Nil &&
+			domainmedia.IsAttachableAssetLifecycle(row.AssetLifecycle) &&
+			row.AssetLifecycle != domainmedia.AssetUploadPending {
+			fallback = row.Relation.AssetID
+		}
+	}
+	if fallback != uuid.Nil {
+		return repo.SetAdvertCover(ctx, advertID, fallback, now)
 	}
 	return nil
 }

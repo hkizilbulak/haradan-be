@@ -15,6 +15,7 @@ import (
 
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 )
 
 const (
@@ -424,9 +425,6 @@ func (s *Service) SoftDeleteAdvertDraft(ctx context.Context, ownerID, advertID u
 		if current.Version != expectedVersion {
 			return apperr.StaleVersion(staleVersionMessage)
 		}
-		if current.Status != domainadvert.StatusDraft {
-			return apperr.InvalidState("Yalnız taslak ilanlar silinebilir.")
-		}
 		updated, err = repo.SoftDeleteDraft(ctx, ownerID, advertID, expectedVersion, s.clock.Now())
 		return err
 	})
@@ -500,7 +498,7 @@ func (s *Service) submitForReview(
 	if err := requireExpectedVersion(expectedVersion); err != nil {
 		return domainadvert.OwnerView{}, err
 	}
-	if err := s.requireVerifiedOwner(ctx, ownerID); err != nil {
+	if err := s.requireActiveOwner(ctx, ownerID); err != nil {
 		return domainadvert.OwnerView{}, err
 	}
 
@@ -597,7 +595,7 @@ func (s *Service) ownerTransition(
 }
 
 // validateForSubmission is INTERNAL-04: everything the moderation queue needs
-// before a submit is accepted. No media/horse/price requirement is invented.
+// before a submit is accepted. Description is optional; price and address are required.
 func (s *Service) validateForSubmission(ctx context.Context, a domainadvert.Advert) error {
 	var fields []apperr.FieldError
 	if a.CategoryID == nil {
@@ -614,11 +612,29 @@ func (s *Service) validateForSubmission(ctx context.Context, a domainadvert.Adve
 			Message: fmt.Sprintf("Başlık en fazla %d karakter olabilir.", maxTitleRunes),
 		})
 	}
-	if a.Description == nil || strings.TrimSpace(*a.Description) == "" {
-		fields = append(fields, apperr.FieldError{Field: "description", Message: "Açıklama zorunludur."})
-	}
 	if a.Address == nil || strings.TrimSpace(*a.Address) == "" {
 		fields = append(fields, apperr.FieldError{Field: "address", Message: "Açık adres zorunludur."})
+	}
+	if a.Price == nil || a.Price.AmountMinor <= 0 {
+		fields = append(fields, apperr.FieldError{Field: "price", Message: "Fiyat zorunludur."})
+	}
+	mediaByAdvert, err := s.repo.ListMediaRelations(ctx, []uuid.UUID{a.ID})
+	if err != nil {
+		return err
+	}
+	hasUsableMedia := false
+	for _, rel := range mediaByAdvert[a.ID] {
+		lifecycle := domainmedia.AssetLifecycle(rel.LifecycleStatus)
+		if domainmedia.IsAttachableAssetLifecycle(lifecycle) && lifecycle != domainmedia.AssetUploadPending {
+			hasUsableMedia = true
+			break
+		}
+	}
+	if !hasUsableMedia {
+		fields = append(fields, apperr.FieldError{
+			Field:   "media",
+			Message: "En az bir görsel zorunludur.",
+		})
 	}
 	if len(fields) > 0 {
 		return apperr.Validation(invalidRequest, fields...)
@@ -690,7 +706,7 @@ func (s *Service) buildDetailsPatch(ctx context.Context, in UpdateDetailsInput) 
 	return patch, nil
 }
 
-func (s *Service) requireVerifiedOwner(ctx context.Context, ownerID uuid.UUID) error {
+func (s *Service) requireActiveOwner(ctx context.Context, ownerID uuid.UUID) error {
 	owner, err := s.users.FindByID(ctx, ownerID)
 	if err != nil {
 		if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindNotFound {
@@ -700,9 +716,6 @@ func (s *Service) requireVerifiedOwner(ctx context.Context, ownerID uuid.UUID) e
 	}
 	if !owner.IsActive() {
 		return apperr.Forbidden(apperr.CodeAccountInactive, "Hesap aktif değil.")
-	}
-	if owner.EmailVerifiedAt == nil {
-		return apperr.Forbidden(apperr.CodeEmailNotVerified, "E-posta adresi doğrulanmadı.")
 	}
 	return nil
 }

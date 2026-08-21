@@ -44,6 +44,8 @@ import (
 	couponhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/coupon"
 	appcomment "github.com/hkizilbulak/haradan-be/internal/application/comment"
 	commenthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/comment"
+	apppaytr "github.com/hkizilbulak/haradan-be/internal/application/paytr"
+	paytrhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/paytr"
 )
 
 // DependencyChecker is a minimal health dependency contract.
@@ -75,6 +77,7 @@ type Server struct {
 	tjk          *tjkhandler.Handler
 	coupon       *couponhandler.Handler
 	comment      *commenthandler.Handler
+	paytr        *paytrhandler.Handler
 }
 
 func (s *Server) WithCommentService(svc *appcomment.Service) *Server {
@@ -89,6 +92,22 @@ func (s *Server) WithCouponService(svc *appcoupon.Service) *Server {
 		s.coupon = couponhandler.NewHandler(svc, s.logger, respondError)
 	}
 	return s
+}
+
+func (s *Server) WithPayTRService(svc *apppaytr.Service) *Server {
+	if svc != nil {
+		s.paytr = paytrhandler.NewHandler(svc, s.logger, respondError)
+	}
+	return s
+}
+
+func (s *Server) RegisterPayTRRoutes(r gin.IRouter) {
+	if s.paytr == nil {
+		return
+	}
+	r.POST("/v1/paytr/notify", s.paytr.Notify)
+	r.POST("/v1/me/adverts/:advertId/paytr/checkout", s.paytr.StartCheckout)
+	r.GET("/v1/me/adverts/:advertId/paytr/charges/:merchantOid", s.paytr.GetChargeStatus)
 }
 
 func (s *Server) RegisterCouponRoutes(r gin.IRouter) {
