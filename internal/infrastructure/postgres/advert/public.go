@@ -103,19 +103,45 @@ WHERE a.id = $1 AND a.status = 'PUBLISHED' AND a.deleted_at IS NULL`
 	const metadata = `
 SELECT a.description, a.address, c.name, c.slug, d.name, p.name, h.id, h.original_name, h.tjk_number, a.properties
 FROM hrd_adverts a
-JOIN hrd_categories c ON c.id = a.category_id
-JOIN hrd_districts d ON d.id = a.district_id
-JOIN hrd_provinces p ON p.id = d.province_id
+LEFT JOIN hrd_categories c ON c.id = a.category_id
+LEFT JOIN hrd_districts d ON d.id = a.district_id
+LEFT JOIN hrd_provinces p ON p.id = d.province_id
 LEFT JOIN hrd_horses h ON h.id = a.horse_id
 WHERE a.id = $1`
 	var out domainadvert.PublicDetail
 	out.PublicCard = card
-	var horseID *uuid.UUID
-	var horseName *string
-	var horseTJKNumber *string
-	var props []byte
-	if err := r.db.QueryRow(ctx, metadata, advertID).Scan(&out.Description, &out.Address, &out.CategoryName, &out.CategorySlug, &out.DistrictName, &out.ProvinceName, &horseID, &horseName, &horseTJKNumber, &props); err != nil {
+	var (
+		desc           *string
+		addr           *string
+		catName        *string
+		catSlug        *string
+		distName       *string
+		provName       *string
+		horseID        *uuid.UUID
+		horseName      *string
+		horseTJKNumber *string
+		props          []byte
+	)
+	if err := r.db.QueryRow(ctx, metadata, advertID).Scan(&desc, &addr, &catName, &catSlug, &distName, &provName, &horseID, &horseName, &horseTJKNumber, &props); err != nil {
 		return domainadvert.PublicDetail{}, apperr.Internal(fmt.Errorf("get published advert metadata: %w", pg.SanitizeErr(err)))
+	}
+	if desc != nil {
+		out.Description = *desc
+	}
+	if addr != nil {
+		out.Address = addr
+	}
+	if catName != nil {
+		out.CategoryName = *catName
+	}
+	if catSlug != nil {
+		out.CategorySlug = *catSlug
+	}
+	if distName != nil {
+		out.DistrictName = *distName
+	}
+	if provName != nil {
+		out.ProvinceName = *provName
 	}
 	if horseID != nil && horseName != nil {
 		out.Horse = &domainadvert.PublicHorse{ID: *horseID, Name: *horseName, TJKNumber: horseTJKNumber}
@@ -149,7 +175,8 @@ SELECT a.id, a.category_id, a.district_id, d.province_id, a.horse_id, a.title,
        ) END,
        a.view_count
 FROM hrd_adverts a
-JOIN hrd_districts d ON d.id = a.district_id
+LEFT JOIN hrd_districts d ON d.id = a.district_id
+
 LEFT JOIN LATERAL (
   SELECT p.code, p.display_name, p.badge_text, p.search_priority, p.showcase_eligible
   FROM hrd_advert_package_assignments pa
@@ -278,10 +305,14 @@ WHERE am.advert_id = $1 ORDER BY am.display_order, am.asset_id`, advertID)
 }
 
 func (r *Repository) listPublicProperties(ctx context.Context, advertID uuid.UUID, raw []byte) ([]domainadvert.PublicProperty, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return []domainadvert.PublicProperty{}, nil
+	}
 	var values map[string]any
 	if err := json.Unmarshal(raw, &values); err != nil {
-		return nil, apperr.Internal(fmt.Errorf("decode public properties: %w", err))
+		return []domainadvert.PublicProperty{}, nil
 	}
+
 	rows, err := r.db.Query(ctx, `
 SELECT cp.code, cp.title FROM hrd_category_properties cp
 JOIN hrd_adverts a ON a.category_id = cp.category_id
