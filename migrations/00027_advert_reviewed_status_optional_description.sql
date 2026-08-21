@@ -3,7 +3,7 @@
 -- demanded a non-empty description for PENDING_REVIEW+, so TransitionStatus failed
 -- with a check violation → HTTP 500 INTERNAL_ERROR on submit.
 ALTER TABLE hrd_adverts
-    DROP CONSTRAINT IF EXISTS hrd_adverts_reviewed_status_required_fields_check;
+    DROP CONSTRAINT hrd_adverts_reviewed_status_required_fields_check;
 
 ALTER TABLE hrd_adverts
     ADD CONSTRAINT hrd_adverts_reviewed_status_required_fields_check CHECK (
@@ -20,7 +20,7 @@ ALTER TABLE hrd_adverts
 
 -- +goose Down
 ALTER TABLE hrd_adverts
-    DROP CONSTRAINT IF EXISTS hrd_adverts_reviewed_status_required_fields_check;
+    DROP CONSTRAINT hrd_adverts_reviewed_status_required_fields_check;
 
 ALTER TABLE hrd_adverts
     ADD CONSTRAINT hrd_adverts_reviewed_status_required_fields_check CHECK (
