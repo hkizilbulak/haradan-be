@@ -495,62 +495,6 @@ RETURNING ` + advertColumns
 		advertID, expectedVersion, string(from), string(to), now)
 }
 
-// ListSoldForAutoArchive returns SOLD adverts sold before the cutoff.
-func (r *Repository) ListSoldForAutoArchive(ctx context.Context, soldBefore time.Time, limit int) ([]domainadvert.Advert, error) {
-	if limit <= 0 {
-		limit = 100
-	}
-	const q = `
-SELECT ` + advertColumns + `
-FROM hrd_adverts
-WHERE deleted_at IS NULL
-  AND status = 'SOLD'
-  AND sold_at < $1
-ORDER BY sold_at ASC, id ASC
-LIMIT $2`
-	rows, err := r.db.Query(ctx, q, soldBefore, limit)
-	if err != nil {
-		return nil, apperr.Internal(fmt.Errorf("list sold adverts for auto-archive: %w", pg.SanitizeErr(err)))
-	}
-	defer rows.Close()
-
-	var out []domainadvert.Advert
-	for rows.Next() {
-		a, err := scanAdvert(rows)
-		if err != nil {
-			return nil, apperr.Internal(fmt.Errorf("scan advert for auto-archive: %w", pg.SanitizeErr(err)))
-		}
-		out = append(out, a)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, apperr.Internal(fmt.Errorf("iterate adverts for auto-archive: %w", pg.SanitizeErr(err)))
-	}
-	return out, nil
-}
-
-// SystemTransitionStatus moves status without owner filter (background jobs).
-func (r *Repository) SystemTransitionStatus(
-	ctx context.Context,
-	advertID uuid.UUID,
-	from, to domainadvert.Status,
-	expectedVersion int,
-	now time.Time,
-) (domainadvert.Advert, error) {
-	const q = `
-UPDATE hrd_adverts
-SET status = $4::varchar,
-    version = version + 1,
-    updated_at = $5
-WHERE id = $1
-  AND version = $2
-  AND deleted_at IS NULL
-  AND status = $3::varchar
-RETURNING ` + advertColumns
-
-	return r.updateOne(ctx, "system transition advert status", q,
-		advertID, expectedVersion, string(from), string(to), now)
-}
-
 func (r *Repository) queryOne(ctx context.Context, op, q string, args ...any) (domainadvert.Advert, error) {
 	a, err := scanAdvert(r.db.QueryRow(ctx, q, args...))
 	if errors.Is(err, pgx.ErrNoRows) {
