@@ -191,9 +191,11 @@ SELECT a.id, a.category_id, a.district_id, d.province_id, a.horse_id, a.title,
        CASE WHEN ` + actorArg + `::uuid IS NULL THEN NULL ELSE EXISTS (
            SELECT 1 FROM hrd_favorites f WHERE f.advert_id = a.id AND f.user_id = ` + actorArg + `
        ) END,
-       a.view_count, a.properties
+       a.view_count, a.properties,
+       h.breed, h.gender, h.coat, h.birth_year
 FROM hrd_adverts a
 LEFT JOIN hrd_districts d ON d.id = a.district_id
+LEFT JOIN hrd_horses h ON h.id = a.horse_id
 
 LEFT JOIN LATERAL (
   SELECT p.code, p.display_name, p.badge_text, p.search_priority, p.showcase_eligible
@@ -276,16 +278,56 @@ func scanPublicCard(row interface{ Scan(...any) error }) (domainadvert.PublicCar
 	var coverIsCover *bool
 	var coverKey *string
 	var rawProps []byte
+	var hBreed *string
+	var hGender *string
+	var hCoat *string
+	var hBirthYear *int
 	if err := row.Scan(&card.ID, &card.CategoryID, &card.DistrictID, &card.ProvinceID, &card.HorseID, &card.Title,
 		&amount, &currency, &card.PublishedAt, &coverAsset, &coverOrder, &coverIsCover, &coverKey,
 		&card.PackageCode, &card.PackageDisplayName, &card.PackageBadgeText, &card.SearchPriority,
 		&card.IsUrgent, &card.UrgentActivatedAt, &card.IsFeatured, &card.FeaturedUntil, &card.IsFavorite, &card.ViewCount,
-		&rawProps); err != nil {
+		&rawProps, &hBreed, &hGender, &hCoat, &hBirthYear); err != nil {
 		return card, err
 	}
 	card.Properties = map[string]any{}
 	if len(rawProps) > 0 && string(rawProps) != "null" {
 		_ = json.Unmarshal(rawProps, &card.Properties)
+	}
+	if hBreed != nil && *hBreed != "" {
+		if v, ok := card.Properties["HORSE_BREED"]; !ok || v == nil || v == "" {
+			card.Properties["HORSE_BREED"] = *hBreed
+		}
+		if v, ok := card.Properties["breed"]; !ok || v == nil || v == "" {
+			card.Properties["breed"] = *hBreed
+		}
+	}
+	if hGender != nil && *hGender != "" {
+		if v, ok := card.Properties["HORSE_GENDER"]; !ok || v == nil || v == "" {
+			card.Properties["HORSE_GENDER"] = *hGender
+		}
+		if v, ok := card.Properties["gender"]; !ok || v == nil || v == "" {
+			card.Properties["gender"] = *hGender
+		}
+	}
+	if hCoat != nil && *hCoat != "" {
+		if v, ok := card.Properties["COAT_COLOR"]; !ok || v == nil || v == "" {
+			card.Properties["COAT_COLOR"] = *hCoat
+		}
+		if v, ok := card.Properties["coatColor"]; !ok || v == nil || v == "" {
+			card.Properties["coatColor"] = *hCoat
+		}
+	}
+	if hBirthYear != nil && *hBirthYear > 0 {
+		age := time.Now().Year() - *hBirthYear
+		if v, ok := card.Properties["HORSE_AGE"]; !ok || v == nil || v == 0 {
+			card.Properties["HORSE_AGE"] = age
+		}
+		if v, ok := card.Properties["age"]; !ok || v == nil || v == 0 {
+			card.Properties["age"] = age
+		}
+		if v, ok := card.Properties["birthYear"]; !ok || v == nil || v == 0 {
+			card.Properties["birthYear"] = *hBirthYear
+		}
 	}
 	if amount != nil && currency != nil {
 		card.Price = &domainadvert.Money{AmountMinor: *amount, Currency: *currency}
