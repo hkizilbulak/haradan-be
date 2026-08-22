@@ -57,6 +57,8 @@ type PublicDetail struct {
 	Horse        *PublicHorse
 	Properties   []PublicProperty
 	Media        []PublicMedia
+	SellerPhone  *string
+	SellerID     *uuid.UUID
 }
 type PublicCursor struct {
 	Priority    int

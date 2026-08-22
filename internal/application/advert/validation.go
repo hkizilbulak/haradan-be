@@ -111,6 +111,17 @@ func validateDynamicProperties(
 	var fieldErrors []apperr.FieldError
 	normalized := make(map[string]json.RawMessage, len(values))
 	for code, value := range values {
+		if code == "sellerPhone" || code == "phone" {
+			if isJSONNull(value) {
+				continue
+			}
+			var str string
+			if err := json.Unmarshal(value, &str); err == nil && strings.TrimSpace(str) != "" {
+				trimmed, _ := json.Marshal(strings.TrimSpace(str))
+				normalized[code] = trimmed
+			}
+			continue
+		}
 		def, ok := byCode[code]
 		if !ok {
 			fieldErrors = append(fieldErrors, apperr.FieldError{

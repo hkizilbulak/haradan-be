@@ -131,7 +131,13 @@ func mapPublicCard(v domainadvert.PublicCard) generated.PublishedAdvertCard {
 		IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt, IsFeatured: v.IsFeatured, FeaturedUntil: v.FeaturedUntil,
 		IsFavorite: v.IsFavorite, ViewCount: v.ViewCount}
 }
-func mapPublicDetail(v domainadvert.PublicDetail) generated.PublishedAdvertDetailResponse {
+type publicDetailJSON struct {
+	generated.PublishedAdvertDetailResponse
+	SellerPhone *string    `json:"sellerPhone,omitempty"`
+	SellerID    *uuid.UUID `json:"sellerId,omitempty"`
+}
+
+func mapPublicDetail(v domainadvert.PublicDetail) publicDetailJSON {
 	media := make([]generated.PublicMediaItem, 0, len(v.Media))
 	for i := range v.Media {
 		m := v.Media[i]
@@ -145,12 +151,18 @@ func mapPublicDetail(v domainadvert.PublicDetail) generated.PublishedAdvertDetai
 	if v.Horse != nil {
 		horse = &generated.HorseSelectionItem{Id: v.Horse.ID, OriginalName: v.Horse.Name, TjkNumber: stringValue(v.Horse.TJKNumber)}
 	}
-	return generated.PublishedAdvertDetailResponse{Id: v.ID, Title: v.Title, Description: v.Description, Price: mapPublicMoney(v.Price), PublishedAt: v.PublishedAt,
-		Category: generated.PublicCategorySummary{Id: v.CategoryID, Name: v.CategoryName, Slug: v.CategorySlug},
-		Location: generated.PublicLocationSummary{DistrictId: v.DistrictID, DistrictName: v.DistrictName, ProvinceId: v.ProvinceID, ProvinceName: v.ProvinceName},
-		Horse:    horse, Media: media, Properties: props, PackageCode: mapPackageCode(v.PackageCode), PackageDisplayName: v.PackageDisplayName,
-		PackageBadgeText: v.PackageBadgeText, IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt,
-		IsFeatured: v.IsFeatured, FeaturedUntil: v.FeaturedUntil, IsFavorite: v.IsFavorite, ViewCount: v.ViewCount}
+	return publicDetailJSON{
+		PublishedAdvertDetailResponse: generated.PublishedAdvertDetailResponse{
+			Id: v.ID, Title: v.Title, Description: v.Description, Price: mapPublicMoney(v.Price), PublishedAt: v.PublishedAt,
+			Category: generated.PublicCategorySummary{Id: v.CategoryID, Name: v.CategoryName, Slug: v.CategorySlug},
+			Location: generated.PublicLocationSummary{DistrictId: v.DistrictID, DistrictName: v.DistrictName, ProvinceId: v.ProvinceID, ProvinceName: v.ProvinceName},
+			Horse:    horse, Media: media, Properties: props, PackageCode: mapPackageCode(v.PackageCode), PackageDisplayName: v.PackageDisplayName,
+			PackageBadgeText: v.PackageBadgeText, IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt,
+			IsFeatured: v.IsFeatured, FeaturedUntil: v.FeaturedUntil, IsFavorite: v.IsFavorite, ViewCount: v.ViewCount,
+		},
+		SellerPhone: v.SellerPhone,
+		SellerID:    v.SellerID,
+	}
 }
 func mapPublicMedia(v *domainadvert.PublicMedia) *generated.PublicMediaItem {
 	if v == nil {

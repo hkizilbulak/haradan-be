@@ -101,12 +101,13 @@ WHERE a.id = $1 AND a.status = 'PUBLISHED' AND a.deleted_at IS NULL`
 		return domainadvert.PublicDetail{}, apperr.Internal(fmt.Errorf("get published advert: %w", pg.SanitizeErr(err)))
 	}
 	const metadata = `
-SELECT a.description, a.address, c.name, c.slug, d.name, p.name, h.id, h.original_name, h.tjk_number, a.properties
+SELECT a.description, a.address, c.name, c.slug, d.name, p.name, h.id, h.original_name, h.tjk_number, a.properties, u.phone, a.owner_user_id
 FROM hrd_adverts a
 LEFT JOIN hrd_categories c ON c.id = a.category_id
 LEFT JOIN hrd_districts d ON d.id = a.district_id
 LEFT JOIN hrd_provinces p ON p.id = d.province_id
 LEFT JOIN hrd_horses h ON h.id = a.horse_id
+LEFT JOIN hrd_users u ON u.id = a.owner_user_id
 WHERE a.id = $1`
 	var out domainadvert.PublicDetail
 	out.PublicCard = card
@@ -121,8 +122,10 @@ WHERE a.id = $1`
 		horseName      *string
 		horseTJKNumber *string
 		props          []byte
+		userPhone      *string
+		ownerUserID    *uuid.UUID
 	)
-	if err := r.db.QueryRow(ctx, metadata, advertID).Scan(&desc, &addr, &catName, &catSlug, &distName, &provName, &horseID, &horseName, &horseTJKNumber, &props); err != nil {
+	if err := r.db.QueryRow(ctx, metadata, advertID).Scan(&desc, &addr, &catName, &catSlug, &distName, &provName, &horseID, &horseName, &horseTJKNumber, &props, &userPhone, &ownerUserID); err != nil {
 		return domainadvert.PublicDetail{}, apperr.Internal(fmt.Errorf("get published advert metadata: %w", pg.SanitizeErr(err)))
 	}
 	if desc != nil {
@@ -146,6 +149,21 @@ WHERE a.id = $1`
 	if horseID != nil && horseName != nil {
 		out.Horse = &domainadvert.PublicHorse{ID: *horseID, Name: *horseName, TJKNumber: horseTJKNumber}
 	}
+	if len(props) > 0 && string(props) != "null" {
+		var propMap map[string]any
+		if err := json.Unmarshal(props, &propMap); err == nil {
+			if sp, ok := propMap["sellerPhone"].(string); ok && sp != "" {
+				out.SellerPhone = &sp
+			} else if ph, ok := propMap["phone"].(string); ok && ph != "" {
+				out.SellerPhone = &ph
+			}
+		}
+	}
+	if out.SellerPhone == nil && userPhone != nil && *userPhone != "" {
+		out.SellerPhone = userPhone
+	}
+	out.SellerID = ownerUserID
+
 	media, err := r.listPublicMedia(ctx, advertID)
 	if err != nil {
 		return domainadvert.PublicDetail{}, err
