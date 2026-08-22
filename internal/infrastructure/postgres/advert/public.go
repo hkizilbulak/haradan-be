@@ -199,9 +199,9 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) featured ON true
 LEFT JOIN LATERAL (
-  SELECT am.asset_id, am.display_order, am.is_cover, COALESCE(v.object_key, ma.master_object_key) AS object_key
+  SELECT am.asset_id, am.display_order, am.is_cover, COALESCE(v.object_key, ma.master_object_key, ma.raw_object_key) AS object_key
   FROM hrd_advert_media am
-  JOIN hrd_media_assets ma ON ma.id = am.asset_id AND ma.lifecycle_status = 'MASTER_READY'
+  JOIN hrd_media_assets ma ON ma.id = am.asset_id AND ma.lifecycle_status NOT IN ('VALIDATION_FAILED', 'CLEANUP_CANDIDATE', 'DELETING', 'PHYSICALLY_DELETED')
   LEFT JOIN hrd_media_variants v ON v.asset_id = ma.id AND v.transform_profile = 'SEARCH' AND v.lifecycle_status = 'READY'
   WHERE am.advert_id = a.id
   ORDER BY (v.object_key IS NOT NULL) DESC, am.is_cover DESC, am.display_order ASC, am.asset_id ASC
@@ -285,8 +285,8 @@ func scanPublicCard(row interface{ Scan(...any) error }) (domainadvert.PublicCar
 
 func (r *Repository) listPublicMedia(ctx context.Context, advertID uuid.UUID) ([]domainadvert.PublicMedia, error) {
 	rows, err := r.db.Query(ctx, `
-SELECT am.asset_id, am.display_order, am.is_cover, COALESCE(v.object_key, ma.master_object_key)
-FROM hrd_advert_media am JOIN hrd_media_assets ma ON ma.id = am.asset_id AND ma.lifecycle_status = 'MASTER_READY'
+SELECT am.asset_id, am.display_order, am.is_cover, COALESCE(v.object_key, ma.master_object_key, ma.raw_object_key, '')
+FROM hrd_advert_media am JOIN hrd_media_assets ma ON ma.id = am.asset_id AND ma.lifecycle_status NOT IN ('VALIDATION_FAILED', 'CLEANUP_CANDIDATE', 'DELETING', 'PHYSICALLY_DELETED')
 LEFT JOIN hrd_media_variants v ON v.asset_id = ma.id AND v.transform_profile = 'DETAIL' AND v.lifecycle_status = 'READY'
 WHERE am.advert_id = $1 ORDER BY am.display_order, am.asset_id`, advertID)
 	if err != nil {

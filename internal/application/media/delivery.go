@@ -91,7 +91,39 @@ func (s *Service) ResolvePublicDelivery(ctx context.Context, assetID uuid.UUID, 
 		break
 	}
 	if match == nil {
-		return PublicDelivery{}, apperr.NotFound(publicMediaNotFoundMessage)
+		var fallbackKey *string
+		if asset.MasterObjectKey != nil && strings.TrimSpace(*asset.MasterObjectKey) != "" {
+			fallbackKey = asset.MasterObjectKey
+		} else if asset.RawObjectKey != nil && strings.TrimSpace(*asset.RawObjectKey) != "" &&
+			(asset.LifecycleStatus == domainmedia.AssetUploaded ||
+				asset.LifecycleStatus == domainmedia.AssetValidating ||
+				asset.LifecycleStatus == domainmedia.AssetMasterReady) {
+			fallbackKey = asset.RawObjectKey
+		}
+
+		if fallbackKey == nil {
+			return PublicDelivery{}, apperr.NotFound(publicMediaNotFoundMessage)
+		}
+
+		ct := "image/jpeg"
+		if asset.ContentType != nil && strings.TrimSpace(*asset.ContentType) != "" {
+			ct = strings.TrimSpace(*asset.ContentType)
+		} else {
+			hints := decodeAssetHints(asset.TechnicalMetadata)
+			if strings.TrimSpace(hints.DeclaredContentType) != "" {
+				ct = strings.TrimSpace(hints.DeclaredContentType)
+			}
+		}
+
+		out := PublicDelivery{
+			AssetID:      assetID,
+			Profile:      profile,
+			ObjectKey:    *fallbackKey,
+			ContentType:  ct,
+			ByteSize:     asset.ByteSize,
+			CacheControl: "public, max-age=300",
+		}
+		return out, nil
 	}
 
 	out := PublicDelivery{
