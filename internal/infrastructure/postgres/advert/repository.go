@@ -320,7 +320,7 @@ WHERE id = $1
   AND owner_user_id = $2
   AND version = $3
   AND deleted_at IS NULL
-  AND status IN ('DRAFT', 'CHANGES_REQUESTED')
+  AND status IN ('DRAFT', 'CHANGES_REQUESTED', 'PUBLISHED')
 RETURNING ` + advertColumns
 
 	amount, currency := splitMoney(patch.Price)
@@ -376,7 +376,7 @@ WHERE id = $1
   AND owner_user_id = $2
   AND version = $3
   AND deleted_at IS NULL
-  AND status IN ('DRAFT', 'CHANGES_REQUESTED')
+  AND status IN ('DRAFT', 'CHANGES_REQUESTED', 'PUBLISHED')
 RETURNING ` + advertColumns
 
 	return r.updateOne(ctx, "replace advert properties", q,

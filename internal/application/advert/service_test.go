@@ -450,9 +450,17 @@ func TestUpdateAdvertDraftDetailsStaleVersion(t *testing.T) {
 
 func TestUpdateAdvertDraftDetailsInvalidState(t *testing.T) {
 	f := newFixture(t)
-	published := f.seed(t, f.owner, domainadvert.StatusPublished, nil)
+	sold := f.seed(t, f.owner, domainadvert.StatusSold, nil)
 
-	_, err := f.svc.UpdateAdvertDraftDetails(context.Background(), f.owner, published.ID, appadvert.UpdateDetailsInput{
+	_, err := f.svc.UpdateAdvertDraftDetails(context.Background(), f.owner, sold.ID, appadvert.UpdateDetailsInput{
+		ExpectedVersion: 1,
+		TitleSet:        true,
+		Title:           ptr("Yeni"),
+	})
+	requireCode(t, err, apperr.CodeInvalidState)
+
+	pending := f.seed(t, f.owner, domainadvert.StatusPendingReview, nil)
+	_, err = f.svc.UpdateAdvertDraftDetails(context.Background(), f.owner, pending.ID, appadvert.UpdateDetailsInput{
 		ExpectedVersion: 1,
 		TitleSet:        true,
 		Title:           ptr("Yeni"),
@@ -466,6 +474,15 @@ func TestUpdateAdvertDraftDetailsInvalidState(t *testing.T) {
 		Title:           ptr("Düzeltildi"),
 	}); err != nil {
 		t.Fatalf("CHANGES_REQUESTED must stay editable: %v", err)
+	}
+
+	published := f.seed(t, f.owner, domainadvert.StatusPublished, nil)
+	if _, err := f.svc.UpdateAdvertDraftDetails(context.Background(), f.owner, published.ID, appadvert.UpdateDetailsInput{
+		ExpectedVersion: 1,
+		TitleSet:        true,
+		Title:           ptr("Yayındaki Başlık Güncellendi"),
+	}); err != nil {
+		t.Fatalf("PUBLISHED must be editable: %v", err)
 	}
 }
 

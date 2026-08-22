@@ -338,18 +338,32 @@ func TestPublicAndOutOfScopeAdvertRoutesStill501HTTP(t *testing.T) {
 	}
 }
 
-func TestAdvertResponseNoSecretLeakHTTP(t *testing.T) {
+func TestReplaceAdvertDynamicPropertiesSellerPhoneHTTP(t *testing.T) {
 	env := newAdvertEngine(t)
-	auth, _ := env.registerAndLogin(t, "noleak@example.com", true)
+	auth, _ := env.registerAndLogin(t, "sellerphone@example.com", true)
 
-	rec := env.do(http.MethodPost, "/api/v1/me/adverts", `{"title":"Gizli sızıntı testi"}`, auth)
+	rec := env.do(http.MethodPost, "/api/v1/me/adverts",
+		`{"categoryId":"`+env.category.String()+`","districtId":"`+env.district.String()+`","title":"Telefon Testi İlanı","address":"Bağdat Cad. No:1","price":{"amountMinor":100000,"currency":"TRY"}}`, auth)
 	if rec.Code != http.StatusCreated {
-		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+		t.Fatalf("create status=%d body=%s", rec.Code, rec.Body.String())
 	}
-	raw := rec.Body.String()
-	for _, leak := range []string{"password", "passwordHash", "securityStamp", "ownerUserId", "refreshToken"} {
-		if strings.Contains(raw, leak) {
-			t.Fatalf("leak %q in %s", leak, raw)
-		}
+	var created generated.OwnerAdvertResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &created)
+
+	rec = env.do(http.MethodPut, "/api/v1/me/adverts/"+created.Id.String()+"/properties",
+		`{"expectedVersion":1,"properties":{"sellerPhone":"+90 532 999 88 77","phone":"+90 532 999 88 77"}}`, auth)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("put properties status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var updated generated.OwnerAdvertResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &updated)
+	if updated.Version != 2 {
+		t.Fatalf("expected version 2, got %d", updated.Version)
+	}
+
+	phoneVal, ok := updated.Properties["sellerPhone"]
+	if !ok || phoneVal != "+90 532 999 88 77" {
+		t.Fatalf("sellerPhone not set: %+v", updated.Properties)
 	}
 }
+

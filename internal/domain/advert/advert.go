@@ -175,7 +175,7 @@ func (a Advert) IsDeleted() bool { return a.DeletedAt != nil }
 
 // CanOwnerEditDetails reports whether the owner may edit core content fields.
 func CanOwnerEditDetails(s Status) bool {
-	return s == StatusDraft || s == StatusChangesRequested
+	return s == StatusDraft || s == StatusChangesRequested || s == StatusPublished
 }
 
 // CanOwnerChangeCategory reports whether the owner may change the category.

@@ -561,7 +561,7 @@ WHERE id = $1
   AND owner_user_id = $2
   AND media_version = $3
   AND deleted_at IS NULL
-  AND status IN ('DRAFT', 'CHANGES_REQUESTED')
+  AND status IN ('DRAFT', 'CHANGES_REQUESTED', 'PUBLISHED')
 RETURNING media_version`
 
 	var newVersion int
