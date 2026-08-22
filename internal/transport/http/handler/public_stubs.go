@@ -71,11 +71,11 @@ func (s *Server) ListHomepageShowcase(c *gin.Context, params generated.ListHomep
 		respondError(c, s.logger, err)
 		return
 	}
-	items := make([]generated.PublishedAdvertCard, 0, len(out.Items))
+	items := make([]publicCardJSON, 0, len(out.Items))
 	for _, item := range out.Items {
-		items = append(items, mapPublicCard(item))
+		items = append(items, mapPublicCardJSON(item))
 	}
-	c.JSON(http.StatusOK, generated.HomepageShowcaseResponse{Items: items, Seed: out.Seed})
+	c.JSON(http.StatusOK, homepageShowcaseJSON{Items: items, Seed: out.Seed})
 }
 
 func (s *Server) ListHomepageUrgent(c *gin.Context, params generated.ListHomepageUrgentParams) {
@@ -117,12 +117,35 @@ func publicActor(c *gin.Context) *uuid.UUID {
 	return &id
 }
 
-func mapPublicPage(v appadvert.PublicSearchResult) generated.PublishedAdvertSearchResponse {
-	items := make([]generated.PublishedAdvertCard, 0, len(v.Items))
-	for _, item := range v.Items {
-		items = append(items, mapPublicCard(item))
+type publicCardJSON struct {
+	generated.PublishedAdvertCard
+	Properties map[string]any `json:"properties,omitempty"`
+}
+
+type publicSearchPageJSON struct {
+	Items      []publicCardJSON `json:"items"`
+	NextCursor *string          `json:"nextCursor,omitempty"`
+	HasMore    bool             `json:"hasMore"`
+}
+
+type homepageShowcaseJSON struct {
+	Items []publicCardJSON `json:"items"`
+	Seed  string           `json:"seed"`
+}
+
+func mapPublicCardJSON(v domainadvert.PublicCard) publicCardJSON {
+	return publicCardJSON{
+		PublishedAdvertCard: mapPublicCard(v),
+		Properties:          v.Properties,
 	}
-	return generated.PublishedAdvertSearchResponse{Items: items, HasMore: v.HasMore, NextCursor: v.NextCursor}
+}
+
+func mapPublicPage(v appadvert.PublicSearchResult) publicSearchPageJSON {
+	items := make([]publicCardJSON, 0, len(v.Items))
+	for _, item := range v.Items {
+		items = append(items, mapPublicCardJSON(item))
+	}
+	return publicSearchPageJSON{Items: items, HasMore: v.HasMore, NextCursor: v.NextCursor}
 }
 func mapPublicCard(v domainadvert.PublicCard) generated.PublishedAdvertCard {
 	return generated.PublishedAdvertCard{Id: v.ID, CategoryId: v.CategoryID, DistrictId: v.DistrictID, ProvinceId: v.ProvinceID,

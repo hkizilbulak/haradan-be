@@ -27,6 +27,7 @@ type PublicCard struct {
 	IsFavorite         *bool
 	SearchPriority     int
 	ViewCount          int
+	Properties         map[string]any
 }
 type PublicMedia struct {
 	AssetID      uuid.UUID

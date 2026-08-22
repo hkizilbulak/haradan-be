@@ -191,7 +191,7 @@ SELECT a.id, a.category_id, a.district_id, d.province_id, a.horse_id, a.title,
        CASE WHEN ` + actorArg + `::uuid IS NULL THEN NULL ELSE EXISTS (
            SELECT 1 FROM hrd_favorites f WHERE f.advert_id = a.id AND f.user_id = ` + actorArg + `
        ) END,
-       a.view_count
+       a.view_count, a.properties
 FROM hrd_adverts a
 LEFT JOIN hrd_districts d ON d.id = a.district_id
 
@@ -275,11 +275,17 @@ func scanPublicCard(row interface{ Scan(...any) error }) (domainadvert.PublicCar
 	var coverOrder *int
 	var coverIsCover *bool
 	var coverKey *string
+	var rawProps []byte
 	if err := row.Scan(&card.ID, &card.CategoryID, &card.DistrictID, &card.ProvinceID, &card.HorseID, &card.Title,
 		&amount, &currency, &card.PublishedAt, &coverAsset, &coverOrder, &coverIsCover, &coverKey,
 		&card.PackageCode, &card.PackageDisplayName, &card.PackageBadgeText, &card.SearchPriority,
-		&card.IsUrgent, &card.UrgentActivatedAt, &card.IsFeatured, &card.FeaturedUntil, &card.IsFavorite, &card.ViewCount); err != nil {
+		&card.IsUrgent, &card.UrgentActivatedAt, &card.IsFeatured, &card.FeaturedUntil, &card.IsFavorite, &card.ViewCount,
+		&rawProps); err != nil {
 		return card, err
+	}
+	card.Properties = map[string]any{}
+	if len(rawProps) > 0 && string(rawProps) != "null" {
+		_ = json.Unmarshal(rawProps, &card.Properties)
 	}
 	if amount != nil && currency != nil {
 		card.Price = &domainadvert.Money{AmountMinor: *amount, Currency: *currency}

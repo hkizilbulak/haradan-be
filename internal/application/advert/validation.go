@@ -226,7 +226,19 @@ func normalizePropertyValue(def domaincatalog.Property, value json.RawMessage) (
 	case "BOOLEAN":
 		var b bool
 		if err := json.Unmarshal(value, &b); err != nil {
-			return nil, &apperr.FieldError{Field: field, Message: "Doğru/yanlış değeri bekleniyor."}
+			var s string
+			if sErr := json.Unmarshal(value, &s); sErr == nil {
+				s = strings.ToLower(strings.TrimSpace(s))
+				if s == "true" || s == "1" {
+					b = true
+				} else if s == "false" || s == "0" {
+					b = false
+				} else {
+					return nil, &apperr.FieldError{Field: field, Message: "Doğru/yanlış değeri bekleniyor."}
+				}
+			} else {
+				return nil, &apperr.FieldError{Field: field, Message: "Doğru/yanlış değeri bekleniyor."}
+			}
 		}
 		return json.RawMessage(strconv.FormatBool(b)), nil
 
@@ -273,7 +285,7 @@ func optionAllowed(options json.RawMessage, value string) bool {
 		if err := json.Unmarshal(entry, &obj); err != nil {
 			continue
 		}
-		for _, key := range []string{"value", "code"} {
+		for _, key := range []string{"value", "code", "label"} {
 			if raw, ok := obj[key]; ok {
 				if s, ok := decodeString(raw); ok && s == value {
 					return true
@@ -299,8 +311,17 @@ func decodeNumber(raw json.RawMessage) (json.Number, bool) {
 	if err := dec.Decode(&v); err != nil {
 		return "", false
 	}
-	num, ok := v.(json.Number)
-	return num, ok
+	if num, ok := v.(json.Number); ok {
+		return num, true
+	}
+	if s, ok := v.(string); ok {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return "", false
+		}
+		return json.Number(s), true
+	}
+	return "", false
 }
 
 func isJSONNull(raw json.RawMessage) bool {
