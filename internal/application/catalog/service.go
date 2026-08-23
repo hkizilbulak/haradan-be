@@ -84,6 +84,12 @@ func (s *Service) GetCategoryFormDefinition(ctx context.Context, categoryID uuid
 	if err != nil {
 		return FormDefinition{}, apperr.WrapInternal(err)
 	}
+	if len(props) == 0 && cat.ParentID != nil {
+		parentProps, parentErr := s.repo.ListFormProperties(ctx, *cat.ParentID)
+		if parentErr == nil && len(parentProps) > 0 {
+			props = parentProps
+		}
+	}
 	if props == nil {
 		props = []domaincatalog.Property{}
 	}
@@ -303,10 +309,21 @@ func (s *Service) ListCategoryPropertiesAdmin(ctx context.Context, categoryID uu
 	if err != nil {
 		return nil, err
 	}
-	if _, err := r.GetCategoryAdmin(ctx, categoryID); err != nil {
+	cat, err := r.GetCategoryAdmin(ctx, categoryID)
+	if err != nil {
 		return nil, err
 	}
-	return r.ListPropertiesAdmin(ctx, categoryID)
+	props, err := r.ListPropertiesAdmin(ctx, categoryID)
+	if err != nil {
+		return nil, err
+	}
+	if len(props) == 0 && cat.ParentID != nil {
+		parentProps, parentErr := r.ListPropertiesAdmin(ctx, *cat.ParentID)
+		if parentErr == nil && len(parentProps) > 0 {
+			return parentProps, nil
+		}
+	}
+	return props, nil
 }
 func (s *Service) CreateCategoryProperty(ctx context.Context, p domaincatalog.Property, sortOrder *int) (domaincatalog.Property, error) {
 	r, err := s.admin()
