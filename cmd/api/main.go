@@ -21,6 +21,7 @@ import (
 	appbanner "github.com/hkizilbulak/haradan-be/internal/application/banner"
 	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
+	appcomment "github.com/hkizilbulak/haradan-be/internal/application/comment"
 	appemail "github.com/hkizilbulak/haradan-be/internal/application/email"
 	appfavorite "github.com/hkizilbulak/haradan-be/internal/application/favorite"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
@@ -331,6 +332,11 @@ func run() error {
 		log.Info("paytr checkout enabled", "testMode", cfg.PayTRTestMode)
 	}
 
+	commentSvc, err := appcomment.NewPostgresService(db.Pool())
+	if err != nil {
+		return fmt.Errorf("comment service: %w", err)
+	}
+
 	srvHandler := handler.NewServer(
 		log, db, geoSvc, catalogSvc, horseSvc, advertSvc, mediaSvc, favoriteSvc,
 		packagingSvc, campaignSvc, campaignPackages, notificationSvc, authSvc, notificationInboxSvc,
@@ -340,7 +346,8 @@ func run() error {
 		WithTJKService(tjkSvc).
 		WithEmailTemplateDiscovery(emailDiscovery).
 		WithJobAdminService(jobAdminSvc).
-		WithPayTRService(paytrSvc)
+		WithPayTRService(paytrSvc).
+		WithCommentService(commentSvc)
 	engine := router.New(srvHandler, log, router.Options{
 		AuthService:        authSvc,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -53,6 +54,29 @@ func (m *memoryRepo) InsertComment(ctx context.Context, c domaincomment.Comment)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.comments[c.ID] = c
+	return nil
+}
+
+func (m *memoryRepo) FindCommentByID(ctx context.Context, commentID uuid.UUID) (domaincomment.Comment, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	c, ok := m.comments[commentID]
+	if !ok || c.DeletedAt != nil {
+		return domaincomment.Comment{}, apperr.NotFound("comment not found")
+	}
+	return c, nil
+}
+
+func (m *memoryRepo) DeleteComment(ctx context.Context, commentID uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	c, ok := m.comments[commentID]
+	if !ok || c.DeletedAt != nil {
+		return apperr.NotFound("comment not found")
+	}
+	now := time.Now().UTC()
+	c.DeletedAt = &now
+	m.comments[commentID] = c
 	return nil
 }
 

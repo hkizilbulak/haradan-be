@@ -31,6 +31,7 @@ func TestCreateComment_Success(t *testing.T) {
 	commentID := uuid.New()
 	userID := uuid.New()
 	advertID := uuid.New()
+	ratingVal := 5
 
 	repo.AddAdvert(appcomment.AdvertStatusResult{
 		ID:     advertID,
@@ -49,6 +50,7 @@ func TestCreateComment_Success(t *testing.T) {
 		UserID:   userID,
 		AdvertID: advertID,
 		Content:  "  Harika bir at ilanı, detaylar çok temiz!  ",
+		Rating:   &ratingVal,
 	})
 
 	if err != nil {
@@ -61,11 +63,47 @@ func TestCreateComment_Success(t *testing.T) {
 	if res.Comment.Content != "Harika bir at ilanı, detaylar çok temiz!" {
 		t.Errorf("expected trimmed content, got %s", res.Comment.Content)
 	}
+	if res.Comment.Rating == nil || *res.Comment.Rating != 5 {
+		t.Errorf("expected rating 5, got %v", res.Comment.Rating)
+	}
 	if res.Comment.Status != domaincomment.StatusPublished {
 		t.Errorf("expected PUBLISHED status, got %s", res.Comment.Status)
 	}
 	if res.AuthorName != "Ahmet K." {
 		t.Errorf("expected author name 'Ahmet K.', got '%s'", res.AuthorName)
+	}
+}
+
+
+func TestCreateComment_RatingOnly_Success(t *testing.T) {
+	repo := appcomment.NewMemoryRepository()
+	userID := uuid.New()
+	advertID := uuid.New()
+	ratingVal := 4
+
+	repo.AddAdvert(appcomment.AdvertStatusResult{
+		ID:     advertID,
+		Status: "PUBLISHED",
+	})
+	repo.AddUser(userID, "Mehmet D.")
+
+	svc := appcomment.NewMemoryService(repo)
+	ctx := context.Background()
+	res, err := svc.CreateComment(ctx, appcomment.CreateCommentInput{
+		UserID:   userID,
+		AdvertID: advertID,
+		Content:  "",
+		Rating:   &ratingVal,
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error for rating only: %v", err)
+	}
+	if res.Comment.Content != "" {
+		t.Errorf("expected empty content, got %s", res.Comment.Content)
+	}
+	if res.Comment.Rating == nil || *res.Comment.Rating != 4 {
+		t.Errorf("expected rating 4, got %v", res.Comment.Rating)
 	}
 }
 
@@ -165,5 +203,58 @@ func TestListComments_Pagination(t *testing.T) {
 	}
 	if len(resPage2.Items) != 1 {
 		t.Errorf("expected 1 item for offset=2 limit=2, got %d", len(resPage2.Items))
+	}
+}
+
+func TestDeleteComment_SuccessAndUnauthorized(t *testing.T) {
+	repo := appcomment.NewMemoryRepository()
+	advertID := uuid.New()
+	user1 := uuid.New()
+	user2 := uuid.New()
+
+	repo.AddAdvert(appcomment.AdvertStatusResult{
+		ID:     advertID,
+		Status: "PUBLISHED",
+	})
+	repo.AddUser(user1, "Ahmet K.")
+	repo.AddUser(user2, "Mehmet Y.")
+
+	svc := appcomment.NewMemoryService(repo)
+	ctx := context.Background()
+
+	created, err := svc.CreateComment(ctx, appcomment.CreateCommentInput{
+		UserID:   user1,
+		AdvertID: advertID,
+		Content:  "Silinecek yorum",
+	})
+	if err != nil {
+		t.Fatalf("failed to create comment: %v", err)
+	}
+
+	// User2 tries to delete User1's comment -> ErrUnauthorizedCommentAction
+	err = svc.DeleteComment(ctx, advertID, created.Comment.ID, user2)
+	if !errors.Is(err, domaincomment.ErrUnauthorizedCommentAction) {
+		t.Errorf("expected ErrUnauthorizedCommentAction, got %v", err)
+	}
+
+	// User1 deletes own comment -> success
+	err = svc.DeleteComment(ctx, advertID, created.Comment.ID, user1)
+	if err != nil {
+		t.Errorf("expected successful deletion, got %v", err)
+	}
+
+	// Deleting again -> ErrCommentNotFound
+	err = svc.DeleteComment(ctx, advertID, created.Comment.ID, user1)
+	if !errors.Is(err, domaincomment.ErrCommentNotFound) {
+		t.Errorf("expected ErrCommentNotFound on second delete, got %v", err)
+	}
+
+	// ListComments should not return deleted comment
+	res, err := svc.ListComments(ctx, advertID, 10, 0)
+	if err != nil {
+		t.Fatalf("unexpected list error: %v", err)
+	}
+	if res.TotalCount != 0 {
+		t.Errorf("expected total count 0 after delete, got %d", res.TotalCount)
 	}
 }

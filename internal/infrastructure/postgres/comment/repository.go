@@ -67,18 +67,61 @@ func (r *Repository) FindAdvertStatus(ctx context.Context, advertID uuid.UUID) (
 func (r *Repository) InsertComment(ctx context.Context, c domaincomment.Comment) error {
 	const query = `
 		INSERT INTO hrd_advert_comments (
-			id, advert_id, user_id, content, status, created_at, updated_at, deleted_at
+			id, advert_id, user_id, content, rating, status, created_at, updated_at, deleted_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8
+			$1, $2, $3, $4, $5, $6, $7, $8, $9
 		)
 	`
 	_, err := r.db.Exec(
 		ctx, query,
-		c.ID, c.AdvertID, c.UserID, c.Content, string(c.Status),
+		c.ID, c.AdvertID, c.UserID, c.Content, c.Rating, string(c.Status),
 		c.CreatedAt, c.UpdatedAt, c.DeletedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert advert comment: %w", err)
+	}
+	return nil
+}
+
+// FindCommentByID retrieves a comment by ID.
+func (r *Repository) FindCommentByID(ctx context.Context, commentID uuid.UUID) (domaincomment.Comment, error) {
+	const query = `
+		SELECT id, advert_id, user_id, COALESCE(content, ''), rating, status, created_at, updated_at, deleted_at
+		FROM hrd_advert_comments
+		WHERE id = $1
+	`
+	var (
+		c domaincomment.Comment
+		st string
+		rating *int
+	)
+	err := r.db.QueryRow(ctx, query, commentID).Scan(
+		&c.ID, &c.AdvertID, &c.UserID, &c.Content, &rating, &st, &c.CreatedAt, &c.UpdatedAt, &c.DeletedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domaincomment.Comment{}, apperr.NotFound("comment not found")
+	}
+	if err != nil {
+		return domaincomment.Comment{}, fmt.Errorf("query comment: %w", err)
+	}
+	c.Rating = rating
+	c.Status = domaincomment.Status(st)
+	return c, nil
+}
+
+// DeleteComment soft-deletes a comment by setting deleted_at.
+func (r *Repository) DeleteComment(ctx context.Context, commentID uuid.UUID) error {
+	const query = `
+		UPDATE hrd_advert_comments
+		SET deleted_at = NOW(), updated_at = NOW()
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+	tag, err := r.db.Exec(ctx, query, commentID)
+	if err != nil {
+		return fmt.Errorf("delete advert comment: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("comment not found")
 	}
 	return nil
 }
@@ -125,7 +168,7 @@ func (r *Repository) ListCommentsByAdvert(ctx context.Context, advertID uuid.UUI
 	}
 
 	const selectQuery = `
-		SELECT c.id, c.advert_id, c.user_id, c.content, c.status, c.created_at, c.updated_at, c.deleted_at,
+		SELECT c.id, c.advert_id, c.user_id, c.content, c.rating, c.status, c.created_at, c.updated_at, c.deleted_at,
 		       COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), COALESCE(u.email, '')
 		FROM hrd_advert_comments c
 		LEFT JOIN hrd_users u ON u.id = c.user_id
@@ -145,14 +188,16 @@ func (r *Repository) ListCommentsByAdvert(ctx context.Context, advertID uuid.UUI
 			c domaincomment.Comment
 			st string
 			fn, ln, em string
+			rating *int
 		)
 		err := rows.Scan(
-			&c.ID, &c.AdvertID, &c.UserID, &c.Content, &st, &c.CreatedAt, &c.UpdatedAt, &c.DeletedAt,
+			&c.ID, &c.AdvertID, &c.UserID, &c.Content, &rating, &st, &c.CreatedAt, &c.UpdatedAt, &c.DeletedAt,
 			&fn, &ln, &em,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("scan advert comment: %w", err)
 		}
+		c.Rating = rating
 		c.Status = domaincomment.Status(st)
 
 		authorName := "Kullanıcı"
@@ -176,3 +221,4 @@ func (r *Repository) ListCommentsByAdvert(ctx context.Context, advertID uuid.UUI
 
 	return result, total, nil
 }
+

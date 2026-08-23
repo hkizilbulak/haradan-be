@@ -99,6 +99,55 @@ paths:
         - INTERNAL_ERROR
         '503':
         - DEPENDENCY_UNAVAILABLE
+  "/v1/adverts/{advertId}/comments/{commentId}":
+    delete:
+      operationId: DeleteAdvertComment
+      summary: DeleteAdvertComment
+      description: 'Exposure USER_AUTH. Actor: User. Deletes own advert comment.'
+      tags:
+      - AdvertsPublic
+      x-function-id: ADVERT-COMMENT-03
+      x-exposure: USER_AUTH
+      x-actor: User
+      parameters:
+      - name: advertId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: commentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        '403':
+        - FORBIDDEN
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
   "/v1/admin/adverts/moderation":
     get:
       operationId: ListAdvertModerationQueue

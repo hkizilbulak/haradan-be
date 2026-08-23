@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/router"
 )
@@ -126,8 +128,8 @@ func TestLoginNotImplemented(t *testing.T) {
 
 func TestOpenAPIRouteCount(t *testing.T) {
 	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)), fakeDeps{})
-	if got := router.CountOpenAPIRoutes(engine); got != 132 {
-		t.Fatalf("route count=%d, want 132", got)
+	if got := router.CountOpenAPIRoutes(engine); got != 133 {
+		t.Fatalf("route count=%d, want 133", got)
 	}
 }
 
@@ -140,5 +142,17 @@ func TestWrongBasePathsNotFound(t *testing.T) {
 		if rec.Code != http.StatusNotFound {
 			t.Fatalf("%s status=%d", path, rec.Code)
 		}
+	}
+}
+
+func TestDeleteCommentRouteMatch(t *testing.T) {
+	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)), fakeDeps{})
+	advID := uuid.New()
+	cmtID := uuid.New()
+	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/v1/adverts/%s/comments/%s", advID, cmtID), nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501 Not Implemented for Foundation router, got %d (body=%s)", rec.Code, rec.Body.String())
 	}
 }

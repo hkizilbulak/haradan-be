@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
 	domaincomment "github.com/hkizilbulak/haradan-be/internal/domain/comment"
 )
 
@@ -46,17 +47,10 @@ func NewService(repo Repository, opts ...Option) *Service {
 	return s
 }
 
-// CreateCommentInput is the DTO for creating a comment.
-type CreateCommentInput struct {
-	UserID   uuid.UUID
-	AdvertID uuid.UUID
-	Content  string
-}
-
 // CreateComment validates and posts a new comment on a published advert.
 func (s *Service) CreateComment(ctx context.Context, input CreateCommentInput) (CommentRow, error) {
-	// 1. Validate content
-	sanitizedContent, err := domaincomment.Validate(input.Content)
+	// 1. Validate content and rating
+	sanitizedContent, err := domaincomment.Validate(input.Content, input.Rating)
 	if err != nil {
 		return CommentRow{}, err
 	}
@@ -83,6 +77,7 @@ func (s *Service) CreateComment(ctx context.Context, input CreateCommentInput) (
 		AdvertID:  input.AdvertID,
 		UserID:    input.UserID,
 		Content:   sanitizedContent,
+		Rating:    input.Rating,
 		Status:    domaincomment.StatusPublished,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -139,4 +134,25 @@ func (s *Service) ListComments(ctx context.Context, advertID uuid.UUID, limit, o
 		Items:      rows,
 		TotalCount: total,
 	}, nil
+}
+
+// DeleteComment validates ownership and deletes the comment.
+func (s *Service) DeleteComment(ctx context.Context, advertID, commentID, userID uuid.UUID) error {
+	cmt, err := s.repo.FindCommentByID(ctx, commentID)
+	if err != nil {
+		if apErr, ok := apperr.As(err); ok && apErr.Kind == apperr.KindNotFound {
+			return domaincomment.ErrCommentNotFound
+		}
+		return err
+	}
+	if cmt.DeletedAt != nil {
+		return domaincomment.ErrCommentNotFound
+	}
+	if cmt.AdvertID != advertID {
+		return domaincomment.ErrCommentNotFound
+	}
+	if cmt.UserID != userID {
+		return domaincomment.ErrUnauthorizedCommentAction
+	}
+	return s.repo.DeleteComment(ctx, commentID)
 }

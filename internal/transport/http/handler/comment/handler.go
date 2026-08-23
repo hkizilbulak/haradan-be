@@ -2,6 +2,7 @@
 package comment
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -55,6 +56,7 @@ func (h *Handler) ListAdvertComments(c *gin.Context, advertID uuid.UUID, params 
 			UserId:     item.Comment.UserID,
 			AuthorName: item.AuthorName,
 			Content:    item.Comment.Content,
+			Rating:     item.Comment.Rating,
 			CreatedAt:  item.Comment.CreatedAt,
 		})
 	}
@@ -77,20 +79,34 @@ func (h *Handler) CreateAdvertComment(c *gin.Context, advertID uuid.UUID) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.respond(c, h.logger, apperr.Validation("geçersiz istek gövdesi", apperr.FieldError{
 			Field:   "content",
-			Message: "yorum metni zorunludur",
+			Message: "yorum metni veya puan belirtilmelidir",
 		}))
 		return
+	}
+
+	contentStr := ""
+	if req.Content != nil {
+		contentStr = *req.Content
 	}
 
 	row, err := h.svc.CreateComment(c.Request.Context(), appcomment.CreateCommentInput{
 		UserID:   p.UserID,
 		AdvertID: advertID,
-		Content:  req.Content,
+		Content:  contentStr,
+		Rating:   req.Rating,
 	})
 	if err != nil {
 		if err == domaincomment.ErrEmptyContent || err == domaincomment.ErrContentTooLong {
 			h.respond(c, h.logger, apperr.Validation(err.Error(), apperr.FieldError{
 				Field:   "content",
+				Message: err.Error(),
+			}))
+			return
+		}
+
+		if err == domaincomment.ErrInvalidRating {
+			h.respond(c, h.logger, apperr.Validation("puan 1 ile 5 arasında olmalıdır", apperr.FieldError{
+				Field:   "rating",
 				Message: err.Error(),
 			}))
 			return
@@ -109,6 +125,34 @@ func (h *Handler) CreateAdvertComment(c *gin.Context, advertID uuid.UUID) {
 		UserId:     row.Comment.UserID,
 		AuthorName: row.AuthorName,
 		Content:    row.Comment.Content,
+		Rating:     row.Comment.Rating,
 		CreatedAt:  row.Comment.CreatedAt,
 	})
 }
+
+// DeleteAdvertComment handles DELETE /v1/adverts/{advertId}/comments/{commentId}.
+func (h *Handler) DeleteAdvertComment(c *gin.Context, advertID uuid.UUID, commentID uuid.UUID) {
+	p, ok := authctx.PrincipalFromContext(c.Request.Context())
+	if !ok || p.UserID == uuid.Nil {
+		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "giriş yapmanız gerekmektedir"))
+		return
+	}
+
+	err := h.svc.DeleteComment(c.Request.Context(), advertID, commentID, p.UserID)
+	if err != nil {
+		if errors.Is(err, domaincomment.ErrUnauthorizedCommentAction) {
+			h.respond(c, h.logger, apperr.Forbidden(apperr.CodeForbidden, "yalnızca kendi yaptığınız yorumları silebilirsiniz"))
+			return
+		}
+		if errors.Is(err, domaincomment.ErrCommentNotFound) {
+			h.respond(c, h.logger, apperr.NotFound("yorum bulunamadı"))
+			return
+		}
+		h.respond(c, h.logger, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+	c.Writer.WriteHeaderNow()
+}
+

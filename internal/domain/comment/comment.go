@@ -11,10 +11,12 @@ import (
 
 // Domain errors
 var (
-	ErrCommentNotFound      = errors.New("comment not found")
-	ErrEmptyContent         = errors.New("comment content cannot be empty")
-	ErrContentTooLong       = errors.New("comment content exceeds maximum allowed length of 1000 characters")
-	ErrAdvertNotCommentable = errors.New("comments are only allowed on published adverts")
+	ErrCommentNotFound            = errors.New("comment not found")
+	ErrEmptyContent               = errors.New("lütfen bir yorum yazınız veya puan veriniz")
+	ErrContentTooLong             = errors.New("comment content exceeds maximum allowed length of 1000 characters")
+	ErrInvalidRating              = errors.New("rating must be between 1 and 5")
+	ErrAdvertNotCommentable       = errors.New("comments are only allowed on published adverts")
+	ErrUnauthorizedCommentAction  = errors.New("yalnızca kendi yorumunuzu silebilirsiniz")
 )
 
 const MaxContentLength = 1000
@@ -43,20 +45,26 @@ type Comment struct {
 	AdvertID  uuid.UUID
 	UserID    uuid.UUID
 	Content   string
+	Rating    *int
 	Status    Status
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt *time.Time
 }
 
-// Validate checks content rules for a comment.
-func Validate(content string) (string, error) {
+// Validate checks content and rating rules for a comment.
+func Validate(content string, rating *int) (string, error) {
 	trimmed := strings.TrimSpace(content)
-	if trimmed == "" {
+	if trimmed == "" && rating == nil {
 		return "", ErrEmptyContent
 	}
 	if len([]rune(trimmed)) > MaxContentLength {
 		return "", ErrContentTooLong
 	}
+	if rating != nil && (*rating < 1 || *rating > 5) {
+		return "", ErrInvalidRating
+	}
 	return trimmed, nil
 }
+
+

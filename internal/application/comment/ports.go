@@ -15,6 +15,14 @@ type CommentRow struct {
 	AuthorName string
 }
 
+// CreateCommentInput is the DTO for creating a comment.
+type CreateCommentInput struct {
+	UserID   uuid.UUID
+	AdvertID uuid.UUID
+	Content  string
+	Rating   *int
+}
+
 // AdvertStatusResult represents advert information required to check if a comment can be posted.
 type AdvertStatusResult struct {
 	ID        uuid.UUID
@@ -32,6 +40,12 @@ type Repository interface {
 
 	// GetUserAuthorName returns a formatted author display name for a given user ID.
 	GetUserAuthorName(ctx context.Context, userID uuid.UUID) (string, error)
+
+	// FindCommentByID retrieves a comment by its ID.
+	FindCommentByID(ctx context.Context, commentID uuid.UUID) (domaincomment.Comment, error)
+
+	// DeleteComment soft-deletes a comment.
+	DeleteComment(ctx context.Context, commentID uuid.UUID) error
 
 	// ListCommentsByAdvert returns published comments for an advert ordered by created_at DESC.
 	ListCommentsByAdvert(ctx context.Context, advertID uuid.UUID, limit, offset int) ([]CommentRow, int, error)

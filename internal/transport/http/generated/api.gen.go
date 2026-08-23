@@ -904,6 +904,7 @@ type AdvertCommentItem struct {
 	Content    string             `json:"content"`
 	CreatedAt  time.Time          `json:"createdAt"`
 	Id         openapi_types.UUID `json:"id"`
+	Rating     *int               `json:"rating,omitempty"`
 	UserId     openapi_types.UUID `json:"userId"`
 }
 
@@ -1149,9 +1150,11 @@ type CreateAdminUserRequest struct {
 
 // CreateAdvertCommentRequest defines model for CreateAdvertCommentRequest.
 type CreateAdvertCommentRequest struct {
-	// Content Comment content (1-1000 characters)
-	Content string `json:"content"`
+	// Content Comment content (0-1000 characters)
+	Content *string `json:"content,omitempty"`
+	Rating  *int    `json:"rating,omitempty"`
 }
+
 
 // CreateAdvertDraftRequest defines model for CreateAdvertDraftRequest.
 type CreateAdvertDraftRequest struct {
@@ -2903,6 +2906,9 @@ type ServerInterface interface {
 	// CreateAdvertComment CreateAdvertComment
 	// (POST /v1/adverts/{advertId}/comments)
 	CreateAdvertComment(c *gin.Context, advertId AdvertIdPath)
+	// DeleteAdvertComment DeleteAdvertComment
+	// (DELETE /v1/adverts/{advertId}/comments/{commentId})
+	DeleteAdvertComment(c *gin.Context, advertId AdvertIdPath, commentId openapi_types.UUID)
 	// DeactivateAdvertUrgent DeactivateAdvertUrgent
 	// (DELETE /v1/adverts/{advertId}/urgent)
 	DeactivateAdvertUrgent(c *gin.Context, advertId AdvertIdPath)
@@ -5040,6 +5046,40 @@ func (siw *ServerInterfaceWrapper) CreateAdvertComment(c *gin.Context) {
 	siw.Handler.CreateAdvertComment(c, advertId)
 }
 
+// DeleteAdvertComment operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdvertComment(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "advertId" -------------
+	var advertId AdvertIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "commentId" -------------
+	var commentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "commentId", c.Param("commentId"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter commentId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAdvertComment(c, advertId, commentId)
+}
+
 // DeactivateAdvertUrgent operation middleware
 func (siw *ServerInterfaceWrapper) DeactivateAdvertUrgent(c *gin.Context) {
 
@@ -6532,6 +6572,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/adverts/:advertId", wrapper.GetPublishedAdvertDetail)
 	router.GET(options.BaseURL+"/v1/adverts/:advertId/comments", wrapper.ListAdvertComments)
 	router.POST(options.BaseURL+"/v1/adverts/:advertId/comments", wrapper.CreateAdvertComment)
+	router.DELETE(options.BaseURL+"/v1/adverts/:advertId/comments/:commentId", wrapper.DeleteAdvertComment)
 	router.GET(options.BaseURL+"/v1/packages", wrapper.ListPublicPackages)
 	router.GET(options.BaseURL+"/v1/homepage/new-adverts", wrapper.ListHomepageNewAdverts)
 	router.GET(options.BaseURL+"/v1/homepage/showcase", wrapper.ListHomepageShowcase)

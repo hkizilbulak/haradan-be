@@ -189,6 +189,7 @@ var CouponUserProtectedRoutes = []ProtectedRoute{
 
 var AdvertCommentProtectedRoutes = []ProtectedRoute{
 	{Method: "POST", Path: "/api/v1/adverts/:advertId/comments"},
+	{Method: "DELETE", Path: "/api/v1/adverts/:advertId/comments/:commentId"},
 }
 
 // Selective runs Bearer access-token auth only for the listed method+path pairs.

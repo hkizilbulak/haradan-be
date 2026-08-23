@@ -24,3 +24,12 @@ func (s *Server) CreateAdvertComment(c *gin.Context, advertId uuid.UUID) {
 	}
 	s.comment.CreateAdvertComment(c, advertId)
 }
+
+// DeleteAdvertComment implements DELETE /v1/adverts/:advertId/comments/:commentId.
+func (s *Server) DeleteAdvertComment(c *gin.Context, advertId uuid.UUID, commentId uuid.UUID) {
+	if s.comment == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.comment.DeleteAdvertComment(c, advertId, commentId)
+}
