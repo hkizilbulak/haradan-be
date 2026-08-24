@@ -56,7 +56,6 @@ func (h *Handler) ListAdvertComments(c *gin.Context, advertID uuid.UUID, params 
 			UserId:     item.Comment.UserID,
 			AuthorName: item.AuthorName,
 			Content:    item.Comment.Content,
-			Rating:     item.Comment.Rating,
 			CreatedAt:  item.Comment.CreatedAt,
 		})
 	}
@@ -84,16 +83,10 @@ func (h *Handler) CreateAdvertComment(c *gin.Context, advertID uuid.UUID) {
 		return
 	}
 
-	contentStr := ""
-	if req.Content != nil {
-		contentStr = *req.Content
-	}
-
 	row, err := h.svc.CreateComment(c.Request.Context(), appcomment.CreateCommentInput{
 		UserID:   p.UserID,
 		AdvertID: advertID,
-		Content:  contentStr,
-		Rating:   req.Rating,
+		Content:  req.Content,
 	})
 	if err != nil {
 		if err == domaincomment.ErrEmptyContent || err == domaincomment.ErrContentTooLong {
@@ -125,7 +118,6 @@ func (h *Handler) CreateAdvertComment(c *gin.Context, advertID uuid.UUID) {
 		UserId:     row.Comment.UserID,
 		AuthorName: row.AuthorName,
 		Content:    row.Comment.Content,
-		Rating:     row.Comment.Rating,
 		CreatedAt:  row.Comment.CreatedAt,
 	})
 }

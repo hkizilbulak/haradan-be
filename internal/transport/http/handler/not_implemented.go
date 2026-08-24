@@ -24,6 +24,10 @@ func (NotImplementedServer) GetHealth(c *gin.Context) {
 	respondNotImplemented(c)
 }
 
+func (NotImplementedServer) ListStudFarms(c *gin.Context, params generated.ListStudFarmsParams) {
+	respondNotImplemented(c)
+}
+
 func (NotImplementedServer) ListBannersAdmin(c *gin.Context, params generated.ListBannersAdminParams) {
 	respondNotImplemented(c)
 }

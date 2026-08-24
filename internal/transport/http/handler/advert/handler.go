@@ -56,7 +56,6 @@ func (h *Handler) CreateAdvertDraft(c *gin.Context) {
 		HorseID:     req.HorseId,
 		Title:       req.Title,
 		Description: req.Description,
-		Address:     req.Address,
 		Price:       moneyInput(req.Price),
 	}
 	out, err := h.svc.CreateAdvertDraft(c.Request.Context(), ownerID, in)
@@ -317,7 +316,6 @@ func mapOwnerAdvertBase(v domainadvert.OwnerView) generated.OwnerAdvertResponse 
 		HorseId:                v.HorseID,
 		Title:                  v.Title,
 		Description:            v.Description,
-		Address:                v.Address,
 		Price:                  moneyResponse(v.Price),
 		Properties:             props,
 		Media:                  media,

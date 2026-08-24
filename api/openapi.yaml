@@ -68,6 +68,8 @@ tags:
   description: BO scheduled job definition management
 - name: AdvertsUrgent
   description: Owner or admin URGENT feature activation
+- name: StudFarms
+  description: Stud Farms BO endpoints
 paths:
   "/health":
     get:
@@ -6635,6 +6637,231 @@ paths:
         - INTERNAL_ERROR
 
 
+  "/v1/stud-farms/{studFarmId}":
+    delete:
+      operationId: DeleteStudFarm
+      summary: DeleteStudFarm
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - StudFarms
+      x-function-id: STUD-FARM-ADMIN-03
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      parameters:
+      - name: studFarmId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          $ref: "#/components/responses/Forbidden"
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '500':
+          $ref: "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+  "/v1/stud-farms/{studFarmId}/notes":
+    get:
+      operationId: ListStudFarmNotes
+      summary: ListStudFarmNotes
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - StudFarms
+      x-function-id: STUD-FARM-ADMIN-05
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      parameters:
+      - name: studFarmId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudFarmNoteListResponse"
+        '400':
+          $ref: "#/components/responses/BadRequest"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          $ref: "#/components/responses/Forbidden"
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '500':
+          $ref: "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+    post:
+      operationId: AddStudFarmNote
+      summary: AddStudFarmNote
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - StudFarms
+      x-function-id: STUD-FARM-ADMIN-04
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      parameters:
+      - name: studFarmId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudFarmNoteCreateRequest"
+      responses:
+        '201':
+          description: Created
+        '400':
+          $ref: "#/components/responses/BadRequest"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          $ref: "#/components/responses/Forbidden"
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '500':
+          $ref: "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+  "/v1/stud-farms":
+    post:
+      operationId: CreateStudFarm
+      summary: CreateStudFarm
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO.'
+      tags:
+      - StudFarms
+      x-function-id: STUDFARM-02
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudFarmCreateRequest"
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudFarmItem"
+        '400':
+          $ref: "#/components/responses/BadRequest"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          $ref: "#/components/responses/Forbidden"
+        '500':
+          $ref: "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        '500':
+        - INTERNAL_ERROR
+
+    get:
+      operationId: ListStudFarms
+      summary: ListStudFarms
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO.'
+      tags:
+      - StudFarms
+      x-function-id: STUDFARM-01
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/StudFarmListResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/Cursor"
+      - "$ref": "#/components/parameters/Limit"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '500':
+        - INTERNAL_ERROR
+
 components:
   securitySchemes:
     BearerAuth:
@@ -6791,6 +7018,144 @@ components:
         format: uuid
 
   schemas:
+    StudFarmItem:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - first_name
+      - last_name
+      - email
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        latest_interview_date:
+          type: string
+          format: date-time
+          nullable: true
+        interviewer_name:
+          type: string
+          nullable: true
+        interview_notes_url:
+          type: string
+          nullable: true
+        interview_count:
+          type: integer
+
+    StudFarmNoteResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - interview_date
+      - interviewer_name
+      - notes
+      - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        interview_date:
+          type: string
+          format: date-time
+        interviewer_name:
+          type: string
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    StudFarmNoteListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudFarmNoteResponse"
+    StudFarmNoteCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - interview_date
+      - interviewer_name
+      - notes
+      properties:
+        interview_date:
+          type: string
+          format: date-time
+        interviewer_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        notes:
+          type: string
+          minLength: 1
+    StudFarmCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - first_name
+      - last_name
+      - email
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+    StudFarmListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/StudFarmItem"
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+
     CreateAdvertCommentRequest:
       type: object
       required:

@@ -904,7 +904,6 @@ type AdvertCommentItem struct {
 	Content    string             `json:"content"`
 	CreatedAt  time.Time          `json:"createdAt"`
 	Id         openapi_types.UUID `json:"id"`
-	Rating     *int               `json:"rating,omitempty"`
 	UserId     openapi_types.UUID `json:"userId"`
 }
 
@@ -1150,15 +1149,12 @@ type CreateAdminUserRequest struct {
 
 // CreateAdvertCommentRequest defines model for CreateAdvertCommentRequest.
 type CreateAdvertCommentRequest struct {
-	// Content Comment content (0-1000 characters)
-	Content *string `json:"content,omitempty"`
-	Rating  *int    `json:"rating,omitempty"`
+	// Content Comment content (1-1000 characters)
+	Content string `json:"content"`
 }
-
 
 // CreateAdvertDraftRequest defines model for CreateAdvertDraftRequest.
 type CreateAdvertDraftRequest struct {
-	Address     *string             `json:"address,omitempty"`
 	CategoryId  *openapi_types.UUID `json:"categoryId,omitempty"`
 	Description *string             `json:"description,omitempty"`
 	DistrictId  *openapi_types.UUID `json:"districtId,omitempty"`
@@ -1608,7 +1604,6 @@ type OwnerAdvertListResponse struct {
 
 // OwnerAdvertResponse defines model for OwnerAdvertResponse.
 type OwnerAdvertResponse struct {
-	Address                *string                  `json:"address"`
 	CategoryClearedWarning *bool                    `json:"categoryClearedWarning,omitempty"`
 	CategoryId             *openapi_types.UUID      `json:"categoryId"`
 	DeletedAt              *time.Time               `json:"deletedAt"`
@@ -1793,7 +1788,6 @@ type PublishedAdvertCard struct {
 
 // PublishedAdvertDetailResponse defines model for PublishedAdvertDetailResponse.
 type PublishedAdvertDetailResponse struct {
-	Address       *string               `json:"address"`
 	Category      PublicCategorySummary `json:"category"`
 	Description   string                `json:"description"`
 	FeaturedUntil *time.Time            `json:"featuredUntil,omitempty"`
@@ -1983,6 +1977,59 @@ type StatusHistoryItem struct {
 	ToStatus    AdvertStatus        `json:"toStatus"`
 }
 
+// StudFarmCreateRequest defines model for StudFarmCreateRequest.
+type StudFarmCreateRequest struct {
+	Email     openapi_types.Email `json:"email"`
+	FirstName string              `json:"first_name"`
+	LastName  string              `json:"last_name"`
+	Location  *string             `json:"location,omitempty"`
+	Phone     *string             `json:"phone,omitempty"`
+}
+
+// StudFarmItem defines model for StudFarmItem.
+type StudFarmItem struct {
+	CreatedAt           time.Time          `json:"created_at"`
+	Email               string             `json:"email"`
+	FirstName           string             `json:"first_name"`
+	Id                  openapi_types.UUID `json:"id"`
+	InterviewCount      *int               `json:"interview_count,omitempty"`
+	InterviewNotesUrl   *string            `json:"interview_notes_url,omitempty"`
+	InterviewerName     *string            `json:"interviewer_name,omitempty"`
+	LastName            string             `json:"last_name"`
+	LatestInterviewDate *time.Time         `json:"latest_interview_date,omitempty"`
+	Location            *string            `json:"location,omitempty"`
+	Phone               *string            `json:"phone,omitempty"`
+	UpdatedAt           time.Time          `json:"updated_at"`
+}
+
+// StudFarmListResponse defines model for StudFarmListResponse.
+type StudFarmListResponse struct {
+	HasMore    bool           `json:"hasMore"`
+	Items      []StudFarmItem `json:"items"`
+	NextCursor *string        `json:"nextCursor,omitempty"`
+}
+
+// StudFarmNoteCreateRequest defines model for StudFarmNoteCreateRequest.
+type StudFarmNoteCreateRequest struct {
+	InterviewDate   time.Time `json:"interview_date"`
+	InterviewerName string    `json:"interviewer_name"`
+	Notes           string    `json:"notes"`
+}
+
+// StudFarmNoteListResponse defines model for StudFarmNoteListResponse.
+type StudFarmNoteListResponse struct {
+	Items []StudFarmNoteResponse `json:"items"`
+}
+
+// StudFarmNoteResponse defines model for StudFarmNoteResponse.
+type StudFarmNoteResponse struct {
+	CreatedAt       time.Time          `json:"created_at"`
+	Id              openapi_types.UUID `json:"id"`
+	InterviewDate   time.Time          `json:"interview_date"`
+	InterviewerName string             `json:"interviewer_name"`
+	Notes           string             `json:"notes"`
+}
+
 // SuccessMessageResponse defines model for SuccessMessageResponse.
 type SuccessMessageResponse struct {
 	Message string `json:"message"`
@@ -2080,7 +2127,6 @@ type UpdateAdminUserRequest struct {
 
 // UpdateAdvertDraftDetailsRequest defines model for UpdateAdvertDraftDetailsRequest.
 type UpdateAdvertDraftDetailsRequest struct {
-	Address         *string             `json:"address,omitempty"`
 	Description     *string             `json:"description,omitempty"`
 	DistrictId      *openapi_types.UUID `json:"districtId,omitempty"`
 	ExpectedVersion int                 `json:"expectedVersion"`
@@ -2511,6 +2557,13 @@ type SearchProvincesParams struct {
 	Limit *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListStudFarmsParams defines parameters for ListStudFarms.
+type ListStudFarmsParams struct {
+	// Cursor Opaque cursor
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ApproveAdvertJSONRequestBody defines body for ApproveAdvert for application/json ContentType.
 type ApproveAdvertJSONRequestBody = ExpectedVersionRequest
 
@@ -2690,6 +2743,12 @@ type ChangePasswordJSONRequestBody = ChangePasswordRequest
 
 // InitiateMediaUploadJSONRequestBody defines body for InitiateMediaUpload for application/json ContentType.
 type InitiateMediaUploadJSONRequestBody = InitiateMediaUploadRequest
+
+// CreateStudFarmJSONRequestBody defines body for CreateStudFarm for application/json ContentType.
+type CreateStudFarmJSONRequestBody = StudFarmCreateRequest
+
+// AddStudFarmNoteJSONRequestBody defines body for AddStudFarmNote for application/json ContentType.
+type AddStudFarmNoteJSONRequestBody = StudFarmNoteCreateRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -2908,7 +2967,7 @@ type ServerInterface interface {
 	CreateAdvertComment(c *gin.Context, advertId AdvertIdPath)
 	// DeleteAdvertComment DeleteAdvertComment
 	// (DELETE /v1/adverts/{advertId}/comments/{commentId})
-	DeleteAdvertComment(c *gin.Context, advertId AdvertIdPath, commentId openapi_types.UUID)
+	DeleteAdvertComment(c *gin.Context, advertId openapi_types.UUID, commentId openapi_types.UUID)
 	// DeactivateAdvertUrgent DeactivateAdvertUrgent
 	// (DELETE /v1/adverts/{advertId}/urgent)
 	DeactivateAdvertUrgent(c *gin.Context, advertId AdvertIdPath)
@@ -3089,6 +3148,21 @@ type ServerInterface interface {
 	// ListDistrictsByProvince ListDistrictsByProvince
 	// (GET /v1/provinces/{provinceId}/districts)
 	ListDistrictsByProvince(c *gin.Context, provinceId ProvinceIdPath)
+	// ListStudFarms ListStudFarms
+	// (GET /v1/stud-farms)
+	ListStudFarms(c *gin.Context, params ListStudFarmsParams)
+	// CreateStudFarm CreateStudFarm
+	// (POST /v1/stud-farms)
+	CreateStudFarm(c *gin.Context)
+	// DeleteStudFarm DeleteStudFarm
+	// (DELETE /v1/stud-farms/{studFarmId})
+	DeleteStudFarm(c *gin.Context, studFarmId openapi_types.UUID)
+	// ListStudFarmNotes ListStudFarmNotes
+	// (GET /v1/stud-farms/{studFarmId}/notes)
+	ListStudFarmNotes(c *gin.Context, studFarmId openapi_types.UUID)
+	// AddStudFarmNote AddStudFarmNote
+	// (POST /v1/stud-farms/{studFarmId}/notes)
+	AddStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -5053,7 +5127,7 @@ func (siw *ServerInterfaceWrapper) DeleteAdvertComment(c *gin.Context) {
 	_ = err
 
 	// ------------- Path parameter "advertId" -------------
-	var advertId AdvertIdPath
+	var advertId openapi_types.UUID
 
 	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
 	if err != nil {
@@ -6497,6 +6571,129 @@ func (siw *ServerInterfaceWrapper) ListDistrictsByProvince(c *gin.Context) {
 	siw.Handler.ListDistrictsByProvince(c, provinceId)
 }
 
+// ListStudFarms operation middleware
+func (siw *ServerInterfaceWrapper) ListStudFarms(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListStudFarmsParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", c.Request.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter cursor: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListStudFarms(c, params)
+}
+
+// CreateStudFarm operation middleware
+func (siw *ServerInterfaceWrapper) CreateStudFarm(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateStudFarm(c)
+}
+
+// DeleteStudFarm operation middleware
+func (siw *ServerInterfaceWrapper) DeleteStudFarm(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "studFarmId" -------------
+	var studFarmId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "studFarmId", c.Param("studFarmId"), &studFarmId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter studFarmId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteStudFarm(c, studFarmId)
+}
+
+// ListStudFarmNotes operation middleware
+func (siw *ServerInterfaceWrapper) ListStudFarmNotes(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "studFarmId" -------------
+	var studFarmId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "studFarmId", c.Param("studFarmId"), &studFarmId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter studFarmId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListStudFarmNotes(c, studFarmId)
+}
+
+// AddStudFarmNote operation middleware
+func (siw *ServerInterfaceWrapper) AddStudFarmNote(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "studFarmId" -------------
+	var studFarmId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "studFarmId", c.Param("studFarmId"), &studFarmId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter studFarmId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AddStudFarmNote(c, studFarmId)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -6525,6 +6722,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/health", wrapper.GetHealth)
+	router.DELETE(options.BaseURL+"/v1/adverts/:advertId/comments/:commentId", wrapper.DeleteAdvertComment)
 	router.GET(options.BaseURL+"/v1/admin/adverts/moderation", wrapper.ListAdvertModerationQueue)
 	router.GET(options.BaseURL+"/v1/admin/adverts/:advertId", wrapper.GetAdvertModerationDetail)
 	router.POST(options.BaseURL+"/v1/admin/adverts/:advertId/approve", wrapper.ApproveAdvert)
@@ -6572,7 +6770,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/adverts/:advertId", wrapper.GetPublishedAdvertDetail)
 	router.GET(options.BaseURL+"/v1/adverts/:advertId/comments", wrapper.ListAdvertComments)
 	router.POST(options.BaseURL+"/v1/adverts/:advertId/comments", wrapper.CreateAdvertComment)
-	router.DELETE(options.BaseURL+"/v1/adverts/:advertId/comments/:commentId", wrapper.DeleteAdvertComment)
 	router.GET(options.BaseURL+"/v1/packages", wrapper.ListPublicPackages)
 	router.GET(options.BaseURL+"/v1/homepage/new-adverts", wrapper.ListHomepageNewAdverts)
 	router.GET(options.BaseURL+"/v1/homepage/showcase", wrapper.ListHomepageShowcase)
@@ -6656,4 +6853,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/admin/jobs/:jobId/history", wrapper.ListAdminJobHistory)
 	router.DELETE(options.BaseURL+"/v1/adverts/:advertId/urgent", wrapper.DeactivateAdvertUrgent)
 	router.PUT(options.BaseURL+"/v1/adverts/:advertId/urgent", wrapper.ActivateAdvertUrgent)
+	router.DELETE(options.BaseURL+"/v1/stud-farms/:studFarmId", wrapper.DeleteStudFarm)
+	router.GET(options.BaseURL+"/v1/stud-farms/:studFarmId/notes", wrapper.ListStudFarmNotes)
+	router.POST(options.BaseURL+"/v1/stud-farms/:studFarmId/notes", wrapper.AddStudFarmNote)
+	router.GET(options.BaseURL+"/v1/stud-farms", wrapper.ListStudFarms)
+	router.POST(options.BaseURL+"/v1/stud-farms", wrapper.CreateStudFarm)
 }

@@ -1,6 +1,9 @@
 package handler
 
 import (
+	openapi_types "github.com/oapi-codegen/runtime/types"
+	"net/http"
+
 	"context"
 	"log/slog"
 
@@ -44,6 +47,8 @@ import (
 	couponhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/coupon"
 	appcomment "github.com/hkizilbulak/haradan-be/internal/application/comment"
 	commenthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/comment"
+	domainstudfarm "github.com/hkizilbulak/haradan-be/internal/domain/studfarm"
+	studfarmhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/studfarm"
 	apppaytr "github.com/hkizilbulak/haradan-be/internal/application/paytr"
 	paytrhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/paytr"
 )
@@ -78,6 +83,7 @@ type Server struct {
 	coupon       *couponhandler.Handler
 	comment      *commenthandler.Handler
 	paytr        *paytrhandler.Handler
+	studfarm     *studfarmhandler.Handler
 }
 
 func (s *Server) WithCommentService(svc *appcomment.Service) *Server {
@@ -97,6 +103,13 @@ func (s *Server) WithCouponService(svc *appcoupon.Service) *Server {
 func (s *Server) WithPayTRService(svc *apppaytr.Service) *Server {
 	if svc != nil {
 		s.paytr = paytrhandler.NewHandler(svc, s.logger, respondError)
+	}
+	return s
+}
+
+func (s *Server) WithStudFarmService(svc domainstudfarm.Service) *Server {
+	if svc != nil {
+		s.studfarm = studfarmhandler.NewHandler(svc, s.logger, respondError)
 	}
 	return s
 }
@@ -257,4 +270,40 @@ func NewServer(
 	return s
 }
 
+
+func (s *Server) CreateStudFarm(c *gin.Context) {
+	if s.studfarm != nil {
+		s.studfarm.CreateStudFarm(c)
+	} else {
+		c.JSON(501, gin.H{"error": "not implemented"})
+	}
+}
+
 var _ generated.ServerInterface = (*Server)(nil)
+
+
+func (s *Server) DeleteStudFarm(c *gin.Context, studFarmId openapi_types.UUID) {
+	if s.studfarm != nil {
+		s.studfarm.DeleteStudFarm(c, studFarmId)
+	} else {
+		c.Status(http.StatusNotImplemented)
+	}
+}
+
+
+func (s *Server) AddStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID) {
+	if s.studfarm != nil {
+		s.studfarm.AddStudFarmNote(c, studFarmId)
+	} else {
+		c.Status(http.StatusNotImplemented)
+	}
+}
+
+
+func (s *Server) ListStudFarmNotes(c *gin.Context, studFarmId openapi_types.UUID) {
+	if s.studfarm != nil {
+		s.studfarm.ListStudFarmNotes(c, studFarmId)
+	} else {
+		c.Status(http.StatusNotImplemented)
+	}
+}

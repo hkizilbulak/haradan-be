@@ -31,6 +31,7 @@ import (
 	appnotification "github.com/hkizilbulak/haradan-be/internal/application/notification"
 	apppackaging "github.com/hkizilbulak/haradan-be/internal/application/packaging"
 	apppaytr "github.com/hkizilbulak/haradan-be/internal/application/paytr"
+	appstudfarm "github.com/hkizilbulak/haradan-be/internal/application/studfarm"
 	apptjk "github.com/hkizilbulak/haradan-be/internal/application/tjk"
 	"github.com/hkizilbulak/haradan-be/internal/config"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
@@ -45,6 +46,7 @@ import (
 	pgjobdef "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/jobdef"
 	pgmedia "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/media"
 	pgpaytr "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/paytr"
+	pgstudfarm "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/studfarm"
 	pgtjk "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/tjk"
 	pguser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/user"
 	"github.com/hkizilbulak/haradan-be/internal/infrastructure/storage/s3storage"
@@ -337,6 +339,8 @@ func run() error {
 		return fmt.Errorf("comment service: %w", err)
 	}
 
+	studfarmSvc := appstudfarm.NewService(pgstudfarm.NewRepository(db.Pool()))
+
 	srvHandler := handler.NewServer(
 		log, db, geoSvc, catalogSvc, horseSvc, advertSvc, mediaSvc, favoriteSvc,
 		packagingSvc, campaignSvc, campaignPackages, notificationSvc, authSvc, notificationInboxSvc,
@@ -347,7 +351,8 @@ func run() error {
 		WithEmailTemplateDiscovery(emailDiscovery).
 		WithJobAdminService(jobAdminSvc).
 		WithPayTRService(paytrSvc).
-		WithCommentService(commentSvc)
+		WithCommentService(commentSvc).
+		WithStudFarmService(studfarmSvc)
 	engine := router.New(srvHandler, log, router.Options{
 		AuthService:        authSvc,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
