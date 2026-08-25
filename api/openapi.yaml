@@ -8203,6 +8203,9 @@ components:
           type: string
           format: uuid
           nullable: true
+        address:
+          type: string
+          nullable: true
         horseId:
           type: string
           format: uuid

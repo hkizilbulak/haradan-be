@@ -667,6 +667,37 @@ func TestReplaceAdvertDynamicProperties(t *testing.T) {
 		})
 		requireCode(t, err, apperr.CodeStaleVersion)
 	})
+
+	t.Run("subcategory inherits parent properties and matches case insensitively", func(t *testing.T) {
+		childCatID := uuid.New()
+		f.store.PutCategory(domaincatalog.Category{
+			ID:       childCatID,
+			ParentID: &f.category,
+			Slug:     "child-cat",
+			Name:     "Child Category",
+			IsActive: true,
+		}, 0, nil)
+		draft := f.seed(t, f.owner, domainadvert.StatusDraft, func(a *domainadvert.Advert) {
+			a.CategoryID = &childCatID
+		})
+		view, err := f.svc.ReplaceAdvertDynamicProperties(ctx, f.owner, draft.ID, appadvert.ReplacePropertiesInput{
+			ExpectedVersion: 1,
+			Properties:      json.RawMessage(`{"AGE":4,"Color":"bay","SellerPhone":"+905551234567"}`),
+		})
+		if err != nil {
+			if ae, ok := apperr.As(err); ok {
+				t.Fatalf("failed to replace properties on subcategory: %v, fields=%+v", err, ae.FieldErrors)
+			}
+			t.Fatalf("failed to replace properties on subcategory: %v", err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(view.Properties, &got); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if got["age"] != float64(4) || got["color"] != "BAY" {
+			t.Fatalf("got properties=%s", view.Properties)
+		}
+	})
 }
 
 func TestSoftDeleteAdvertDraft(t *testing.T) {

@@ -53,6 +53,7 @@ func (h *Handler) CreateAdvertDraft(c *gin.Context) {
 	in := appadvert.CreateDraftInput{
 		CategoryID:  req.CategoryId,
 		DistrictID:  req.DistrictId,
+		Address:     req.Address,
 		HorseID:     req.HorseId,
 		Title:       req.Title,
 		Description: req.Description,
