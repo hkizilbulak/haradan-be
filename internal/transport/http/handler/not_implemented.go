@@ -76,6 +76,10 @@ func (NotImplementedServer) SetCategoryActive(c *gin.Context, categoryId generat
 	respondNotImplemented(c)
 }
 
+func (NotImplementedServer) DeleteCategoryAdmin(c *gin.Context, categoryId generated.CategoryIdPath) {
+	respondNotImplemented(c)
+}
+
 func (NotImplementedServer) ListCategoryPropertiesAdmin(c *gin.Context, categoryId generated.CategoryIdPath) {
 	respondNotImplemented(c)
 }
@@ -93,6 +97,10 @@ func (NotImplementedServer) UpdateCategoryProperty(c *gin.Context, categoryId ge
 }
 
 func (NotImplementedServer) SetCategoryPropertyActive(c *gin.Context, categoryId generated.CategoryIdPath, propertyId generated.PropertyIdPath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) DeleteCategoryPropertyAdmin(c *gin.Context, categoryId generated.CategoryIdPath, propertyId generated.PropertyIdPath) {
 	respondNotImplemented(c)
 }
 

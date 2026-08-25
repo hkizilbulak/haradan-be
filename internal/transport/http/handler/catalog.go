@@ -48,6 +48,13 @@ func (s *Server) SetCategoryActive(c *gin.Context, id generated.CategoryIdPath) 
 	}
 	s.catalog.SetCategoryActive(c, id)
 }
+func (s *Server) DeleteCategoryAdmin(c *gin.Context, id generated.CategoryIdPath) {
+	if s.catalog == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.catalog.DeleteCategoryAdmin(c, id)
+}
 func (s *Server) ListCategoryPropertiesAdmin(c *gin.Context, id generated.CategoryIdPath) {
 	if s.catalog == nil {
 		respondNotImplemented(c)
@@ -82,6 +89,13 @@ func (s *Server) SetCategoryPropertyActive(c *gin.Context, id generated.Category
 		return
 	}
 	s.catalog.SetCategoryPropertyActive(c, id, pid)
+}
+func (s *Server) DeleteCategoryPropertyAdmin(c *gin.Context, id generated.CategoryIdPath, pid generated.PropertyIdPath) {
+	if s.catalog == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.catalog.DeleteCategoryPropertyAdmin(c, id, pid)
 }
 func (s *Server) ReparentCategory(c *gin.Context, id generated.CategoryIdPath) {
 	if s.catalog == nil {

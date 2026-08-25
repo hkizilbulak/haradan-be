@@ -128,8 +128,8 @@ func TestLoginNotImplemented(t *testing.T) {
 
 func TestOpenAPIRouteCount(t *testing.T) {
 	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)), fakeDeps{})
-	if got := router.CountOpenAPIRoutes(engine); got != 138 {
-		t.Fatalf("route count=%d, want 138", got)
+	if got := router.CountOpenAPIRoutes(engine); got != 140 {
+		t.Fatalf("route count=%d, want 140", got)
 	}
 }
 
@@ -156,3 +156,26 @@ func TestDeleteCommentRouteMatch(t *testing.T) {
 		t.Fatalf("expected 501 Not Implemented for Foundation router, got %d (body=%s)", rec.Code, rec.Body.String())
 	}
 }
+
+func TestDeleteCategoryPropertyRouteMatch(t *testing.T) {
+	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)), fakeDeps{})
+	catID := uuid.New()
+	propID := uuid.New()
+
+	// 1. DELETE category property
+	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/v1/admin/categories/%s/properties/%s", catID, propID), nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	if rec.Code == http.StatusNotFound {
+		t.Fatalf("DELETE property route returned 404 Not Found (route not registered)")
+	}
+
+	// 2. DELETE category
+	reqCat := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/v1/admin/categories/%s", catID), nil)
+	recCat := httptest.NewRecorder()
+	engine.ServeHTTP(recCat, reqCat)
+	if recCat.Code == http.StatusNotFound {
+		t.Fatalf("DELETE category route returned 404 Not Found (route not registered)")
+	}
+}
+

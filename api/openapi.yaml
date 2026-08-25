@@ -1059,6 +1059,57 @@ paths:
         - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
+    delete:
+      operationId: DeleteCategoryAdmin
+      summary: DeleteCategoryAdmin
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Hard delete category and its properties. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-07
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SuccessMessageResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/CategoryIdPath"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - CONFLICT
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
   "/v1/admin/categories/{categoryId}/active":
     post:
       operationId: SetCategoryActive
@@ -1337,6 +1388,58 @@ paths:
         '409':
         - STALE_VERSION
         - INVALID_STATE
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+    delete:
+      operationId: DeleteCategoryPropertyAdmin
+      summary: DeleteCategoryPropertyAdmin
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Hard delete category property. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminCatalog
+      x-function-id: ADMIN-CATALOG-13
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SuccessMessageResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/CategoryIdPath"
+      - "$ref": "#/components/parameters/PropertyIdPath"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - CONFLICT
         '422':
         - VALIDATION_ERROR
         '500':

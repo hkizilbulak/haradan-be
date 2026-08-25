@@ -49,6 +49,8 @@ type adminRepository interface {
 	UpdateProperty(context.Context, uuid.UUID, uuid.UUID, domaincatalog.PropertyPatch, int, time.Time) (domaincatalog.Property, error)
 	SetPropertyActive(context.Context, uuid.UUID, uuid.UUID, bool, int, time.Time) (domaincatalog.Property, error)
 	ReorderProperties(context.Context, []domaincatalog.ReorderItem, time.Time) error
+	HardDeleteCategory(context.Context, uuid.UUID) error
+	HardDeleteCategoryProperty(context.Context, uuid.UUID, uuid.UUID) error
 }
 
 // NewService constructs a Catalog application service.
@@ -472,3 +474,28 @@ func jsonOr(raw json.RawMessage, fallback string) json.RawMessage {
 	}
 	return raw
 }
+
+// DeleteCategoryAdmin permanently removes a category and its properties from the database.
+func (s *Service) DeleteCategoryAdmin(ctx context.Context, id uuid.UUID) error {
+	admin, ok := s.repo.(adminRepository)
+	if !ok {
+		return apperr.Internal(fmt.Errorf("catalog admin repo missing"))
+	}
+	if err := admin.HardDeleteCategory(ctx, id); err != nil {
+		return mapRepoErr(err)
+	}
+	return nil
+}
+
+// DeleteCategoryPropertyAdmin permanently removes a category property from the database.
+func (s *Service) DeleteCategoryPropertyAdmin(ctx context.Context, categoryID, propertyID uuid.UUID) error {
+	admin, ok := s.repo.(adminRepository)
+	if !ok {
+		return apperr.Internal(fmt.Errorf("catalog admin repo missing"))
+	}
+	if err := admin.HardDeleteCategoryProperty(ctx, categoryID, propertyID); err != nil {
+		return mapRepoErr(err)
+	}
+	return nil
+}
+

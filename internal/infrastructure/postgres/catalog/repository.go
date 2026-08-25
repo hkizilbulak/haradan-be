@@ -315,3 +315,31 @@ func (r *Repository) writeCategoryErr(err error, op string) error {
 	}
 	return apperr.Internal(fmt.Errorf("%s: %w", op, pg.SanitizeErr(err)))
 }
+
+// HardDeleteCategory permanently deletes a category and its properties from the database.
+func (r *Repository) HardDeleteCategory(ctx context.Context, id uuid.UUID) error {
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_category_properties WHERE category_id = $1`, id); err != nil {
+		return r.writeCategoryErr(err, "delete category properties")
+	}
+	tag, err := r.db.Exec(ctx, `DELETE FROM hrd_categories WHERE id = $1`, id)
+	if err != nil {
+		return r.writeCategoryErr(err, "delete category")
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("Kategori bulunamadı.")
+	}
+	return nil
+}
+
+// HardDeleteCategoryProperty permanently deletes a single category property from the database.
+func (r *Repository) HardDeleteCategoryProperty(ctx context.Context, categoryID, propID uuid.UUID) error {
+	tag, err := r.db.Exec(ctx, `DELETE FROM hrd_category_properties WHERE id = $1 AND category_id = $2`, propID, categoryID)
+	if err != nil {
+		return r.writeCategoryErr(err, "delete category property")
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("Kategori özelliği bulunamadı.")
+	}
+	return nil
+}
+

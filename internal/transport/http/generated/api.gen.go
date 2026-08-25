@@ -1497,6 +1497,7 @@ type MediaVariantStatusItem struct {
 
 // ModerationAdvertDetailResponse defines model for ModerationAdvertDetailResponse.
 type ModerationAdvertDetailResponse struct {
+	Address                *string                  `json:"address,omitempty"`
 	CategoryClearedWarning *bool                    `json:"categoryClearedWarning,omitempty"`
 	CategoryId             *openapi_types.UUID      `json:"categoryId"`
 	DeletedAt              *time.Time               `json:"deletedAt"`
@@ -2827,6 +2828,9 @@ type ServerInterface interface {
 	// ReorderCategories ReorderCategories
 	// (PUT /v1/admin/categories/reorder)
 	ReorderCategories(c *gin.Context)
+	// DeleteCategoryAdmin DeleteCategoryAdmin
+	// (DELETE /v1/admin/categories/{categoryId})
+	DeleteCategoryAdmin(c *gin.Context, categoryId CategoryIdPath)
 	// GetCategoryAdminDetail GetCategoryAdminDetail
 	// (GET /v1/admin/categories/{categoryId})
 	GetCategoryAdminDetail(c *gin.Context, categoryId CategoryIdPath)
@@ -2845,6 +2849,9 @@ type ServerInterface interface {
 	// ReorderCategoryProperties ReorderCategoryProperties
 	// (PUT /v1/admin/categories/{categoryId}/properties/reorder)
 	ReorderCategoryProperties(c *gin.Context, categoryId CategoryIdPath)
+	// DeleteCategoryPropertyAdmin DeleteCategoryPropertyAdmin
+	// (DELETE /v1/admin/categories/{categoryId}/properties/{propertyId})
+	DeleteCategoryPropertyAdmin(c *gin.Context, categoryId CategoryIdPath, propertyId PropertyIdPath)
 	// UpdateCategoryProperty UpdateCategoryProperty
 	// (PATCH /v1/admin/categories/{categoryId}/properties/{propertyId})
 	UpdateCategoryProperty(c *gin.Context, categoryId CategoryIdPath, propertyId PropertyIdPath)
@@ -3828,6 +3835,31 @@ func (siw *ServerInterfaceWrapper) ReorderCategories(c *gin.Context) {
 	siw.Handler.ReorderCategories(c)
 }
 
+// DeleteCategoryAdmin operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCategoryAdmin(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "categoryId" -------------
+	var categoryId CategoryIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "categoryId", c.Param("categoryId"), &categoryId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter categoryId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteCategoryAdmin(c, categoryId)
+}
+
 // GetCategoryAdminDetail operation middleware
 func (siw *ServerInterfaceWrapper) GetCategoryAdminDetail(c *gin.Context) {
 
@@ -3976,6 +4008,40 @@ func (siw *ServerInterfaceWrapper) ReorderCategoryProperties(c *gin.Context) {
 	}
 
 	siw.Handler.ReorderCategoryProperties(c, categoryId)
+}
+
+// DeleteCategoryPropertyAdmin operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCategoryPropertyAdmin(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "categoryId" -------------
+	var categoryId CategoryIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "categoryId", c.Param("categoryId"), &categoryId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter categoryId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "propertyId" -------------
+	var propertyId PropertyIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "propertyId", c.Param("propertyId"), &propertyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter propertyId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteCategoryPropertyAdmin(c, categoryId, propertyId)
 }
 
 // UpdateCategoryProperty operation middleware
@@ -6741,12 +6807,14 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/admin/categories", wrapper.ListCategoriesAdmin)
 	router.POST(options.BaseURL+"/v1/admin/categories", wrapper.CreateCategory)
 	router.PUT(options.BaseURL+"/v1/admin/categories/reorder", wrapper.ReorderCategories)
+	router.DELETE(options.BaseURL+"/v1/admin/categories/:categoryId", wrapper.DeleteCategoryAdmin)
 	router.GET(options.BaseURL+"/v1/admin/categories/:categoryId", wrapper.GetCategoryAdminDetail)
 	router.PATCH(options.BaseURL+"/v1/admin/categories/:categoryId", wrapper.UpdateCategory)
 	router.POST(options.BaseURL+"/v1/admin/categories/:categoryId/active", wrapper.SetCategoryActive)
 	router.GET(options.BaseURL+"/v1/admin/categories/:categoryId/properties", wrapper.ListCategoryPropertiesAdmin)
 	router.POST(options.BaseURL+"/v1/admin/categories/:categoryId/properties", wrapper.CreateCategoryProperty)
 	router.PUT(options.BaseURL+"/v1/admin/categories/:categoryId/properties/reorder", wrapper.ReorderCategoryProperties)
+	router.DELETE(options.BaseURL+"/v1/admin/categories/:categoryId/properties/:propertyId", wrapper.DeleteCategoryPropertyAdmin)
 	router.PATCH(options.BaseURL+"/v1/admin/categories/:categoryId/properties/:propertyId", wrapper.UpdateCategoryProperty)
 	router.POST(options.BaseURL+"/v1/admin/categories/:categoryId/properties/:propertyId/active", wrapper.SetCategoryPropertyActive)
 	router.POST(options.BaseURL+"/v1/admin/categories/:categoryId/reparent", wrapper.ReparentCategory)

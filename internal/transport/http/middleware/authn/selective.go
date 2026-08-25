@@ -160,6 +160,8 @@ var CatalogAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "PUT", Path: "/api/v1/admin/categories/:categoryId/properties/reorder"},
 	{Method: "PATCH", Path: "/api/v1/admin/categories/:categoryId/properties/:propertyId"},
 	{Method: "POST", Path: "/api/v1/admin/categories/:categoryId/properties/:propertyId/active"},
+	{Method: "DELETE", Path: "/api/v1/admin/categories/:categoryId"},
+	{Method: "DELETE", Path: "/api/v1/admin/categories/:categoryId/properties/:propertyId"},
 }
 
 // MediaAdminProtectedRoutes are admin media upload/status BO_AUTH routes.

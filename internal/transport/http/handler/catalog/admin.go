@@ -426,3 +426,28 @@ func mapAdminProperty(p domaincatalog.Property) (generated.AdminCategoryProperty
 	}
 	return out, nil
 }
+
+// DeleteCategoryAdmin handles DELETE /v1/admin/categories/{categoryId}.
+func (h *Handler) DeleteCategoryAdmin(c *gin.Context, id generated.CategoryIdPath) {
+	if !h.requireAdminBO(c) {
+		return
+	}
+	if err := h.svc.DeleteCategoryAdmin(c.Request.Context(), uuid.UUID(id)); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, generated.SuccessMessageResponse{Message: "Kategori başarıyla silindi."})
+}
+
+// DeleteCategoryPropertyAdmin handles DELETE /v1/admin/categories/{categoryId}/properties/{propertyId}.
+func (h *Handler) DeleteCategoryPropertyAdmin(c *gin.Context, catID generated.CategoryIdPath, propID generated.PropertyIdPath) {
+	if !h.requireAdminBO(c) {
+		return
+	}
+	if err := h.svc.DeleteCategoryPropertyAdmin(c.Request.Context(), uuid.UUID(catID), uuid.UUID(propID)); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, generated.SuccessMessageResponse{Message: "Kategori özelliği başarıyla silindi."})
+}
+
