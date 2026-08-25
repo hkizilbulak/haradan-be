@@ -46,8 +46,14 @@ func (h *Handler) CreateAdvertDraft(c *gin.Context) {
 	if !ok {
 		return
 	}
+	raw, err := c.GetRawData()
+	if err != nil || len(bytes.TrimSpace(raw)) == 0 {
+		h.respond(c, h.logger, apperr.BadRequest(apperr.CodeValidation, malformedBodyMessage))
+		return
+	}
 	var req generated.CreateAdvertDraftRequest
-	if !bind.JSONBody(c, &req) {
+	if err := json.Unmarshal(raw, &req); err != nil {
+		h.respond(c, h.logger, apperr.BadRequest(apperr.CodeValidation, malformedBodyMessage))
 		return
 	}
 	in := appadvert.CreateDraftInput{
@@ -57,6 +63,12 @@ func (h *Handler) CreateAdvertDraft(c *gin.Context) {
 		Title:       req.Title,
 		Description: req.Description,
 		Price:       moneyInput(req.Price),
+	}
+	var extra struct {
+		Address *string `json:"address"`
+	}
+	if err := json.Unmarshal(raw, &extra); err == nil && extra.Address != nil {
+		in.Address = extra.Address
 	}
 	out, err := h.svc.CreateAdvertDraft(c.Request.Context(), ownerID, in)
 	if err != nil {
