@@ -1155,6 +1155,7 @@ type CreateAdvertCommentRequest struct {
 
 // CreateAdvertDraftRequest defines model for CreateAdvertDraftRequest.
 type CreateAdvertDraftRequest struct {
+	Address     *string             `json:"address,omitempty"`
 	CategoryId  *openapi_types.UUID `json:"categoryId,omitempty"`
 	Description *string             `json:"description,omitempty"`
 	DistrictId  *openapi_types.UUID `json:"districtId,omitempty"`
@@ -1604,6 +1605,7 @@ type OwnerAdvertListResponse struct {
 
 // OwnerAdvertResponse defines model for OwnerAdvertResponse.
 type OwnerAdvertResponse struct {
+	Address                *string                  `json:"address,omitempty"`
 	CategoryClearedWarning *bool                    `json:"categoryClearedWarning,omitempty"`
 	CategoryId             *openapi_types.UUID      `json:"categoryId"`
 	DeletedAt              *time.Time               `json:"deletedAt"`
@@ -2127,6 +2129,7 @@ type UpdateAdminUserRequest struct {
 
 // UpdateAdvertDraftDetailsRequest defines model for UpdateAdvertDraftDetailsRequest.
 type UpdateAdvertDraftDetailsRequest struct {
+	Address         *string             `json:"address,omitempty"`
 	Description     *string             `json:"description,omitempty"`
 	DistrictId      *openapi_types.UUID `json:"districtId,omitempty"`
 	ExpectedVersion int                 `json:"expectedVersion"`

@@ -6657,6 +6657,8 @@ paths:
       responses:
         '204':
           description: No Content
+        '400':
+          $ref: "#/components/responses/BadRequest"
         '401':
           $ref: "#/components/responses/Unauthorized"
         '403':
@@ -6668,6 +6670,8 @@ paths:
       security:
       - BearerAuth: []
       x-error-codes:
+        '400':
+        - VALIDATION_ERROR
         '401':
         - UNAUTHENTICATED
         - SESSION_REVOKED
@@ -8126,6 +8130,9 @@ components:
           type: string
           format: uuid
           nullable: true
+        address:
+          type: string
+          nullable: true
         horseId:
           type: string
           format: uuid
@@ -8203,6 +8210,9 @@ components:
           type: string
           format: uuid
           nullable: true
+        address:
+          type: string
+          nullable: true
         horseId:
           type: string
           format: uuid
@@ -8229,6 +8239,9 @@ components:
         districtId:
           type: string
           format: uuid
+          nullable: true
+        address:
+          type: string
           nullable: true
         horseId:
           type: string
