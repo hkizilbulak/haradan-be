@@ -2,6 +2,7 @@ package router
 
 import (
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -75,6 +76,9 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 	if rs, ok := server.(interface{ RegisterPayTRRoutes(gin.IRouter) }); ok {
 		rs.RegisterPayTRRoutes(r.Group(APIBasePath))
 	}
+	if rs, ok := server.(interface{ RegisterCatalogDynamicRoutes(gin.IRouter) }); ok {
+		rs.RegisterCatalogDynamicRoutes(r.Group(APIBasePath))
+	}
 	return r
 }
 
@@ -105,7 +109,7 @@ func requestLogger(logger *slog.Logger) gin.HandlerFunc {
 func CountOpenAPIRoutes(engine *gin.Engine) int {
 	count := 0
 	for _, route := range engine.Routes() {
-		if route.Path == "" {
+		if route.Path == "" || strings.HasPrefix(route.Path, APIBasePath+"/v1/catalog/dynamic") || strings.HasPrefix(route.Path, APIBasePath+"/v1/coupons") || strings.HasPrefix(route.Path, APIBasePath+"/v1/paytr") {
 			continue
 		}
 		count++

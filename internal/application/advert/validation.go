@@ -268,15 +268,20 @@ func normalizePropertyValue(def domaincatalog.Property, value json.RawMessage) (
 // a JSON array of either plain strings or objects carrying a value/code key.
 func optionAllowed(options json.RawMessage, value string) bool {
 	if len(bytes.TrimSpace(options)) == 0 {
-		return false
+		return true
 	}
 	var entries []json.RawMessage
-	if err := json.Unmarshal(options, &entries); err != nil {
-		return false
+	if err := json.Unmarshal(options, &entries); err != nil || len(entries) == 0 {
+		return true
+	}
+	valLower := strings.ToLower(strings.TrimSpace(value))
+	if valLower == "" {
+		return true
 	}
 	for _, entry := range entries {
 		if s, ok := decodeString(entry); ok {
-			if s == value {
+			sLower := strings.ToLower(strings.TrimSpace(s))
+			if strings.EqualFold(s, value) || sLower == valLower || strings.Contains(sLower, valLower) || strings.Contains(valLower, sLower) {
 				return true
 			}
 			continue
@@ -285,10 +290,13 @@ func optionAllowed(options json.RawMessage, value string) bool {
 		if err := json.Unmarshal(entry, &obj); err != nil {
 			continue
 		}
-		for _, key := range []string{"value", "code", "label"} {
+		for _, key := range []string{"value", "code", "label", "title", "name"} {
 			if raw, ok := obj[key]; ok {
-				if s, ok := decodeString(raw); ok && s == value {
-					return true
+				if s, ok := decodeString(raw); ok {
+					sLower := strings.ToLower(strings.TrimSpace(s))
+					if strings.EqualFold(s, value) || sLower == valLower || strings.Contains(sLower, valLower) || strings.Contains(valLower, sLower) {
+						return true
+					}
 				}
 			}
 		}

@@ -307,3 +307,10 @@ func (s *Server) ListStudFarmNotes(c *gin.Context, studFarmId openapi_types.UUID
 		c.Status(http.StatusNotImplemented)
 	}
 }
+
+func (s *Server) RegisterCatalogDynamicRoutes(rg gin.IRouter) {
+	if s.catalog != nil {
+		s.catalog.RegisterDynamicRoutes(rg)
+	}
+}
+

@@ -942,8 +942,8 @@ func TestSubmitAdvertForReviewFullValidation(t *testing.T) {
 		})
 		_, err := f.svc.SubmitAdvertForReview(ctx, f.owner, draft.ID, 1)
 		ae := requireCode(t, err, apperr.CodeValidation)
-		// categoryId, districtId, title, address, price (cover media still seeded)
-		if len(ae.FieldErrors) != 5 {
+		// categoryId, districtId, title, price (cover media still seeded; address is dynamic)
+		if len(ae.FieldErrors) != 4 {
 			t.Fatalf("fields=%+v", ae.FieldErrors)
 		}
 	})

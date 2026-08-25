@@ -47,10 +47,24 @@ func TestGeneratedErrorHandlerOpenAPIContractDrift(t *testing.T) {
 		// 400 must reference BadRequest (ErrorResponse component chain)
 		if !strings.Contains(block, `"$ref": "#/components/responses/BadRequest"`) &&
 			!strings.Contains(block, `'$ref': '#/components/responses/BadRequest'`) {
-			// allow inline ErrorResponse ref under 400
-			re400 := regexp.MustCompile(`(?ms)^        '400':\n((?:          .*\n)+?)(?=^        '\d+':|^      \w)`)
-			m := re400.FindStringSubmatch(block)
-			if m == nil || (!strings.Contains(m[1], "BadRequest") && !strings.Contains(m[1], "ErrorResponse")) {
+			lines := strings.Split(block, "\n")
+			in400 := false
+			var sub400 strings.Builder
+			for _, line := range lines {
+				if strings.HasPrefix(line, "        '400':") {
+					in400 = true
+					continue
+				}
+				if in400 {
+					if strings.HasPrefix(line, "        '") || (len(line) > 0 && !strings.HasPrefix(line, "          ")) {
+						break
+					}
+					sub400.WriteString(line)
+					sub400.WriteByte('\n')
+				}
+			}
+			content := sub400.String()
+			if !strings.Contains(content, "BadRequest") && !strings.Contains(content, "ErrorResponse") {
 				badRef = append(badRef, oid)
 			}
 		}

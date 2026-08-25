@@ -615,9 +615,6 @@ func (s *Service) validateForSubmission(ctx context.Context, a domainadvert.Adve
 			Message: fmt.Sprintf("Başlık en fazla %d karakter olabilir.", maxTitleRunes),
 		})
 	}
-	if a.Address == nil || strings.TrimSpace(*a.Address) == "" {
-		fields = append(fields, apperr.FieldError{Field: "address", Message: "Açık adres zorunludur."})
-	}
 	if a.Price == nil || a.Price.AmountMinor <= 0 {
 		fields = append(fields, apperr.FieldError{Field: "price", Message: "Fiyat zorunludur."})
 	}
