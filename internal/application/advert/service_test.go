@@ -560,15 +560,21 @@ func TestReplaceAdvertDynamicProperties(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 
-	t.Run("unknown key rejected", func(t *testing.T) {
+	t.Run("dynamic property accepted", func(t *testing.T) {
 		draft := f.seed(t, f.owner, domainadvert.StatusDraft, nil)
-		_, err := f.svc.ReplaceAdvertDynamicProperties(ctx, f.owner, draft.ID, appadvert.ReplacePropertiesInput{
+		view, err := f.svc.ReplaceAdvertDynamicProperties(ctx, f.owner, draft.ID, appadvert.ReplacePropertiesInput{
 			ExpectedVersion: 1,
-			Properties:      json.RawMessage(`{"age":4,"sneaky":"value"}`),
+			Properties:      json.RawMessage(`{"age":4,"dynamicCustomField":"value"}`),
 		})
-		ae := requireCode(t, err, apperr.CodeValidation)
-		if len(ae.FieldErrors) != 1 || ae.FieldErrors[0].Field != "properties.sneaky" {
-			t.Fatalf("fields=%+v", ae.FieldErrors)
+		if err != nil {
+			t.Fatalf("dynamic property must be accepted: %v", err)
+		}
+		var props map[string]any
+		if err := json.Unmarshal(view.Properties, &props); err != nil {
+			t.Fatalf("unmarshal props: %v", err)
+		}
+		if props["dynamicCustomField"] != "value" {
+			t.Fatalf("expected dynamicCustomField value, got %v", props["dynamicCustomField"])
 		}
 	})
 
@@ -769,16 +775,25 @@ func TestCategoryPropertyInheritance(t *testing.T) {
 		}
 	})
 
-	// Test 4: Unknown Property rejected with 400 validation error
-	t.Run("Test 4: unknown property rejected with 400", func(t *testing.T) {
+	// Test 4: Dynamic property accepted and preserved
+	t.Run("Test 4: dynamic property accepted and stored", func(t *testing.T) {
 		draft := f.seed(t, f.owner, domainadvert.StatusDraft, func(a *domainadvert.Advert) {
 			a.CategoryID = &childCatID
 		})
-		_, err := f.svc.ReplaceAdvertDynamicProperties(ctx, f.owner, draft.ID, appadvert.ReplacePropertiesInput{
+		view, err := f.svc.ReplaceAdvertDynamicProperties(ctx, f.owner, draft.ID, appadvert.ReplacePropertiesInput{
 			ExpectedVersion: 1,
-			Properties:      json.RawMessage(`{"unknownProp":"hello"}`),
+			Properties:      json.RawMessage(`{"dynamicNewProp":"customVal"}`),
 		})
-		requireCode(t, err, apperr.CodeValidation)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		var props map[string]any
+		if err := json.Unmarshal(view.Properties, &props); err != nil {
+			t.Fatalf("unmarshal props: %v", err)
+		}
+		if props["dynamicNewProp"] != "customVal" {
+			t.Fatalf("expected customVal, got %v", props["dynamicNewProp"])
+		}
 	})
 
 	// Test 5: Duplicate property code deduplicated (child override)

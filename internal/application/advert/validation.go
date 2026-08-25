@@ -124,10 +124,9 @@ func validateDynamicProperties(
 		}
 		def, ok := byCode[code]
 		if !ok {
-			fieldErrors = append(fieldErrors, apperr.FieldError{
-				Field:   "properties." + code,
-				Message: "Bu kategori için tanımlı olmayan özellik.",
-			})
+			if !isJSONNull(value) {
+				normalized[code] = value
+			}
 			continue
 		}
 		if isJSONNull(value) {
