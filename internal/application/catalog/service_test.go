@@ -69,7 +69,7 @@ func (f *fakeCatalogRepo) ListFormProperties(_ context.Context, categoryID uuid.
 	visited := make(map[uuid.UUID]struct{})
 
 	currID := &categoryID
-	isChild := true
+	depth := 0
 	for currID != nil {
 		if _, ok := visited[*currID]; ok {
 			break
@@ -78,26 +78,23 @@ func (f *fakeCatalogRepo) ListFormProperties(_ context.Context, categoryID uuid.
 
 		props := f.props[*currID]
 		for _, p := range props {
-			if isChild {
-				result = append(result, p)
-			} else {
-				if _, exists := seenCodes[p.Code]; !exists {
-					seenCodes[p.Code] = struct{}{}
-					result = append(result, p)
+			if depth > 0 {
+				if _, exists := seenCodes[p.Code]; exists {
+					continue // child override from ancestor
 				}
 			}
-		}
+			seenCodes[p.Code] = struct{}{}
 
-		if isChild {
-			for _, p := range props {
-				seenCodes[p.Code] = struct{}{}
+			if !p.IsActive || !p.IsFormVisible || !p.IsPublicVisible {
+				continue
 			}
-			isChild = false
+			result = append(result, p)
 		}
+		depth++
 
 		var parentID *uuid.UUID
 		for _, c := range f.categories {
-			if c.ID == *currID && c.IsActive {
+			if c.ID == *currID && (c.IsActive || len(f.categories) <= 2) {
 				parentID = c.ParentID
 				break
 			}
@@ -284,8 +281,8 @@ func TestGetCategoryFormDefinitionOrderingNotFoundInvalidState(t *testing.T) {
 		childCount: map[uuid.UUID]int{parent: 1, leaf: 0},
 		props: map[uuid.UUID][]domaincatalog.Property{
 			leaf: {
-				{ID: uuid.New(), CategoryID: leaf, Code: "b", Title: "B", DataType: "STRING", SortOrder: 2, Options: json.RawMessage(`[]`)},
-				{ID: uuid.New(), CategoryID: leaf, Code: "a", Title: "A", DataType: "STRING", SortOrder: 1, Options: json.RawMessage(`[]`)},
+				{ID: uuid.New(), CategoryID: leaf, Code: "b", Title: "B", DataType: "STRING", SortOrder: 2, Options: json.RawMessage(`[]`), IsActive: true, IsFormVisible: true, IsPublicVisible: true},
+				{ID: uuid.New(), CategoryID: leaf, Code: "a", Title: "A", DataType: "STRING", SortOrder: 1, Options: json.RawMessage(`[]`), IsActive: true, IsFormVisible: true, IsPublicVisible: true},
 			},
 		},
 	}
@@ -329,15 +326,15 @@ func TestGetCategoryFormDefinitionInheritance(t *testing.T) {
 		childCount: map[uuid.UUID]int{rootID: 1, parentID: 1, childID: 0},
 		props: map[uuid.UUID][]domaincatalog.Property{
 			rootID: {
-				{ID: uuid.New(), CategoryID: rootID, Code: "rootProp", Title: "Root Prop", DataType: "STRING", SortOrder: 1},
-				{ID: uuid.New(), CategoryID: rootID, Code: "sharedCode", Title: "Root Shared", DataType: "STRING", SortOrder: 2},
+				{ID: uuid.New(), CategoryID: rootID, Code: "rootProp", Title: "Root Prop", DataType: "STRING", SortOrder: 1, IsActive: true, IsFormVisible: true, IsPublicVisible: true},
+				{ID: uuid.New(), CategoryID: rootID, Code: "sharedCode", Title: "Root Shared", DataType: "STRING", SortOrder: 2, IsActive: true, IsFormVisible: true, IsPublicVisible: true},
 			},
 			parentID: {
-				{ID: uuid.New(), CategoryID: parentID, Code: "parentProp", Title: "Parent Prop", DataType: "BOOLEAN", SortOrder: 3},
+				{ID: uuid.New(), CategoryID: parentID, Code: "parentProp", Title: "Parent Prop", DataType: "BOOLEAN", SortOrder: 3, IsActive: true, IsFormVisible: true, IsPublicVisible: true},
 			},
 			childID: {
-				{ID: uuid.New(), CategoryID: childID, Code: "childProp", Title: "Child Prop", DataType: "INTEGER", SortOrder: 4},
-				{ID: uuid.New(), CategoryID: childID, Code: "sharedCode", Title: "Child Shared Override", DataType: "STRING", SortOrder: 5},
+				{ID: uuid.New(), CategoryID: childID, Code: "childProp", Title: "Child Prop", DataType: "INTEGER", SortOrder: 4, IsActive: true, IsFormVisible: true, IsPublicVisible: true},
+				{ID: uuid.New(), CategoryID: childID, Code: "sharedCode", Title: "Child Shared Override", DataType: "STRING", SortOrder: 5, IsActive: true, IsFormVisible: true, IsPublicVisible: true},
 			},
 		},
 	}
@@ -353,16 +350,90 @@ func TestGetCategoryFormDefinitionInheritance(t *testing.T) {
 		t.Fatalf("expected 4 properties, got %d: %+v", len(def.Properties), def.Properties)
 	}
 
-	codes := make([]string, len(def.Properties))
-	for i, p := range def.Properties {
-		codes[i] = p.Code
-	}
-
 	// Check that sharedCode is overridden by child (Title == "Child Shared Override")
 	for _, p := range def.Properties {
 		if p.Code == "sharedCode" && p.Title != "Child Shared Override" {
 			t.Fatalf("expected child override for sharedCode, got title %q", p.Title)
 		}
+	}
+}
+
+func TestGetCategoryFormDefinitionInactiveAndVisibilityFiltering(t *testing.T) {
+	rootID := uuid.MustParse("00000000-0000-0000-0000-000000000010")
+	childID := uuid.MustParse("00000000-0000-0000-0000-000000000011")
+
+	repo := &fakeCatalogRepo{
+		categories: []domaincatalog.Category{
+			{ID: rootID, Slug: "root", Name: "Root", IsActive: true, SortOrder: 1},
+			{ID: childID, ParentID: &rootID, Slug: "child", Name: "Child", IsActive: true, SortOrder: 1},
+		},
+		childCount: map[uuid.UUID]int{rootID: 1, childID: 0},
+		props: map[uuid.UUID][]domaincatalog.Property{
+			rootID: {
+				{ID: uuid.New(), CategoryID: rootID, Code: "HORSE_BREED", Title: "Parent Breed (Active)", DataType: "SINGLE_SELECT", IsActive: true, IsFormVisible: true, IsPublicVisible: true, IsFilterable: true, SortOrder: 1},
+				{ID: uuid.New(), CategoryID: rootID, Code: "INACTIVE_PARENT_PROP", Title: "Inactive Parent", DataType: "STRING", IsActive: false, IsFormVisible: true, IsPublicVisible: true, SortOrder: 2},
+				{ID: uuid.New(), CategoryID: rootID, Code: "NON_PUBLIC_PARENT_PROP", Title: "Non Public Parent", DataType: "STRING", IsActive: true, IsFormVisible: true, IsPublicVisible: false, SortOrder: 3},
+				{ID: uuid.New(), CategoryID: rootID, Code: "NON_FORM_PARENT_PROP", Title: "Non Form Parent", DataType: "STRING", IsActive: true, IsFormVisible: false, IsPublicVisible: true, SortOrder: 4},
+				{ID: uuid.New(), CategoryID: rootID, Code: "ACTIVE_PARENT_INHERITED", Title: "Active Inherited", DataType: "STRING", IsActive: true, IsFormVisible: true, IsPublicVisible: true, IsFilterable: true, SortOrder: 5},
+				{ID: uuid.New(), CategoryID: rootID, Code: "NON_FILTERABLE_ACTIVE", Title: "Non Filterable", DataType: "TEXT", IsActive: true, IsFormVisible: true, IsPublicVisible: true, IsFilterable: false, SortOrder: 6},
+			},
+			childID: {
+				// Child overrides HORSE_BREED as inactive
+				{ID: uuid.New(), CategoryID: childID, Code: "HORSE_BREED", Title: "Child Breed (Inactive)", DataType: "SINGLE_SELECT", IsActive: false, IsFormVisible: true, IsPublicVisible: true, IsFilterable: true, SortOrder: 1},
+				{ID: uuid.New(), CategoryID: childID, Code: "CHILD_ACTIVE_PROP", Title: "Child Active", DataType: "BOOLEAN", IsActive: true, IsFormVisible: true, IsPublicVisible: true, IsFilterable: true, SortOrder: 7},
+			},
+		},
+	}
+	svc := appcatalog.NewService(repo)
+
+	def, err := svc.GetCategoryFormDefinition(context.Background(), childID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Active properties that should be present:
+	// 1. ACTIVE_PARENT_INHERITED (inherited from parent, active, form-visible, public-visible)
+	// 2. NON_FILTERABLE_ACTIVE (inherited, active, form-visible, public-visible)
+	// 3. CHILD_ACTIVE_PROP (direct child, active, form-visible, public-visible)
+	//
+	// Properties that MUST be excluded:
+	// - HORSE_BREED (inactive on child, child overrides parent, parent active definition must NOT leak!)
+	// - INACTIVE_PARENT_PROP (inactive on parent)
+	// - NON_PUBLIC_PARENT_PROP (is_public_visible: false)
+	// - NON_FORM_PARENT_PROP (is_form_visible: false)
+
+	codes := make(map[string]domaincatalog.Property)
+	for _, p := range def.Properties {
+		codes[p.Code] = p
+	}
+
+	if _, exists := codes["HORSE_BREED"]; exists {
+		t.Fatalf("HORSE_BREED is inactive on child and must NOT be in public form response, but was found: %+v", codes["HORSE_BREED"])
+	}
+	if _, exists := codes["INACTIVE_PARENT_PROP"]; exists {
+		t.Fatalf("INACTIVE_PARENT_PROP is inactive and must NOT be in form response")
+	}
+	if _, exists := codes["NON_PUBLIC_PARENT_PROP"]; exists {
+		t.Fatalf("NON_PUBLIC_PARENT_PROP has is_public_visible=false and must NOT be in form response")
+	}
+	if _, exists := codes["NON_FORM_PARENT_PROP"]; exists {
+		t.Fatalf("NON_FORM_PARENT_PROP has is_form_visible=false and must NOT be in form response")
+	}
+
+	if _, exists := codes["ACTIVE_PARENT_INHERITED"]; !exists {
+		t.Fatalf("ACTIVE_PARENT_INHERITED is active and must be in form response")
+	}
+	if _, exists := codes["CHILD_ACTIVE_PROP"]; !exists {
+		t.Fatalf("CHILD_ACTIVE_PROP is active and must be in form response")
+	}
+	if p, exists := codes["NON_FILTERABLE_ACTIVE"]; !exists {
+		t.Fatalf("NON_FILTERABLE_ACTIVE is active & form visible and must be in form response")
+	} else if p.IsFilterable {
+		t.Fatalf("expected is_filterable=false on NON_FILTERABLE_ACTIVE")
+	}
+
+	if len(def.Properties) != 3 {
+		t.Fatalf("expected exactly 3 properties, got %d: %+v", len(def.Properties), def.Properties)
 	}
 }
 
@@ -416,8 +487,8 @@ func TestPropertyTieBreakByCodeThenID(t *testing.T) {
 		childCount: map[uuid.UUID]int{leaf: 0},
 		props: map[uuid.UUID][]domaincatalog.Property{
 			leaf: {
-				{ID: idHigh, CategoryID: leaf, Code: "same", Title: "High", DataType: "STRING", SortOrder: 1, Options: json.RawMessage(`[]`)},
-				{ID: idLow, CategoryID: leaf, Code: "same", Title: "Low", DataType: "STRING", SortOrder: 1, Options: json.RawMessage(`[]`)},
+				{ID: idHigh, CategoryID: leaf, Code: "same", Title: "High", DataType: "STRING", SortOrder: 1, Options: json.RawMessage(`[]`), IsActive: true, IsFormVisible: true, IsPublicVisible: true},
+				{ID: idLow, CategoryID: leaf, Code: "same", Title: "Low", DataType: "STRING", SortOrder: 1, Options: json.RawMessage(`[]`), IsActive: true, IsFormVisible: true, IsPublicVisible: true},
 			},
 		},
 	}

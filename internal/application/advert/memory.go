@@ -563,7 +563,7 @@ func (c memoryCatalog) ListFormProperties(_ context.Context, categoryID uuid.UUI
 	visited := make(map[uuid.UUID]struct{})
 
 	currID := &categoryID
-	isChild := true
+	depth := 0
 	for currID != nil {
 		if _, ok := visited[*currID]; ok {
 			break
@@ -572,22 +572,19 @@ func (c memoryCatalog) ListFormProperties(_ context.Context, categoryID uuid.UUI
 
 		props := c.store.formProps[*currID]
 		for _, p := range props {
-			if isChild {
-				result = append(result, p)
-			} else {
-				if _, exists := seenCodes[p.Code]; !exists {
-					seenCodes[p.Code] = struct{}{}
-					result = append(result, p)
+			if depth > 0 {
+				if _, exists := seenCodes[p.Code]; exists {
+					continue // child override from ancestor
 				}
 			}
-		}
+			seenCodes[p.Code] = struct{}{}
 
-		if isChild {
-			for _, p := range props {
-				seenCodes[p.Code] = struct{}{}
+			if (!p.IsActive && (p.IsFormVisible || p.IsPublicVisible || p.IsFilterable)) || (p.IsActive && (!p.IsFormVisible || !p.IsPublicVisible)) {
+				continue
 			}
-			isChild = false
+			result = append(result, p)
 		}
+		depth++
 
 		cat, ok := c.store.categories[*currID]
 		if !ok || !cat.IsActive || cat.ParentID == nil {

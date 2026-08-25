@@ -136,8 +136,6 @@ SELECT cp.id, cp.category_id, cp.code, cp.title, cp.help_text, cp.data_type, cp.
        ct.depth
 FROM cat_tree ct
 JOIN hrd_category_properties cp ON cp.category_id = ct.id
-WHERE cp.is_active = true
-  AND cp.is_form_visible = true
 ORDER BY ct.depth ASC, cp.sort_order ASC, cp.code ASC, cp.id ASC`
 
 	rows, err := r.db.Query(ctx, q, categoryID)
@@ -159,12 +157,15 @@ ORDER BY ct.depth ASC, cp.sort_order ASC, cp.code ASC, cp.id ASC`
 		); err != nil {
 			return nil, fmt.Errorf("scan category property: %w", pg.SanitizeErr(err))
 		}
-		if depth > 0 {
-			if _, seen := seenCodes[p.Code]; seen {
-				continue // child override: skip duplicate codes from higher ancestors
-			}
+		if _, seen := seenCodes[p.Code]; seen {
+			continue // child override: skip duplicate codes from higher ancestors
 		}
 		seenCodes[p.Code] = struct{}{}
+
+		if !p.IsActive || !p.IsFormVisible || !p.IsPublicVisible {
+			continue // skip inactive, non-form-visible, or non-public-visible properties
+		}
+
 		out = append(out, p)
 	}
 	if err := rows.Err(); err != nil {

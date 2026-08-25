@@ -392,11 +392,9 @@ WITH RECURSIVE cat_tree AS (
     JOIN cat_tree t ON t.parent_id = c.id
     WHERE c.is_active = true AND NOT c.id = ANY(t.path)
 )
-SELECT cp.id, cp.code, cp.title, cp.data_type, cp.options, cp.sort_order, ct.depth
+SELECT cp.id, cp.code, cp.title, cp.data_type, cp.options, cp.sort_order, cp.is_active, cp.is_public_visible, ct.depth
 FROM cat_tree ct
 JOIN hrd_category_properties cp ON cp.category_id = ct.id
-WHERE cp.is_active = true
-  AND cp.is_public_visible = true
 ORDER BY ct.depth ASC, cp.sort_order ASC, cp.code ASC, cp.id ASC`
 
 	rows, err := r.db.Query(ctx, q, advertID)
@@ -419,23 +417,28 @@ ORDER BY ct.depth ASC, cp.sort_order ASC, cp.code ASC, cp.id ASC`
 
 	for rows.Next() {
 		var (
-			id        uuid.UUID
-			code      string
-			title     string
-			dataType  string
-			options   []byte
-			sortOrder int
-			depth     int
+			id              uuid.UUID
+			code            string
+			title           string
+			dataType        string
+			options         []byte
+			sortOrder       int
+			isActive        bool
+			isPublicVisible bool
+			depth           int
 		)
-		if err := rows.Scan(&id, &code, &title, &dataType, &options, &sortOrder, &depth); err != nil {
+		if err := rows.Scan(&id, &code, &title, &dataType, &options, &sortOrder, &isActive, &isPublicVisible, &depth); err != nil {
 			return nil, apperr.Internal(fmt.Errorf("scan public property: %w", pg.SanitizeErr(err)))
 		}
-		if depth > 0 {
-			if _, seen := seenCodes[code]; seen {
-				continue // child override: skip duplicate codes from higher ancestors
-			}
+		if _, seen := seenCodes[code]; seen {
+			continue // child override: skip duplicate codes from higher ancestors
 		}
 		seenCodes[code] = struct{}{}
+
+		if !isActive || !isPublicVisible {
+			continue
+		}
+
 		defs = append(defs, propDef{
 			id:        id,
 			code:      code,
