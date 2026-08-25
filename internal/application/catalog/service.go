@@ -85,12 +85,6 @@ func (s *Service) GetCategoryFormDefinition(ctx context.Context, categoryID uuid
 	if err != nil {
 		return FormDefinition{}, apperr.WrapInternal(err)
 	}
-	if len(props) == 0 && cat.ParentID != nil {
-		parentProps, parentErr := s.repo.ListFormProperties(ctx, *cat.ParentID)
-		if parentErr == nil && len(parentProps) > 0 {
-			props = parentProps
-		}
-	}
 	if props == nil {
 		props = []domaincatalog.Property{}
 	}

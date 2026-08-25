@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"testing"
 	"time"
 
@@ -63,7 +64,58 @@ func (f *fakeCatalogRepo) ListFormProperties(_ context.Context, categoryID uuid.
 	if f.propsErr != nil {
 		return nil, f.propsErr
 	}
-	return append([]domaincatalog.Property(nil), f.props[categoryID]...), nil
+	var result []domaincatalog.Property
+	seenCodes := make(map[string]struct{})
+	visited := make(map[uuid.UUID]struct{})
+
+	currID := &categoryID
+	isChild := true
+	for currID != nil {
+		if _, ok := visited[*currID]; ok {
+			break
+		}
+		visited[*currID] = struct{}{}
+
+		props := f.props[*currID]
+		for _, p := range props {
+			if isChild {
+				result = append(result, p)
+			} else {
+				if _, exists := seenCodes[p.Code]; !exists {
+					seenCodes[p.Code] = struct{}{}
+					result = append(result, p)
+				}
+			}
+		}
+
+		if isChild {
+			for _, p := range props {
+				seenCodes[p.Code] = struct{}{}
+			}
+			isChild = false
+		}
+
+		var parentID *uuid.UUID
+		for _, c := range f.categories {
+			if c.ID == *currID && c.IsActive {
+				parentID = c.ParentID
+				break
+			}
+		}
+		currID = parentID
+	}
+
+	sort.SliceStable(result, func(i, j int) bool {
+		if result[i].SortOrder != result[j].SortOrder {
+			return result[i].SortOrder < result[j].SortOrder
+		}
+		if result[i].Code != result[j].Code {
+			return result[i].Code < result[j].Code
+		}
+		return result[i].ID.String() < result[j].ID.String()
+	})
+
+	return result, nil
 }
 
 func (f *fakeCatalogRepo) ListCategoriesAdmin(_ context.Context, active *bool, limit int) ([]domaincatalog.Category, error) {
@@ -260,6 +312,57 @@ func TestGetCategoryFormDefinitionOrderingNotFoundInvalidState(t *testing.T) {
 	ae, ok = apperr.As(err)
 	if !ok || ae.Code != apperr.CodeNotFound {
 		t.Fatalf("want not found, got %v", err)
+	}
+}
+
+func TestGetCategoryFormDefinitionInheritance(t *testing.T) {
+	rootID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	parentID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	childID := uuid.MustParse("00000000-0000-0000-0000-000000000003")
+
+	repo := &fakeCatalogRepo{
+		categories: []domaincatalog.Category{
+			{ID: rootID, Slug: "root", Name: "Root", IsActive: true, SortOrder: 1},
+			{ID: parentID, ParentID: &rootID, Slug: "parent", Name: "Parent", IsActive: true, SortOrder: 1},
+			{ID: childID, ParentID: &parentID, Slug: "child", Name: "Child", IsActive: true, SortOrder: 1},
+		},
+		childCount: map[uuid.UUID]int{rootID: 1, parentID: 1, childID: 0},
+		props: map[uuid.UUID][]domaincatalog.Property{
+			rootID: {
+				{ID: uuid.New(), CategoryID: rootID, Code: "rootProp", Title: "Root Prop", DataType: "STRING", SortOrder: 1},
+				{ID: uuid.New(), CategoryID: rootID, Code: "sharedCode", Title: "Root Shared", DataType: "STRING", SortOrder: 2},
+			},
+			parentID: {
+				{ID: uuid.New(), CategoryID: parentID, Code: "parentProp", Title: "Parent Prop", DataType: "BOOLEAN", SortOrder: 3},
+			},
+			childID: {
+				{ID: uuid.New(), CategoryID: childID, Code: "childProp", Title: "Child Prop", DataType: "INTEGER", SortOrder: 4},
+				{ID: uuid.New(), CategoryID: childID, Code: "sharedCode", Title: "Child Shared Override", DataType: "STRING", SortOrder: 5},
+			},
+		},
+	}
+	svc := appcatalog.NewService(repo)
+
+	def, err := svc.GetCategoryFormDefinition(context.Background(), childID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should resolve 4 properties: rootProp, parentProp, childProp, sharedCode (child override)
+	if len(def.Properties) != 4 {
+		t.Fatalf("expected 4 properties, got %d: %+v", len(def.Properties), def.Properties)
+	}
+
+	codes := make([]string, len(def.Properties))
+	for i, p := range def.Properties {
+		codes[i] = p.Code
+	}
+
+	// Check that sharedCode is overridden by child (Title == "Child Shared Override")
+	for _, p := range def.Properties {
+		if p.Code == "sharedCode" && p.Title != "Child Shared Override" {
+			t.Fatalf("expected child override for sharedCode, got title %q", p.Title)
+		}
 	}
 }
 

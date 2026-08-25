@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 
@@ -91,7 +92,46 @@ func (c *catalogRepoStub) CountActiveChildren(_ context.Context, parentID uuid.U
 	return c.children[parentID], nil
 }
 func (c *catalogRepoStub) ListFormProperties(_ context.Context, categoryID uuid.UUID) ([]domaincatalog.Property, error) {
-	return c.props[categoryID], nil
+	var result []domaincatalog.Property
+	seenCodes := make(map[string]struct{})
+	visited := make(map[uuid.UUID]struct{})
+
+	currID := &categoryID
+	for currID != nil {
+		if _, ok := visited[*currID]; ok {
+			break
+		}
+		visited[*currID] = struct{}{}
+
+		props := c.props[*currID]
+		for _, p := range props {
+			if _, exists := seenCodes[p.Code]; !exists {
+				seenCodes[p.Code] = struct{}{}
+				result = append(result, p)
+			}
+		}
+
+		var parentID *uuid.UUID
+		for _, cat := range c.categories {
+			if cat.ID == *currID && cat.IsActive {
+				parentID = cat.ParentID
+				break
+			}
+		}
+		currID = parentID
+	}
+
+	sort.SliceStable(result, func(i, j int) bool {
+		if result[i].SortOrder != result[j].SortOrder {
+			return result[i].SortOrder < result[j].SortOrder
+		}
+		if result[i].Code != result[j].Code {
+			return result[i].Code < result[j].Code
+		}
+		return result[i].ID.String() < result[j].ID.String()
+	})
+
+	return result, nil
 }
 
 func newTestEngine(geoRepo *geoRepoStub, catalogRepo *catalogRepoStub) http.Handler {

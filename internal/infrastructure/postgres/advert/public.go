@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -379,23 +380,129 @@ func (r *Repository) listPublicProperties(ctx context.Context, advertID uuid.UUI
 		return []domainadvert.PublicProperty{}, nil
 	}
 
-	rows, err := r.db.Query(ctx, `
-SELECT cp.code, cp.title FROM hrd_category_properties cp
-JOIN hrd_adverts a ON a.category_id = cp.category_id
-WHERE a.id = $1 AND cp.is_active = true AND cp.is_public_visible = true ORDER BY cp.sort_order, cp.code`, advertID)
+	const q = `
+WITH RECURSIVE cat_tree AS (
+    SELECT c.id, c.parent_id, ARRAY[c.id] AS path, 0 AS depth
+    FROM hrd_categories c
+    JOIN hrd_adverts a ON a.category_id = c.id
+    WHERE a.id = $1 AND c.is_active = true
+    UNION ALL
+    SELECT c.id, c.parent_id, t.path || c.id, t.depth + 1
+    FROM hrd_categories c
+    JOIN cat_tree t ON t.parent_id = c.id
+    WHERE c.is_active = true AND NOT c.id = ANY(t.path)
+)
+SELECT cp.id, cp.code, cp.title, cp.data_type, cp.options, cp.sort_order, ct.depth
+FROM cat_tree ct
+JOIN hrd_category_properties cp ON cp.category_id = ct.id
+WHERE cp.is_active = true
+  AND cp.is_public_visible = true
+ORDER BY ct.depth ASC, cp.sort_order ASC, cp.code ASC, cp.id ASC`
+
+	rows, err := r.db.Query(ctx, q, advertID)
 	if err != nil {
 		return nil, apperr.Internal(fmt.Errorf("list public properties: %w", pg.SanitizeErr(err)))
 	}
 	defer rows.Close()
-	out := []domainadvert.PublicProperty{}
+
+	type propDef struct {
+		id        uuid.UUID
+		code      string
+		title     string
+		dataType  string
+		options   []byte
+		sortOrder int
+	}
+
+	var defs []propDef
+	seenCodes := make(map[string]struct{})
+
 	for rows.Next() {
-		var code, title string
-		if err := rows.Scan(&code, &title); err != nil {
-			return nil, apperr.Internal(fmt.Errorf("scan public properties: %w", pg.SanitizeErr(err)))
+		var (
+			id        uuid.UUID
+			code      string
+			title     string
+			dataType  string
+			options   []byte
+			sortOrder int
+			depth     int
+		)
+		if err := rows.Scan(&id, &code, &title, &dataType, &options, &sortOrder, &depth); err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan public property: %w", pg.SanitizeErr(err)))
 		}
-		if value, ok := values[code]; ok {
-			out = append(out, domainadvert.PublicProperty{Code: code, Title: title, Value: value})
+		if depth > 0 {
+			if _, seen := seenCodes[code]; seen {
+				continue // child override: skip duplicate codes from higher ancestors
+			}
 		}
+		seenCodes[code] = struct{}{}
+		defs = append(defs, propDef{
+			id:        id,
+			code:      code,
+			title:     title,
+			dataType:  dataType,
+			options:   options,
+			sortOrder: sortOrder,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("iterate public properties: %w", pg.SanitizeErr(err)))
+	}
+
+	sort.SliceStable(defs, func(i, j int) bool {
+		if defs[i].sortOrder != defs[j].sortOrder {
+			return defs[i].sortOrder < defs[j].sortOrder
+		}
+		if defs[i].code != defs[j].code {
+			return defs[i].code < defs[j].code
+		}
+		return defs[i].id.String() < defs[j].id.String()
+	})
+
+	out := make([]domainadvert.PublicProperty, 0, len(defs))
+	for _, d := range defs {
+		val, ok := values[d.code]
+		if !ok || val == nil {
+			continue
+		}
+		if strVal, isStr := val.(string); isStr {
+			if strVal == "" || strVal == "null" || strVal == "undefined" {
+				continue
+			}
+		}
+
+		pubProp := domainadvert.PublicProperty{
+			Code:  d.code,
+			Title: d.title,
+			Value: val,
+		}
+
+		if len(d.options) > 0 && string(d.options) != "null" && string(d.options) != "[]" {
+			var optList []struct {
+				Value string `json:"value"`
+				Label string `json:"label"`
+			}
+			if err := json.Unmarshal(d.options, &optList); err == nil {
+				strVal := fmt.Sprint(val)
+				for _, opt := range optList {
+					if opt.Value == strVal || opt.Label == strVal {
+						lbl := opt.Label
+						pubProp.DisplayValue = &lbl
+						break
+					}
+				}
+			}
+		} else if bVal, isBool := val.(bool); isBool {
+			var display string
+			if bVal {
+				display = "Evet"
+			} else {
+				display = "Hayır"
+			}
+			pubProp.DisplayValue = &display
+		}
+
+		out = append(out, pubProp)
 	}
 	return out, nil
 }

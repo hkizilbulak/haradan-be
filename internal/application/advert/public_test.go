@@ -51,7 +51,45 @@ func TestShowcaseGeneratesStableSeedWhenProvided(t *testing.T) {
 	}
 }
 
-type fakePublicRepository struct{ seed string }
+func TestGetPublishedAdvertDetailResolvesProperties(t *testing.T) {
+	dispVal := "Evet"
+	dispOption := "Safkan İngiliz"
+	advID := uuid.New()
+	detail := domainadvert.PublicDetail{
+		PublicCard: domainadvert.PublicCard{
+			ID:    advID,
+			Title: "Test Advert",
+		},
+		Properties: []domainadvert.PublicProperty{
+			{Code: "grassPaddock", Title: "Çim Padok", Value: true, DisplayValue: &dispVal},
+			{Code: "studBreed", Title: "Aygır Irkı", Value: "THOROUGHBRED", DisplayValue: &dispOption},
+		},
+	}
+	repo := &fakePublicRepository{detail: detail}
+	svc := &Service{public: repo}
+
+	out, err := svc.GetPublishedAdvertDetail(context.Background(), advID, nil, "127.0.0.1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out.ID != advID {
+		t.Fatalf("expected advert id %v, got %v", advID, out.ID)
+	}
+	if len(out.Properties) != 2 {
+		t.Fatalf("expected 2 properties, got %d", len(out.Properties))
+	}
+	if out.Properties[0].Title != "Çim Padok" || *out.Properties[0].DisplayValue != "Evet" {
+		t.Fatalf("unexpected property 0: %#v", out.Properties[0])
+	}
+	if out.Properties[1].Title != "Aygır Irkı" || *out.Properties[1].DisplayValue != "Safkan İngiliz" {
+		t.Fatalf("unexpected property 1: %#v", out.Properties[1])
+	}
+}
+
+type fakePublicRepository struct {
+	seed   string
+	detail domainadvert.PublicDetail
+}
 
 func (r *fakePublicRepository) SearchPublished(context.Context, domainadvert.PublicSearchQuery) ([]domainadvert.PublicCard, error) {
 	return nil, nil
@@ -70,7 +108,7 @@ func (r *fakePublicRepository) ListHomepageFeatured(context.Context, int, *uuid.
 	return []domainadvert.PublicCard{}, nil
 }
 func (r *fakePublicRepository) GetPublishedDetail(context.Context, uuid.UUID, *uuid.UUID) (domainadvert.PublicDetail, error) {
-	return domainadvert.PublicDetail{}, nil
+	return r.detail, nil
 }
 func (r *fakePublicRepository) RecordView(context.Context, uuid.UUID, string) error {
 	return nil

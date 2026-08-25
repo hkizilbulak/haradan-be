@@ -557,7 +557,56 @@ func (c memoryCatalog) CountActiveChildren(_ context.Context, parentID uuid.UUID
 func (c memoryCatalog) ListFormProperties(_ context.Context, categoryID uuid.UUID) ([]domaincatalog.Property, error) {
 	c.store.mu.Lock()
 	defer c.store.mu.Unlock()
-	return append([]domaincatalog.Property(nil), c.store.formProps[categoryID]...), nil
+
+	var result []domaincatalog.Property
+	seenCodes := make(map[string]struct{})
+	visited := make(map[uuid.UUID]struct{})
+
+	currID := &categoryID
+	isChild := true
+	for currID != nil {
+		if _, ok := visited[*currID]; ok {
+			break
+		}
+		visited[*currID] = struct{}{}
+
+		props := c.store.formProps[*currID]
+		for _, p := range props {
+			if isChild {
+				result = append(result, p)
+			} else {
+				if _, exists := seenCodes[p.Code]; !exists {
+					seenCodes[p.Code] = struct{}{}
+					result = append(result, p)
+				}
+			}
+		}
+
+		if isChild {
+			for _, p := range props {
+				seenCodes[p.Code] = struct{}{}
+			}
+			isChild = false
+		}
+
+		cat, ok := c.store.categories[*currID]
+		if !ok || !cat.IsActive || cat.ParentID == nil {
+			break
+		}
+		currID = cat.ParentID
+	}
+
+	sort.SliceStable(result, func(i, j int) bool {
+		if result[i].SortOrder != result[j].SortOrder {
+			return result[i].SortOrder < result[j].SortOrder
+		}
+		if result[i].Code != result[j].Code {
+			return result[i].Code < result[j].Code
+		}
+		return result[i].ID.String() < result[j].ID.String()
+	})
+
+	return result, nil
 }
 
 type memoryGeo struct{ store *MemoryStore }

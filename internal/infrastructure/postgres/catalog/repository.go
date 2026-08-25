@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -116,16 +117,28 @@ WHERE parent_id = $1 AND is_active = true`
 	return n, nil
 }
 
-// ListFormProperties returns active form-visible properties ordered by sort_order.
+// ListFormProperties returns active form-visible properties ordered by sort_order,
+// resolving inherited properties from ancestor categories with deduplication (child overrides parent).
 func (r *Repository) ListFormProperties(ctx context.Context, categoryID uuid.UUID) ([]domaincatalog.Property, error) {
 	const q = `
-SELECT id, category_id, code, title, help_text, data_type, is_required, is_filterable,
-       sort_order, options, default_value, ui_metadata, is_active, is_form_visible, is_public_visible
-FROM hrd_category_properties
-WHERE category_id = $1
-  AND is_active = true
-  AND is_form_visible = true
-ORDER BY sort_order ASC, code ASC, id ASC`
+WITH RECURSIVE cat_tree AS (
+    SELECT id, parent_id, ARRAY[id] AS path, 0 AS depth
+    FROM hrd_categories
+    WHERE id = $1 AND is_active = true
+    UNION ALL
+    SELECT c.id, c.parent_id, t.path || c.id, t.depth + 1
+    FROM hrd_categories c
+    JOIN cat_tree t ON t.parent_id = c.id
+    WHERE c.is_active = true AND NOT c.id = ANY(t.path)
+)
+SELECT cp.id, cp.category_id, cp.code, cp.title, cp.help_text, cp.data_type, cp.is_required, cp.is_filterable,
+       cp.sort_order, cp.options, cp.default_value, cp.ui_metadata, cp.is_active, cp.is_form_visible, cp.is_public_visible,
+       ct.depth
+FROM cat_tree ct
+JOIN hrd_category_properties cp ON cp.category_id = ct.id
+WHERE cp.is_active = true
+  AND cp.is_form_visible = true
+ORDER BY ct.depth ASC, cp.sort_order ASC, cp.code ASC, cp.id ASC`
 
 	rows, err := r.db.Query(ctx, q, categoryID)
 	if err != nil {
@@ -134,20 +147,40 @@ ORDER BY sort_order ASC, code ASC, id ASC`
 	defer rows.Close()
 
 	var out []domaincatalog.Property
+	seenCodes := make(map[string]struct{})
 	for rows.Next() {
 		var p domaincatalog.Property
+		var depth int
 		if err := rows.Scan(
 			&p.ID, &p.CategoryID, &p.Code, &p.Title, &p.HelpText, &p.DataType,
 			&p.IsRequired, &p.IsFilterable, &p.SortOrder, &p.Options, &p.DefaultValue,
 			&p.UIMetadata, &p.IsActive, &p.IsFormVisible, &p.IsPublicVisible,
+			&depth,
 		); err != nil {
 			return nil, fmt.Errorf("scan category property: %w", pg.SanitizeErr(err))
 		}
+		if depth > 0 {
+			if _, seen := seenCodes[p.Code]; seen {
+				continue // child override: skip duplicate codes from higher ancestors
+			}
+		}
+		seenCodes[p.Code] = struct{}{}
 		out = append(out, p)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate category properties: %w", pg.SanitizeErr(err))
 	}
+
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].SortOrder != out[j].SortOrder {
+			return out[i].SortOrder < out[j].SortOrder
+		}
+		if out[i].Code != out[j].Code {
+			return out[i].Code < out[j].Code
+		}
+		return out[i].ID.String() < out[j].ID.String()
+	})
+
 	return out, nil
 }
 

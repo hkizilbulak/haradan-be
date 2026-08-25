@@ -669,6 +669,169 @@ func TestReplaceAdvertDynamicProperties(t *testing.T) {
 	})
 }
 
+func TestCategoryPropertyInheritance(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	// Setup hierarchy: Root -> Parent -> Child
+	rootCatID := uuid.New()
+	parentCatID := uuid.New()
+	childCatID := uuid.New()
+
+	f.store.PutCategory(
+		domaincatalog.Category{ID: rootCatID, Slug: "satilik-atlar", Name: "Satılık Atlar", IsActive: true},
+		1,
+		[]domaincatalog.Property{
+			{ID: uuid.New(), CategoryID: rootCatID, Code: "HORSE_BREED", Title: "At Irkı", DataType: "STRING", IsRequired: true, SortOrder: 1},
+			{ID: uuid.New(), CategoryID: rootCatID, Code: "grassPaddock", Title: "Çim Padok", DataType: "BOOLEAN", SortOrder: 2},
+			{ID: uuid.New(), CategoryID: rootCatID, Code: "sharedProp", Title: "Root Shared", DataType: "STRING", SortOrder: 3},
+		},
+	)
+
+	f.store.PutCategory(
+		domaincatalog.Category{ID: parentCatID, ParentID: &rootCatID, Slug: "yaris-atlari", Name: "Yarış Atları", IsActive: true},
+		1,
+		[]domaincatalog.Property{
+			{ID: uuid.New(), CategoryID: parentCatID, Code: "trackRecord", Title: "Derece", DataType: "STRING", SortOrder: 4},
+		},
+	)
+
+	f.store.PutCategory(
+		domaincatalog.Category{ID: childCatID, ParentID: &parentCatID, Slug: "satilik-yaris-ati", Name: "Satılık Yarış Atı", IsActive: true},
+		0,
+		[]domaincatalog.Property{
+			{ID: uuid.New(), CategoryID: childCatID, Code: "directChildProp", Title: "Child Prop", DataType: "STRING", SortOrder: 5},
+			// Child overrides sharedProp from root
+			{ID: uuid.New(), CategoryID: childCatID, Code: "sharedProp", Title: "Child Shared Override", DataType: "STRING", SortOrder: 6},
+		},
+	)
+
+	// Test 1: Direct Property on child category is valid
+	t.Run("Test 1: direct property accepted", func(t *testing.T) {
+		draft := f.seed(t, f.owner, domainadvert.StatusDraft, func(a *domainadvert.Advert) {
+			a.CategoryID = &childCatID
+		})
+		view, err := f.svc.ReplaceAdvertDynamicProperties(ctx, f.owner, draft.ID, appadvert.ReplacePropertiesInput{
+			ExpectedVersion: 1,
+			Properties:      json.RawMessage(`{"directChildProp":"directValue"}`),
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		var props map[string]any
+		if err := json.Unmarshal(view.Properties, &props); err != nil {
+			t.Fatalf("unmarshal props: %v", err)
+		}
+		if props["directChildProp"] != "directValue" {
+			t.Fatalf("expected directValue, got %v", props["directChildProp"])
+		}
+	})
+
+	// Test 2: Parent Property on child category is valid
+	t.Run("Test 2: parent property accepted on child advert", func(t *testing.T) {
+		draft := f.seed(t, f.owner, domainadvert.StatusDraft, func(a *domainadvert.Advert) {
+			a.CategoryID = &childCatID
+		})
+		view, err := f.svc.ReplaceAdvertDynamicProperties(ctx, f.owner, draft.ID, appadvert.ReplacePropertiesInput{
+			ExpectedVersion: 1,
+			Properties:      json.RawMessage(`{"trackRecord":"1:24.5"}`),
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		var props map[string]any
+		if err := json.Unmarshal(view.Properties, &props); err != nil {
+			t.Fatalf("unmarshal props: %v", err)
+		}
+		if props["trackRecord"] != "1:24.5" {
+			t.Fatalf("expected 1:24.5, got %v", props["trackRecord"])
+		}
+	})
+
+	// Test 3: Multi-level Parent property (Root property on Child category) is valid
+	t.Run("Test 3: multi-level root property accepted on child advert", func(t *testing.T) {
+		draft := f.seed(t, f.owner, domainadvert.StatusDraft, func(a *domainadvert.Advert) {
+			a.CategoryID = &childCatID
+		})
+		view, err := f.svc.ReplaceAdvertDynamicProperties(ctx, f.owner, draft.ID, appadvert.ReplacePropertiesInput{
+			ExpectedVersion: 1,
+			Properties:      json.RawMessage(`{"HORSE_BREED":"İngiliz","grassPaddock":true,"trackRecord":"1:20.0"}`),
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		var props map[string]any
+		if err := json.Unmarshal(view.Properties, &props); err != nil {
+			t.Fatalf("unmarshal props: %v", err)
+		}
+		if props["HORSE_BREED"] != "İngiliz" || props["grassPaddock"] != true || props["trackRecord"] != "1:20.0" {
+			t.Fatalf("expected all properties saved, got %v", props)
+		}
+	})
+
+	// Test 4: Unknown Property rejected with 400 validation error
+	t.Run("Test 4: unknown property rejected with 400", func(t *testing.T) {
+		draft := f.seed(t, f.owner, domainadvert.StatusDraft, func(a *domainadvert.Advert) {
+			a.CategoryID = &childCatID
+		})
+		_, err := f.svc.ReplaceAdvertDynamicProperties(ctx, f.owner, draft.ID, appadvert.ReplacePropertiesInput{
+			ExpectedVersion: 1,
+			Properties:      json.RawMessage(`{"unknownProp":"hello"}`),
+		})
+		requireCode(t, err, apperr.CodeValidation)
+	})
+
+	// Test 5: Duplicate property code deduplicated (child override)
+	t.Run("Test 5: duplicate property code is deduplicated with child override", func(t *testing.T) {
+		draft := f.seed(t, f.owner, domainadvert.StatusDraft, func(a *domainadvert.Advert) {
+			a.CategoryID = &childCatID
+		})
+		view, err := f.svc.ReplaceAdvertDynamicProperties(ctx, f.owner, draft.ID, appadvert.ReplacePropertiesInput{
+			ExpectedVersion: 1,
+			Properties:      json.RawMessage(`{"sharedProp":"customChildValue"}`),
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		var props map[string]any
+		if err := json.Unmarshal(view.Properties, &props); err != nil {
+			t.Fatalf("unmarshal props: %v", err)
+		}
+		if props["sharedProp"] != "customChildValue" {
+			t.Fatalf("expected customChildValue, got %v", props["sharedProp"])
+		}
+	})
+
+	// Test 6: Submit validation accepts valid inherited properties
+	t.Run("Test 6: submit validation accepts valid inherited properties", func(t *testing.T) {
+		draft := f.seed(t, f.owner, domainadvert.StatusDraft, func(a *domainadvert.Advert) {
+			a.CategoryID = &childCatID
+			a.Properties = json.RawMessage(`{"HORSE_BREED":"İngiliz","grassPaddock":true,"trackRecord":"1:20.0"}`)
+		})
+		view, err := f.svc.SubmitAdvertForReview(ctx, f.owner, draft.ID, 1)
+		if err != nil {
+			t.Fatalf("submit failed: %v", err)
+		}
+		if view.Status != "PENDING_REVIEW" {
+			t.Fatalf("expected PENDING_REVIEW, got %v", view.Status)
+		}
+	})
+
+	// Test 7: Required inherited property enforced on submit
+	t.Run("Test 7: required inherited property enforced on submit", func(t *testing.T) {
+		draft := f.seed(t, f.owner, domainadvert.StatusDraft, func(a *domainadvert.Advert) {
+			a.CategoryID = &childCatID
+			// Missing required HORSE_BREED inherited from root
+			a.Properties = json.RawMessage(`{"grassPaddock":true,"trackRecord":"1:20.0"}`)
+		})
+		_, err := f.svc.SubmitAdvertForReview(ctx, f.owner, draft.ID, 1)
+		ae := requireCode(t, err, apperr.CodeValidation)
+		if len(ae.FieldErrors) != 1 || ae.FieldErrors[0].Field != "properties.HORSE_BREED" {
+			t.Fatalf("expected validation error on properties.HORSE_BREED, got %+v", ae.FieldErrors)
+		}
+	})
+}
+
 func TestSoftDeleteAdvertDraft(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
