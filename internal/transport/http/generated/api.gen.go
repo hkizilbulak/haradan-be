@@ -1155,7 +1155,6 @@ type CreateAdvertCommentRequest struct {
 
 // CreateAdvertDraftRequest defines model for CreateAdvertDraftRequest.
 type CreateAdvertDraftRequest struct {
-	Address     *string             `json:"address,omitempty"`
 	CategoryId  *openapi_types.UUID `json:"categoryId,omitempty"`
 	Description *string             `json:"description,omitempty"`
 	DistrictId  *openapi_types.UUID `json:"districtId,omitempty"`

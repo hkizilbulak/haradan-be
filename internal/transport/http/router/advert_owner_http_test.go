@@ -343,7 +343,7 @@ func TestReplaceAdvertDynamicPropertiesSellerPhoneHTTP(t *testing.T) {
 	auth, _ := env.registerAndLogin(t, "sellerphone@example.com", true)
 
 	rec := env.do(http.MethodPost, "/api/v1/me/adverts",
-		`{"categoryId":"`+env.category.String()+`","districtId":"`+env.district.String()+`","address":"Bağdat Cad. No:1","title":"Telefon Testi İlanı","price":{"amountMinor":100000,"currency":"TRY"}}`, auth)
+		`{"categoryId":"`+env.category.String()+`","districtId":"`+env.district.String()+`","title":"Telefon Testi İlanı","address":"Bağdat Cad. No:1","price":{"amountMinor":100000,"currency":"TRY"}}`, auth)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create status=%d body=%s", rec.Code, rec.Body.String())
 	}

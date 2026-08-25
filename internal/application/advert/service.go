@@ -15,7 +15,6 @@ import (
 
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
-	domaincatalog "github.com/hkizilbulak/haradan-be/internal/domain/catalog"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 )
 
@@ -378,7 +377,7 @@ func (s *Service) ReplaceAdvertDynamicProperties(
 		if current.CategoryID == nil {
 			return apperr.InvalidState("Özellikler için önce kategori seçilmelidir.")
 		}
-		defs, err := s.resolveCategoryFormProperties(ctx, *current.CategoryID)
+		defs, err := s.catalog.ListFormProperties(ctx, *current.CategoryID)
 		if err != nil {
 			return err
 		}
@@ -393,24 +392,6 @@ func (s *Service) ReplaceAdvertDynamicProperties(
 		return domainadvert.OwnerView{}, err
 	}
 	return updated.ToOwnerView(), nil
-}
-
-func (s *Service) resolveCategoryFormProperties(ctx context.Context, categoryID uuid.UUID) ([]domaincatalog.Property, error) {
-	cat, err := s.catalog.GetActiveCategory(ctx, categoryID)
-	if err != nil {
-		return nil, err
-	}
-	props, err := s.catalog.ListFormProperties(ctx, cat.ID)
-	if err != nil {
-		return nil, err
-	}
-	if len(props) == 0 && cat.ParentID != nil {
-		parentProps, parentErr := s.catalog.ListFormProperties(ctx, *cat.ParentID)
-		if parentErr == nil && len(parentProps) > 0 {
-			props = parentProps
-		}
-	}
-	return props, nil
 }
 
 // SubmitAdvertForReview implements ADVERT-OWNER-07 (DRAFT -> PENDING_REVIEW).
@@ -674,7 +655,7 @@ func (s *Service) validateForSubmission(ctx context.Context, a domainadvert.Adve
 		}
 	}
 
-	defs, err := s.resolveCategoryFormProperties(ctx, *a.CategoryID)
+	defs, err := s.catalog.ListFormProperties(ctx, *a.CategoryID)
 	if err != nil {
 		return err
 	}

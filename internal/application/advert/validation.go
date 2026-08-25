@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"unicode"
 
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
@@ -91,102 +90,6 @@ func normalizeDescription(in *string) *string {
 	return &v
 }
 
-func normalizePropertyKey(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			b.WriteRune(unicode.ToLower(r))
-		}
-	}
-	return b.String()
-}
-
-func resolvePropertyAlias(key string) string {
-	switch strings.ToLower(strings.TrimSpace(key)) {
-	case "facilitygrasspaddock", "grasspaddock", "grass_paddock":
-		return "GRASS_PADDOCK"
-	case "facilitysandpaddock", "sandpaddock", "sand_paddock":
-		return "SAND_PADDOCK"
-	case "facilitystallionpaddock", "stallionpaddock", "stallion_paddock":
-		return "STALLION_PADDOCK"
-	case "facilitytrainingtrack", "trainingtrack", "training_track":
-		return "TRAINING_TRACK"
-	case "facilityveterinarian", "vet", "vet_service":
-		return "VET"
-	case "facilityfarrier", "farrier", "farrier_service":
-		return "FARRIER"
-	case "facilityfoalingbarn", "foalingbarn", "foaling_barn":
-		return "FOALING_BARN"
-	case "studbreed", "stallionbreed", "stallion_breed":
-		return "STALLION_BREED"
-	case "studage", "stallionage", "stallion_age":
-		return "STALLION_AGE"
-	case "studcoatcolor", "coatcolor", "coat_color":
-		return "COAT_COLOR"
-	case "studhorsename", "horsename", "horse_name":
-		return "HORSE_NAME"
-	case "studsire", "sire":
-		return "SIRE"
-	case "studdam", "dam":
-		return "DAM"
-	case "studdamsire", "damsire":
-		return "DAMSIRE"
-	case "companyname", "company_name":
-		return "COMPANY_NAME"
-	case "websiteurl", "website_url":
-		return "WEBSITE_URL"
-	default:
-		return ""
-	}
-}
-
-func matchPropertyDef(defs []domaincatalog.Property, key string) (domaincatalog.Property, bool) {
-	cleanKey := strings.TrimSpace(key)
-	if cleanKey == "" {
-		return domaincatalog.Property{}, false
-	}
-	// 1. Exact match
-	for _, d := range defs {
-		if d.Code == cleanKey {
-			return d, true
-		}
-	}
-	// 2. Case-insensitive match
-	for _, d := range defs {
-		if strings.EqualFold(d.Code, cleanKey) {
-			return d, true
-		}
-	}
-	// 3. Normalized key match (stripping underscores, hyphens, casing)
-	normKey := normalizePropertyKey(cleanKey)
-	for _, d := range defs {
-		if normalizePropertyKey(d.Code) == normKey {
-			return d, true
-		}
-	}
-	// 4. Match against Title (both exact, case-insensitive, and normalized)
-	for _, d := range defs {
-		if strings.EqualFold(d.Title, cleanKey) || normalizePropertyKey(d.Title) == normKey {
-			return d, true
-		}
-	}
-	// 5. Common aliases mapping
-	aliasTarget := resolvePropertyAlias(cleanKey)
-	if aliasTarget != "" {
-		for _, d := range defs {
-			if strings.EqualFold(d.Code, aliasTarget) || normalizePropertyKey(d.Code) == normalizePropertyKey(aliasTarget) {
-				return d, true
-			}
-		}
-	}
-	return domaincatalog.Property{}, false
-}
-
-func isPhoneProperty(code string) bool {
-	norm := strings.ToLower(strings.TrimSpace(code))
-	return norm == "sellerphone" || norm == "phone" || norm == "seller_phone" || norm == "telefon"
-}
-
 // validateDynamicProperties checks a property map against the category form
 // definition. Only active, form-visible property codes are accepted; unknown
 // keys are rejected. Draft mode skips is_required, submit mode enforces it.
@@ -200,21 +103,26 @@ func validateDynamicProperties(
 		return nil, err
 	}
 
+	byCode := make(map[string]domaincatalog.Property, len(defs))
+	for _, d := range defs {
+		byCode[d.Code] = d
+	}
+
 	var fieldErrors []apperr.FieldError
 	normalized := make(map[string]json.RawMessage, len(values))
 	for code, value := range values {
-		if isPhoneProperty(code) {
+		if code == "sellerPhone" || code == "phone" {
 			if isJSONNull(value) {
 				continue
 			}
 			var str string
 			if err := json.Unmarshal(value, &str); err == nil && strings.TrimSpace(str) != "" {
 				trimmed, _ := json.Marshal(strings.TrimSpace(str))
-				normalized["sellerPhone"] = trimmed
+				normalized[code] = trimmed
 			}
 			continue
 		}
-		def, ok := matchPropertyDef(defs, code)
+		def, ok := byCode[code]
 		if !ok {
 			fieldErrors = append(fieldErrors, apperr.FieldError{
 				Field:   "properties." + code,
@@ -234,7 +142,7 @@ func validateDynamicProperties(
 		if clean == nil {
 			continue
 		}
-		normalized[def.Code] = clean
+		normalized[code] = clean
 	}
 
 	if mode == propertyModeSubmit {
@@ -343,11 +251,10 @@ func normalizePropertyValue(def domaincatalog.Property, value json.RawMessage) (
 		if s == "" {
 			return nil, nil
 		}
-		canonical, ok := matchOption(def.Options, s)
-		if !ok {
+		if !optionAllowed(def.Options, s) {
 			return nil, &apperr.FieldError{Field: field, Message: "Geçersiz seçenek."}
 		}
-		encoded, err := json.Marshal(canonical)
+		encoded, err := json.Marshal(s)
 		if err != nil {
 			return nil, &apperr.FieldError{Field: field, Message: "Seçenek değeri bekleniyor."}
 		}
@@ -357,24 +264,20 @@ func normalizePropertyValue(def domaincatalog.Property, value json.RawMessage) (
 	return nil, &apperr.FieldError{Field: field, Message: "Desteklenmeyen özellik tipi."}
 }
 
-// matchOption matches a SINGLE_SELECT value against the option list and returns
-// the canonical option value.
-func matchOption(options json.RawMessage, value string) (string, bool) {
+// optionAllowed matches a SINGLE_SELECT value against the option list, which is
+// a JSON array of either plain strings or objects carrying a value/code key.
+func optionAllowed(options json.RawMessage, value string) bool {
 	if len(bytes.TrimSpace(options)) == 0 {
-		return value, true
+		return false
 	}
 	var entries []json.RawMessage
 	if err := json.Unmarshal(options, &entries); err != nil {
-		return value, true
+		return false
 	}
-	if len(entries) == 0 {
-		return value, true
-	}
-	valNorm := strings.TrimSpace(value)
 	for _, entry := range entries {
 		if s, ok := decodeString(entry); ok {
-			if strings.EqualFold(strings.TrimSpace(s), valNorm) {
-				return s, true
+			if s == value {
+				return true
 			}
 			continue
 		}
@@ -382,31 +285,15 @@ func matchOption(options json.RawMessage, value string) (string, bool) {
 		if err := json.Unmarshal(entry, &obj); err != nil {
 			continue
 		}
-		canonicalVal := ""
-		if rawVal, ok := obj["value"]; ok {
-			if s, ok := decodeString(rawVal); ok {
-				canonicalVal = s
-			}
-		}
-		if canonicalVal == "" {
-			if rawCode, ok := obj["code"]; ok {
-				if s, ok := decodeString(rawCode); ok {
-					canonicalVal = s
-				}
-			}
-		}
-		for _, key := range []string{"value", "code", "label", "title", "name"} {
+		for _, key := range []string{"value", "code", "label"} {
 			if raw, ok := obj[key]; ok {
-				if s, ok := decodeString(raw); ok && strings.EqualFold(strings.TrimSpace(s), valNorm) {
-					if canonicalVal != "" {
-						return canonicalVal, true
-					}
-					return s, true
+				if s, ok := decodeString(raw); ok && s == value {
+					return true
 				}
 			}
 		}
 	}
-	return "", false
+	return false
 }
 
 func decodeString(raw json.RawMessage) (string, bool) {
