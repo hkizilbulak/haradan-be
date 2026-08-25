@@ -66,6 +66,124 @@ func (f *fakeCatalogRepo) ListFormProperties(_ context.Context, categoryID uuid.
 	return append([]domaincatalog.Property(nil), f.props[categoryID]...), nil
 }
 
+func (f *fakeCatalogRepo) ListCategoriesAdmin(_ context.Context, active *bool, limit int) ([]domaincatalog.Category, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	out := []domaincatalog.Category{}
+	for _, c := range f.categories {
+		if active == nil || c.IsActive == *active {
+			out = append(out, c)
+		}
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (f *fakeCatalogRepo) GetCategoryAdmin(_ context.Context, id uuid.UUID) (domaincatalog.Category, error) {
+	if f.getErr != nil {
+		return domaincatalog.Category{}, f.getErr
+	}
+	for _, c := range f.categories {
+		if c.ID == id {
+			return c, nil
+		}
+	}
+	return domaincatalog.Category{}, apperr.NotFound("Kategori bulunamadı.")
+}
+
+func (f *fakeCatalogRepo) CreateCategory(_ context.Context, c domaincatalog.Category) (domaincatalog.Category, error) {
+	f.categories = append(f.categories, c)
+	return c, nil
+}
+
+func (f *fakeCatalogRepo) UpdateCategory(_ context.Context, id uuid.UUID, p domaincatalog.CategoryPatch, expected int, now time.Time) (domaincatalog.Category, error) {
+	for i, c := range f.categories {
+		if c.ID == id {
+			if c.Version != expected {
+				return domaincatalog.Category{}, apperr.StaleVersion("stale version")
+			}
+			if p.SlugSet {
+				c.Slug = p.Slug
+			}
+			if p.NameSet {
+				c.Name = p.Name
+			}
+			if p.DescriptionSet {
+				c.Description = p.Description
+			}
+			if p.SortOrderSet {
+				c.SortOrder = p.SortOrder
+			}
+			c.Version++
+			c.UpdatedAt = now
+			f.categories[i] = c
+			return c, nil
+		}
+	}
+	return domaincatalog.Category{}, apperr.NotFound("Kategori bulunamadı.")
+}
+
+func (f *fakeCatalogRepo) SetCategoryActive(_ context.Context, id uuid.UUID, active bool, expected int, now time.Time) (domaincatalog.Category, error) {
+	for i, c := range f.categories {
+		if c.ID == id {
+			c.IsActive = active
+			c.Version++
+			c.UpdatedAt = now
+			f.categories[i] = c
+			return c, nil
+		}
+	}
+	return domaincatalog.Category{}, apperr.NotFound("Kategori bulunamadı.")
+}
+
+func (f *fakeCatalogRepo) ReparentCategory(_ context.Context, id uuid.UUID, parent *uuid.UUID, expected int, now time.Time) (domaincatalog.Category, error) {
+	for i, c := range f.categories {
+		if c.ID == id {
+			c.ParentID = parent
+			c.Version++
+			c.UpdatedAt = now
+			f.categories[i] = c
+			return c, nil
+		}
+	}
+	return domaincatalog.Category{}, apperr.NotFound("Kategori bulunamadı.")
+}
+
+func (f *fakeCatalogRepo) IsDescendant(_ context.Context, child, parent uuid.UUID) (bool, error) {
+	return false, nil
+}
+
+func (f *fakeCatalogRepo) ReorderCategories(_ context.Context, items []domaincatalog.ReorderItem, now time.Time) error {
+	return nil
+}
+
+func (f *fakeCatalogRepo) ListPropertiesAdmin(_ context.Context, cid uuid.UUID) ([]domaincatalog.Property, error) {
+	return append([]domaincatalog.Property(nil), f.props[cid]...), nil
+}
+
+func (f *fakeCatalogRepo) CreateProperty(_ context.Context, p domaincatalog.Property, now time.Time) (domaincatalog.Property, error) {
+	if f.props == nil {
+		f.props = map[uuid.UUID][]domaincatalog.Property{}
+	}
+	f.props[p.CategoryID] = append(f.props[p.CategoryID], p)
+	return p, nil
+}
+
+func (f *fakeCatalogRepo) UpdateProperty(_ context.Context, pid, cid uuid.UUID, p domaincatalog.PropertyPatch, expected int, now time.Time) (domaincatalog.Property, error) {
+	return domaincatalog.Property{}, nil
+}
+
+func (f *fakeCatalogRepo) SetPropertyActive(_ context.Context, pid, cid uuid.UUID, active bool, expected int, now time.Time) (domaincatalog.Property, error) {
+	return domaincatalog.Property{}, nil
+}
+
+func (f *fakeCatalogRepo) ReorderProperties(_ context.Context, items []domaincatalog.ReorderItem, now time.Time) error {
+	return nil
+}
+
 func TestGetPublicCategoryTreeBuildsDeterministicForest(t *testing.T) {
 	rootA := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	rootB := uuid.MustParse("00000000-0000-0000-0000-000000000002")
@@ -206,5 +324,47 @@ func TestPropertyTieBreakByCodeThenID(t *testing.T) {
 	}
 	if def.Properties[0].ID != idLow || def.Properties[1].ID != idHigh {
 		t.Fatalf("tie-break failed: %+v", def.Properties)
+	}
+}
+
+func TestCreateCategoryAutoGeneratesUniqueSlugAndSortOrder(t *testing.T) {
+	rootID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	repo := &fakeCatalogRepo{
+		categories: []domaincatalog.Category{
+			{ID: rootID, Slug: "satilik-atlar", Name: "Satılık Atlar", SortOrder: 1, IsActive: true},
+			{ID: uuid.New(), ParentID: &rootID, Slug: "satilik-yaris-ati", Name: "Satılık Yarış Atı", SortOrder: 1, IsActive: true},
+		},
+	}
+	svc := appcatalog.NewService(repo)
+
+	// 1. Create subcategory with same slug: should automatically resolve collision with -2
+	child1, err := svc.CreateCategory(context.Background(), domaincatalog.Category{
+		ParentID: &rootID,
+		Name:     "Satılık Yarış Atı",
+		Slug:     "satilik-yaris-ati",
+	}, nil)
+	if err != nil {
+		t.Fatalf("failed to create subcategory with duplicate slug: %v", err)
+	}
+	if child1.Slug != "satilik-yaris-ati-2" {
+		t.Fatalf("expected slug satilik-yaris-ati-2, got %s", child1.Slug)
+	}
+	if child1.SortOrder != 2 {
+		t.Fatalf("expected auto sortOrder 2, got %d", child1.SortOrder)
+	}
+
+	// 2. Create subcategory with Turkish name and empty slug: should slugify correctly
+	child2, err := svc.CreateCategory(context.Background(), domaincatalog.Category{
+		ParentID: &rootID,
+		Name:     "İngiliz & Arap Aygırı",
+	}, nil)
+	if err != nil {
+		t.Fatalf("failed to create subcategory with Turkish name: %v", err)
+	}
+	if child2.Slug != "ingiliz-arap-aygiri" {
+		t.Fatalf("expected slug ingiliz-arap-aygiri, got %s", child2.Slug)
+	}
+	if child2.SortOrder != 3 {
+		t.Fatalf("expected auto sortOrder 3, got %d", child2.SortOrder)
 	}
 }

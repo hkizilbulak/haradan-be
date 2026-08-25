@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 
@@ -224,18 +225,18 @@ func (s *Service) CreateCategory(ctx context.Context, c domaincatalog.Category, 
 			return c, err
 		}
 	}
+	allCategories, err := r.ListCategoriesAdmin(ctx, nil, 10000)
+	if err != nil {
+		return c, err
+	}
 	if sortOrder != nil {
 		if *sortOrder < 0 {
 			return c, apperr.Validation("sortOrder negatif olamaz.")
 		}
 		c.SortOrder = *sortOrder
 	} else {
-		siblings, err := r.ListCategoriesAdmin(ctx, nil, 10000)
-		if err != nil {
-			return c, err
-		}
 		maxOrder := -1
-		for _, item := range siblings {
+		for _, item := range allCategories {
 			sameParent := (c.ParentID == nil && item.ParentID == nil) ||
 				(c.ParentID != nil && item.ParentID != nil && *c.ParentID == *item.ParentID)
 			if sameParent && item.SortOrder > maxOrder {
@@ -244,6 +245,11 @@ func (s *Service) CreateCategory(ctx context.Context, c domaincatalog.Category, 
 		}
 		c.SortOrder = maxOrder + 1
 	}
+	slug, err := generateCategorySlug(allCategories, c.Slug, c.Name)
+	if err != nil {
+		return c, err
+	}
+	c.Slug = slug
 	c.ID = uuid.New()
 	c.CreatedAt = time.Now().UTC()
 	c.Version = 1
@@ -374,6 +380,71 @@ func (s *Service) CreateCategoryProperty(ctx context.Context, p domaincatalog.Pr
 
 	p.ID = uuid.New()
 	return r.CreateProperty(ctx, p, time.Now().UTC())
+}
+
+func slugifyCategory(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	var b strings.Builder
+	for _, r := range s {
+		switch r {
+		case 'ğ', 'Ğ':
+			b.WriteRune('g')
+		case 'ü', 'Ü':
+			b.WriteRune('u')
+		case 'ş', 'Ş':
+			b.WriteRune('s')
+		case 'ı', 'I', 'İ', 'i':
+			b.WriteRune('i')
+		case 'ö', 'Ö':
+			b.WriteRune('o')
+		case 'ç', 'Ç':
+			b.WriteRune('c')
+		default:
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+				b.WriteRune(unicode.ToLower(r))
+			} else if unicode.IsSpace(r) || r == '-' || r == '_' {
+				b.WriteRune('-')
+			}
+		}
+	}
+	res := b.String()
+	for strings.Contains(res, "--") {
+		res = strings.ReplaceAll(res, "--", "-")
+	}
+	return strings.Trim(res, "-")
+}
+
+func generateCategorySlug(existing []domaincatalog.Category, base, name string) (string, error) {
+	used := make(map[string]struct{}, len(existing))
+	for _, item := range existing {
+		used[strings.ToLower(strings.TrimSpace(item.Slug))] = struct{}{}
+	}
+	candidate := slugifyCategory(base)
+	if candidate == "" {
+		candidate = slugifyCategory(name)
+	}
+	if candidate == "" {
+		candidate = "kategori"
+	}
+	for i := 0; i < 1000; i++ {
+		try := candidate
+		if i > 0 {
+			suffix := fmt.Sprintf("-%d", i+1)
+			stem := candidate
+			if len(stem)+len(suffix) > 128 {
+				stem = stem[:128-len(suffix)]
+				stem = strings.TrimRight(stem, "-")
+			}
+			try = stem + suffix
+		}
+		if _, ok := used[try]; !ok {
+			return try, nil
+		}
+	}
+	return "", apperr.Conflict("Kategori bağlantı adı üretilemedi.")
 }
 
 func allocatePropertyCode(existing []domaincatalog.Property, base string) (string, error) {
