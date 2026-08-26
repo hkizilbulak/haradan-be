@@ -133,14 +133,14 @@ type Config struct {
 
 	// PayTR iframe checkout. Empty credentials keep PayTR disabled; owner
 	// checkout endpoints then return DEPENDENCY_UNAVAILABLE.
-	PayTREnabled       bool
-	PayTRMerchantID    string
-	PayTRMerchantKey   string
-	PayTRMerchantSalt  string
-	PayTRTestMode      bool
-	PayTRDebugOn       bool
-	PayTRHTTPTimeout   time.Duration
-	PayTRAPIPublicURL  string // e.g. https://api.example.com/api — notify callback base
+	PayTREnabled      bool
+	PayTRMerchantID   string
+	PayTRMerchantKey  string
+	PayTRMerchantSalt string
+	PayTRTestMode     bool
+	PayTRDebugOn      bool
+	PayTRHTTPTimeout  time.Duration
+	PayTRAPIPublicURL string // e.g. https://api.example.com/api — notify callback base
 }
 
 const defaultTJKBaseURL = "https://www.tjk.org"

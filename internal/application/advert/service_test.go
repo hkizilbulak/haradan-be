@@ -13,10 +13,10 @@ import (
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
-	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	domaincatalog "github.com/hkizilbulak/haradan-be/internal/domain/catalog"
 	domaingeo "github.com/hkizilbulak/haradan-be/internal/domain/geo"
 	domainhorse "github.com/hkizilbulak/haradan-be/internal/domain/horse"
+	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
 )
 

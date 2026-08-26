@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 
 	appcomment "github.com/hkizilbulak/haradan-be/internal/application/comment"
-	domaincomment "github.com/hkizilbulak/haradan-be/internal/domain/comment"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domaincomment "github.com/hkizilbulak/haradan-be/internal/domain/comment"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authctx"
 )
@@ -147,4 +147,3 @@ func (h *Handler) DeleteAdvertComment(c *gin.Context, advertID uuid.UUID, commen
 	c.Status(http.StatusNoContent)
 	c.Writer.WriteHeaderNow()
 }
-

@@ -1,10 +1,10 @@
 package studfarm
 
 import (
-	"github.com/google/uuid"
-	"strings"
 	"context"
 	"fmt"
+	"github.com/google/uuid"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -36,7 +36,7 @@ func NewRepository(db Querier) *Repository {
 func (r *Repository) List(ctx context.Context, cursor *string, limit int) (domainstudfarm.ListResult, error) {
 	args := []any{limit + 1}
 	whereClause := ""
-	
+
 	if cursor != nil && *cursor != "" {
 		cursorTime, err := time.Parse(time.RFC3339Nano, *cursor)
 		if err != nil {
@@ -93,7 +93,7 @@ func (r *Repository) List(ctx context.Context, cursor *string, limit int) (domai
 
 	hasMore := false
 	var nextCursor *string
-	
+
 	if len(items) > limit {
 		hasMore = true
 		items = items[:limit]
@@ -107,7 +107,6 @@ func (r *Repository) List(ctx context.Context, cursor *string, limit int) (domai
 		HasMore:    hasMore,
 	}, nil
 }
-
 
 // Create inserts a new stud farm record.
 func (r *Repository) Create(ctx context.Context, param domainstudfarm.CreateParam) (domainstudfarm.StudFarm, error) {
@@ -131,7 +130,6 @@ func (r *Repository) Create(ctx context.Context, param domainstudfarm.CreatePara
 	return sf, nil
 }
 
-
 func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
 	tag, err := r.db.Exec(ctx, "DELETE FROM hrd_stud_farms WHERE id = $1", id)
 	if err != nil {
@@ -142,7 +140,6 @@ func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
-
 
 func (r *Repository) AddNote(ctx context.Context, param domainstudfarm.NoteCreateParam) error {
 	id := uuid.New()
@@ -157,7 +154,6 @@ func (r *Repository) AddNote(ctx context.Context, param domainstudfarm.NoteCreat
 	}
 	return nil
 }
-
 
 func (r *Repository) ListNotes(ctx context.Context, studFarmId uuid.UUID) ([]domainstudfarm.Note, error) {
 	q := `
@@ -186,4 +182,47 @@ func (r *Repository) ListNotes(ctx context.Context, studFarmId uuid.UUID) ([]dom
 	}
 
 	return notes, nil
+}
+
+func (r *Repository) DeleteNote(ctx context.Context, studFarmId uuid.UUID, noteId uuid.UUID) error {
+	tag, err := r.db.Exec(ctx, "DELETE FROM hrd_stud_farm_notes WHERE id = $1 AND stud_farm_id = $2", noteId, studFarmId)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
+func (r *Repository) UpdateNote(ctx context.Context, studFarmId uuid.UUID, noteId uuid.UUID, param domainstudfarm.NoteCreateParam) error {
+	query := `
+		UPDATE hrd_stud_farm_notes
+		SET interview_date = $1, interviewer_name = $2, notes_url = $3
+		WHERE id = $4 AND stud_farm_id = $5`
+	_, err := r.db.Exec(ctx, query, param.InterviewDate, param.InterviewerName, param.Notes, noteId, studFarmId)
+	if err != nil {
+		return pg.SanitizeErr(err)
+	}
+	return nil
+}
+
+func (r *Repository) Update(ctx context.Context, id uuid.UUID, param domainstudfarm.CreateParam) error {
+	now := time.Now().UTC()
+	q := `
+		UPDATE hrd_stud_farms
+		SET first_name = $1, last_name = $2, email = $3, phone = $4, location = $5, updated_at = $6
+		WHERE id = $7
+	`
+	tag, err := r.db.Exec(ctx, q, param.FirstName, param.LastName, param.Email, param.Phone, param.Location, now, id)
+	if err != nil {
+		if strings.Contains(err.Error(), "unique constraint") {
+			return apperr.Conflict("email already exists")
+		}
+		return pg.SanitizeErr(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }

@@ -11,12 +11,12 @@ import (
 
 // Domain errors
 var (
-	ErrCommentNotFound            = errors.New("comment not found")
-	ErrEmptyContent               = errors.New("lütfen bir yorum yazınız veya puan veriniz")
-	ErrContentTooLong             = errors.New("comment content exceeds maximum allowed length of 1000 characters")
-	ErrInvalidRating              = errors.New("rating must be between 1 and 5")
-	ErrAdvertNotCommentable       = errors.New("comments are only allowed on published adverts")
-	ErrUnauthorizedCommentAction  = errors.New("yalnızca kendi yorumunuzu silebilirsiniz")
+	ErrCommentNotFound           = errors.New("comment not found")
+	ErrEmptyContent              = errors.New("lütfen bir yorum yazınız veya puan veriniz")
+	ErrContentTooLong            = errors.New("comment content exceeds maximum allowed length of 1000 characters")
+	ErrInvalidRating             = errors.New("rating must be between 1 and 5")
+	ErrAdvertNotCommentable      = errors.New("comments are only allowed on published adverts")
+	ErrUnauthorizedCommentAction = errors.New("yalnızca kendi yorumunuzu silebilirsiniz")
 )
 
 const MaxContentLength = 1000
@@ -66,5 +66,3 @@ func Validate(content string, rating *int) (string, error) {
 	}
 	return trimmed, nil
 }
-
-

@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 
 	appcomment "github.com/hkizilbulak/haradan-be/internal/application/comment"
-	domainauth "github.com/hkizilbulak/haradan-be/internal/domain/auth"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domainauth "github.com/hkizilbulak/haradan-be/internal/domain/auth"
 	handlercomment "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/comment"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authctx"
 )

@@ -366,4 +366,3 @@ func TestReplaceAdvertDynamicPropertiesSellerPhoneHTTP(t *testing.T) {
 		t.Fatalf("sellerPhone not set: %+v", updated.Properties)
 	}
 }
-

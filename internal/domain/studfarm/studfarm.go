@@ -71,6 +71,9 @@ type Repository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	AddNote(ctx context.Context, param NoteCreateParam) error
 	ListNotes(ctx context.Context, studFarmId uuid.UUID) ([]Note, error)
+	DeleteNote(ctx context.Context, studFarmId uuid.UUID, noteId uuid.UUID) error
+	UpdateNote(ctx context.Context, studFarmId uuid.UUID, noteId uuid.UUID, param NoteCreateParam) error
+	Update(ctx context.Context, id uuid.UUID, param CreateParam) error
 }
 
 // Service defines the business logic for stud farms.
@@ -80,4 +83,7 @@ type Service interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	AddNote(ctx context.Context, param NoteCreateParam) error
 	ListNotes(ctx context.Context, studFarmId uuid.UUID) ([]Note, error)
+	DeleteNote(ctx context.Context, studFarmId uuid.UUID, noteId uuid.UUID) error
+	UpdateNote(ctx context.Context, studFarmId uuid.UUID, noteId uuid.UUID, param NoteCreateParam) error
+	Update(ctx context.Context, id uuid.UUID, param CreateParam) error
 }

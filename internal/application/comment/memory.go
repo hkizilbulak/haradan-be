@@ -13,10 +13,10 @@ import (
 )
 
 type memoryRepo struct {
-	mu          sync.RWMutex
-	adverts     map[uuid.UUID]AdvertStatusResult
-	comments    map[uuid.UUID]domaincomment.Comment
-	users       map[uuid.UUID]string
+	mu       sync.RWMutex
+	adverts  map[uuid.UUID]AdvertStatusResult
+	comments map[uuid.UUID]domaincomment.Comment
+	users    map[uuid.UUID]string
 }
 
 // NewMemoryRepository returns a thread-safe in-memory Repository implementation for testing.

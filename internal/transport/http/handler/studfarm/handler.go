@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
-	
+
 	domainstudfarm "github.com/hkizilbulak/haradan-be/internal/domain/studfarm"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 )
@@ -74,7 +74,6 @@ func (h *Handler) ListStudFarms(c *gin.Context, params generated.ListStudFarmsPa
 	})
 }
 
-
 // CreateStudFarm implements generated.ServerInterface.
 func (h *Handler) CreateStudFarm(c *gin.Context) {
 	var req generated.StudFarmCreateRequest
@@ -111,7 +110,6 @@ func (h *Handler) CreateStudFarm(c *gin.Context) {
 	c.JSON(http.StatusCreated, item)
 }
 
-
 // DeleteStudFarm implements generated.ServerInterface.
 func (h *Handler) DeleteStudFarm(c *gin.Context, studFarmId openapi_types.UUID) {
 	err := h.svc.Delete(c.Request.Context(), uuid.UUID(studFarmId))
@@ -119,11 +117,9 @@ func (h *Handler) DeleteStudFarm(c *gin.Context, studFarmId openapi_types.UUID) 
 		h.respondError(c, h.logger, err)
 		return
 	}
-	
+
 	c.Status(http.StatusNoContent)
 }
-	
-
 
 // AddStudFarmNote implements generated.ServerInterface.
 func (h *Handler) AddStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID) {
@@ -148,7 +144,6 @@ func (h *Handler) AddStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID)
 	c.Status(http.StatusCreated)
 }
 
-
 // ListStudFarmNotes implements generated.ServerInterface.
 func (h *Handler) ListStudFarmNotes(c *gin.Context, studFarmId openapi_types.UUID) {
 	notes, err := h.svc.ListNotes(c.Request.Context(), uuid.UUID(studFarmId))
@@ -171,4 +166,61 @@ func (h *Handler) ListStudFarmNotes(c *gin.Context, studFarmId openapi_types.UUI
 	}
 
 	c.JSON(http.StatusOK, res)
+}
+
+// DeleteStudFarmNote implements generated.ServerInterface.
+func (h *Handler) DeleteStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID, noteId openapi_types.UUID) {
+	err := h.svc.DeleteNote(c.Request.Context(), uuid.UUID(studFarmId), uuid.UUID(noteId))
+	if err != nil {
+		h.respondError(c, h.logger, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *Handler) UpdateStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID, noteId openapi_types.UUID) {
+	ctx := c.Request.Context()
+	var req generated.StudFarmNoteCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, h.logger, err)
+		return
+	}
+
+	param := domainstudfarm.NoteCreateParam{
+		InterviewDate:   req.InterviewDate,
+		InterviewerName: req.InterviewerName,
+		Notes:           req.Notes,
+	}
+
+	err := h.svc.UpdateNote(ctx, uuid.UUID(studFarmId), uuid.UUID(noteId), param)
+	if err != nil {
+		h.respondError(c, h.logger, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *Handler) UpdateStudFarm(c *gin.Context, id openapi_types.UUID) {
+	var req generated.StudFarmCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, h.logger, err)
+		return
+	}
+
+	param := domainstudfarm.CreateParam{
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		Email:     string(req.Email),
+		Phone:     req.Phone,
+		Location:  req.Location,
+	}
+
+	err := h.svc.Update(c.Request.Context(), uuid.UUID(id), param)
+	if err != nil {
+		h.respondError(c, h.logger, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }

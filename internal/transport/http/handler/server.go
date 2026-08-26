@@ -15,6 +15,8 @@ import (
 	appbanner "github.com/hkizilbulak/haradan-be/internal/application/banner"
 	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
+	appcomment "github.com/hkizilbulak/haradan-be/internal/application/comment"
+	appcoupon "github.com/hkizilbulak/haradan-be/internal/application/coupon"
 	appemail "github.com/hkizilbulak/haradan-be/internal/application/email"
 	appfavorite "github.com/hkizilbulak/haradan-be/internal/application/favorite"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
@@ -23,8 +25,10 @@ import (
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	appnotification "github.com/hkizilbulak/haradan-be/internal/application/notification"
 	apppackaging "github.com/hkizilbulak/haradan-be/internal/application/packaging"
+	apppaytr "github.com/hkizilbulak/haradan-be/internal/application/paytr"
 	apptjk "github.com/hkizilbulak/haradan-be/internal/application/tjk"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domainstudfarm "github.com/hkizilbulak/haradan-be/internal/domain/studfarm"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	accounthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/account"
 	adminuserhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/adminuser"
@@ -33,6 +37,8 @@ import (
 	bannerhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/banner"
 	campaignhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/campaign"
 	cataloghandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/catalog"
+	commenthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/comment"
+	couponhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/coupon"
 	emailtplhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/emailtpl"
 	favoritehandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/favorite"
 	geohandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/geo"
@@ -42,15 +48,9 @@ import (
 	notificationinboxhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/notificationinbox"
 	notificationtplhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/notificationtpl"
 	packaginghandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/packaging"
-	tjkhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/tjk"
-	appcoupon "github.com/hkizilbulak/haradan-be/internal/application/coupon"
-	couponhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/coupon"
-	appcomment "github.com/hkizilbulak/haradan-be/internal/application/comment"
-	commenthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/comment"
-	domainstudfarm "github.com/hkizilbulak/haradan-be/internal/domain/studfarm"
-	studfarmhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/studfarm"
-	apppaytr "github.com/hkizilbulak/haradan-be/internal/application/paytr"
 	paytrhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/paytr"
+	studfarmhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/studfarm"
+	tjkhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/tjk"
 )
 
 // DependencyChecker is a minimal health dependency contract.
@@ -270,7 +270,6 @@ func NewServer(
 	return s
 }
 
-
 func (s *Server) CreateStudFarm(c *gin.Context) {
 	if s.studfarm != nil {
 		s.studfarm.CreateStudFarm(c)
@@ -281,7 +280,6 @@ func (s *Server) CreateStudFarm(c *gin.Context) {
 
 var _ generated.ServerInterface = (*Server)(nil)
 
-
 func (s *Server) DeleteStudFarm(c *gin.Context, studFarmId openapi_types.UUID) {
 	if s.studfarm != nil {
 		s.studfarm.DeleteStudFarm(c, studFarmId)
@@ -290,7 +288,6 @@ func (s *Server) DeleteStudFarm(c *gin.Context, studFarmId openapi_types.UUID) {
 	}
 }
 
-
 func (s *Server) AddStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID) {
 	if s.studfarm != nil {
 		s.studfarm.AddStudFarmNote(c, studFarmId)
@@ -298,7 +295,6 @@ func (s *Server) AddStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID) 
 		c.Status(http.StatusNotImplemented)
 	}
 }
-
 
 func (s *Server) ListStudFarmNotes(c *gin.Context, studFarmId openapi_types.UUID) {
 	if s.studfarm != nil {
@@ -314,3 +310,18 @@ func (s *Server) RegisterCatalogDynamicRoutes(rg gin.IRouter) {
 	}
 }
 
+func (s *Server) DeleteStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID, noteId openapi_types.UUID) {
+	if s.studfarm != nil {
+		s.studfarm.DeleteStudFarmNote(c, studFarmId, noteId)
+	} else {
+		c.Status(http.StatusNotImplemented)
+	}
+}
+
+func (s *Server) UpdateStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID, noteId openapi_types.UUID) {
+	s.studfarm.UpdateStudFarmNote(c, studFarmId, noteId)
+}
+
+func (s *Server) UpdateStudFarm(c *gin.Context, id openapi_types.UUID) {
+	s.studfarm.UpdateStudFarm(c, id)
+}

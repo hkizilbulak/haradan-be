@@ -7,7 +7,7 @@ import (
 )
 
 // Reproduce CHECK hrd_one_time_credentials_target_email_by_purpose_check:
-// PASSWORD_RESET requires target_email IS NULL (not '').
+// PASSWORD_RESET requires target_email IS NULL (not ”).
 func TestNullIfEmptyPasswordResetOTCSemantics(t *testing.T) {
 	t.Parallel()
 	if got := postgres.NullIfEmpty(""); got != nil {

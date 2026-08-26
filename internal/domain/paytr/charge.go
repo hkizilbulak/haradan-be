@@ -30,26 +30,26 @@ func (s ChargeStatus) Valid() bool {
 
 // Charge is a row in hrd_paytr_charges.
 type Charge struct {
-	ID                 uuid.UUID
-	MerchantOID        string
-	AdvertID           uuid.UUID
-	OwnerUserID        uuid.UUID
-	PackageCode        domainpackaging.PackageCode
-	AmountMinor        int64
-	CurrencyCode       string
-	Status             ChargeStatus
-	IframeToken        *string
-	UserIP             *string
-	TokenRequestJSON   *string
-	TokenResponseJSON  *string
-	NotifyPayloadJSON  *string
-	FailReasonCode     *string
-	FailReasonMsg      *string
-	PaidAt             *time.Time
-	AdvertSubmittedAt  *time.Time
-	Version            int
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                uuid.UUID
+	MerchantOID       string
+	AdvertID          uuid.UUID
+	OwnerUserID       uuid.UUID
+	PackageCode       domainpackaging.PackageCode
+	AmountMinor       int64
+	CurrencyCode      string
+	Status            ChargeStatus
+	IframeToken       *string
+	UserIP            *string
+	TokenRequestJSON  *string
+	TokenResponseJSON *string
+	NotifyPayloadJSON *string
+	FailReasonCode    *string
+	FailReasonMsg     *string
+	PaidAt            *time.Time
+	AdvertSubmittedAt *time.Time
+	Version           int
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 // IsTerminal reports whether the charge can no longer change.

@@ -76,7 +76,7 @@ func (*stubTx) CopyFrom(context.Context, pgx.Identifier, []string, pgx.CopyFromS
 	panic("unused")
 }
 func (*stubTx) SendBatch(context.Context, *pgx.Batch) pgx.BatchResults { panic("unused") }
-func (*stubTx) LargeObjects() pgx.LargeObjects                          { panic("unused") }
+func (*stubTx) LargeObjects() pgx.LargeObjects                         { panic("unused") }
 func (*stubTx) Prepare(context.Context, string, string) (*pgconn.StatementDescription, error) {
 	panic("unused")
 }
@@ -84,7 +84,7 @@ func (*stubTx) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) 
 	panic("unused")
 }
 func (*stubTx) Query(context.Context, string, ...any) (pgx.Rows, error) { panic("unused") }
-func (*stubTx) QueryRow(context.Context, string, ...any) pgx.Row       { panic("unused") }
+func (*stubTx) QueryRow(context.Context, string, ...any) pgx.Row        { panic("unused") }
 func (*stubTx) Conn() *pgx.Conn                                         { panic("unused") }
 
 func (r *fakeRepo) BeginTx(context.Context) (pgx.Tx, error) {

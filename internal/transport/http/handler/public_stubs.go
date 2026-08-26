@@ -154,6 +154,7 @@ func mapPublicCard(v domainadvert.PublicCard) generated.PublishedAdvertCard {
 		IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt, IsFeatured: v.IsFeatured, FeaturedUntil: v.FeaturedUntil,
 		IsFavorite: v.IsFavorite, ViewCount: v.ViewCount}
 }
+
 type publicDetailJSON struct {
 	generated.PublishedAdvertDetailResponse
 	SellerPhone *string    `json:"sellerPhone,omitempty"`

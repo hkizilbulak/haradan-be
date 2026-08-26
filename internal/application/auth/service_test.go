@@ -754,4 +754,3 @@ func TestRequestEmailChangeDirectUpdate(t *testing.T) {
 		t.Fatalf("user email not directly updated or not verified: %+v", u)
 	}
 }
-

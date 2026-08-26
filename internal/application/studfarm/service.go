@@ -5,8 +5,8 @@ import (
 
 	"context"
 
-	domainstudfarm "github.com/hkizilbulak/haradan-be/internal/domain/studfarm"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domainstudfarm "github.com/hkizilbulak/haradan-be/internal/domain/studfarm"
 )
 
 type service struct {
@@ -38,11 +38,9 @@ func (s *service) Create(ctx context.Context, param domainstudfarm.CreateParam) 
 	return s.repo.Create(ctx, param)
 }
 
-
 func (s *service) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.repo.Delete(ctx, id)
 }
-
 
 func (s *service) AddNote(ctx context.Context, param domainstudfarm.NoteCreateParam) error {
 	if param.InterviewerName == "" {
@@ -54,7 +52,6 @@ func (s *service) AddNote(ctx context.Context, param domainstudfarm.NoteCreatePa
 	return s.repo.AddNote(ctx, param)
 }
 
-
 func (s *service) ListNotes(ctx context.Context, studFarmId uuid.UUID) ([]domainstudfarm.Note, error) {
 	notes, err := s.repo.ListNotes(ctx, studFarmId)
 	if err != nil {
@@ -64,4 +61,25 @@ func (s *service) ListNotes(ctx context.Context, studFarmId uuid.UUID) ([]domain
 		notes = make([]domainstudfarm.Note, 0)
 	}
 	return notes, nil
+}
+
+func (s *service) DeleteNote(ctx context.Context, studFarmId uuid.UUID, noteId uuid.UUID) error {
+	return s.repo.DeleteNote(ctx, studFarmId, noteId)
+}
+
+func (s *service) UpdateNote(ctx context.Context, studFarmId uuid.UUID, noteId uuid.UUID, param domainstudfarm.NoteCreateParam) error {
+	return s.repo.UpdateNote(ctx, studFarmId, noteId, param)
+}
+
+func (s *service) Update(ctx context.Context, id uuid.UUID, param domainstudfarm.CreateParam) error {
+	if param.FirstName == "" {
+		return apperr.Validation("first name is required")
+	}
+	if param.LastName == "" {
+		return apperr.Validation("last name is required")
+	}
+	if param.Email == "" {
+		return apperr.Validation("email is required")
+	}
+	return s.repo.Update(ctx, id, param)
 }

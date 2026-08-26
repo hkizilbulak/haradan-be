@@ -2747,8 +2747,14 @@ type InitiateMediaUploadJSONRequestBody = InitiateMediaUploadRequest
 // CreateStudFarmJSONRequestBody defines body for CreateStudFarm for application/json ContentType.
 type CreateStudFarmJSONRequestBody = StudFarmCreateRequest
 
+// UpdateStudFarmJSONRequestBody defines body for UpdateStudFarm for application/json ContentType.
+type UpdateStudFarmJSONRequestBody = StudFarmCreateRequest
+
 // AddStudFarmNoteJSONRequestBody defines body for AddStudFarmNote for application/json ContentType.
 type AddStudFarmNoteJSONRequestBody = StudFarmNoteCreateRequest
+
+// UpdateStudFarmNoteJSONRequestBody defines body for UpdateStudFarmNote for application/json ContentType.
+type UpdateStudFarmNoteJSONRequestBody = StudFarmNoteCreateRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -3157,12 +3163,21 @@ type ServerInterface interface {
 	// DeleteStudFarm DeleteStudFarm
 	// (DELETE /v1/stud-farms/{studFarmId})
 	DeleteStudFarm(c *gin.Context, studFarmId openapi_types.UUID)
+	// UpdateStudFarm UpdateStudFarm
+	// (PUT /v1/stud-farms/{studFarmId})
+	UpdateStudFarm(c *gin.Context, studFarmId openapi_types.UUID)
 	// ListStudFarmNotes ListStudFarmNotes
 	// (GET /v1/stud-farms/{studFarmId}/notes)
 	ListStudFarmNotes(c *gin.Context, studFarmId openapi_types.UUID)
 	// AddStudFarmNote AddStudFarmNote
 	// (POST /v1/stud-farms/{studFarmId}/notes)
 	AddStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID)
+	// DeleteStudFarmNote DeleteStudFarmNote
+	// (DELETE /v1/stud-farms/{studFarmId}/notes/{noteId})
+	DeleteStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID, noteId openapi_types.UUID)
+	// UpdateStudFarmNote UpdateStudFarmNote
+	// (PUT /v1/stud-farms/{studFarmId}/notes/{noteId})
+	UpdateStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID, noteId openapi_types.UUID)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -6644,6 +6659,31 @@ func (siw *ServerInterfaceWrapper) DeleteStudFarm(c *gin.Context) {
 	siw.Handler.DeleteStudFarm(c, studFarmId)
 }
 
+// UpdateStudFarm operation middleware
+func (siw *ServerInterfaceWrapper) UpdateStudFarm(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "studFarmId" -------------
+	var studFarmId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "studFarmId", c.Param("studFarmId"), &studFarmId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter studFarmId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateStudFarm(c, studFarmId)
+}
+
 // ListStudFarmNotes operation middleware
 func (siw *ServerInterfaceWrapper) ListStudFarmNotes(c *gin.Context) {
 
@@ -6692,6 +6732,74 @@ func (siw *ServerInterfaceWrapper) AddStudFarmNote(c *gin.Context) {
 	}
 
 	siw.Handler.AddStudFarmNote(c, studFarmId)
+}
+
+// DeleteStudFarmNote operation middleware
+func (siw *ServerInterfaceWrapper) DeleteStudFarmNote(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "studFarmId" -------------
+	var studFarmId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "studFarmId", c.Param("studFarmId"), &studFarmId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter studFarmId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "noteId" -------------
+	var noteId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "noteId", c.Param("noteId"), &noteId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter noteId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteStudFarmNote(c, studFarmId, noteId)
+}
+
+// UpdateStudFarmNote operation middleware
+func (siw *ServerInterfaceWrapper) UpdateStudFarmNote(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "studFarmId" -------------
+	var studFarmId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "studFarmId", c.Param("studFarmId"), &studFarmId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter studFarmId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "noteId" -------------
+	var noteId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "noteId", c.Param("noteId"), &noteId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter noteId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateStudFarmNote(c, studFarmId, noteId)
 }
 
 // GinServerOptions provides options for the Gin server.
@@ -6854,8 +6962,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/v1/adverts/:advertId/urgent", wrapper.DeactivateAdvertUrgent)
 	router.PUT(options.BaseURL+"/v1/adverts/:advertId/urgent", wrapper.ActivateAdvertUrgent)
 	router.DELETE(options.BaseURL+"/v1/stud-farms/:studFarmId", wrapper.DeleteStudFarm)
+	router.PUT(options.BaseURL+"/v1/stud-farms/:studFarmId", wrapper.UpdateStudFarm)
 	router.GET(options.BaseURL+"/v1/stud-farms/:studFarmId/notes", wrapper.ListStudFarmNotes)
 	router.POST(options.BaseURL+"/v1/stud-farms/:studFarmId/notes", wrapper.AddStudFarmNote)
+	router.DELETE(options.BaseURL+"/v1/stud-farms/:studFarmId/notes/:noteId", wrapper.DeleteStudFarmNote)
+	router.PUT(options.BaseURL+"/v1/stud-farms/:studFarmId/notes/:noteId", wrapper.UpdateStudFarmNote)
 	router.GET(options.BaseURL+"/v1/stud-farms", wrapper.ListStudFarms)
 	router.POST(options.BaseURL+"/v1/stud-farms", wrapper.CreateStudFarm)
 }

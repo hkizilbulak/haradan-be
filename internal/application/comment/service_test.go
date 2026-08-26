@@ -74,7 +74,6 @@ func TestCreateComment_Success(t *testing.T) {
 	}
 }
 
-
 func TestCreateComment_RatingOnly_Success(t *testing.T) {
 	repo := appcomment.NewMemoryRepository()
 	userID := uuid.New()

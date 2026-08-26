@@ -91,8 +91,8 @@ func (r *Repository) FindCommentByID(ctx context.Context, commentID uuid.UUID) (
 		WHERE id = $1
 	`
 	var (
-		c domaincomment.Comment
-		st string
+		c      domaincomment.Comment
+		st     string
 		rating *int
 	)
 	err := r.db.QueryRow(ctx, query, commentID).Scan(
@@ -185,10 +185,10 @@ func (r *Repository) ListCommentsByAdvert(ctx context.Context, advertID uuid.UUI
 	var result []CommentRow
 	for rows.Next() {
 		var (
-			c domaincomment.Comment
-			st string
+			c          domaincomment.Comment
+			st         string
 			fn, ln, em string
-			rating *int
+			rating     *int
 		)
 		err := rows.Scan(
 			&c.ID, &c.AdvertID, &c.UserID, &c.Content, &rating, &st, &c.CreatedAt, &c.UpdatedAt, &c.DeletedAt,
@@ -221,4 +221,3 @@ func (r *Repository) ListCommentsByAdvert(ctx context.Context, advertID uuid.UUI
 
 	return result, total, nil
 }
-

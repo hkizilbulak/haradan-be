@@ -736,7 +736,7 @@ func contains(s, sub string) bool {
 func ptrTime(t time.Time) *time.Time { return &t }
 
 func strPtr(s string) *string { return &s }
-func intPtr(v int) *int              { return &v }
+func intPtr(v int) *int       { return &v }
 
 func TestUpdatePackageOptimisticAndAllowsUrgentFalse(t *testing.T) {
 	f := newFixture(t)

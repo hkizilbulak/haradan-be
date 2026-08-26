@@ -23,14 +23,14 @@ const (
 
 // Config holds PayTR merchant credentials and runtime flags.
 type Config struct {
-	MerchantID   string
-	MerchantKey  string
-	MerchantSalt string
-	TokenURL     string
-	HTTPTimeout  time.Duration
-	TestMode     bool
-	DebugOn      bool
-	NoInstallment bool
+	MerchantID     string
+	MerchantKey    string
+	MerchantSalt   string
+	TokenURL       string
+	HTTPTimeout    time.Duration
+	TestMode       bool
+	DebugOn        bool
+	NoInstallment  bool
 	MaxInstallment string
 	TimeoutLimit   string
 	Currency       string
@@ -54,10 +54,10 @@ type TokenRequest struct {
 
 // TokenResult is a successful get-token response.
 type TokenResult struct {
-	Token        string
-	IframeURL    string
-	RequestForm  url.Values
-	RawResponse  string
+	Token       string
+	IframeURL   string
+	RequestForm url.Values
+	RawResponse string
 }
 
 // Client talks to PayTR get-token and verifies notify hashes.

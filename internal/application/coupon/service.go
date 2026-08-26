@@ -189,11 +189,11 @@ func (s *Service) List(ctx context.Context, search *string, isActive *bool, limi
 }
 
 type ValidationResult struct {
-	Valid               bool          `json:"valid"`
-	Message             string        `json:"message,omitempty"`
+	Valid               bool           `json:"valid"`
+	Message             string         `json:"message,omitempty"`
 	Coupon              *domain.Coupon `json:"coupon,omitempty"`
-	DiscountAmountMinor int64         `json:"discountAmountMinor"`
-	FinalAmountMinor    int64         `json:"finalAmountMinor"`
+	DiscountAmountMinor int64          `json:"discountAmountMinor"`
+	FinalAmountMinor    int64          `json:"finalAmountMinor"`
 }
 
 func (s *Service) ValidateCoupon(ctx context.Context, userID uuid.UUID, code string, spendAmountMinor int64, packageCode *string) (ValidationResult, error) {

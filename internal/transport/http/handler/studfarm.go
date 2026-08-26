@@ -2,7 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	
+
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 )
 

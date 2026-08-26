@@ -6638,6 +6638,56 @@ paths:
 
 
   "/v1/stud-farms/{studFarmId}":
+    put:
+      operationId: UpdateStudFarm
+      summary: UpdateStudFarm
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - StudFarms
+      x-function-id: STUD-FARM-ADMIN-08
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      parameters:
+      - name: studFarmId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudFarmCreateRequest"
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: "#/components/responses/BadRequest"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          $ref: "#/components/responses/Forbidden"
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '500':
+          $ref: "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
     delete:
       operationId: DeleteStudFarm
       summary: DeleteStudFarm
@@ -6756,6 +6806,113 @@ paths:
       responses:
         '201':
           description: Created
+        '400':
+          $ref: "#/components/responses/BadRequest"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          $ref: "#/components/responses/Forbidden"
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '500':
+          $ref: "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+  "/v1/stud-farms/{studFarmId}/notes/{noteId}":
+    put:
+      operationId: UpdateStudFarmNote
+      summary: UpdateStudFarmNote
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - StudFarms
+      x-function-id: STUD-FARM-ADMIN-07
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      parameters:
+      - name: studFarmId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: noteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudFarmNoteCreateRequest"
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: "#/components/responses/BadRequest"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '403':
+          $ref: "#/components/responses/Forbidden"
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '500':
+          $ref: "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
+    delete:
+      operationId: DeleteStudFarmNote
+      summary: DeleteStudFarmNote
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - StudFarms
+      x-function-id: STUD-FARM-ADMIN-06
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      parameters:
+      - name: studFarmId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: noteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
         '400':
           $ref: "#/components/responses/BadRequest"
         '401':

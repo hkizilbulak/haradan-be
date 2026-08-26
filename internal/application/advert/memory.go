@@ -30,12 +30,12 @@ type MemoryStore struct {
 	mediaRelations map[uuid.UUID][]domainadvert.MediaRelation
 	history        []domainadvert.StatusHistory
 
-	categories     map[uuid.UUID]domaincatalog.Category
-	children       map[uuid.UUID]int
-	formProps      map[uuid.UUID][]domaincatalog.Property
-	districts      map[uuid.UUID]domaingeo.District
-	horses         map[uuid.UUID]domainhorse.Horse
-	users          map[uuid.UUID]domainuser.User
+	categories map[uuid.UUID]domaincatalog.Category
+	children   map[uuid.UUID]int
+	formProps  map[uuid.UUID][]domaincatalog.Property
+	districts  map[uuid.UUID]domaingeo.District
+	horses     map[uuid.UUID]domainhorse.Horse
+	users      map[uuid.UUID]domainuser.User
 }
 
 // NewMemoryStore builds an empty in-memory store.

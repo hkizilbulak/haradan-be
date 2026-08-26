@@ -9,9 +9,9 @@ import (
 func TestGeneratePackageCodeBase(t *testing.T) {
 	t.Parallel()
 	cases := map[string]string{
-		"Premium Plus":     "PREMIUM_PLUS",
-		"Ücretsiz Deneme":  "UCRETSIZ_DENEME",
-		"  Avantajlı  ":    "AVANTAJLI",
+		"Premium Plus":    "PREMIUM_PLUS",
+		"Ücretsiz Deneme": "UCRETSIZ_DENEME",
+		"  Avantajlı  ":   "AVANTAJLI",
 	}
 	for in, want := range cases {
 		if got := domainpackaging.GeneratePackageCodeBase(in); got != want {
