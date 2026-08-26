@@ -145,8 +145,21 @@ func validateDynamicProperties(
 	}
 
 	if mode == propertyModeSubmit {
+		coreColumnCodes := map[string]bool{
+			"ADDRESS": true, "address": true,
+			"TITLE": true, "title": true,
+			"DESCRIPTION": true, "description": true,
+			"PRICE": true, "price": true,
+			"LOCATION": true, "location": true,
+			"PHONE": true, "phone": true,
+			"MEDIA": true, "media": true,
+			"IMAGES": true, "images": true,
+		}
 		for _, def := range defs {
 			if !def.IsRequired {
+				continue
+			}
+			if coreColumnCodes[def.Code] || coreColumnCodes[strings.ToUpper(def.Code)] || coreColumnCodes[strings.ToLower(def.Code)] {
 				continue
 			}
 			if _, ok := normalized[def.Code]; !ok {
