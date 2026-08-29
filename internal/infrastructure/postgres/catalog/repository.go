@@ -54,7 +54,7 @@ func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 // ListActiveCategories returns all active categories.
 func (r *Repository) ListActiveCategories(ctx context.Context) ([]domaincatalog.Category, error) {
 	const q = `
-SELECT id, parent_id, slug, name, description, is_active, sort_order, version, created_at, updated_at
+SELECT id, parent_id, slug, name, description, is_active, allow_tjk, sort_order, version, created_at, updated_at
 FROM hrd_categories
 WHERE is_active = true
 ORDER BY sort_order ASC, name ASC, id ASC`
@@ -70,7 +70,7 @@ ORDER BY sort_order ASC, name ASC, id ASC`
 		var c domaincatalog.Category
 		if err := rows.Scan(
 			&c.ID, &c.ParentID, &c.Slug, &c.Name, &c.Description,
-			&c.IsActive, &c.SortOrder, &c.Version, &c.CreatedAt, &c.UpdatedAt,
+			&c.IsActive, &c.AllowTjk, &c.SortOrder, &c.Version, &c.CreatedAt, &c.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan category: %w", pg.SanitizeErr(err))
 		}
@@ -85,14 +85,14 @@ ORDER BY sort_order ASC, name ASC, id ASC`
 // GetActiveCategory returns an active category by id.
 func (r *Repository) GetActiveCategory(ctx context.Context, id uuid.UUID) (domaincatalog.Category, error) {
 	const q = `
-SELECT id, parent_id, slug, name, description, is_active, sort_order, version, created_at, updated_at
+SELECT id, parent_id, slug, name, description, is_active, allow_tjk, sort_order, version, created_at, updated_at
 FROM hrd_categories
 WHERE id = $1 AND is_active = true`
 
 	var c domaincatalog.Category
 	err := r.db.QueryRow(ctx, q, id).Scan(
 		&c.ID, &c.ParentID, &c.Slug, &c.Name, &c.Description,
-		&c.IsActive, &c.SortOrder, &c.Version, &c.CreatedAt, &c.UpdatedAt,
+		&c.IsActive, &c.AllowTjk, &c.SortOrder, &c.Version, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -205,7 +205,7 @@ func (r *Repository) ListCategoriesAdmin(ctx context.Context, active *bool, limi
 	out := []domaincatalog.Category{}
 	for rows.Next() {
 		var c domaincatalog.Category
-		if err := rows.Scan(&c.ID, &c.ParentID, &c.Slug, &c.Name, &c.Description, &c.IsActive, &c.SortOrder, &c.Version, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.ParentID, &c.Slug, &c.Name, &c.Description, &c.IsActive, &c.AllowTjk, &c.SortOrder, &c.Version, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, apperr.Internal(err)
 		}
 		out = append(out, c)
@@ -215,7 +215,7 @@ func (r *Repository) ListCategoriesAdmin(ctx context.Context, active *bool, limi
 
 func (r *Repository) GetCategoryAdmin(ctx context.Context, id uuid.UUID) (domaincatalog.Category, error) {
 	var c domaincatalog.Category
-	err := r.db.QueryRow(ctx, `SELECT id,parent_id,slug,name,description,is_active,sort_order,version,created_at,updated_at FROM hrd_categories WHERE id=$1`, id).Scan(&c.ID, &c.ParentID, &c.Slug, &c.Name, &c.Description, &c.IsActive, &c.SortOrder, &c.Version, &c.CreatedAt, &c.UpdatedAt)
+	err := r.db.QueryRow(ctx, `SELECT id,parent_id,slug,name,description,is_active,allow_tjk,sort_order,version,created_at,updated_at FROM hrd_categories WHERE id=$1`, id).Scan(&c.ID, &c.ParentID, &c.Slug, &c.Name, &c.Description, &c.IsActive, &c.AllowTjk, &c.SortOrder, &c.Version, &c.CreatedAt, &c.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return c, apperr.NotFound("Kategori bulunamadı.")
 	}
@@ -226,30 +226,30 @@ func (r *Repository) GetCategoryAdmin(ctx context.Context, id uuid.UUID) (domain
 }
 
 func (r *Repository) CreateCategory(ctx context.Context, c domaincatalog.Category) (domaincatalog.Category, error) {
-	const q = `INSERT INTO hrd_categories(id,parent_id,slug,name,description,is_active,sort_order,version,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,1,$7,$7) RETURNING id,parent_id,slug,name,description,is_active,sort_order,version,created_at,updated_at`
+	const q = `INSERT INTO hrd_categories(id,parent_id,slug,name,description,is_active,allow_tjk,sort_order,version,created_at,updated_at) VALUES($1,$2,$3,$4,$5,true,$6,$7,1,$8,$8) RETURNING id,parent_id,slug,name,description,is_active,allow_tjk,sort_order,version,created_at,updated_at`
 	var out domaincatalog.Category
-	err := r.db.QueryRow(ctx, q, c.ID, c.ParentID, c.Slug, c.Name, c.Description, c.SortOrder, c.CreatedAt).Scan(&out.ID, &out.ParentID, &out.Slug, &out.Name, &out.Description, &out.IsActive, &out.SortOrder, &out.Version, &out.CreatedAt, &out.UpdatedAt)
+	err := r.db.QueryRow(ctx, q, c.ID, c.ParentID, c.Slug, c.Name, c.Description, c.AllowTjk, c.SortOrder, c.CreatedAt).Scan(&out.ID, &out.ParentID, &out.Slug, &out.Name, &out.Description, &out.IsActive, &out.AllowTjk, &out.SortOrder, &out.Version, &out.CreatedAt, &out.UpdatedAt)
 	return out, r.writeCategoryErr(err, "create category")
 }
 
 func (r *Repository) UpdateCategory(ctx context.Context, id uuid.UUID, p domaincatalog.CategoryPatch, expected int, now time.Time) (domaincatalog.Category, error) {
-	const q = `UPDATE hrd_categories SET slug=CASE WHEN $3 THEN $4 ELSE slug END,name=CASE WHEN $5 THEN $6 ELSE name END,description=CASE WHEN $7 THEN $8 ELSE description END,sort_order=CASE WHEN $9 THEN $10 ELSE sort_order END,version=version+1,updated_at=$11 WHERE id=$1 AND version=$2 RETURNING id,parent_id,slug,name,description,is_active,sort_order,version,created_at,updated_at`
+	const q = `UPDATE hrd_categories SET slug=CASE WHEN $3 THEN $4 ELSE slug END,name=CASE WHEN $5 THEN $6 ELSE name END,description=CASE WHEN $7 THEN $8 ELSE description END,sort_order=CASE WHEN $9 THEN $10 ELSE sort_order END,version=version+1,updated_at=$11 WHERE id=$1 AND version=$2 RETURNING id,parent_id,slug,name,description,is_active,allow_tjk,sort_order,version,created_at,updated_at`
 	var out domaincatalog.Category
-	err := r.db.QueryRow(ctx, q, id, expected, p.SlugSet, p.Slug, p.NameSet, p.Name, p.DescriptionSet, p.Description, p.SortOrderSet, p.SortOrder, now).Scan(&out.ID, &out.ParentID, &out.Slug, &out.Name, &out.Description, &out.IsActive, &out.SortOrder, &out.Version, &out.CreatedAt, &out.UpdatedAt)
+	err := r.db.QueryRow(ctx, q, id, expected, p.SlugSet, p.Slug, p.NameSet, p.Name, p.DescriptionSet, p.Description, p.SortOrderSet, p.SortOrder, now).Scan(&out.ID, &out.ParentID, &out.Slug, &out.Name, &out.Description, &out.IsActive, &out.AllowTjk, &out.SortOrder, &out.Version, &out.CreatedAt, &out.UpdatedAt)
 	return out, r.writeCategoryErr(err, "update category")
 }
 
 func (r *Repository) SetCategoryActive(ctx context.Context, id uuid.UUID, active bool, expected int, now time.Time) (domaincatalog.Category, error) {
-	const q = `UPDATE hrd_categories SET is_active=$3,version=version+1,updated_at=$4 WHERE id=$1 AND version=$2 RETURNING id,parent_id,slug,name,description,is_active,sort_order,version,created_at,updated_at`
+	const q = `UPDATE hrd_categories SET is_active=$3,version=version+1,updated_at=$4 WHERE id=$1 AND version=$2 RETURNING id,parent_id,slug,name,description,is_active,allow_tjk,sort_order,version,created_at,updated_at`
 	var out domaincatalog.Category
-	err := r.db.QueryRow(ctx, q, id, expected, active, now).Scan(&out.ID, &out.ParentID, &out.Slug, &out.Name, &out.Description, &out.IsActive, &out.SortOrder, &out.Version, &out.CreatedAt, &out.UpdatedAt)
+	err := r.db.QueryRow(ctx, q, id, expected, active, now).Scan(&out.ID, &out.ParentID, &out.Slug, &out.Name, &out.Description, &out.IsActive, &out.AllowTjk, &out.SortOrder, &out.Version, &out.CreatedAt, &out.UpdatedAt)
 	return out, r.writeCategoryErr(err, "set category active")
 }
 
 func (r *Repository) ReparentCategory(ctx context.Context, id uuid.UUID, parent *uuid.UUID, expected int, now time.Time) (domaincatalog.Category, error) {
-	const q = `UPDATE hrd_categories SET parent_id=$3,version=version+1,updated_at=$4 WHERE id=$1 AND version=$2 RETURNING id,parent_id,slug,name,description,is_active,sort_order,version,created_at,updated_at`
+	const q = `UPDATE hrd_categories SET parent_id=$3,version=version+1,updated_at=$4 WHERE id=$1 AND version=$2 RETURNING id,parent_id,slug,name,description,is_active,allow_tjk,sort_order,version,created_at,updated_at`
 	var out domaincatalog.Category
-	err := r.db.QueryRow(ctx, q, id, expected, parent, now).Scan(&out.ID, &out.ParentID, &out.Slug, &out.Name, &out.Description, &out.IsActive, &out.SortOrder, &out.Version, &out.CreatedAt, &out.UpdatedAt)
+	err := r.db.QueryRow(ctx, q, id, expected, parent, now).Scan(&out.ID, &out.ParentID, &out.Slug, &out.Name, &out.Description, &out.IsActive, &out.AllowTjk, &out.SortOrder, &out.Version, &out.CreatedAt, &out.UpdatedAt)
 	return out, r.writeCategoryErr(err, "reparent category")
 }
 

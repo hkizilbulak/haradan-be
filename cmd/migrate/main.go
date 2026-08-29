@@ -8,6 +8,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/joho/godotenv"
 
 	"github.com/hkizilbulak/haradan-be/internal/config"
 	applogger "github.com/hkizilbulak/haradan-be/internal/platform/logger"
@@ -27,6 +28,9 @@ func run() error {
 		return fmt.Errorf("usage: migrate <up|status|version|down>")
 	}
 	command := os.Args[1]
+
+	_ = godotenv.Load(".env")
+	_ = godotenv.Load(".env.local")
 
 	cfg, err := config.Load()
 	if err != nil {

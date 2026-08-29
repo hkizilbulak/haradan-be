@@ -59,6 +59,7 @@ func (h *Handler) GetCategoryFormDefinition(c *gin.Context, categoryID generated
 		CategoryId: openapi_types.UUID(def.Category.ID),
 		Slug:       def.Category.Slug,
 		Name:       def.Category.Name,
+		AllowTjk:   def.Category.AllowTjk,
 		Properties: props,
 	})
 }
@@ -70,6 +71,7 @@ func mapTree(nodes []appcatalog.TreeNode) []generated.CategoryTreeNode {
 			Id:       openapi_types.UUID(n.ID),
 			Slug:     n.Slug,
 			Name:     n.Name,
+			AllowTjk: n.AllowTjk,
 			Children: mapTree(n.Children),
 		})
 	}

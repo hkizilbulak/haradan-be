@@ -119,6 +119,9 @@ type DetailsPatch struct {
 	HorseIDSet bool
 	HorseID    *uuid.UUID
 
+	PropertiesSet bool
+	Properties    json.RawMessage
+
 	TitleSet bool
 	Title    *string
 
@@ -134,7 +137,7 @@ type DetailsPatch struct {
 
 // IsEmpty reports whether the patch would change nothing.
 func (p DetailsPatch) IsEmpty() bool {
-	return !p.DistrictIDSet && !p.HorseIDSet && !p.TitleSet && !p.DescriptionSet && !p.AddressSet && !p.PriceSet
+	return !p.DistrictIDSet && !p.HorseIDSet && !p.PropertiesSet && !p.TitleSet && !p.DescriptionSet && !p.AddressSet && !p.PriceSet
 }
 
 // EmptyProperties returns the canonical empty dynamic property object.

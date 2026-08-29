@@ -16,6 +16,7 @@ type Category struct {
 	Name        string
 	Description *string
 	IsActive    bool
+	AllowTjk    bool
 	SortOrder   int
 	Version     int
 	CreatedAt   time.Time
@@ -70,9 +71,10 @@ type ReorderItem struct {
 
 // FormCategory is the category header used by form definition responses.
 type FormCategory struct {
-	ID   uuid.UUID
-	Slug string
-	Name string
+	ID       uuid.UUID
+	Slug     string
+	Name     string
+	AllowTjk bool
 }
 
 // Repository reads category tree and form metadata.

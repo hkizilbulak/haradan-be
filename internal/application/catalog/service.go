@@ -20,6 +20,7 @@ type TreeNode struct {
 	ID       uuid.UUID
 	Slug     string
 	Name     string
+	AllowTjk bool
 	Children []TreeNode
 }
 
@@ -92,9 +93,10 @@ func (s *Service) GetCategoryFormDefinition(ctx context.Context, categoryID uuid
 
 	return FormDefinition{
 		Category: domaincatalog.FormCategory{
-			ID:   cat.ID,
-			Slug: cat.Slug,
-			Name: cat.Name,
+			ID:       cat.ID,
+			Slug:     cat.Slug,
+			Name:     cat.Name,
+			AllowTjk: cat.AllowTjk,
 		},
 		Properties: props,
 	}, nil
@@ -142,6 +144,7 @@ func toNode(cat domaincatalog.Category, byParent map[uuid.UUID][]domaincatalog.C
 		ID:       cat.ID,
 		Slug:     cat.Slug,
 		Name:     cat.Name,
+		AllowTjk: cat.AllowTjk,
 		Children: make([]TreeNode, 0, len(children)),
 	}
 	for _, child := range children {

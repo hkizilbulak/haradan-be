@@ -348,6 +348,9 @@ func (r MemoryRepository) UpdateDetails(
 	if patch.HorseIDSet {
 		current.HorseID = patch.HorseID
 	}
+	if patch.PropertiesSet {
+		current.Properties = patch.Properties
+	}
 	if patch.TitleSet {
 		current.Title = patch.Title
 	}

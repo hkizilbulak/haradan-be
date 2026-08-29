@@ -298,6 +298,9 @@ func scanPublicCard(row interface{ Scan(...any) error }) (domainadvert.PublicCar
 		if v, ok := card.Properties["HORSE_BREED"]; !ok || v == nil || v == "" {
 			card.Properties["HORSE_BREED"] = *hBreed
 		}
+		if v, ok := card.Properties["STALLION_BREED"]; !ok || v == nil || v == "" {
+			card.Properties["STALLION_BREED"] = *hBreed
+		}
 		if v, ok := card.Properties["breed"]; !ok || v == nil || v == "" {
 			card.Properties["breed"] = *hBreed
 		}
@@ -322,6 +325,13 @@ func scanPublicCard(row interface{ Scan(...any) error }) (domainadvert.PublicCar
 		age := time.Now().Year() - *hBirthYear
 		if v, ok := card.Properties["HORSE_AGE"]; !ok || v == nil || v == 0 {
 			card.Properties["HORSE_AGE"] = age
+		}
+		if v, ok := card.Properties["STALLION_AGE"]; !ok || v == nil || v == "" {
+			if age >= 5 {
+				card.Properties["STALLION_AGE"] = "5+"
+			} else {
+				card.Properties["STALLION_AGE"] = fmt.Sprintf("%d", age)
+			}
 		}
 		if v, ok := card.Properties["age"]; !ok || v == nil || v == 0 {
 			card.Properties["age"] = age

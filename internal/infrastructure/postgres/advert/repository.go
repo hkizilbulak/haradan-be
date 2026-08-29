@@ -309,13 +309,14 @@ func (r *Repository) UpdateDetails(
 UPDATE hrd_adverts
 SET district_id = CASE WHEN $4 THEN $5::uuid ELSE district_id END,
     horse_id = CASE WHEN $6 THEN $7::uuid ELSE horse_id END,
-    title = CASE WHEN $8 THEN $9::varchar ELSE title END,
-    description = CASE WHEN $10 THEN $11::text ELSE description END,
-    address = CASE WHEN $12 THEN $13::text ELSE address END,
-    price_amount_minor = CASE WHEN $14 THEN $15::bigint ELSE price_amount_minor END,
-    price_currency = CASE WHEN $14 THEN $16::varchar ELSE price_currency END,
+    properties = CASE WHEN $8 THEN $9::jsonb ELSE properties END,
+    title = CASE WHEN $10 THEN $11::varchar ELSE title END,
+    description = CASE WHEN $12 THEN $13::text ELSE description END,
+    address = CASE WHEN $14 THEN $15::text ELSE address END,
+    price_amount_minor = CASE WHEN $16 THEN $17::bigint ELSE price_amount_minor END,
+    price_currency = CASE WHEN $16 THEN $18::varchar ELSE price_currency END,
     version = version + 1,
-    updated_at = $17
+    updated_at = $19
 WHERE id = $1
   AND owner_user_id = $2
   AND version = $3
@@ -328,6 +329,7 @@ RETURNING ` + advertColumns
 		advertID, ownerID, expectedVersion,
 		patch.DistrictIDSet, patch.DistrictID,
 		patch.HorseIDSet, patch.HorseID,
+		patch.PropertiesSet, patch.Properties,
 		patch.TitleSet, patch.Title,
 		patch.DescriptionSet, patch.Description,
 		patch.AddressSet, patch.Address,

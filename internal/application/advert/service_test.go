@@ -63,7 +63,7 @@ func newFixture(t *testing.T) *fixture {
 	category := uuid.New()
 	category2 := uuid.New()
 	store.PutCategory(
-		domaincatalog.Category{ID: category, Slug: "yarim-kan", Name: "Yarım Kan", IsActive: true},
+		domaincatalog.Category{ID: category, Slug: "yarim-kan", Name: "Yarım Kan", IsActive: true, AllowTjk: true},
 		0,
 		[]domaincatalog.Property{
 			{ID: uuid.New(), CategoryID: category, Code: "age", DataType: "INTEGER", IsRequired: true},
@@ -78,7 +78,7 @@ func newFixture(t *testing.T) *fixture {
 		},
 	)
 	store.PutCategory(
-		domaincatalog.Category{ID: category2, Slug: "safkan", Name: "Safkan", IsActive: true},
+		domaincatalog.Category{ID: category2, Slug: "safkan", Name: "Safkan", IsActive: true, AllowTjk: true},
 		0,
 		[]domaincatalog.Property{
 			{ID: uuid.New(), CategoryID: category2, Code: "height", DataType: "DECIMAL"},
@@ -199,8 +199,12 @@ func TestCreateAdvertDraftSuccess(t *testing.T) {
 	if view.Price == nil || view.Price.AmountMinor != 150000 || view.Price.Currency != "TRY" {
 		t.Fatalf("price=%+v", view.Price)
 	}
-	if string(view.Properties) != "{}" {
-		t.Fatalf("properties=%s", view.Properties)
+	var props map[string]any
+	if err := json.Unmarshal(view.Properties, &props); err != nil {
+		t.Fatalf("unmarshal properties: %v", err)
+	}
+	if props["TJK_NUMBER"] != "12345" || props["REGISTERED_NAME"] != "Rüzgar" {
+		t.Fatalf("unexpected properties=%+v", props)
 	}
 	if view.Media == nil || len(view.Media) != 0 {
 		t.Fatalf("media=%+v", view.Media)
@@ -1073,6 +1077,59 @@ func TestMarkAdvertSoldAndArchive(t *testing.T) {
 
 	_, err = f.svc.MarkAdvertSold(ctx, f.owner, uuid.New(), 1)
 	requireCode(t, err, apperr.CodeNotFound)
+}
+
+func TestTjkCategoryEligibilityAndEnrichment(t *testing.T) {
+	f := newFixture(t)
+	// Non-TJK category (e.g. binek ati)
+	nonTjkCat := uuid.New()
+	f.store.PutCategory(
+		domaincatalog.Category{ID: nonTjkCat, Slug: "satilik-binek-ati", Name: "Binek Atı", IsActive: true, AllowTjk: false},
+		0,
+		nil,
+	)
+
+	// 1. Creating draft with HorseID on non-TJK category must fail
+	_, err := f.svc.CreateAdvertDraft(context.Background(), f.owner, appadvert.CreateDraftInput{
+		CategoryID: &nonTjkCat,
+		HorseID:    &f.horse,
+		Title:      ptr("Binek Atı"),
+	})
+	requireCode(t, err, apperr.CodeValidation)
+
+	// 2. Creating draft without HorseID on non-TJK category succeeds
+	view, err := f.svc.CreateAdvertDraft(context.Background(), f.owner, appadvert.CreateDraftInput{
+		CategoryID: &nonTjkCat,
+		Title:      ptr("Binek Atı"),
+	})
+	if err != nil {
+		t.Fatalf("create draft without horse: %v", err)
+	}
+
+	// 3. Updating draft to add HorseID on non-TJK category must fail
+	_, err = f.svc.UpdateAdvertDraftDetails(context.Background(), f.owner, view.ID, appadvert.UpdateDetailsInput{
+		ExpectedVersion: 1,
+		HorseIDSet:      true,
+		HorseID:         &f.horse,
+	})
+	requireCode(t, err, apperr.CodeValidation)
+
+	// 4. Creating draft with HorseID on TJK-eligible category succeeds and enriches properties
+	tjkView, err := f.svc.CreateAdvertDraft(context.Background(), f.owner, appadvert.CreateDraftInput{
+		CategoryID: &f.category, // AllowTjk: true
+		HorseID:    &f.horse,
+		Title:      ptr("Yarış Atı"),
+	})
+	if err != nil {
+		t.Fatalf("create TJK draft: %v", err)
+	}
+	var props map[string]any
+	if err := json.Unmarshal(tjkView.Properties, &props); err != nil {
+		t.Fatalf("unmarshal properties: %v", err)
+	}
+	if props["REGISTERED_NAME"] != "Rüzgar" || props["TJK_NUMBER"] != "12345" {
+		t.Fatalf("expected enriched properties, got: %v", props)
+	}
 }
 
 func TestExpectedVersionMustBePositive(t *testing.T) {

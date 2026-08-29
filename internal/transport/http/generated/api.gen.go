@@ -1078,6 +1078,8 @@ type CancelAdvertPackageRequest struct {
 
 // CategoryFormDefinitionResponse defines model for CategoryFormDefinitionResponse.
 type CategoryFormDefinitionResponse struct {
+	// AllowTjk Whether this category supports importing horse data from TJK
+	AllowTjk   bool                     `json:"allowTjk"`
 	CategoryId openapi_types.UUID       `json:"categoryId"`
 	Name       string                   `json:"name"`
 	Properties []CategoryPropertyPublic `json:"properties"`
@@ -1100,6 +1102,8 @@ type CategoryPropertyPublic struct {
 
 // CategoryTreeNode defines model for CategoryTreeNode.
 type CategoryTreeNode struct {
+	// AllowTjk Whether this category supports importing horse data from TJK
+	AllowTjk bool               `json:"allowTjk"`
 	Children []CategoryTreeNode `json:"children"`
 	Id       openapi_types.UUID `json:"id"`
 	Name     string             `json:"name"`

@@ -15,6 +15,7 @@ import (
 
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domaincatalog "github.com/hkizilbulak/haradan-be/internal/domain/catalog"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 )
 
@@ -156,8 +157,11 @@ func (s *Service) CreateAdvertDraft(ctx context.Context, ownerID uuid.UUID, in C
 	if err != nil {
 		return domainadvert.OwnerView{}, err
 	}
+	var cat domaincatalog.Category
 	if in.CategoryID != nil {
-		if err := s.requireLeafCategory(ctx, *in.CategoryID); err != nil {
+		var err error
+		cat, err = s.requireLeafCategoryWithCat(ctx, *in.CategoryID)
+		if err != nil {
 			return domainadvert.OwnerView{}, err
 		}
 	}
@@ -167,12 +171,27 @@ func (s *Service) CreateAdvertDraft(ctx context.Context, ownerID uuid.UUID, in C
 		}
 	}
 	if in.HorseID != nil {
+		if in.CategoryID != nil && !cat.AllowTjk {
+			return domainadvert.OwnerView{}, apperr.Validation(invalidRequest, apperr.FieldError{
+				Field:   "horseId",
+				Message: "Bu kategori için TJK atı seçilemez.",
+			})
+		}
 		if err := s.requireHorse(ctx, *in.HorseID); err != nil {
 			return domainadvert.OwnerView{}, err
 		}
 	}
 
 	now := s.clock.Now()
+	properties := domainadvert.EmptyProperties()
+	if in.HorseID != nil && in.CategoryID != nil && cat.AllowTjk {
+		if h, err := s.horses.FindByID(ctx, *in.HorseID); err == nil {
+			if enriched, err := EnrichHorseProperties(cat, h, properties, now); err == nil {
+				properties = enriched
+			}
+		}
+	}
+
 	draft := domainadvert.Advert{
 		ID:           uuid.New(),
 		OwnerUserID:  ownerID,
@@ -184,7 +203,7 @@ func (s *Service) CreateAdvertDraft(ctx context.Context, ownerID uuid.UUID, in C
 		Address:      normalizeDescription(in.Address),
 		Price:        price,
 		Status:       domainadvert.StatusDraft,
-		Properties:   domainadvert.EmptyProperties(),
+		Properties:   properties,
 		Version:      1,
 		MediaVersion: 1,
 		CreatedAt:    now,
@@ -294,11 +313,29 @@ func (s *Service) UpdateAdvertDraftDetails(
 		if err := guardVersionAndStatus(current, in.ExpectedVersion, domainadvert.CanOwnerEditDetails); err != nil {
 			return err
 		}
+		if patch.HorseIDSet && patch.HorseID != nil && current.CategoryID != nil {
+			cat, err := s.catalog.GetActiveCategory(ctx, *current.CategoryID)
+			if err == nil && !cat.AllowTjk {
+				return apperr.Validation(invalidRequest, apperr.FieldError{
+					Field:   "horseId",
+					Message: "Bu kategori için TJK atı seçilemez.",
+				})
+			}
+			if err == nil && cat.AllowTjk {
+				if h, err := s.horses.FindByID(ctx, *patch.HorseID); err == nil {
+					if enriched, err := EnrichHorseProperties(cat, h, current.Properties, s.clock.Now()); err == nil {
+						patch.PropertiesSet = true
+						patch.Properties = enriched
+					}
+				}
+			}
+		}
 		if patch.IsEmpty() {
 			updated = current
 			return nil
 		}
-		updated, err = repo.UpdateDetails(ctx, ownerID, advertID, patch, in.ExpectedVersion, s.clock.Now())
+		now := s.clock.Now()
+		updated, err = repo.UpdateDetails(ctx, ownerID, advertID, patch, in.ExpectedVersion, now)
 		return err
 	})
 	if err != nil {
@@ -723,27 +760,32 @@ func (s *Service) requireActiveOwner(ctx context.Context, ownerID uuid.UUID) err
 // requireLeafCategory accepts only active leaf categories; phase one does not
 // allow posting directly to a parent category.
 func (s *Service) requireLeafCategory(ctx context.Context, categoryID uuid.UUID) error {
+	_, err := s.requireLeafCategoryWithCat(ctx, categoryID)
+	return err
+}
+
+func (s *Service) requireLeafCategoryWithCat(ctx context.Context, categoryID uuid.UUID) (domaincatalog.Category, error) {
 	cat, err := s.catalog.GetActiveCategory(ctx, categoryID)
 	if err != nil {
 		if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindNotFound {
-			return apperr.Validation(invalidRequest, apperr.FieldError{
+			return domaincatalog.Category{}, apperr.Validation(invalidRequest, apperr.FieldError{
 				Field:   "categoryId",
 				Message: "Kategori bulunamadı veya aktif değil.",
 			})
 		}
-		return err
+		return domaincatalog.Category{}, err
 	}
 	children, err := s.catalog.CountActiveChildren(ctx, cat.ID)
 	if err != nil {
-		return err
+		return domaincatalog.Category{}, err
 	}
 	if children > 0 {
-		return apperr.Validation(invalidRequest, apperr.FieldError{
+		return domaincatalog.Category{}, apperr.Validation(invalidRequest, apperr.FieldError{
 			Field:   "categoryId",
 			Message: "Yalnız alt kategorisi olmayan kategoriye ilan verilebilir.",
 		})
 	}
-	return nil
+	return cat, nil
 }
 
 func (s *Service) requireActiveDistrict(ctx context.Context, districtID uuid.UUID) error {
