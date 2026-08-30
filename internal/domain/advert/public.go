@@ -12,6 +12,8 @@ type PublicCard struct {
 	CategoryID         uuid.UUID
 	DistrictID         uuid.UUID
 	ProvinceID         uuid.UUID
+	DistrictName       string
+	ProvinceName       string
 	HorseID            *uuid.UUID
 	Title              string
 	Price              *Money

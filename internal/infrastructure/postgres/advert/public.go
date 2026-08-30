@@ -183,7 +183,7 @@ WHERE a.id = $1`
 // principal, while anonymous callers receive null.
 func publicCardSelect(actorArg string) string {
 	return `
-SELECT a.id, a.category_id, a.district_id, d.province_id, a.horse_id, a.title,
+SELECT a.id, a.category_id, a.district_id, d.province_id, COALESCE(d.name, ''), COALESCE(p.name, ''), a.horse_id, a.title,
        a.price_amount_minor, a.price_currency, a.published_at,
        cover.asset_id, cover.display_order, cover.is_cover, cover.object_key,
        pkg.code, pkg.display_name, pkg.badge_text, COALESCE(pkg.search_priority, 0),
@@ -196,6 +196,7 @@ SELECT a.id, a.category_id, a.district_id, d.province_id, a.horse_id, a.title,
        h.breed, h.gender, h.coat, h.birth_year
 FROM hrd_adverts a
 LEFT JOIN hrd_districts d ON d.id = a.district_id
+LEFT JOIN hrd_provinces p ON p.id = d.province_id
 LEFT JOIN hrd_horses h ON h.id = a.horse_id
 
 LEFT JOIN LATERAL (
@@ -283,7 +284,7 @@ func scanPublicCard(row interface{ Scan(...any) error }) (domainadvert.PublicCar
 	var hGender *string
 	var hCoat *string
 	var hBirthYear *int
-	if err := row.Scan(&card.ID, &card.CategoryID, &card.DistrictID, &card.ProvinceID, &card.HorseID, &card.Title,
+	if err := row.Scan(&card.ID, &card.CategoryID, &card.DistrictID, &card.ProvinceID, &card.DistrictName, &card.ProvinceName, &card.HorseID, &card.Title,
 		&amount, &currency, &card.PublishedAt, &coverAsset, &coverOrder, &coverIsCover, &coverKey,
 		&card.PackageCode, &card.PackageDisplayName, &card.PackageBadgeText, &card.SearchPriority,
 		&card.IsUrgent, &card.UrgentActivatedAt, &card.IsFeatured, &card.FeaturedUntil, &card.IsFavorite, &card.ViewCount,

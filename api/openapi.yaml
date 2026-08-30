@@ -2715,6 +2715,42 @@ paths:
       x-error-codes:
         '500':
         - INTERNAL_ERROR
+  "/v1/homepage":
+    get:
+      operationId: GetHomepageBootstrap
+      summary: GetHomepageBootstrap
+      description: 'Exposure PUBLIC. Actor: Anonymous or ACTIVE. Optional BearerAuth
+        for favorite enrichment. Single round-trip bootstrap for first paint —
+        homepage advert feeds, homepage banner placements, and the public category tree'
+      tags:
+      - Homepage
+      x-function-id: HOMEPAGE-00
+      x-exposure: PUBLIC
+      x-actor: Anonymous or ACTIVE
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HomepageBootstrapResponse"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - {}
+      - BearerAuth: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+      x-error-codes:
+        '500':
+        - INTERNAL_ERROR
   "/v1/homepage/new-adverts":
     get:
       operationId: ListHomepageNewAdverts
@@ -8115,6 +8151,14 @@ components:
         provinceId:
           type: string
           format: uuid
+        districtName:
+          type: string
+          nullable: true
+          description: Resolved district display name for card rendering without extra geo lookups
+        provinceName:
+          type: string
+          nullable: true
+          description: Resolved province display name for card rendering without extra geo lookups
         horseId:
           type: string
           format: uuid
@@ -10528,6 +10572,29 @@ components:
           type: array
           items:
             "$ref": "#/components/schemas/PublishedAdvertCard"
+    HomepageBootstrapResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - newAdverts
+      - urgent
+      - featured
+      - showcase
+      - banners
+      - categories
+      properties:
+        newAdverts:
+          "$ref": "#/components/schemas/PublishedAdvertSearchResponse"
+        urgent:
+          "$ref": "#/components/schemas/PublishedAdvertSearchResponse"
+        featured:
+          "$ref": "#/components/schemas/PublishedAdvertSearchResponse"
+        showcase:
+          "$ref": "#/components/schemas/HomepageShowcaseResponse"
+        banners:
+          "$ref": "#/components/schemas/ActiveBannerListResponse"
+        categories:
+          "$ref": "#/components/schemas/CategoryTreeResponse"
     MyNotificationView:
       type: object
       additionalProperties: false

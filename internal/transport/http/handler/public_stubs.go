@@ -8,8 +8,10 @@ import (
 
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
+	domainbanner "github.com/hkizilbulak/haradan-be/internal/domain/banner"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
+	cataloghandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/catalog"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authctx"
 )
 
@@ -104,6 +106,78 @@ func (s *Server) ListHomepageFeatured(c *gin.Context, params generated.ListHomep
 	c.JSON(http.StatusOK, mapPublicPage(out))
 }
 
+func (s *Server) GetHomepageBootstrap(c *gin.Context, params generated.GetHomepageBootstrapParams) {
+	if s.advert == nil || !s.publicService().PublicEnabled() {
+		respondNotImplemented(c)
+		return
+	}
+
+	ctx := c.Request.Context()
+	actor := publicActor(c)
+
+	feeds, err := s.publicService().GetHomepageBootstrap(ctx, params.Limit, actor)
+	if err != nil {
+		respondError(c, s.logger, err)
+		return
+	}
+
+	bannerItems := make([]generated.ActiveBannerItem, 0)
+	if s.banner != nil {
+		placements := []domainbanner.Placement{
+			domainbanner.PlacementHomepageHero,
+			domainbanner.PlacementHomepagePromo,
+			domainbanner.PlacementHomepage,
+		}
+		for _, p := range placements {
+			items, e := s.banner.Service().ListActiveBannersByPlacement(ctx, p)
+			if e != nil {
+				continue
+			}
+			mapped, e := s.banner.BuildActiveBannerItems(ctx, items)
+			if e != nil {
+				continue
+			}
+			bannerItems = append(bannerItems, mapped...)
+		}
+	}
+
+	categories := generated.CategoryTreeResponse{Items: []generated.CategoryTreeNode{}}
+	if s.catalog != nil {
+		tree, e := s.catalog.Service().GetPublicCategoryTree(ctx)
+		if e == nil {
+			categories.Items = cataloghandler.MapPublicCategoryTree(tree)
+		}
+	}
+
+	c.JSON(http.StatusOK, generated.HomepageBootstrapResponse{
+		NewAdverts: mapGeneratedSearchPage(feeds.NewAdverts),
+		Urgent:     mapGeneratedSearchPage(feeds.Urgent),
+		Featured:   mapGeneratedSearchPage(feeds.Featured),
+		Showcase: generated.HomepageShowcaseResponse{
+			Seed:  feeds.Showcase.Seed,
+			Items: mapGeneratedCards(feeds.Showcase.Items),
+		},
+		Banners:    generated.ActiveBannerListResponse{Items: bannerItems},
+		Categories: categories,
+	})
+}
+
+func mapGeneratedSearchPage(v appadvert.PublicSearchResult) generated.PublishedAdvertSearchResponse {
+	items := make([]generated.PublishedAdvertCard, 0, len(v.Items))
+	for _, item := range v.Items {
+		items = append(items, mapPublicCard(item))
+	}
+	return generated.PublishedAdvertSearchResponse{Items: items, HasMore: v.HasMore, NextCursor: v.NextCursor}
+}
+
+func mapGeneratedCards(items []domainadvert.PublicCard) []generated.PublishedAdvertCard {
+	out := make([]generated.PublishedAdvertCard, 0, len(items))
+	for _, item := range items {
+		out = append(out, mapPublicCard(item))
+	}
+	return out
+}
+
 // Server owns the application service already; this small accessor keeps the
 // public transport in the root handler without widening child handler APIs.
 func (s *Server) publicService() *appadvert.Service { return s.advert.Service() }
@@ -148,11 +222,20 @@ func mapPublicPage(v appadvert.PublicSearchResult) publicSearchPageJSON {
 	return publicSearchPageJSON{Items: items, HasMore: v.HasMore, NextCursor: v.NextCursor}
 }
 func mapPublicCard(v domainadvert.PublicCard) generated.PublishedAdvertCard {
-	return generated.PublishedAdvertCard{Id: v.ID, CategoryId: v.CategoryID, DistrictId: v.DistrictID, ProvinceId: v.ProvinceID,
+	card := generated.PublishedAdvertCard{Id: v.ID, CategoryId: v.CategoryID, DistrictId: v.DistrictID, ProvinceId: v.ProvinceID,
 		HorseId: v.HorseID, Title: v.Title, Price: mapPublicMoney(v.Price), PublishedAt: v.PublishedAt, Cover: mapPublicMedia(v.Cover),
 		PackageCode: mapPackageCode(v.PackageCode), PackageDisplayName: v.PackageDisplayName, PackageBadgeText: v.PackageBadgeText,
 		IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt, IsFeatured: v.IsFeatured, FeaturedUntil: v.FeaturedUntil,
 		IsFavorite: v.IsFavorite, ViewCount: v.ViewCount}
+	if v.DistrictName != "" {
+		name := v.DistrictName
+		card.DistrictName = &name
+	}
+	if v.ProvinceName != "" {
+		name := v.ProvinceName
+		card.ProvinceName = &name
+	}
+	return card
 }
 
 type publicDetailJSON struct {

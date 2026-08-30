@@ -216,6 +216,7 @@ func Selective(svc *appauth.Service, logger *slog.Logger, routes []ProtectedRout
 var PublicFavoriteEnrichmentRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/adverts"},
 	{Method: "GET", Path: "/api/v1/adverts/:advertId"},
+	{Method: "GET", Path: "/api/v1/homepage"},
 	{Method: "GET", Path: "/api/v1/homepage/new-adverts"},
 	{Method: "GET", Path: "/api/v1/homepage/showcase"},
 	{Method: "GET", Path: "/api/v1/homepage/urgent"},

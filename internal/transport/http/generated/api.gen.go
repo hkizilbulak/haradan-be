@@ -1339,6 +1339,16 @@ type HealthResponse struct {
 // HealthResponseStatus defines model for HealthResponse.Status.
 type HealthResponseStatus string
 
+// HomepageBootstrapResponse defines model for HomepageBootstrapResponse.
+type HomepageBootstrapResponse struct {
+	Banners    ActiveBannerListResponse      `json:"banners"`
+	Categories CategoryTreeResponse          `json:"categories"`
+	Featured   PublishedAdvertSearchResponse `json:"featured"`
+	NewAdverts PublishedAdvertSearchResponse `json:"newAdverts"`
+	Showcase   HomepageShowcaseResponse      `json:"showcase"`
+	Urgent     PublishedAdvertSearchResponse `json:"urgent"`
+}
+
 // HomepageShowcaseResponse defines model for HomepageShowcaseResponse.
 type HomepageShowcaseResponse struct {
 	Items []PublishedAdvertCard `json:"items"`
@@ -1760,9 +1770,12 @@ type PublicPropertyValue struct {
 
 // PublishedAdvertCard defines model for PublishedAdvertCard.
 type PublishedAdvertCard struct {
-	CategoryId    openapi_types.UUID  `json:"categoryId"`
-	Cover         *PublicMediaItem    `json:"cover"`
-	DistrictId    openapi_types.UUID  `json:"districtId"`
+	CategoryId openapi_types.UUID `json:"categoryId"`
+	Cover      *PublicMediaItem   `json:"cover"`
+	DistrictId openapi_types.UUID `json:"districtId"`
+
+	// DistrictName Resolved district display name for card rendering without extra geo lookups
+	DistrictName  *string             `json:"districtName,omitempty"`
 	FeaturedUntil *time.Time          `json:"featuredUntil,omitempty"`
 	HorseId       *openapi_types.UUID `json:"horseId,omitempty"`
 	Id            openapi_types.UUID  `json:"id"`
@@ -1782,9 +1795,12 @@ type PublishedAdvertCard struct {
 	PackageDisplayName *string            `json:"packageDisplayName,omitempty"`
 	Price              *Money             `json:"price"`
 	ProvinceId         openapi_types.UUID `json:"provinceId"`
-	PublishedAt        time.Time          `json:"publishedAt"`
-	Title              string             `json:"title"`
-	UrgentActivatedAt  *time.Time         `json:"urgentActivatedAt,omitempty"`
+
+	// ProvinceName Resolved province display name for card rendering without extra geo lookups
+	ProvinceName      *string    `json:"provinceName,omitempty"`
+	PublishedAt       time.Time  `json:"publishedAt"`
+	Title             string     `json:"title"`
+	UrgentActivatedAt *time.Time `json:"urgentActivatedAt,omitempty"`
 
 	// ViewCount Total unique IP views
 	ViewCount int `json:"viewCount"`
@@ -2484,6 +2500,11 @@ type SearchDistrictsParams struct {
 	Limit      *Limit              `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// GetHomepageBootstrapParams defines parameters for GetHomepageBootstrap.
+type GetHomepageBootstrapParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListHomepageFeaturedParams defines parameters for ListHomepageFeatured.
 type ListHomepageFeaturedParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
@@ -3026,6 +3047,9 @@ type ServerInterface interface {
 	// SearchDistricts SearchDistricts
 	// (GET /v1/districts/search)
 	SearchDistricts(c *gin.Context, params SearchDistrictsParams)
+	// GetHomepageBootstrap GetHomepageBootstrap
+	// (GET /v1/homepage)
+	GetHomepageBootstrap(c *gin.Context, params GetHomepageBootstrapParams)
 	// ListHomepageFeatured ListHomepageFeatured
 	// (GET /v1/homepage/featured)
 	ListHomepageFeatured(c *gin.Context, params ListHomepageFeaturedParams)
@@ -5461,6 +5485,33 @@ func (siw *ServerInterfaceWrapper) SearchDistricts(c *gin.Context) {
 	siw.Handler.SearchDistricts(c, params)
 }
 
+// GetHomepageBootstrap operation middleware
+func (siw *ServerInterfaceWrapper) GetHomepageBootstrap(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetHomepageBootstrapParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetHomepageBootstrap(c, params)
+}
+
 // ListHomepageFeatured operation middleware
 func (siw *ServerInterfaceWrapper) ListHomepageFeatured(c *gin.Context) {
 
@@ -6883,6 +6934,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/adverts/:advertId/comments", wrapper.ListAdvertComments)
 	router.POST(options.BaseURL+"/v1/adverts/:advertId/comments", wrapper.CreateAdvertComment)
 	router.GET(options.BaseURL+"/v1/packages", wrapper.ListPublicPackages)
+	router.GET(options.BaseURL+"/v1/homepage", wrapper.GetHomepageBootstrap)
 	router.GET(options.BaseURL+"/v1/homepage/new-adverts", wrapper.ListHomepageNewAdverts)
 	router.GET(options.BaseURL+"/v1/homepage/showcase", wrapper.ListHomepageShowcase)
 	router.GET(options.BaseURL+"/v1/homepage/urgent", wrapper.ListHomepageUrgent)

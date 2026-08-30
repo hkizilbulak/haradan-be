@@ -29,6 +29,29 @@ type Handler struct {
 func NewHandler(svc *appbanner.Service, media appbanner.MediaReader, logger *slog.Logger, respond ErrorResponder) *Handler {
 	return &Handler{svc, media, logger, respond}
 }
+
+// Service exposes the banner application service for composition (e.g. homepage bootstrap).
+func (h *Handler) Service() *appbanner.Service { return h.svc }
+
+// MediaReader exposes media lookups used when composing public banner payloads.
+func (h *Handler) MediaReader() appbanner.MediaReader { return h.media }
+
+// BuildActiveBannerItems resolves public image URLs for active banners.
+func (h *Handler) BuildActiveBannerItems(ctx context.Context, items []domainbanner.Banner) ([]generated.ActiveBannerItem, error) {
+	out := make([]generated.ActiveBannerItem, 0, len(items))
+	for _, b := range items {
+		url, e := h.imageURL(ctx, b)
+		if e != nil {
+			return nil, e
+		}
+		out = append(out, generated.ActiveBannerItem{
+			Id: b.ID, Placement: generated.BannerPlacement(b.Placement), SortOrder: b.SortOrder,
+			ImageUrl: url, Title: b.Title, AltText: b.AltText, TargetUrl: b.TargetURL,
+		})
+	}
+	return out, nil
+}
+
 func (h *Handler) ListBannersAdmin(c *gin.Context, p generated.ListBannersAdminParams) {
 	id, ok := h.admin(c)
 	if !ok {
@@ -122,14 +145,10 @@ func (h *Handler) ListActiveBannersByPlacement(c *gin.Context, p generated.ListA
 		h.respond(c, h.logger, e)
 		return
 	}
-	out := make([]generated.ActiveBannerItem, 0, len(items))
-	for _, b := range items {
-		url, e := h.imageURL(c, b)
-		if e != nil {
-			h.respond(c, h.logger, e)
-			return
-		}
-		out = append(out, generated.ActiveBannerItem{Id: b.ID, Placement: generated.BannerPlacement(b.Placement), SortOrder: b.SortOrder, ImageUrl: url, Title: b.Title, AltText: b.AltText, TargetUrl: b.TargetURL})
+	out, e := h.BuildActiveBannerItems(c, items)
+	if e != nil {
+		h.respond(c, h.logger, e)
+		return
 	}
 	c.JSON(http.StatusOK, generated.ActiveBannerListResponse{Items: out})
 }

@@ -168,6 +168,65 @@ func (s *Service) ListHomepageFeatured(ctx context.Context, limit *int, actorUse
 	return PublicSearchResult{Items: items, HasMore: false}, nil
 }
 
+// HomepageBootstrapResult is the advert-feed portion of GET /v1/homepage.
+type HomepageBootstrapResult struct {
+	NewAdverts PublicSearchResult
+	Urgent     PublicSearchResult
+	Featured   PublicSearchResult
+	Showcase   HomepageShowcaseResult
+}
+
+// GetHomepageBootstrap loads the four homepage advert feeds concurrently.
+func (s *Service) GetHomepageBootstrap(ctx context.Context, limit *int, actorUserID *uuid.UUID) (HomepageBootstrapResult, error) {
+	if s.public == nil {
+		return HomepageBootstrapResult{}, apperr.Internal(fmt.Errorf("public advert repository is not configured"))
+	}
+
+	type slot struct {
+		kind string
+		page PublicSearchResult
+		show HomepageShowcaseResult
+		err  error
+	}
+	ch := make(chan slot, 4)
+
+	go func() {
+		v, err := s.ListHomepageNewAdverts(ctx, nil, limit, actorUserID)
+		ch <- slot{kind: "new", page: v, err: err}
+	}()
+	go func() {
+		v, err := s.ListHomepageUrgent(ctx, limit, actorUserID)
+		ch <- slot{kind: "urgent", page: v, err: err}
+	}()
+	go func() {
+		v, err := s.ListHomepageFeatured(ctx, limit, actorUserID)
+		ch <- slot{kind: "featured", page: v, err: err}
+	}()
+	go func() {
+		v, err := s.ListHomepageShowcase(ctx, nil, limit, actorUserID)
+		ch <- slot{kind: "showcase", show: v, err: err}
+	}()
+
+	var out HomepageBootstrapResult
+	for i := 0; i < 4; i++ {
+		item := <-ch
+		if item.err != nil {
+			return HomepageBootstrapResult{}, item.err
+		}
+		switch item.kind {
+		case "new":
+			out.NewAdverts = item.page
+		case "urgent":
+			out.Urgent = item.page
+		case "featured":
+			out.Featured = item.page
+		case "showcase":
+			out.Showcase = item.show
+		}
+	}
+	return out, nil
+}
+
 func (s *Service) GetPublishedAdvertDetail(ctx context.Context, advertID uuid.UUID, actorUserID *uuid.UUID, clientIP string) (PublicDetail, error) {
 	if s.public == nil {
 		return PublicDetail{}, apperr.Internal(fmt.Errorf("public advert repository is not configured"))

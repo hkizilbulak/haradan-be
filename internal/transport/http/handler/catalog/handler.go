@@ -33,6 +33,14 @@ func NewHandler(svc *appcatalog.Service, logger *slog.Logger, respond ErrorRespo
 	return &Handler{svc: svc, logger: logger, respond: respond}
 }
 
+// Service exposes the catalog application service for composition (e.g. homepage bootstrap).
+func (h *Handler) Service() *appcatalog.Service { return h.svc }
+
+// MapPublicCategoryTree maps application tree nodes to the OpenAPI response shape.
+func MapPublicCategoryTree(nodes []appcatalog.TreeNode) []generated.CategoryTreeNode {
+	return mapTree(nodes)
+}
+
 // GetPublicCategoryTree handles GET /v1/categories.
 func (h *Handler) GetPublicCategoryTree(c *gin.Context) {
 	items, err := h.svc.GetPublicCategoryTree(c.Request.Context())
