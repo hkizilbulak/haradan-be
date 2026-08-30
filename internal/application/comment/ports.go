@@ -49,6 +49,12 @@ type Repository interface {
 
 	// ListCommentsByAdvert returns published comments for an advert ordered by created_at DESC.
 	ListCommentsByAdvert(ctx context.Context, advertID uuid.UUID, limit, offset int) ([]CommentRow, int, error)
+
+	// AdminListComments returns all comments based on status.
+	AdminListComments(ctx context.Context, status *domaincomment.Status, limit, offset int) ([]CommentRow, int, error)
+
+	// UpdateCommentStatus updates the moderation status of a comment.
+	UpdateCommentStatus(ctx context.Context, commentID uuid.UUID, status domaincomment.Status) error
 }
 
 // Clock provides time for domain operations.

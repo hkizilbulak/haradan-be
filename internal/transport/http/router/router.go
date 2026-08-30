@@ -76,6 +76,9 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 	if rs, ok := server.(interface{ RegisterPayTRRoutes(gin.IRouter) }); ok {
 		rs.RegisterPayTRRoutes(r.Group(APIBasePath))
 	}
+	if rs, ok := server.(interface{ RegisterAdminCommentRoutes(gin.IRouter) }); ok {
+		rs.RegisterAdminCommentRoutes(r.Group(APIBasePath))
+	}
 	if rs, ok := server.(interface{ RegisterCatalogDynamicRoutes(gin.IRouter) }); ok {
 		rs.RegisterCatalogDynamicRoutes(r.Group(APIBasePath))
 	}

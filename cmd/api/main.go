@@ -356,6 +356,7 @@ func run() error {
 		WithJobAdminService(jobAdminSvc).
 		WithPayTRService(paytrSvc).
 		WithCommentService(commentSvc).
+		WithAdminCommentService(commentSvc).
 		WithStudFarmService(studfarmSvc)
 	engine := router.New(srvHandler, log, router.Options{
 		AuthService:        authSvc,

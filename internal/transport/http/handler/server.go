@@ -31,6 +31,7 @@ import (
 	domainstudfarm "github.com/hkizilbulak/haradan-be/internal/domain/studfarm"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	accounthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/account"
+	admincommenthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/admin"
 	adminuserhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/adminuser"
 	adverthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/advert"
 	authhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/auth"
@@ -84,11 +85,19 @@ type Server struct {
 	comment      *commenthandler.Handler
 	paytr        *paytrhandler.Handler
 	studfarm     *studfarmhandler.Handler
+	admincomment *admincommenthandler.CommentHandler
 }
 
 func (s *Server) WithCommentService(svc *appcomment.Service) *Server {
 	if svc != nil {
 		s.comment = commenthandler.NewHandler(svc, s.logger, respondError)
+	}
+	return s
+}
+
+func (s *Server) WithAdminCommentService(svc *appcomment.Service) *Server {
+	if svc != nil {
+		s.admincomment = admincommenthandler.NewCommentHandler(svc, s.logger, respondError)
 	}
 	return s
 }
@@ -140,6 +149,14 @@ func (s *Server) RegisterCouponRoutes(r gin.IRouter) {
 	{
 		v1Public.POST("/validate", s.coupon.UserValidate)
 	}
+}
+
+func (s *Server) RegisterAdminCommentRoutes(r gin.IRouter) {
+	
+	if s.admincomment == nil {
+		return
+	}
+	s.admincomment.RegisterRoutes(r)
 }
 
 func (s *Server) WithTJKService(svc *apptjk.Service) *Server {

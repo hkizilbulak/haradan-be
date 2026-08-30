@@ -78,7 +78,7 @@ func (s *Service) CreateComment(ctx context.Context, input CreateCommentInput) (
 		UserID:    input.UserID,
 		Content:   sanitizedContent,
 		Rating:    input.Rating,
-		Status:    domaincomment.StatusPublished,
+		Status:    domaincomment.StatusPending,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -153,6 +153,78 @@ func (s *Service) DeleteComment(ctx context.Context, advertID, commentID, userID
 	}
 	if cmt.UserID != userID {
 		return domaincomment.ErrUnauthorizedCommentAction
+	}
+	return s.repo.DeleteComment(ctx, commentID)
+}
+
+// AdminListComments retrieves all comments based on status with pagination for admin.
+func (s *Service) AdminListComments(ctx context.Context, status *domaincomment.Status, limit, offset int) (ListCommentsResult, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	rows, total, err := s.repo.AdminListComments(ctx, status, limit, offset)
+	if err != nil {
+		return ListCommentsResult{}, fmt.Errorf("failed to list admin comments: %w", err)
+	}
+
+	if rows == nil {
+		rows = []CommentRow{}
+	}
+
+	return ListCommentsResult{
+		Items:      rows,
+		TotalCount: total,
+	}, nil
+}
+
+// ApproveComment updates the comment status to PUBLISHED.
+func (s *Service) ApproveComment(ctx context.Context, commentID uuid.UUID) error {
+	cmt, err := s.repo.FindCommentByID(ctx, commentID)
+	if err != nil {
+		if apErr, ok := apperr.As(err); ok && apErr.Kind == apperr.KindNotFound {
+			return domaincomment.ErrCommentNotFound
+		}
+		return err
+	}
+	if cmt.DeletedAt != nil {
+		return domaincomment.ErrCommentNotFound
+	}
+	return s.repo.UpdateCommentStatus(ctx, commentID, domaincomment.StatusPublished)
+}
+
+// RejectComment updates the comment status to REJECTED.
+func (s *Service) RejectComment(ctx context.Context, commentID uuid.UUID) error {
+	cmt, err := s.repo.FindCommentByID(ctx, commentID)
+	if err != nil {
+		if apErr, ok := apperr.As(err); ok && apErr.Kind == apperr.KindNotFound {
+			return domaincomment.ErrCommentNotFound
+		}
+		return err
+	}
+	if cmt.DeletedAt != nil {
+		return domaincomment.ErrCommentNotFound
+	}
+	return s.repo.UpdateCommentStatus(ctx, commentID, domaincomment.StatusRejected)
+}
+
+// AdminDeleteComment soft-deletes a comment as an admin.
+func (s *Service) AdminDeleteComment(ctx context.Context, commentID uuid.UUID) error {
+	cmt, err := s.repo.FindCommentByID(ctx, commentID)
+	if err != nil {
+		if apErr, ok := apperr.As(err); ok && apErr.Kind == apperr.KindNotFound {
+			return domaincomment.ErrCommentNotFound
+		}
+		return err
+	}
+	if cmt.DeletedAt != nil {
+		return domaincomment.ErrCommentNotFound
 	}
 	return s.repo.DeleteComment(ctx, commentID)
 }

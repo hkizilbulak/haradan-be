@@ -50,6 +50,21 @@ func (r pgRepo) ListCommentsByAdvert(ctx context.Context, advertID uuid.UUID, li
 	return rows, total, nil
 }
 
+func (r pgRepo) AdminListComments(ctx context.Context, status *domaincomment.Status, limit, offset int) ([]CommentRow, int, error) {
+	infraRows, total, err := r.Repository.AdminListComments(ctx, status, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows := make([]CommentRow, 0, len(infraRows))
+	for _, ir := range infraRows {
+		rows = append(rows, CommentRow{
+			Comment:    ir.Comment,
+			AuthorName: ir.AuthorName,
+		})
+	}
+	return rows, total, nil
+}
+
 // NewPostgresService constructs a Service backed by PostgreSQL.
 func NewPostgresService(pool *pgxpool.Pool, opts ...Option) (*Service, error) {
 	if pool == nil {

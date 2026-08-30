@@ -221,3 +221,107 @@ func (r *Repository) ListCommentsByAdvert(ctx context.Context, advertID uuid.UUI
 
 	return result, total, nil
 }
+
+// AdminListComments returns all comments based on status.
+func (r *Repository) AdminListComments(ctx context.Context, status *domaincomment.Status, limit, offset int) ([]CommentRow, int, error) {
+	var countArgs []any
+	var selectArgs []any
+	
+	countQuery := `
+		SELECT COUNT(*)
+		FROM hrd_advert_comments
+		WHERE deleted_at IS NULL
+	`
+	selectQuery := `
+		SELECT c.id, c.advert_id, c.user_id, c.content, c.rating, c.status, c.created_at, c.updated_at, c.deleted_at,
+		       COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), COALESCE(u.email, '')
+		FROM hrd_advert_comments c
+		LEFT JOIN hrd_users u ON u.id = c.user_id
+		WHERE c.deleted_at IS NULL
+	`
+
+	if status != nil {
+		countQuery += ` AND status = $1`
+		selectQuery += ` AND c.status = $1`
+		countArgs = append(countArgs, string(*status))
+		selectArgs = append(selectArgs, string(*status))
+		
+		selectQuery += ` ORDER BY c.created_at DESC, c.id DESC LIMIT $2 OFFSET $3`
+		selectArgs = append(selectArgs, limit, offset)
+	} else {
+		selectQuery += ` ORDER BY c.created_at DESC, c.id DESC LIMIT $1 OFFSET $2`
+		selectArgs = append(selectArgs, limit, offset)
+	}
+
+	var total int
+	err := r.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count admin comments: %w", err)
+	}
+
+	if total == 0 {
+		return []CommentRow{}, 0, nil
+	}
+
+	rows, err := r.db.Query(ctx, selectQuery, selectArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query admin comments: %w", err)
+	}
+	defer rows.Close()
+
+	var result []CommentRow
+	for rows.Next() {
+		var (
+			c          domaincomment.Comment
+			st         string
+			fn, ln, em string
+			rating     *int
+		)
+		err := rows.Scan(
+			&c.ID, &c.AdvertID, &c.UserID, &c.Content, &rating, &st, &c.CreatedAt, &c.UpdatedAt, &c.DeletedAt,
+			&fn, &ln, &em,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan admin comment: %w", err)
+		}
+		c.Rating = rating
+		c.Status = domaincomment.Status(st)
+
+		authorName := "Kullanıcı"
+		if fn != "" || ln != "" {
+			if ln != "" {
+				runes := []rune(ln)
+				authorName = fmt.Sprintf("%s %s.", fn, string(runes[0]))
+			} else {
+				authorName = fn
+			}
+		}
+
+		result = append(result, CommentRow{
+			Comment:    c,
+			AuthorName: authorName,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("rows admin comments: %w", err)
+	}
+
+	return result, total, nil
+}
+
+// UpdateCommentStatus updates the moderation status of a comment.
+func (r *Repository) UpdateCommentStatus(ctx context.Context, commentID uuid.UUID, status domaincomment.Status) error {
+	const query = `
+		UPDATE hrd_advert_comments
+		SET status = $2, updated_at = NOW()
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+	tag, err := r.db.Exec(ctx, query, commentID, string(status))
+	if err != nil {
+		return fmt.Errorf("update advert comment status: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("comment not found")
+	}
+	return nil
+}
