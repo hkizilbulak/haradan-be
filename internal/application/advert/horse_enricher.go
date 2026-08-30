@@ -91,23 +91,31 @@ func NormalizeHorseAge(birthYear int, now time.Time, isStud bool) string {
 	if age < 0 {
 		age = 0
 	}
-	if isStud {
-		if age >= 5 {
-			return "5+"
-		}
-		return fmt.Sprintf("%d", age)
-	}
 	switch {
-	case age <= 1:
-		return "Tay (0-1 Yaş)"
+	case age == 0:
+		return "0"
+	case age == 1:
+		return "1"
 	case age == 2:
-		return "2 Yaş"
+		return "2"
 	case age == 3:
-		return "3 Yaş"
+		return "3"
 	case age == 4:
-		return "4 Yaş"
+		return "4"
+	case age == 5:
+		return "5"
+	case age == 6:
+		return "6"
+	case age == 7:
+		return "7"
+	case age == 8:
+		return "8"
+	case age == 9:
+		return "9"
+	case age >= 10 && age <= 15:
+		return "10-15 arası"
 	default:
-		return "5+ Yaş"
+		return "15 üzeri"
 	}
 }
 

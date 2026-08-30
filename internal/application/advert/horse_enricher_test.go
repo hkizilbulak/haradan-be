@@ -61,8 +61,8 @@ func TestHorseEnricher_SaleHorse(t *testing.T) {
 	if props["HORSE_BREED"] != "İngiliz (Thoroughbred)" {
 		t.Errorf("expected HORSE_BREED 'İngiliz (Thoroughbred)', got %v", props["HORSE_BREED"])
 	}
-	if props["HORSE_AGE"] != "4 Yaş" {
-		t.Errorf("expected HORSE_AGE '4 Yaş', got %v", props["HORSE_AGE"])
+	if props["HORSE_AGE"] != "4" {
+		t.Errorf("expected HORSE_AGE '4', got %v", props["HORSE_AGE"])
 	}
 	if props["HORSE_GENDER"] != "Erkek" {
 		t.Errorf("expected HORSE_GENDER 'Erkek', got %v", props["HORSE_GENDER"])
@@ -147,8 +147,8 @@ func TestHorseEnricher_StudService(t *testing.T) {
 	if props["STALLION_BREED"] != "Arap" {
 		t.Errorf("expected STALLION_BREED 'Arap', got %v", props["STALLION_BREED"])
 	}
-	if props["STALLION_AGE"] != "5+" {
-		t.Errorf("expected STALLION_AGE '5+', got %v", props["STALLION_AGE"])
+	if props["STALLION_AGE"] != "7" {
+		t.Errorf("expected STALLION_AGE '7', got %v", props["STALLION_AGE"])
 	}
 	if props["COAT_COLOR"] != "Kır" {
 		t.Errorf("expected COAT_COLOR 'Kır', got %v", props["COAT_COLOR"])
