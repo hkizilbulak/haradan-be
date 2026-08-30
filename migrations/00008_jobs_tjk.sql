@@ -151,8 +151,6 @@ CREATE TABLE hrd_tjk_sync_item_errors (
     CONSTRAINT hrd_tjk_sync_item_errors_pkey PRIMARY KEY (id),
     CONSTRAINT hrd_tjk_sync_item_errors_run_id_fkey FOREIGN KEY (run_id)
         REFERENCES hrd_tjk_sync_runs (id) ON DELETE RESTRICT,
-    CONSTRAINT hrd_tjk_sync_item_errors_horse_id_fkey FOREIGN KEY (horse_id)
-        REFERENCES hrd_horses (id) ON DELETE SET NULL,
     CONSTRAINT hrd_tjk_sync_item_errors_error_class_check
         CHECK (error_class IN ('TRANSIENT', 'PERMANENT', 'CONFLICT')),
     CONSTRAINT hrd_tjk_sync_item_errors_status_check

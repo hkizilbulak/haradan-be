@@ -24,8 +24,6 @@ CREATE TABLE hrd_adverts (
         REFERENCES hrd_categories (id) ON DELETE RESTRICT,
     CONSTRAINT hrd_adverts_district_id_fkey FOREIGN KEY (district_id)
         REFERENCES hrd_districts (id) ON DELETE RESTRICT,
-    CONSTRAINT hrd_adverts_horse_id_fkey FOREIGN KEY (horse_id)
-        REFERENCES hrd_horses (id) ON DELETE RESTRICT,
     CONSTRAINT hrd_adverts_status_check CHECK (status IN (
         'DRAFT', 'PENDING_REVIEW', 'CHANGES_REQUESTED', 'PUBLISHED',
         'REJECTED', 'SUSPENDED', 'SOLD', 'ARCHIVED'
