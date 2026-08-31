@@ -66,8 +66,8 @@ func TestCreateComment_Success(t *testing.T) {
 	if res.Comment.Rating == nil || *res.Comment.Rating != 5 {
 		t.Errorf("expected rating 5, got %v", res.Comment.Rating)
 	}
-	if res.Comment.Status != domaincomment.StatusPublished {
-		t.Errorf("expected PUBLISHED status, got %s", res.Comment.Status)
+	if res.Comment.Status != domaincomment.StatusPending {
+		t.Errorf("expected PENDING status, got %s", res.Comment.Status)
 	}
 	if res.AuthorName != "Ahmet K." {
 		t.Errorf("expected author name 'Ahmet K.', got '%s'", res.AuthorName)
@@ -179,10 +179,15 @@ func TestListComments_Pagination(t *testing.T) {
 	svc := appcomment.NewMemoryService(repo)
 	ctx := context.Background()
 
-	// Post 3 comments
-	_, _ = svc.CreateComment(ctx, appcomment.CreateCommentInput{UserID: userID, AdvertID: advertID, Content: "İlk yorum"})
-	_, _ = svc.CreateComment(ctx, appcomment.CreateCommentInput{UserID: userID, AdvertID: advertID, Content: "İkinci yorum"})
-	_, _ = svc.CreateComment(ctx, appcomment.CreateCommentInput{UserID: userID, AdvertID: advertID, Content: "Üçüncü yorum"})
+	// Post 3 comments (created as PENDING) and approve for public listing
+	c1, _ := svc.CreateComment(ctx, appcomment.CreateCommentInput{UserID: userID, AdvertID: advertID, Content: "İlk yorum"})
+	c2, _ := svc.CreateComment(ctx, appcomment.CreateCommentInput{UserID: userID, AdvertID: advertID, Content: "İkinci yorum"})
+	c3, _ := svc.CreateComment(ctx, appcomment.CreateCommentInput{UserID: userID, AdvertID: advertID, Content: "Üçüncü yorum"})
+	for _, c := range []uuid.UUID{c1.Comment.ID, c2.Comment.ID, c3.Comment.ID} {
+		if err := svc.ApproveComment(ctx, c); err != nil {
+			t.Fatalf("approve comment: %v", err)
+		}
+	}
 
 	res, err := svc.ListComments(ctx, advertID, 2, 0)
 	if err != nil {

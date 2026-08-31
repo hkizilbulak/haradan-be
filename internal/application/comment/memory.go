@@ -128,6 +128,55 @@ func (m *memoryRepo) ListCommentsByAdvert(ctx context.Context, advertID int64, l
 	return list[offset:end], total, nil
 }
 
+func (m *memoryRepo) AdminListComments(ctx context.Context, status *domaincomment.Status, limit, offset int) ([]CommentRow, int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var list []CommentRow
+	for _, c := range m.comments {
+		if c.DeletedAt != nil {
+			continue
+		}
+		if status != nil && c.Status != *status {
+			continue
+		}
+		authorName := m.users[c.UserID]
+		if authorName == "" {
+			authorName = "Kullanıcı"
+		}
+		list = append(list, CommentRow{Comment: c, AuthorName: authorName})
+	}
+
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Comment.CreatedAt.Equal(list[j].Comment.CreatedAt) {
+			return list[i].Comment.ID.String() > list[j].Comment.ID.String()
+		}
+		return list[i].Comment.CreatedAt.After(list[j].Comment.CreatedAt)
+	})
+
+	total := len(list)
+	if offset >= total {
+		return []CommentRow{}, total, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return list[offset:end], total, nil
+}
+
+func (m *memoryRepo) UpdateCommentStatus(ctx context.Context, commentID uuid.UUID, status domaincomment.Status) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	c, ok := m.comments[commentID]
+	if !ok || c.DeletedAt != nil {
+		return apperr.NotFound("comment not found")
+	}
+	c.Status = status
+	m.comments[commentID] = c
+	return nil
+}
+
 // NewMemoryService constructs a Service backed by an in-memory repository for unit tests.
 func NewMemoryService(repo Repository, opts ...Option) *Service {
 	return NewService(repo, opts...)
