@@ -36,13 +36,13 @@ type AssignmentRepository interface {
 	WithTx(tx pgx.Tx) AssignmentRepository
 
 	// FindActiveByAdvertID returns the status=ACTIVE row (time window ignored).
-	FindActiveByAdvertID(ctx context.Context, advertID uuid.UUID) (domainpackaging.AdvertPackageAssignment, error)
+	FindActiveByAdvertID(ctx context.Context, advertID int64) (domainpackaging.AdvertPackageAssignment, error)
 	// FindEffectiveActiveByAdvertID returns the ACTIVE row covering instant at.
-	FindEffectiveActiveByAdvertID(ctx context.Context, advertID uuid.UUID, at time.Time) (domainpackaging.AdvertPackageAssignment, error)
-	LockActiveByAdvertID(ctx context.Context, advertID uuid.UUID) (domainpackaging.AdvertPackageAssignment, error)
+	FindEffectiveActiveByAdvertID(ctx context.Context, advertID int64, at time.Time) (domainpackaging.AdvertPackageAssignment, error)
+	LockActiveByAdvertID(ctx context.Context, advertID int64) (domainpackaging.AdvertPackageAssignment, error)
 	ListHistoryByAdvertID(
 		ctx context.Context,
-		advertID uuid.UUID,
+		advertID int64,
 		afterAssignedAt *time.Time,
 		afterID *uuid.UUID,
 		limit int,
@@ -58,23 +58,23 @@ type FeatureRepository interface {
 
 	FindActiveByAdvertIDAndCode(
 		ctx context.Context,
-		advertID uuid.UUID,
+		advertID int64,
 		code domainpackaging.FeatureCode,
 	) (domainpackaging.AdvertFeatureActivation, error)
 	LockActiveByAdvertIDAndCode(
 		ctx context.Context,
-		advertID uuid.UUID,
+		advertID int64,
 		code domainpackaging.FeatureCode,
 	) (domainpackaging.AdvertFeatureActivation, error)
 	FindLatestActivationVersion(
 		ctx context.Context,
-		advertID uuid.UUID,
+		advertID int64,
 		code domainpackaging.FeatureCode,
 	) (int, error)
 	Create(ctx context.Context, a domainpackaging.AdvertFeatureActivation) error
 	DeactivateActive(
 		ctx context.Context,
-		advertID uuid.UUID,
+		advertID int64,
 		code domainpackaging.FeatureCode,
 		deactivatedAt time.Time,
 		reason *string,
@@ -91,8 +91,8 @@ type FeatureRepository interface {
 
 // AdvertReader loads adverts for package/URGENT authorization and locks.
 type AdvertReader interface {
-	FindByID(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error)
-	FindByIDForUpdate(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error)
+	FindByID(ctx context.Context, advertID int64) (domainadvert.Advert, error)
+	FindByIDForUpdate(ctx context.Context, advertID int64) (domainadvert.Advert, error)
 }
 
 // UserReader loads actor accounts for role checks.

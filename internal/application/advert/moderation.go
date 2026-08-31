@@ -47,7 +47,7 @@ func (s *Service) ListAdvertModerationQueue(ctx context.Context, in ModerationLi
 		status = &parsed
 	}
 	var afterCreated *time.Time
-	var afterID *uuid.UUID
+	var afterID *int64
 	if in.Cursor != nil && strings.TrimSpace(*in.Cursor) != "" {
 		created, id, err := decodeAdvertCursor(strings.TrimSpace(*in.Cursor))
 		if err != nil {
@@ -79,7 +79,7 @@ func (s *Service) ListAdvertModerationQueue(ctx context.Context, in ModerationLi
 }
 
 // GetAdvertModerationDetail implements ADVERT-ADMIN-02.
-func (s *Service) GetAdvertModerationDetail(ctx context.Context, advertID uuid.UUID) (domainadvert.ModerationDetailView, error) {
+func (s *Service) GetAdvertModerationDetail(ctx context.Context, advertID int64) (domainadvert.ModerationDetailView, error) {
 	found, err := s.repo.FindByID(ctx, advertID)
 	if err != nil {
 		return domainadvert.ModerationDetailView{}, err
@@ -90,7 +90,7 @@ func (s *Service) GetAdvertModerationDetail(ctx context.Context, advertID uuid.U
 // ApproveAdvert implements ADVERT-ADMIN-03: PENDING_REVIEW → PUBLISHED.
 func (s *Service) ApproveAdvert(
 	ctx context.Context,
-	actorUserID, advertID uuid.UUID,
+	actorUserID uuid.UUID, advertID int64,
 	expectedVersion int,
 ) (domainadvert.ModerationDetailView, error) {
 	return s.adminTransition(ctx, actorUserID, advertID, expectedVersion, nil,
@@ -100,7 +100,7 @@ func (s *Service) ApproveAdvert(
 // RequestAdvertChanges implements ADVERT-ADMIN-04: PENDING_REVIEW → CHANGES_REQUESTED.
 func (s *Service) RequestAdvertChanges(
 	ctx context.Context,
-	actorUserID, advertID uuid.UUID,
+	actorUserID uuid.UUID, advertID int64,
 	in ModerationReasonInput,
 ) (domainadvert.ModerationDetailView, error) {
 	reason, err := requireModerationReason(in.Reason)
@@ -114,7 +114,7 @@ func (s *Service) RequestAdvertChanges(
 // RejectAdvert implements ADVERT-ADMIN-05: PENDING_REVIEW → REJECTED.
 func (s *Service) RejectAdvert(
 	ctx context.Context,
-	actorUserID, advertID uuid.UUID,
+	actorUserID uuid.UUID, advertID int64,
 	in ModerationReasonInput,
 ) (domainadvert.ModerationDetailView, error) {
 	reason, err := requireModerationReason(in.Reason)
@@ -128,7 +128,7 @@ func (s *Service) RejectAdvert(
 // SuspendAdvert implements ADVERT-ADMIN-06: PUBLISHED → SUSPENDED.
 func (s *Service) SuspendAdvert(
 	ctx context.Context,
-	actorUserID, advertID uuid.UUID,
+	actorUserID uuid.UUID, advertID int64,
 	in ModerationReasonInput,
 ) (domainadvert.ModerationDetailView, error) {
 	reason, err := requireModerationReason(in.Reason)
@@ -141,7 +141,7 @@ func (s *Service) SuspendAdvert(
 
 func (s *Service) adminTransition(
 	ctx context.Context,
-	actorUserID, advertID uuid.UUID,
+	actorUserID uuid.UUID, advertID int64,
 	expectedVersion int,
 	reason *string,
 	from, to domainadvert.Status,

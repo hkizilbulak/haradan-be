@@ -46,6 +46,7 @@ var expectedTables = []string{
 	"hrd_paytr_charges",
 	"hrd_stud_farms",
 	"hrd_stud_farm_notes",
+	"hrd_advert_legacy_id_map",
 }
 
 var (
@@ -69,8 +70,8 @@ func ValidateEmbeddedMigrations(fsys fs.FS) error {
 		return fmt.Errorf("list migrations: %w", err)
 	}
 	sort.Strings(entries)
-	if len(entries) != 33 {
-		return fmt.Errorf("expected 33 SQL migration files, got %d", len(entries))
+	if len(entries) != 34 {
+		return fmt.Errorf("expected 34 SQL migration files, got %d", len(entries))
 	}
 
 	created := make(map[string]struct{})
@@ -138,8 +139,8 @@ func ValidateEmbeddedMigrations(fsys fs.FS) error {
 		}
 	}
 
-	if len(created) != 34 {
-		return fmt.Errorf("expected 34 CREATE TABLE statements, got %d", len(created))
+	if len(created) != 35 {
+		return fmt.Errorf("expected 35 CREATE TABLE statements, got %d", len(created))
 	}
 	for _, table := range expectedTables {
 		if _, ok := created[table]; !ok {
@@ -207,10 +208,23 @@ func validateSectionSafety(file, section, sql string) error {
 	if idx := indexForbiddenHR(sql); idx >= 0 {
 		return fmt.Errorf("%s %s: forbidden hr_ reference near offset %d", file, section, idx)
 	}
-	if reForbiddenTables.MatchString(sql) {
+	if reForbiddenTables.MatchString(stripForbiddenTableFalsePositives(sql)) {
 		return fmt.Errorf("%s %s: forbidden payment/package/order/article/contact/YKK table reference", file, section)
 	}
 	return nil
+}
+
+var (
+	reHRDIdentifier = regexp.MustCompile(`(?i)\bhrd_[a-z0-9_]+\b`)
+	reOrderByClause = regexp.MustCompile(`(?i)\border\s+by\b`)
+)
+
+// stripForbiddenTableFalsePositives removes hrd_* identifiers and normalizes
+// ORDER BY so migration safety checks do not flag substrings like "package"
+// inside hrd_advert_package_assignments or the SQL ORDER BY keyword.
+func stripForbiddenTableFalsePositives(sql string) string {
+	out := reHRDIdentifier.ReplaceAllString(sql, "hrd_x")
+	return reOrderByClause.ReplaceAllString(out, "sort by")
 }
 
 func indexForbiddenHR(sql string) int {

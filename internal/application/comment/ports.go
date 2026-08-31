@@ -18,14 +18,14 @@ type CommentRow struct {
 // CreateCommentInput is the DTO for creating a comment.
 type CreateCommentInput struct {
 	UserID   uuid.UUID
-	AdvertID uuid.UUID
+	AdvertID int64
 	Content  string
 	Rating   *int
 }
 
 // AdvertStatusResult represents advert information required to check if a comment can be posted.
 type AdvertStatusResult struct {
-	ID        uuid.UUID
+	ID        int64
 	Status    string
 	DeletedAt *time.Time
 }
@@ -33,7 +33,7 @@ type AdvertStatusResult struct {
 // Repository is the comment persistence port (SOLID Dependency Inversion).
 type Repository interface {
 	// FindAdvertStatus checks whether the advert exists and returns its status.
-	FindAdvertStatus(ctx context.Context, advertID uuid.UUID) (AdvertStatusResult, error)
+	FindAdvertStatus(ctx context.Context, advertID int64) (AdvertStatusResult, error)
 
 	// InsertComment persists a new comment record.
 	InsertComment(ctx context.Context, c domaincomment.Comment) error
@@ -48,7 +48,7 @@ type Repository interface {
 	DeleteComment(ctx context.Context, commentID uuid.UUID) error
 
 	// ListCommentsByAdvert returns published comments for an advert ordered by created_at DESC.
-	ListCommentsByAdvert(ctx context.Context, advertID uuid.UUID, limit, offset int) ([]CommentRow, int, error)
+	ListCommentsByAdvert(ctx context.Context, advertID int64, limit, offset int) ([]CommentRow, int, error)
 
 	// AdminListComments returns all comments based on status.
 	AdminListComments(ctx context.Context, status *domaincomment.Status, limit, offset int) ([]CommentRow, int, error)

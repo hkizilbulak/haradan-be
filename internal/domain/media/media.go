@@ -214,7 +214,7 @@ type Variant struct {
 // advert. Display order and the cover flag belong here, not to the asset.
 type AdvertMediaRelation struct {
 	ID           uuid.UUID
-	AdvertID     uuid.UUID
+	AdvertID     int64
 	AssetID      uuid.UUID
 	DisplayOrder int
 	IsCover      bool
@@ -225,7 +225,7 @@ type AdvertMediaRelation struct {
 // AdvertRef is the slice of an advert the media domain is allowed to read. The
 // advert core aggregate owns everything else about that row.
 type AdvertRef struct {
-	ID           uuid.UUID
+	ID           int64
 	Status       string
 	MediaVersion int
 	DeletedAt    *time.Time

@@ -23,46 +23,46 @@ type Repository interface {
 	BeginTx(ctx context.Context) (pgx.Tx, error)
 	WithTx(tx pgx.Tx) Repository
 
-	Create(ctx context.Context, a domainadvert.Advert) error
+	Create(ctx context.Context, a *domainadvert.Advert) error
 	InsertHistory(ctx context.Context, h domainadvert.StatusHistory) error
 
-	FindByIDForOwner(ctx context.Context, ownerID, advertID uuid.UUID) (domainadvert.Advert, error)
-	FindByIDForOwnerForUpdate(ctx context.Context, ownerID, advertID uuid.UUID) (domainadvert.Advert, error)
+	FindByIDForOwner(ctx context.Context, ownerID uuid.UUID, advertID int64) (domainadvert.Advert, error)
+	FindByIDForOwnerForUpdate(ctx context.Context, ownerID uuid.UUID, advertID int64) (domainadvert.Advert, error)
 
 	// FindByID returns a non-deleted advert by id (admin scope; no ownership filter).
-	FindByID(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error)
+	FindByID(ctx context.Context, advertID int64) (domainadvert.Advert, error)
 	// FindByIDForUpdate locks a non-deleted advert by id for admin transitions.
-	FindByIDForUpdate(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error)
+	FindByIDForUpdate(ctx context.Context, advertID int64) (domainadvert.Advert, error)
 
 	ListByOwner(
 		ctx context.Context,
 		ownerID uuid.UUID,
 		status *domainadvert.Status,
 		afterCreated *time.Time,
-		afterID *uuid.UUID,
+		afterID *int64,
 		limit int,
 	) ([]domainadvert.Advert, error)
 
 	// ListMediaRelations returns owner-visible media links for the given adverts.
-	ListMediaRelations(ctx context.Context, advertIDs []uuid.UUID) (map[uuid.UUID][]domainadvert.MediaRelation, error)
+	ListMediaRelations(ctx context.Context, advertIDs []int64) (map[int64][]domainadvert.MediaRelation, error)
 
 	// ListForModeration returns non-deleted adverts matching status (optional) with keyset paging.
 	ListForModeration(
 		ctx context.Context,
 		status *domainadvert.Status,
 		afterCreated *time.Time,
-		afterID *uuid.UUID,
+		afterID *int64,
 		limit int,
 	) ([]domainadvert.Advert, error)
 
 	// ListStatusHistory returns history for one advert, oldest first.
-	ListStatusHistory(ctx context.Context, advertID uuid.UUID) ([]domainadvert.StatusHistory, error)
+	ListStatusHistory(ctx context.Context, advertID int64) ([]domainadvert.StatusHistory, error)
 
 	// UpdateDetails applies core content fields when owner+id+version still match
 	// and the status is owner-editable.
 	UpdateDetails(
 		ctx context.Context,
-		ownerID, advertID uuid.UUID,
+		ownerID uuid.UUID, advertID int64,
 		patch domainadvert.DetailsPatch,
 		expectedVersion int,
 		now time.Time,
@@ -71,7 +71,7 @@ type Repository interface {
 	// UpdateCategoryClearProperties sets the category and resets properties to {}.
 	UpdateCategoryClearProperties(
 		ctx context.Context,
-		ownerID, advertID, categoryID uuid.UUID,
+		ownerID uuid.UUID, advertID int64, categoryID uuid.UUID,
 		expectedVersion int,
 		now time.Time,
 	) (domainadvert.Advert, error)
@@ -79,7 +79,7 @@ type Repository interface {
 	// ReplaceProperties overwrites the dynamic property object.
 	ReplaceProperties(
 		ctx context.Context,
-		ownerID, advertID uuid.UUID,
+		ownerID uuid.UUID, advertID int64,
 		properties json.RawMessage,
 		expectedVersion int,
 		now time.Time,
@@ -88,7 +88,7 @@ type Repository interface {
 	// SoftDeleteDraft stamps deleted_at on a DRAFT advert.
 	SoftDeleteDraft(
 		ctx context.Context,
-		ownerID, advertID uuid.UUID,
+		ownerID uuid.UUID, advertID int64,
 		expectedVersion int,
 		now time.Time,
 	) (domainadvert.Advert, error)
@@ -96,7 +96,7 @@ type Repository interface {
 	// TransitionStatus moves status when owner+id+version+from status match.
 	TransitionStatus(
 		ctx context.Context,
-		ownerID, advertID uuid.UUID,
+		ownerID uuid.UUID, advertID int64,
 		from, to domainadvert.Status,
 		expectedVersion int,
 		publishedAt *time.Time,
@@ -109,7 +109,7 @@ type Repository interface {
 	// SystemTransitionStatus moves status without owner filter (background jobs).
 	SystemTransitionStatus(
 		ctx context.Context,
-		advertID uuid.UUID,
+		advertID int64,
 		from, to domainadvert.Status,
 		expectedVersion int,
 		now time.Time,
@@ -125,8 +125,8 @@ type PublicRepository interface {
 	ListHomepageShowcase(ctx context.Context, seed string, limit int, actorUserID *uuid.UUID) ([]domainadvert.PublicCard, error)
 	ListHomepageUrgent(ctx context.Context, limit int, actorUserID *uuid.UUID) ([]domainadvert.PublicCard, error)
 	ListHomepageFeatured(ctx context.Context, limit int, actorUserID *uuid.UUID) ([]domainadvert.PublicCard, error)
-	GetPublishedDetail(ctx context.Context, advertID uuid.UUID, actorUserID *uuid.UUID) (domainadvert.PublicDetail, error)
-	RecordView(ctx context.Context, advertID uuid.UUID, clientIP string) error
+	GetPublishedDetail(ctx context.Context, advertID int64, actorUserID *uuid.UUID) (domainadvert.PublicDetail, error)
+	RecordView(ctx context.Context, advertID int64, clientIP string) error
 }
 
 // CatalogReader reads the category metadata the advert core depends on.

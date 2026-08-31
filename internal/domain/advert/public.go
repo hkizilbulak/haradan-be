@@ -8,7 +8,7 @@ import (
 
 // Public projection types cross the application/infrastructure boundary.
 type PublicCard struct {
-	ID                 uuid.UUID
+	ID                 int64
 	CategoryID         uuid.UUID
 	DistrictID         uuid.UUID
 	ProvinceID         uuid.UUID
@@ -66,11 +66,11 @@ type PublicDetail struct {
 type PublicCursor struct {
 	Priority    int
 	PublishedAt time.Time
-	ID          uuid.UUID
+	ID          int64
 }
 type HomepageCursor struct {
 	PublishedAt time.Time
-	ID          uuid.UUID
+	ID          int64
 }
 type PublicSearchQuery struct {
 	CategoryID  *uuid.UUID

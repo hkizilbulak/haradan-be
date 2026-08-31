@@ -15,7 +15,7 @@ type pgRepo struct {
 	*pgcomment.Repository
 }
 
-func (r pgRepo) FindAdvertStatus(ctx context.Context, advertID uuid.UUID) (AdvertStatusResult, error) {
+func (r pgRepo) FindAdvertStatus(ctx context.Context, advertID int64) (AdvertStatusResult, error) {
 	row, err := r.Repository.FindAdvertStatus(ctx, advertID)
 	if err != nil {
 		return AdvertStatusResult{}, err
@@ -35,7 +35,7 @@ func (r pgRepo) GetUserAuthorName(ctx context.Context, userID uuid.UUID) (string
 	return r.Repository.GetUserAuthorName(ctx, userID)
 }
 
-func (r pgRepo) ListCommentsByAdvert(ctx context.Context, advertID uuid.UUID, limit, offset int) ([]CommentRow, int, error) {
+func (r pgRepo) ListCommentsByAdvert(ctx context.Context, advertID int64, limit, offset int) ([]CommentRow, int, error) {
 	infraRows, total, err := r.Repository.ListCommentsByAdvert(ctx, advertID, limit, offset)
 	if err != nil {
 		return nil, 0, err

@@ -1,6 +1,7 @@
 package notification_test
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -34,17 +35,17 @@ func TestTemplateEventTypeParseAndValid(t *testing.T) {
 
 func TestEventKeysAndEmailIdempotencyLength(t *testing.T) {
 	t.Parallel()
-	advertID := uuid.MustParse("3f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d")
+	advertID := int64(101)
 	asgID := uuid.MustParse("4f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5e")
 	userID := uuid.MustParse("5f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5f")
 	nID := uuid.MustParse("6f2b1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c50")
 
 	advKey := domainnotification.PackageAdvertPublishedEventKey(advertID, asgID)
-	if advKey != "PACKAGE_ADVERT_PUBLISHED:"+advertID.String()+":"+asgID.String() {
+	if advKey != "PACKAGE_ADVERT_PUBLISHED:"+strconv.FormatInt(advertID, 10)+":"+asgID.String() {
 		t.Fatalf("package key=%q", advKey)
 	}
 	urgKey := domainnotification.UrgentAdvertActivatedEventKey(advertID, 3)
-	if urgKey != "URGENT_ADVERT_ACTIVATED:"+advertID.String()+":3" {
+	if urgKey != "URGENT_ADVERT_ACTIVATED:"+strconv.FormatInt(advertID, 10)+":3" {
 		t.Fatalf("urgent key=%q", urgKey)
 	}
 	ends := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)

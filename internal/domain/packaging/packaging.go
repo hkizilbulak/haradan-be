@@ -148,7 +148,7 @@ func (p Package) EmitsPublishBroadcast() bool {
 // AdvertPackageAssignment is a package entitlement history row.
 type AdvertPackageAssignment struct {
 	ID               uuid.UUID
-	AdvertID         uuid.UUID
+	AdvertID         int64
 	PackageID        uuid.UUID
 	Status           AssignmentStatus
 	StartsAt         time.Time
@@ -195,7 +195,7 @@ func ValidTimeRange(startsAt time.Time, endsAt *time.Time) bool {
 // AdvertFeatureActivation is an URGENT / FEATURED activation row.
 type AdvertFeatureActivation struct {
 	ID                  uuid.UUID
-	AdvertID            uuid.UUID
+	AdvertID            int64
 	PackageAssignmentID uuid.UUID
 	FeatureCode         FeatureCode
 	Status              FeatureActivationStatus

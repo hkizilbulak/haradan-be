@@ -69,7 +69,7 @@ func NewEventWriter(cfg EventWriterConfig) (*EventWriter, error) {
 
 // WritePackageAdvertPublishedInput carries package publish broadcast event data.
 type WritePackageAdvertPublishedInput struct {
-	AdvertID     uuid.UUID
+	AdvertID int64
 	AssignmentID uuid.UUID
 }
 
@@ -78,7 +78,7 @@ type WriteAdvancedAdvertPublishedInput = WritePackageAdvertPublishedInput
 
 // WriteUrgentAdvertActivatedInput carries urgent activation event data.
 type WriteUrgentAdvertActivatedInput struct {
-	AdvertID          uuid.UUID
+	AdvertID int64
 	AssignmentID      uuid.UUID
 	ActivationVersion int
 }
@@ -118,7 +118,7 @@ func (w *EventWriter) writeAdvertEvent(
 	ctx context.Context,
 	tx pgx.Tx,
 	eventType domainnotification.EventType,
-	advertID uuid.UUID,
+	advertID int64,
 	assignmentID uuid.UUID,
 	activationVersion *int,
 	jobType domainmedia.JobType,
@@ -161,7 +161,7 @@ func (w *EventWriter) writeAdvertEvent(
 	}
 
 	vars := domainnotification.TemplateVars{
-		"advertId":           advertID.String(),
+		"advertId":           fmt.Sprintf("%d", advertID),
 		"advertTitle":        advert.Title,
 		"packageCode":        string(pkg.Code),
 		"packageDisplayName": pkg.DisplayName,
@@ -192,7 +192,7 @@ func (w *EventWriter) writeAdvertEvent(
 	}
 
 	payload, err := json.Marshal(map[string]any{
-		"advertId": advertID.String(),
+		"advertId": fmt.Sprintf("%d", advertID),
 	})
 	if err != nil {
 		return fmt.Errorf("marshal notification payload: %w", err)
@@ -275,7 +275,7 @@ func (w *EventWriter) WritePackageExpiryReminder(ctx context.Context, tx pgx.Tx,
 	}
 	endsAtStr := in.EndsAt.UTC().Format(time.RFC3339Nano)
 	vars := domainnotification.TemplateVars{
-		"advertId":            asg.AdvertID.String(),
+		"advertId":            fmt.Sprintf("%d", asg.AdvertID),
 		"advertTitle":         advert.Title,
 		"packageCode":         string(pkg.Code),
 		"packageDisplayName":  pkg.DisplayName,
@@ -309,7 +309,7 @@ func (w *EventWriter) WritePackageExpiryReminder(ctx context.Context, tx pgx.Tx,
 
 	eventKey := domainnotification.PackageExpiryEventKey(in.AssignmentID, in.EndsAt, in.Offset)
 	payload, err := json.Marshal(map[string]any{
-		"advertId":     asg.AdvertID.String(),
+		"advertId":     fmt.Sprintf("%d", asg.AdvertID),
 		"assignmentId": in.AssignmentID.String(),
 		"ownerUserId":  in.OwnerUserID.String(),
 		"endsAt":       endsAtStr,
@@ -394,7 +394,7 @@ func (w *EventWriter) WritePackageExpiryReminder(ctx context.Context, tx pgx.Tx,
 
 // EffectiveBroadcastAssignment returns the effective assignment at now whose
 // package has broadcast_on_publish enabled, if any.
-func EffectiveBroadcastAssignment(ctx context.Context, packages PackageSnapshotReader, advertID uuid.UUID, now time.Time) (PackageAssignmentSnapshot, domainpackaging.Package, bool, error) {
+func EffectiveBroadcastAssignment(ctx context.Context, packages PackageSnapshotReader, advertID int64, now time.Time) (PackageAssignmentSnapshot, domainpackaging.Package, bool, error) {
 	asg, err := packages.GetEffectiveAssignment(ctx, advertID, now)
 	if err != nil {
 		if isNotFoundErr(err) {
@@ -413,7 +413,7 @@ func EffectiveBroadcastAssignment(ctx context.Context, packages PackageSnapshotR
 }
 
 // EffectiveAdvancedAssignment is a historical alias for EffectiveBroadcastAssignment.
-func EffectiveAdvancedAssignment(ctx context.Context, packages PackageSnapshotReader, advertID uuid.UUID, now time.Time) (PackageAssignmentSnapshot, domainpackaging.Package, bool, error) {
+func EffectiveAdvancedAssignment(ctx context.Context, packages PackageSnapshotReader, advertID int64, now time.Time) (PackageAssignmentSnapshot, domainpackaging.Package, bool, error) {
 	return EffectiveBroadcastAssignment(ctx, packages, advertID, now)
 }
 

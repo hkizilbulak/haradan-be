@@ -94,7 +94,7 @@ func (systemClock) Now() time.Time { return time.Now().UTC() }
 // AssignAdvertPackageInput is the package assignment request (admin or owner).
 type AssignAdvertPackageInput struct {
 	ActorUserID uuid.UUID
-	AdvertID    uuid.UUID
+	AdvertID    int64
 	PackageCode domainpackaging.PackageCode
 	StartsAt    *time.Time
 	EndsAt      *time.Time
@@ -105,7 +105,7 @@ type AssignAdvertPackageInput struct {
 // CancelAdvertPackageInput cancels the active assignment for an advert.
 type CancelAdvertPackageInput struct {
 	ActorUserID uuid.UUID
-	AdvertID    uuid.UUID
+	AdvertID    int64
 	Reason      *string
 }
 
@@ -527,7 +527,7 @@ func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackag
 // Source is SYSTEM (payment entitlement lands later). Package features are applied immediately.
 func (s *Service) AssignOwnerAdvertPackage(
 	ctx context.Context,
-	ownerUserID, advertID uuid.UUID,
+	ownerUserID uuid.UUID, advertID int64,
 	packageCode domainpackaging.PackageCode,
 ) (AssignmentView, error) {
 	return s.AssignAdvertPackage(ctx, AssignAdvertPackageInput{
@@ -540,7 +540,7 @@ func (s *Service) AssignOwnerAdvertPackage(
 
 // GetAdvertPackage returns the currently effective ACTIVE assignment, if any.
 // Missing assignment yields (nil, nil).
-func (s *Service) GetAdvertPackage(ctx context.Context, advertID uuid.UUID) (*AssignmentView, error) {
+func (s *Service) GetAdvertPackage(ctx context.Context, advertID int64) (*AssignmentView, error) {
 	now := s.clock.Now().UTC()
 	a, err := s.assignments.FindEffectiveActiveByAdvertID(ctx, advertID, now)
 	if err != nil {
@@ -559,7 +559,7 @@ func (s *Service) GetAdvertPackage(ctx context.Context, advertID uuid.UUID) (*As
 // GetAdminAdvertPackage returns the effective assignment for an ACTIVE ADMIN or NotFound.
 func (s *Service) GetAdminAdvertPackage(
 	ctx context.Context,
-	actorUserID, advertID uuid.UUID,
+	actorUserID uuid.UUID, advertID int64,
 ) (AssignmentView, error) {
 	if err := s.requireAdmin(ctx, actorUserID); err != nil {
 		return AssignmentView{}, err
@@ -604,7 +604,7 @@ func (s *Service) CancelAdvertPackage(ctx context.Context, in CancelAdvertPackag
 // ListAdvertPackageHistoryInput carries admin history pagination.
 type ListAdvertPackageHistoryInput struct {
 	ActorUserID uuid.UUID
-	AdvertID    uuid.UUID
+	AdvertID    int64
 	Limit       *int
 	Cursor      *string
 }
@@ -657,7 +657,7 @@ func (s *Service) ListAdvertPackageHistory(ctx context.Context, in ListAdvertPac
 }
 
 // ActivateUrgent opens ACTIVE URGENT for an advert (owner or admin).
-func (s *Service) ActivateUrgent(ctx context.Context, actorUserID, advertID uuid.UUID) (domainpackaging.AdvertFeatureActivation, error) {
+func (s *Service) ActivateUrgent(ctx context.Context, actorUserID uuid.UUID, advertID int64) (domainpackaging.AdvertFeatureActivation, error) {
 	actor, err := s.users.FindByID(ctx, actorUserID)
 	if err != nil {
 		return domainpackaging.AdvertFeatureActivation{}, err
@@ -752,7 +752,7 @@ func (s *Service) ActivateUrgent(ctx context.Context, actorUserID, advertID uuid
 }
 
 // DeactivateUrgent closes ACTIVE URGENT for an advert (owner or admin).
-func (s *Service) DeactivateUrgent(ctx context.Context, actorUserID, advertID uuid.UUID) error {
+func (s *Service) DeactivateUrgent(ctx context.Context, actorUserID uuid.UUID, advertID int64) error {
 	actor, err := s.users.FindByID(ctx, actorUserID)
 	if err != nil {
 		return err
@@ -776,7 +776,7 @@ func (s *Service) DeactivateUrgent(ctx context.Context, actorUserID, advertID uu
 func deactivateFeaturesForPackageLoss(
 	ctx context.Context,
 	features FeatureRepository,
-	advertID uuid.UUID,
+	advertID int64,
 	now time.Time,
 ) error {
 	if _, err := features.DeactivateActive(
@@ -829,7 +829,7 @@ func applyPackageFeatures(
 func ensureFeatureActivation(
 	ctx context.Context,
 	features FeatureRepository,
-	actorUserID, advertID, assignmentID uuid.UUID,
+	actorUserID uuid.UUID, advertID int64, assignmentID uuid.UUID,
 	code domainpackaging.FeatureCode,
 	endsAt *time.Time,
 	now time.Time,
@@ -880,7 +880,7 @@ func ensureFeatureActivation(
 func deactivateUrgentForPackageLoss(
 	ctx context.Context,
 	features FeatureRepository,
-	advertID uuid.UUID,
+	advertID int64,
 	now time.Time,
 ) error {
 	_, err := features.DeactivateActive(

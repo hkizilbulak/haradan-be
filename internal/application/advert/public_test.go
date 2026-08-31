@@ -13,8 +13,8 @@ import (
 func TestPublicPageUsesPriorityPublishedAndIDCursor(t *testing.T) {
 	now := time.Now().UTC()
 	rows := []PublicCard{
-		{ID: uuid.New(), SearchPriority: 20, PublishedAt: now},
-		{ID: uuid.New(), SearchPriority: 10, PublishedAt: now.Add(-time.Minute)},
+		{ID: 1001, SearchPriority: 20, PublishedAt: now},
+		{ID: 1002, SearchPriority: 10, PublishedAt: now.Add(-time.Minute)},
 	}
 	page := publicPage(rows, 1)
 	if !page.HasMore || page.NextCursor == nil || len(page.Items) != 1 {
@@ -29,8 +29,8 @@ func TestPublicPageUsesPriorityPublishedAndIDCursor(t *testing.T) {
 func TestHomepagePageIgnoresPackagePriority(t *testing.T) {
 	now := time.Now().UTC()
 	rows := []PublicCard{
-		{ID: uuid.New(), SearchPriority: 0, PublishedAt: now},
-		{ID: uuid.New(), SearchPriority: 999, PublishedAt: now.Add(-time.Minute)},
+		{ID: 2001, SearchPriority: 0, PublishedAt: now},
+		{ID: 2002, SearchPriority: 999, PublishedAt: now.Add(-time.Minute)},
 	}
 	page := homepagePage(rows, 1)
 	cursor, err := decodeHomepageCursor(*page.NextCursor)
@@ -54,7 +54,7 @@ func TestShowcaseGeneratesStableSeedWhenProvided(t *testing.T) {
 func TestGetPublishedAdvertDetailResolvesProperties(t *testing.T) {
 	dispVal := "Evet"
 	dispOption := "Safkan İngiliz"
-	advID := uuid.New()
+	advID := int64(4242)
 	detail := domainadvert.PublicDetail{
 		PublicCard: domainadvert.PublicCard{
 			ID:    advID,
@@ -107,10 +107,10 @@ func (r *fakePublicRepository) ListHomepageUrgent(context.Context, int, *uuid.UU
 func (r *fakePublicRepository) ListHomepageFeatured(context.Context, int, *uuid.UUID) ([]domainadvert.PublicCard, error) {
 	return []domainadvert.PublicCard{}, nil
 }
-func (r *fakePublicRepository) GetPublishedDetail(context.Context, uuid.UUID, *uuid.UUID) (domainadvert.PublicDetail, error) {
+func (r *fakePublicRepository) GetPublishedDetail(context.Context, int64, *uuid.UUID) (domainadvert.PublicDetail, error) {
 	return r.detail, nil
 }
-func (r *fakePublicRepository) RecordView(context.Context, uuid.UUID, string) error {
+func (r *fakePublicRepository) RecordView(context.Context, int64, string) error {
 	return nil
 }
 

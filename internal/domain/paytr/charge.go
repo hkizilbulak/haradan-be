@@ -32,7 +32,7 @@ func (s ChargeStatus) Valid() bool {
 type Charge struct {
 	ID                uuid.UUID
 	MerchantOID       string
-	AdvertID          uuid.UUID
+	AdvertID          int64
 	OwnerUserID       uuid.UUID
 	PackageCode       domainpackaging.PackageCode
 	AmountMinor       int64

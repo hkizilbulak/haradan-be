@@ -34,7 +34,7 @@ func seedReadyVariant(t *testing.T, f *fixture, assetID uuid.UUID, profile strin
 	return key
 }
 
-func attachAdvert(t *testing.T, f *fixture, advertID, assetID uuid.UUID) {
+func attachAdvert(t *testing.T, f *fixture, advertID int64, assetID uuid.UUID) {
 	t.Helper()
 	now := f.clock.Now()
 	if err := f.store.Repo().AttachAdvertMedia(context.Background(), domainmedia.AdvertMediaRelation{

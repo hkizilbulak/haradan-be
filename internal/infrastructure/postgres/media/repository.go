@@ -317,7 +317,7 @@ RETURNING ` + variantColumns
 
 // ListAdvertMediaByAdvert returns an advert's relations joined with the lifecycle
 // of each asset, ordered by display order.
-func (r *Repository) ListAdvertMediaByAdvert(ctx context.Context, advertID uuid.UUID) ([]domainmedia.RelationWithAsset, error) {
+func (r *Repository) ListAdvertMediaByAdvert(ctx context.Context, advertID int64) ([]domainmedia.RelationWithAsset, error) {
 	const q = `
 SELECT am.id, am.advert_id, am.asset_id, am.display_order, am.is_cover, am.created_at, am.updated_at,
        a.lifecycle_status
@@ -356,7 +356,7 @@ ORDER BY am.display_order`
 }
 
 // CountAdvertMediaByAdvert counts the relations of one advert.
-func (r *Repository) CountAdvertMediaByAdvert(ctx context.Context, advertID uuid.UUID) (int, error) {
+func (r *Repository) CountAdvertMediaByAdvert(ctx context.Context, advertID int64) (int, error) {
 	const q = `SELECT COUNT(*) FROM hrd_advert_media WHERE advert_id = $1`
 	var count int
 	if err := r.db.QueryRow(ctx, q, advertID).Scan(&count); err != nil {
@@ -388,7 +388,7 @@ INSERT INTO hrd_advert_media (
 }
 
 // DetachAdvertMedia removes a relation and reports whether it was the cover.
-func (r *Repository) DetachAdvertMedia(ctx context.Context, advertID, assetID uuid.UUID) (bool, bool, error) {
+func (r *Repository) DetachAdvertMedia(ctx context.Context, advertID int64, assetID uuid.UUID) (bool, bool, error) {
 	const q = `
 DELETE FROM hrd_advert_media
 WHERE advert_id = $1 AND asset_id = $2
@@ -408,7 +408,7 @@ RETURNING is_cover`
 // UpdateAdvertMediaDisplayOrder rewrites one relation's display order.
 func (r *Repository) UpdateAdvertMediaDisplayOrder(
 	ctx context.Context,
-	advertID, assetID uuid.UUID,
+	advertID int64, assetID uuid.UUID,
 	displayOrder int,
 	now time.Time,
 ) error {
@@ -433,7 +433,7 @@ WHERE advert_id = $1 AND asset_id = $2`
 
 // ClearAdvertCover unsets the cover flag so a new one can be set in the same
 // transaction without tripping the one-cover partial unique index.
-func (r *Repository) ClearAdvertCover(ctx context.Context, advertID uuid.UUID, now time.Time) error {
+func (r *Repository) ClearAdvertCover(ctx context.Context, advertID int64, now time.Time) error {
 	const q = `
 UPDATE hrd_advert_media
 SET is_cover = false,
@@ -447,7 +447,7 @@ WHERE advert_id = $1 AND is_cover = true`
 }
 
 // SetAdvertCover flags one relation as the cover.
-func (r *Repository) SetAdvertCover(ctx context.Context, advertID, assetID uuid.UUID, now time.Time) error {
+func (r *Repository) SetAdvertCover(ctx context.Context, advertID int64, assetID uuid.UUID, now time.Time) error {
 	const q = `
 UPDATE hrd_advert_media
 SET is_cover = true,
@@ -527,7 +527,7 @@ WHERE asset_id = $1`
 
 // FindOwnerAdvertForUpdate locks the owner's advert and returns only the fields
 // the media domain is allowed to read.
-func (r *Repository) FindOwnerAdvertForUpdate(ctx context.Context, ownerID, advertID uuid.UUID) (domainmedia.AdvertRef, error) {
+func (r *Repository) FindOwnerAdvertForUpdate(ctx context.Context, ownerID uuid.UUID, advertID int64) (domainmedia.AdvertRef, error) {
 	const q = `
 SELECT id, status, media_version, deleted_at
 FROM hrd_adverts
@@ -549,7 +549,7 @@ FOR UPDATE`
 // only while the advert is still open to media edits.
 func (r *Repository) BumpAdvertMediaVersion(
 	ctx context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	expectedMediaVersion int,
 	now time.Time,
 ) (int, error) {

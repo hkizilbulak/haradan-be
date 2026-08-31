@@ -60,7 +60,7 @@ func requireCode(t *testing.T, err error, want apperr.Code) {
 	}
 }
 
-func seedPublished(f *fixture, id uuid.UUID) {
+func seedPublished(f *fixture, id int64) {
 	title := "Yayında ilan"
 	now := f.clock.Now()
 	cat := uuid.New()
@@ -84,7 +84,7 @@ func seedPublished(f *fixture, id uuid.UUID) {
 func TestAddFavoriteSuccessAndIdempotent(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
-	advertID := uuid.New()
+	advertID := int64(101)
 	seedPublished(f, advertID)
 
 	first, err := f.svc.AddFavorite(ctx, f.user, advertID)
@@ -109,7 +109,7 @@ func TestAddFavoriteSuccessAndIdempotent(t *testing.T) {
 func TestAddFavoriteConcurrentDuplicate(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
-	advertID := uuid.New()
+	advertID := int64(102)
 	seedPublished(f, advertID)
 
 	var wg sync.WaitGroup
@@ -138,16 +138,16 @@ func TestAddFavoriteNotFoundHidesExistence(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 
-	missingID := uuid.New()
+	missingID := int64(107)
 	_, missingErr := f.svc.AddFavorite(ctx, f.user, missingID)
 	requireCode(t, missingErr, apperr.CodeNotFound)
 
-	draftID := uuid.New()
+	draftID := int64(105)
 	f.store.PutAdvert(appfavorite.AdvertSnapshot{ID: draftID, Status: string(domainadvert.StatusDraft)})
 	_, draftErr := f.svc.AddFavorite(ctx, f.user, draftID)
 	requireCode(t, draftErr, apperr.CodeNotFound)
 
-	deletedID := uuid.New()
+	deletedID := int64(106)
 	now := f.clock.Now()
 	title := "Silinmiş"
 	cat := uuid.New()
@@ -178,7 +178,7 @@ func TestAddFavoriteNotFoundHidesExistence(t *testing.T) {
 func TestRemoveFavoriteIdempotentAndCrossUser(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
-	advertID := uuid.New()
+	advertID := int64(103)
 	seedPublished(f, advertID)
 	if _, err := f.svc.AddFavorite(ctx, f.user, advertID); err != nil {
 		t.Fatalf("add: %v", err)
@@ -217,7 +217,7 @@ func TestListMyFavoritesPlaceholderAndEmpty(t *testing.T) {
 		t.Fatalf("%+v", empty)
 	}
 
-	publishedID := uuid.New()
+	publishedID := int64(1)
 	seedPublished(f, publishedID)
 	if _, err := f.svc.AddFavorite(ctx, f.user, publishedID); err != nil {
 		t.Fatalf("add published: %v", err)
@@ -226,7 +226,7 @@ func TestListMyFavoritesPlaceholderAndEmpty(t *testing.T) {
 	// Mutate advert to non-public after favorite exists.
 	f.store.PutAdvert(appfavorite.AdvertSnapshot{ID: publishedID, Status: string(domainadvert.StatusSuspended)})
 
-	archivedID := uuid.New()
+	archivedID := int64(2)
 	title := "Eski"
 	now := f.clock.Now()
 	cat := uuid.New()
@@ -296,7 +296,7 @@ func TestListMyFavoritesPlaceholderAndEmpty(t *testing.T) {
 func TestListIgnoresOtherUsers(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
-	advertID := uuid.New()
+	advertID := int64(104)
 	seedPublished(f, advertID)
 	if _, err := f.svc.AddFavorite(ctx, f.stranger, advertID); err != nil {
 		t.Fatalf("stranger add: %v", err)
@@ -312,6 +312,6 @@ func TestListIgnoresOtherUsers(t *testing.T) {
 
 func TestAddFavoriteNilAdvertIDValidation(t *testing.T) {
 	f := newFixture(t)
-	_, err := f.svc.AddFavorite(context.Background(), f.user, uuid.Nil)
+	_, err := f.svc.AddFavorite(context.Background(), f.user, 0)
 	requireCode(t, err, apperr.CodeValidation)
 }

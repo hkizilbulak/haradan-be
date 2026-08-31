@@ -116,8 +116,8 @@ paths:
         in: path
         required: true
         schema:
-          type: string
-          format: uuid
+          type: integer
+          format: int64
       - name: commentId
         in: path
         required: true
@@ -2734,6 +2734,8 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/HomepageBootstrapResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
         '500':
           "$ref": "#/components/responses/InternalError"
       security:
@@ -2749,6 +2751,8 @@ paths:
           maximum: 50
           default: 20
       x-error-codes:
+        '400':
+        - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
   "/v1/homepage/new-adverts":
@@ -7108,8 +7112,8 @@ components:
       in: path
       required: true
       schema:
-        type: string
-        format: uuid
+        type: integer
+        format: int64
     NotificationIdPath:
       name: notificationId
       in: path
@@ -7377,8 +7381,8 @@ components:
           type: string
           format: uuid
         advertId:
-          type: string
-          format: uuid
+          type: integer
+          format: int64
         userId:
           type: string
           format: uuid
@@ -8131,8 +8135,8 @@ components:
       - viewCount
       properties:
         id:
-          type: string
-          format: uuid
+          type: integer
+          format: int64
         title:
           type: string
         publishedAt:
@@ -8239,8 +8243,8 @@ components:
       - viewCount
       properties:
         id:
-          type: string
-          format: uuid
+          type: integer
+          format: int64
         title:
           type: string
         description:
@@ -8321,8 +8325,8 @@ components:
       - deletedAt
       properties:
         id:
-          type: string
-          format: uuid
+          type: integer
+          format: int64
         status:
           "$ref": "#/components/schemas/AdvertStatus"
         version:
@@ -8514,8 +8518,8 @@ components:
       - favorited
       properties:
         advertId:
-          type: string
-          format: uuid
+          type: integer
+          format: int64
         favorited:
           type: boolean
     FavoriteListItem:
@@ -8526,8 +8530,8 @@ components:
       - available
       properties:
         advertId:
-          type: string
-          format: uuid
+          type: integer
+          format: int64
         available:
           type: boolean
         card:
@@ -8635,8 +8639,8 @@ components:
       - items
       properties:
         advertId:
-          type: string
-          format: uuid
+          type: integer
+          format: int64
         mediaVersion:
           type: integer
           minimum: 1
@@ -9933,8 +9937,8 @@ components:
           type: string
           format: uuid
         advertId:
-          type: string
-          format: uuid
+          type: integer
+          format: int64
         packageCode:
           "$ref": "#/components/schemas/PackageCode"
         status:
@@ -10031,8 +10035,8 @@ components:
           type: string
           format: uuid
         advertId:
-          type: string
-          format: uuid
+          type: integer
+          format: int64
         packageCode:
           "$ref": "#/components/schemas/PackageCode"
         status:
@@ -10460,8 +10464,8 @@ components:
           type: string
           format: uuid
         advertId:
-          type: string
-          format: uuid
+          type: integer
+          format: int64
         packageAssignmentId:
           type: string
           format: uuid

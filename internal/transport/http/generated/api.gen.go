@@ -899,7 +899,7 @@ type AdminUserListResponse struct {
 
 // AdvertCommentItem defines model for AdvertCommentItem.
 type AdvertCommentItem struct {
-	AdvertId   openapi_types.UUID `json:"advertId"`
+	AdvertId   int64              `json:"advertId"`
 	AuthorName string             `json:"authorName"`
 	Content    string             `json:"content"`
 	CreatedAt  time.Time          `json:"createdAt"`
@@ -915,14 +915,14 @@ type AdvertCommentListResponse struct {
 
 // AdvertMediaCollectionResponse defines model for AdvertMediaCollectionResponse.
 type AdvertMediaCollectionResponse struct {
-	AdvertId     openapi_types.UUID       `json:"advertId"`
+	AdvertId     int64                    `json:"advertId"`
 	Items        []OwnerMediaRelationItem `json:"items"`
 	MediaVersion int                      `json:"mediaVersion"`
 }
 
 // AdvertPackageAssignmentView defines model for AdvertPackageAssignmentView.
 type AdvertPackageAssignmentView struct {
-	AdvertId         openapi_types.UUID      `json:"advertId"`
+	AdvertId         int64                   `json:"advertId"`
 	AssignedAt       time.Time               `json:"assignedAt"`
 	AssignedByUserId openapi_types.UUID      `json:"assignedByUserId"`
 	CancelledAt      *time.Time              `json:"cancelledAt,omitempty"`
@@ -942,7 +942,7 @@ type AdvertPackageAssignmentView struct {
 
 // AdvertPackageHistoryItem defines model for AdvertPackageHistoryItem.
 type AdvertPackageHistoryItem struct {
-	AdvertId         openapi_types.UUID      `json:"advertId"`
+	AdvertId         int64                   `json:"advertId"`
 	AssignedAt       time.Time               `json:"assignedAt"`
 	AssignedByUserId openapi_types.UUID      `json:"assignedByUserId"`
 	CancelledAt      *time.Time              `json:"cancelledAt,omitempty"`
@@ -975,7 +975,7 @@ type AdvertUrgentActivationView struct {
 	ActivatedAt         time.Time                             `json:"activatedAt"`
 	ActivatedByUserId   openapi_types.UUID                    `json:"activatedByUserId"`
 	ActivationVersion   int                                   `json:"activationVersion"`
-	AdvertId            openapi_types.UUID                    `json:"advertId"`
+	AdvertId            int64                                 `json:"advertId"`
 	CreatedAt           time.Time                             `json:"createdAt"`
 	DeactivatedAt       *time.Time                            `json:"deactivatedAt,omitempty"`
 	FeatureCode         AdvertUrgentActivationViewFeatureCode `json:"featureCode"`
@@ -1296,7 +1296,7 @@ type ExpectedVersionRequest struct {
 
 // FavoriteListItem defines model for FavoriteListItem.
 type FavoriteListItem struct {
-	AdvertId  openapi_types.UUID   `json:"advertId"`
+	AdvertId  int64                `json:"advertId"`
 	Available bool                 `json:"available"`
 	Card      *PublishedAdvertCard `json:"card,omitempty"`
 
@@ -1313,8 +1313,8 @@ type FavoriteListResponse struct {
 
 // FavoriteMutationResponse defines model for FavoriteMutationResponse.
 type FavoriteMutationResponse struct {
-	AdvertId  openapi_types.UUID `json:"advertId"`
-	Favorited bool               `json:"favorited"`
+	AdvertId  int64 `json:"advertId"`
+	Favorited bool  `json:"favorited"`
 }
 
 // FieldValidationError defines model for FieldValidationError.
@@ -1516,7 +1516,7 @@ type ModerationAdvertDetailResponse struct {
 	Description            *string                  `json:"description"`
 	DistrictId             *openapi_types.UUID      `json:"districtId"`
 	HorseId                *openapi_types.UUID      `json:"horseId"`
-	Id                     openapi_types.UUID       `json:"id"`
+	Id                     int64                    `json:"id"`
 	Media                  []OwnerMediaRelationItem `json:"media"`
 	MediaVersion           int                      `json:"mediaVersion"`
 	OwnerUserId            openapi_types.UUID       `json:"ownerUserId"`
@@ -1624,7 +1624,7 @@ type OwnerAdvertResponse struct {
 	Description            *string                  `json:"description"`
 	DistrictId             *openapi_types.UUID      `json:"districtId"`
 	HorseId                *openapi_types.UUID      `json:"horseId"`
-	Id                     openapi_types.UUID       `json:"id"`
+	Id                     int64                    `json:"id"`
 	Media                  []OwnerMediaRelationItem `json:"media"`
 	MediaVersion           int                      `json:"mediaVersion"`
 	Price                  *Money                   `json:"price"`
@@ -1778,7 +1778,7 @@ type PublishedAdvertCard struct {
 	DistrictName  *string             `json:"districtName,omitempty"`
 	FeaturedUntil *time.Time          `json:"featuredUntil,omitempty"`
 	HorseId       *openapi_types.UUID `json:"horseId,omitempty"`
-	Id            openapi_types.UUID  `json:"id"`
+	Id            int64               `json:"id"`
 
 	// IsFavorite Present when optional auth; null/omitted semantics: always present as nullable for anonymous=false enrichment path — anonymous callers get null
 	IsFavorite *bool `json:"isFavorite"`
@@ -1812,7 +1812,7 @@ type PublishedAdvertDetailResponse struct {
 	Description   string                `json:"description"`
 	FeaturedUntil *time.Time            `json:"featuredUntil,omitempty"`
 	Horse         *HorseSelectionItem   `json:"horse"`
-	Id            openapi_types.UUID    `json:"id"`
+	Id            int64                 `json:"id"`
 	IsFavorite    *bool                 `json:"isFavorite"`
 
 	// IsFeatured True while an ACTIVE FEATURED activation is within its ends_at window
@@ -2288,7 +2288,7 @@ type UserRole string
 type UserStatus string
 
 // AdvertIdPath defines model for AdvertIdPath.
-type AdvertIdPath = openapi_types.UUID
+type AdvertIdPath = int64
 
 // AssetIdPath defines model for AssetIdPath.
 type AssetIdPath = openapi_types.UUID
@@ -2998,7 +2998,7 @@ type ServerInterface interface {
 	CreateAdvertComment(c *gin.Context, advertId AdvertIdPath)
 	// DeleteAdvertComment DeleteAdvertComment
 	// (DELETE /v1/adverts/{advertId}/comments/{commentId})
-	DeleteAdvertComment(c *gin.Context, advertId openapi_types.UUID, commentId openapi_types.UUID)
+	DeleteAdvertComment(c *gin.Context, advertId int64, commentId openapi_types.UUID)
 	// DeactivateAdvertUrgent DeactivateAdvertUrgent
 	// (DELETE /v1/adverts/{advertId}/urgent)
 	DeactivateAdvertUrgent(c *gin.Context, advertId AdvertIdPath)
@@ -3282,7 +3282,7 @@ func (siw *ServerInterfaceWrapper) GetAdvertModerationDetail(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -3307,7 +3307,7 @@ func (siw *ServerInterfaceWrapper) ApproveAdvert(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -3332,7 +3332,7 @@ func (siw *ServerInterfaceWrapper) GetAdminAdvertPackage(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -3357,7 +3357,7 @@ func (siw *ServerInterfaceWrapper) AssignAdminAdvertPackage(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -3382,7 +3382,7 @@ func (siw *ServerInterfaceWrapper) ListAdminAdvertPackageHistory(c *gin.Context)
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -3426,7 +3426,7 @@ func (siw *ServerInterfaceWrapper) CancelAdminAdvertPackage(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -3451,7 +3451,7 @@ func (siw *ServerInterfaceWrapper) RejectAdvert(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -3476,7 +3476,7 @@ func (siw *ServerInterfaceWrapper) RequestAdvertChanges(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -3501,7 +3501,7 @@ func (siw *ServerInterfaceWrapper) SuspendAdvert(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5078,7 +5078,7 @@ func (siw *ServerInterfaceWrapper) GetPublishedAdvertDetail(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5103,7 +5103,7 @@ func (siw *ServerInterfaceWrapper) ListAdvertComments(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5147,7 +5147,7 @@ func (siw *ServerInterfaceWrapper) CreateAdvertComment(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5170,9 +5170,9 @@ func (siw *ServerInterfaceWrapper) DeleteAdvertComment(c *gin.Context) {
 	_ = err
 
 	// ------------- Path parameter "advertId" -------------
-	var advertId openapi_types.UUID
+	var advertId int64
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5206,7 +5206,7 @@ func (siw *ServerInterfaceWrapper) DeactivateAdvertUrgent(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5231,7 +5231,7 @@ func (siw *ServerInterfaceWrapper) ActivateAdvertUrgent(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5795,7 +5795,7 @@ func (siw *ServerInterfaceWrapper) SoftDeleteAdvertDraft(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5831,7 +5831,7 @@ func (siw *ServerInterfaceWrapper) GetMyAdvert(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5856,7 +5856,7 @@ func (siw *ServerInterfaceWrapper) UpdateAdvertDraftDetails(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5881,7 +5881,7 @@ func (siw *ServerInterfaceWrapper) ArchiveAdvert(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5906,7 +5906,7 @@ func (siw *ServerInterfaceWrapper) ChangeAdvertDraftCategory(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5931,7 +5931,7 @@ func (siw *ServerInterfaceWrapper) AttachMediaToAdvert(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5956,7 +5956,7 @@ func (siw *ServerInterfaceWrapper) SetAdvertCover(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -5981,7 +5981,7 @@ func (siw *ServerInterfaceWrapper) ReorderAdvertMedia(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -6006,7 +6006,7 @@ func (siw *ServerInterfaceWrapper) DetachMediaFromAdvert(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -6051,7 +6051,7 @@ func (siw *ServerInterfaceWrapper) AssignOwnerAdvertPackage(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -6076,7 +6076,7 @@ func (siw *ServerInterfaceWrapper) ReplaceAdvertDynamicProperties(c *gin.Context
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -6101,7 +6101,7 @@ func (siw *ServerInterfaceWrapper) ResubmitAdvertForReview(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -6126,7 +6126,7 @@ func (siw *ServerInterfaceWrapper) MarkAdvertSold(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -6151,7 +6151,7 @@ func (siw *ServerInterfaceWrapper) SubmitAdvertForReview(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -6224,7 +6224,7 @@ func (siw *ServerInterfaceWrapper) RemoveFavorite(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return
@@ -6249,7 +6249,7 @@ func (siw *ServerInterfaceWrapper) AddFavorite(c *gin.Context) {
 	// ------------- Path parameter "advertId" -------------
 	var advertId AdvertIdPath
 
-	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
 		return

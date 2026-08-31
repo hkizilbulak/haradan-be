@@ -35,7 +35,7 @@ func NewRepository(db Querier) *Repository {
 
 // AdvertRow is the advert projection used by favorite lookups and list joins.
 type AdvertRow struct {
-	ID               uuid.UUID
+	ID               int64
 	Status           string
 	DeletedAt        *time.Time
 	Title            *string
@@ -58,7 +58,7 @@ const advertLookupColumns = `id, status, deleted_at, title, published_at, catego
 horse_id, price_amount_minor, price_currency`
 
 // FindAdvertForFavoriteLookup returns advert fields needed for add-time checks.
-func (r *Repository) FindAdvertForFavoriteLookup(ctx context.Context, advertID uuid.UUID) (AdvertRow, error) {
+func (r *Repository) FindAdvertForFavoriteLookup(ctx context.Context, advertID int64) (AdvertRow, error) {
 	const q = `SELECT ` + advertLookupColumns + ` FROM hrd_adverts WHERE id = $1`
 	var a AdvertRow
 	err := r.db.QueryRow(ctx, q, advertID).Scan(
@@ -99,7 +99,7 @@ VALUES ($1, $2, $3, $4)`
 }
 
 // DeleteFavorite deletes the owning user's relation; missing is success.
-func (r *Repository) DeleteFavorite(ctx context.Context, userID, advertID uuid.UUID) error {
+func (r *Repository) DeleteFavorite(ctx context.Context, userID uuid.UUID, advertID int64) error {
 	const q = `DELETE FROM hrd_favorites WHERE user_id = $1 AND advert_id = $2`
 	_, err := r.db.Exec(ctx, q, userID, advertID)
 	if err != nil {

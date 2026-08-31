@@ -14,7 +14,7 @@ import (
 
 type memoryRepo struct {
 	mu       sync.RWMutex
-	adverts  map[uuid.UUID]AdvertStatusResult
+	adverts  map[int64]AdvertStatusResult
 	comments map[uuid.UUID]domaincomment.Comment
 	users    map[uuid.UUID]string
 }
@@ -22,7 +22,7 @@ type memoryRepo struct {
 // NewMemoryRepository returns a thread-safe in-memory Repository implementation for testing.
 func NewMemoryRepository() *memoryRepo {
 	return &memoryRepo{
-		adverts:  make(map[uuid.UUID]AdvertStatusResult),
+		adverts:  make(map[int64]AdvertStatusResult),
 		comments: make(map[uuid.UUID]domaincomment.Comment),
 		users:    make(map[uuid.UUID]string),
 	}
@@ -40,7 +40,7 @@ func (m *memoryRepo) AddUser(userID uuid.UUID, authorName string) {
 	m.users[userID] = authorName
 }
 
-func (m *memoryRepo) FindAdvertStatus(ctx context.Context, advertID uuid.UUID) (AdvertStatusResult, error) {
+func (m *memoryRepo) FindAdvertStatus(ctx context.Context, advertID int64) (AdvertStatusResult, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	adv, ok := m.adverts[advertID]
@@ -90,7 +90,7 @@ func (m *memoryRepo) GetUserAuthorName(ctx context.Context, userID uuid.UUID) (s
 	return name, nil
 }
 
-func (m *memoryRepo) ListCommentsByAdvert(ctx context.Context, advertID uuid.UUID, limit, offset int) ([]CommentRow, int, error) {
+func (m *memoryRepo) ListCommentsByAdvert(ctx context.Context, advertID int64, limit, offset int) ([]CommentRow, int, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

@@ -142,7 +142,7 @@ type RelationItemView struct {
 // OwnerMediaView is MEDIA-04..07 output: the whole relation list plus the new
 // media version the client must send back next time.
 type OwnerMediaView struct {
-	AdvertID     uuid.UUID          `json:"advertId"`
+	AdvertID     int64              `json:"advertId"`
 	MediaVersion int                `json:"mediaVersion"`
 	Items        []RelationItemView `json:"items"`
 }
@@ -341,7 +341,7 @@ func (s *Service) GetMediaProcessingStatus(ctx context.Context, ownerID, assetID
 // attached; submit-time validation is what demands READY variants.
 func (s *Service) AttachMediaToAdvert(
 	ctx context.Context,
-	ownerID, advertID, assetID uuid.UUID,
+	ownerID uuid.UUID, advertID int64, assetID uuid.UUID,
 	displayOrder *int,
 	expectedMediaVersion int,
 ) (OwnerMediaView, error) {
@@ -426,7 +426,7 @@ func (s *Service) AttachMediaToAdvert(
 // it is not an asset deletion and triggers no immediate object removal.
 func (s *Service) DetachMediaFromAdvert(
 	ctx context.Context,
-	ownerID, advertID, assetID uuid.UUID,
+	ownerID uuid.UUID, advertID int64, assetID uuid.UUID,
 	expectedMediaVersion int,
 ) (OwnerMediaView, error) {
 	if err := requireAssetID(assetID); err != nil {
@@ -471,7 +471,7 @@ func (s *Service) DetachMediaFromAdvert(
 // (advert_id, display_order) index is never violated mid-update.
 func (s *Service) ReorderAdvertMedia(
 	ctx context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	orderedAssetIDs []uuid.UUID,
 	expectedMediaVersion int,
 ) (OwnerMediaView, error) {
@@ -528,7 +528,7 @@ func (s *Service) ReorderAdvertMedia(
 // requires.
 func (s *Service) SetAdvertCover(
 	ctx context.Context,
-	ownerID, advertID, assetID uuid.UUID,
+	ownerID uuid.UUID, advertID int64, assetID uuid.UUID,
 	expectedMediaVersion int,
 ) (OwnerMediaView, error) {
 	if err := requireAssetID(assetID); err != nil {
@@ -584,7 +584,7 @@ func (s *Service) SetAdvertCover(
 // promoteCover picks the first remaining relation in display order whose asset
 // is attachable and past upload-pending. MASTER_READY is preferred when present;
 // otherwise UPLOADED/VALIDATING still qualifies so a single image draft keeps a cover.
-func promoteCover(ctx context.Context, repo Repository, advertID uuid.UUID, now time.Time) error {
+func promoteCover(ctx context.Context, repo Repository, advertID int64, now time.Time) error {
 	rows, err := repo.ListAdvertMediaByAdvert(ctx, advertID)
 	if err != nil {
 		return err
@@ -611,7 +611,7 @@ func promoteCover(ctx context.Context, repo Repository, advertID uuid.UUID, now 
 func guardAdvertForMediaEdit(
 	ctx context.Context,
 	repo Repository,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	expectedMediaVersion int,
 ) error {
 	_, err := guardAdvertForMediaEditRef(ctx, repo, ownerID, advertID, expectedMediaVersion)
@@ -621,7 +621,7 @@ func guardAdvertForMediaEdit(
 func guardAdvertForMediaEditRef(
 	ctx context.Context,
 	repo Repository,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	expectedMediaVersion int,
 ) (AdvertRef, error) {
 	advert, err := repo.FindOwnerAdvertForUpdate(ctx, ownerID, advertID)
@@ -643,7 +643,7 @@ func guardAdvertForMediaEditRef(
 func bumpAndProject(
 	ctx context.Context,
 	repo Repository,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	expectedMediaVersion int,
 	now time.Time,
 ) (OwnerMediaView, error) {
@@ -661,7 +661,7 @@ func bumpAndProject(
 func (s *Service) projectAdvertMedia(
 	ctx context.Context,
 	repo Repository,
-	advertID uuid.UUID,
+	advertID int64,
 	mediaVersion int,
 ) (OwnerMediaView, error) {
 	rows, err := repo.ListAdvertMediaByAdvert(ctx, advertID)
@@ -671,7 +671,7 @@ func (s *Service) projectAdvertMedia(
 	return ownerMediaView(advertID, mediaVersion, rows), nil
 }
 
-func ownerMediaView(advertID uuid.UUID, mediaVersion int, rows []RelationRow) OwnerMediaView {
+func ownerMediaView(advertID int64, mediaVersion int, rows []RelationRow) OwnerMediaView {
 	items := make([]RelationItemView, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, RelationItemView{

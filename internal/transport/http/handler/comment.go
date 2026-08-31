@@ -8,7 +8,7 @@ import (
 )
 
 // ListAdvertComments implements GET /v1/adverts/:advertId/comments.
-func (s *Server) ListAdvertComments(c *gin.Context, advertId uuid.UUID, params generated.ListAdvertCommentsParams) {
+func (s *Server) ListAdvertComments(c *gin.Context, advertId int64, params generated.ListAdvertCommentsParams) {
 	if s.comment == nil {
 		respondNotImplemented(c)
 		return
@@ -17,7 +17,7 @@ func (s *Server) ListAdvertComments(c *gin.Context, advertId uuid.UUID, params g
 }
 
 // CreateAdvertComment implements POST /v1/adverts/:advertId/comments.
-func (s *Server) CreateAdvertComment(c *gin.Context, advertId uuid.UUID) {
+func (s *Server) CreateAdvertComment(c *gin.Context, advertId int64) {
 	if s.comment == nil {
 		respondNotImplemented(c)
 		return
@@ -26,7 +26,7 @@ func (s *Server) CreateAdvertComment(c *gin.Context, advertId uuid.UUID) {
 }
 
 // DeleteAdvertComment implements DELETE /v1/adverts/:advertId/comments/:commentId.
-func (s *Server) DeleteAdvertComment(c *gin.Context, advertId uuid.UUID, commentId uuid.UUID) {
+func (s *Server) DeleteAdvertComment(c *gin.Context, advertId int64, commentId uuid.UUID) {
 	if s.comment == nil {
 		respondNotImplemented(c)
 		return

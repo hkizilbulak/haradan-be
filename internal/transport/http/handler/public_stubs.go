@@ -42,7 +42,7 @@ func (s *Server) GetPublishedAdvertDetail(c *gin.Context, advertID generated.Adv
 		respondNotImplemented(c)
 		return
 	}
-	out, err := s.publicService().GetPublishedAdvertDetail(c.Request.Context(), uuid.UUID(advertID), publicActor(c), c.ClientIP())
+	out, err := s.publicService().GetPublishedAdvertDetail(c.Request.Context(), advertID, publicActor(c), c.ClientIP())
 	if err != nil {
 		respondError(c, s.logger, err)
 		return

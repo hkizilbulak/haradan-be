@@ -87,7 +87,7 @@ func newFixture(t *testing.T) *fixture {
 	store.PutPackage(advanced)
 
 	advert := domainadvert.Advert{
-		ID: uuid.New(), OwnerUserID: owner.ID, Status: domainadvert.StatusPublished,
+		ID: int64(1001), OwnerUserID: owner.ID, Status: domainadvert.StatusPublished,
 		Version: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	store.PutAdvert(advert)
@@ -206,12 +206,12 @@ func TestAssignAdvertNotFoundAndTerminal(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	_, err := f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: uuid.New(), PackageCode: domainpackaging.PackageCode("STARTER"),
+		ActorUserID: f.admin.ID, AdvertID: int64(999999), PackageCode: domainpackaging.PackageCode("STARTER"),
 	})
 	requireKind(t, err, apperr.KindNotFound)
 
 	sold := f.advert
-	sold.ID = uuid.New()
+	sold.ID = 2
 	sold.Status = domainadvert.StatusSold
 	f.store.PutAdvert(sold)
 	_, err = f.svc.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
@@ -708,7 +708,7 @@ func TestHistoryForbiddenForNonAdmin(t *testing.T) {
 func TestErrorsDoNotLeakSQL(t *testing.T) {
 	f := newFixture(t)
 	_, err := f.svc.AssignAdvertPackage(context.Background(), apppackaging.AssignAdvertPackageInput{
-		ActorUserID: f.admin.ID, AdvertID: uuid.New(), PackageCode: domainpackaging.PackageCode("STARTER"),
+		ActorUserID: f.admin.ID, AdvertID: int64(999999), PackageCode: domainpackaging.PackageCode("STARTER"),
 	})
 	if err == nil {
 		t.Fatal("expected error")

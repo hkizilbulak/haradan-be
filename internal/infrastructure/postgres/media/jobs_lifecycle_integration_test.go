@@ -50,7 +50,7 @@ func TestJobQueueClaimIntegrationOptIn(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	key := "itest-claim-" + uuid.NewString()
 	job := domainmedia.BackgroundJob{
-		ID:               uuid.New(),
+		ID: uuid.New(),
 		JobType:          domainmedia.JobValidateAndNormalize,
 		Status:           domainmedia.JobQueued,
 		Payload:          domainmedia.EmptyMetadata(),
@@ -115,7 +115,7 @@ func TestJobQueueConcurrentClaimIntegrationOptIn(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	key := "itest-concurrent-" + uuid.NewString()
 	job := domainmedia.BackgroundJob{
-		ID:               uuid.New(),
+		ID: uuid.New(),
 		JobType:          domainmedia.JobValidateAndNormalize,
 		Status:           domainmedia.JobQueued,
 		Payload:          domainmedia.EmptyMetadata(),
@@ -198,7 +198,7 @@ func TestJobQueueFailedDeadReenqueueIntegrationOptIn(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	key := "itest-reenqueue-" + uuid.NewString()
 	job := domainmedia.BackgroundJob{
-		ID:               uuid.New(),
+		ID: uuid.New(),
 		JobType:          domainmedia.JobValidateAndNormalize,
 		Status:           domainmedia.JobQueued,
 		Payload:          domainmedia.EmptyMetadata(),
@@ -297,7 +297,7 @@ func TestJobQueueSucceededBlocksSameDedupIntegrationOptIn(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	key := "itest-succeeded-" + uuid.NewString()
 	job := domainmedia.BackgroundJob{
-		ID:               uuid.New(),
+		ID: uuid.New(),
 		JobType:          domainmedia.JobValidateAndNormalize,
 		Status:           domainmedia.JobQueued,
 		Payload:          domainmedia.EmptyMetadata(),

@@ -32,7 +32,7 @@ func NewHandler(svc *appcomment.Service, logger *slog.Logger, respond ErrorRespo
 }
 
 // ListAdvertComments handles GET /v1/adverts/{advertId}/comments.
-func (h *Handler) ListAdvertComments(c *gin.Context, advertID uuid.UUID, params generated.ListAdvertCommentsParams) {
+func (h *Handler) ListAdvertComments(c *gin.Context, advertID int64, params generated.ListAdvertCommentsParams) {
 	limit := 20
 	if params.Limit != nil && *params.Limit > 0 {
 		limit = *params.Limit
@@ -67,7 +67,7 @@ func (h *Handler) ListAdvertComments(c *gin.Context, advertID uuid.UUID, params 
 }
 
 // CreateAdvertComment handles POST /v1/adverts/{advertId}/comments.
-func (h *Handler) CreateAdvertComment(c *gin.Context, advertID uuid.UUID) {
+func (h *Handler) CreateAdvertComment(c *gin.Context, advertID int64) {
 	p, ok := authctx.PrincipalFromContext(c.Request.Context())
 	if !ok || p.UserID == uuid.Nil {
 		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "giriş yapmanız gerekmektedir"))
@@ -123,7 +123,7 @@ func (h *Handler) CreateAdvertComment(c *gin.Context, advertID uuid.UUID) {
 }
 
 // DeleteAdvertComment handles DELETE /v1/adverts/{advertId}/comments/{commentId}.
-func (h *Handler) DeleteAdvertComment(c *gin.Context, advertID uuid.UUID, commentID uuid.UUID) {
+func (h *Handler) DeleteAdvertComment(c *gin.Context, advertID int64, commentID uuid.UUID) {
 	p, ok := authctx.PrincipalFromContext(c.Request.Context())
 	if !ok || p.UserID == uuid.Nil {
 		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "giriş yapmanız gerekmektedir"))

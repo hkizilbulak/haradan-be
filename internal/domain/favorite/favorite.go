@@ -16,6 +16,6 @@ var ErrDuplicate = errors.New("favorite already exists")
 type Favorite struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
-	AdvertID  uuid.UUID
+	AdvertID  int64
 	CreatedAt time.Time
 }

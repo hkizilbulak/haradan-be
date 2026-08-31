@@ -191,8 +191,8 @@ type Repository interface {
 		now time.Time,
 	) (domainmedia.Variant, error)
 
-	ListAdvertMediaByAdvert(ctx context.Context, advertID uuid.UUID) ([]RelationRow, error)
-	CountAdvertMediaByAdvert(ctx context.Context, advertID uuid.UUID) (int, error)
+	ListAdvertMediaByAdvert(ctx context.Context, advertID int64) ([]RelationRow, error)
+	CountAdvertMediaByAdvert(ctx context.Context, advertID int64) (int, error)
 	AttachAdvertMedia(ctx context.Context, rel domainmedia.AdvertMediaRelation) error
 
 	// FindAdvertMediaAccessByAsset returns advert attachment rows for public
@@ -204,28 +204,28 @@ type Repository interface {
 
 	// DetachAdvertMedia removes the relation and reports whether a row was
 	// removed and whether that row was the cover.
-	DetachAdvertMedia(ctx context.Context, advertID, assetID uuid.UUID) (removed bool, wasCover bool, err error)
+	DetachAdvertMedia(ctx context.Context, advertID int64, assetID uuid.UUID) (removed bool, wasCover bool, err error)
 
 	// UpdateAdvertMediaDisplayOrder rewrites one relation's order. Reorder runs
 	// it twice per row (temporary orders first) to stay inside the unique
 	// (advert_id, display_order) index.
 	UpdateAdvertMediaDisplayOrder(
 		ctx context.Context,
-		advertID, assetID uuid.UUID,
+		advertID int64, assetID uuid.UUID,
 		displayOrder int,
 		now time.Time,
 	) error
 
-	ClearAdvertCover(ctx context.Context, advertID uuid.UUID, now time.Time) error
-	SetAdvertCover(ctx context.Context, advertID, assetID uuid.UUID, now time.Time) error
+	ClearAdvertCover(ctx context.Context, advertID int64, now time.Time) error
+	SetAdvertCover(ctx context.Context, advertID int64, assetID uuid.UUID, now time.Time) error
 
-	FindOwnerAdvertForUpdate(ctx context.Context, ownerID, advertID uuid.UUID) (AdvertRef, error)
+	FindOwnerAdvertForUpdate(ctx context.Context, ownerID uuid.UUID, advertID int64) (AdvertRef, error)
 
 	// BumpAdvertMediaVersion increments media_version under an optimistic guard
 	// and returns the new value.
 	BumpAdvertMediaVersion(
 		ctx context.Context,
-		ownerID, advertID uuid.UUID,
+		ownerID uuid.UUID, advertID int64,
 		expectedMediaVersion int,
 		now time.Time,
 	) (int, error)

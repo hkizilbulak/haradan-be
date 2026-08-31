@@ -274,7 +274,7 @@ func (r *Repository) ListPackages(ctx context.Context, includeInactive bool) ([]
 // FindActiveAssignmentByAdvertID loads the ACTIVE assignment for an advert.
 func (r *Repository) FindActiveAssignmentByAdvertID(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 ) (domainpackaging.AdvertPackageAssignment, error) {
 	q := `SELECT ` + assignmentColumns + `
 FROM hrd_advert_package_assignments
@@ -293,7 +293,7 @@ WHERE advert_id = $1 AND status = 'ACTIVE'`
 // FindEffectiveActiveAssignmentByAdvertID loads ACTIVE covering instant at.
 func (r *Repository) FindEffectiveActiveAssignmentByAdvertID(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	at time.Time,
 ) (domainpackaging.AdvertPackageAssignment, error) {
 	q := `SELECT ` + assignmentColumns + `
@@ -316,7 +316,7 @@ WHERE advert_id = $1
 // LockActiveAssignmentByAdvertID locks the ACTIVE assignment row.
 func (r *Repository) LockActiveAssignmentByAdvertID(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 ) (domainpackaging.AdvertPackageAssignment, error) {
 	q := `SELECT ` + assignmentColumns + `
 FROM hrd_advert_package_assignments
@@ -336,7 +336,7 @@ FOR UPDATE`
 // ListAssignmentHistoryByAdvertID returns history newest first with keyset paging.
 func (r *Repository) ListAssignmentHistoryByAdvertID(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	afterAssignedAt *time.Time,
 	afterID *uuid.UUID,
 	limit int,
@@ -425,7 +425,7 @@ WHERE id = $1 AND status = 'ACTIVE'`
 // FindActiveFeatureByAdvertIDAndCode loads an ACTIVE feature activation.
 func (r *Repository) FindActiveFeatureByAdvertIDAndCode(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	code domainpackaging.FeatureCode,
 ) (domainpackaging.AdvertFeatureActivation, error) {
 	q := `SELECT ` + featureColumns + `
@@ -445,7 +445,7 @@ WHERE advert_id = $1 AND feature_code = $2 AND status = 'ACTIVE'`
 // LockActiveFeatureByAdvertIDAndCode locks an ACTIVE feature activation.
 func (r *Repository) LockActiveFeatureByAdvertIDAndCode(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	code domainpackaging.FeatureCode,
 ) (domainpackaging.AdvertFeatureActivation, error) {
 	q := `SELECT ` + featureColumns + `
@@ -466,7 +466,7 @@ FOR UPDATE`
 // FindLatestActivationVersion returns the max activation_version or 0.
 func (r *Repository) FindLatestActivationVersion(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	code domainpackaging.FeatureCode,
 ) (int, error) {
 	const q = `
@@ -511,7 +511,7 @@ INSERT INTO hrd_advert_feature_activations (
 // DeactivateActiveFeature deactivates the ACTIVE feature row if present.
 func (r *Repository) DeactivateActiveFeature(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	code domainpackaging.FeatureCode,
 	deactivatedAt time.Time,
 	reason *string,

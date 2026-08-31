@@ -24,7 +24,7 @@ type JobEnqueuer interface {
 
 // AdvertSnapshot holds advert fields needed for notification rendering.
 type AdvertSnapshot struct {
-	ID          uuid.UUID
+	ID          int64
 	OwnerUserID uuid.UUID
 	Title       string
 	Status      string
@@ -33,22 +33,22 @@ type AdvertSnapshot struct {
 // PackageAssignmentSnapshot holds assignment fields for notifications.
 type PackageAssignmentSnapshot struct {
 	ID        uuid.UUID
-	AdvertID  uuid.UUID
+	AdvertID int64
 	PackageID uuid.UUID
 	EndsAt    *time.Time
 }
 
 // AdvertSnapshotReader loads advert projection data.
 type AdvertSnapshotReader interface {
-	GetAdvertSnapshot(ctx context.Context, advertID uuid.UUID) (AdvertSnapshot, error)
+	GetAdvertSnapshot(ctx context.Context, advertID int64) (AdvertSnapshot, error)
 }
 
 // PackageSnapshotReader loads package and assignment snapshots.
 type PackageSnapshotReader interface {
 	GetPackageByID(ctx context.Context, packageID uuid.UUID) (domainpackaging.Package, error)
-	GetEffectiveAssignment(ctx context.Context, advertID uuid.UUID, at time.Time) (PackageAssignmentSnapshot, error)
+	GetEffectiveAssignment(ctx context.Context, advertID int64, at time.Time) (PackageAssignmentSnapshot, error)
 	GetAssignmentByID(ctx context.Context, assignmentID uuid.UUID) (PackageAssignmentSnapshot, error)
-	FindActiveUrgent(ctx context.Context, advertID uuid.UUID) (domainpackaging.AdvertFeatureActivation, error)
+	FindActiveUrgent(ctx context.Context, advertID int64) (domainpackaging.AdvertFeatureActivation, error)
 }
 
 // RuntimeRepository persists notifications, user states, and eligibility queries.
@@ -123,7 +123,7 @@ type RuntimeRepository interface {
 	// feature activation, if any, reporting whether a row changed.
 	DeactivateActiveUrgentForAdvert(
 		ctx context.Context,
-		advertID uuid.UUID,
+		advertID int64,
 		reason string,
 		deactivatedAt, updatedAt time.Time,
 	) (bool, error)

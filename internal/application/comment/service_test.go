@@ -30,7 +30,7 @@ func TestCreateComment_Success(t *testing.T) {
 	now := time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC)
 	commentID := uuid.New()
 	userID := uuid.New()
-	advertID := uuid.New()
+	advertID := int64(101)
 	ratingVal := 5
 
 	repo.AddAdvert(appcomment.AdvertStatusResult{
@@ -77,7 +77,7 @@ func TestCreateComment_Success(t *testing.T) {
 func TestCreateComment_RatingOnly_Success(t *testing.T) {
 	repo := appcomment.NewMemoryRepository()
 	userID := uuid.New()
-	advertID := uuid.New()
+	advertID := int64(102)
 	ratingVal := 4
 
 	repo.AddAdvert(appcomment.AdvertStatusResult{
@@ -114,7 +114,7 @@ func TestCreateComment_ValidationErrors(t *testing.T) {
 	// Empty content
 	_, err := svc.CreateComment(ctx, appcomment.CreateCommentInput{
 		UserID:   uuid.New(),
-		AdvertID: uuid.New(),
+		AdvertID: int64(106),
 		Content:  "   ",
 	})
 	if !errors.Is(err, domaincomment.ErrEmptyContent) {
@@ -125,7 +125,7 @@ func TestCreateComment_ValidationErrors(t *testing.T) {
 	longText := strings.Repeat("a", 1001)
 	_, err = svc.CreateComment(ctx, appcomment.CreateCommentInput{
 		UserID:   uuid.New(),
-		AdvertID: uuid.New(),
+		AdvertID: int64(107),
 		Content:  longText,
 	})
 	if !errors.Is(err, domaincomment.ErrContentTooLong) {
@@ -138,7 +138,7 @@ func TestCreateComment_AdvertNotCommentable(t *testing.T) {
 	svc := appcomment.NewMemoryService(repo)
 	ctx := context.Background()
 
-	draftAdvertID := uuid.New()
+	draftAdvertID := int64(105)
 	repo.AddAdvert(appcomment.AdvertStatusResult{
 		ID:     draftAdvertID,
 		Status: "DRAFT",
@@ -157,7 +157,7 @@ func TestCreateComment_AdvertNotCommentable(t *testing.T) {
 	// Non-existent advert
 	_, err = svc.CreateComment(ctx, appcomment.CreateCommentInput{
 		UserID:   uuid.New(),
-		AdvertID: uuid.New(),
+		AdvertID: int64(108),
 		Content:  "Güzel ilan",
 	})
 	if err == nil {
@@ -167,7 +167,7 @@ func TestCreateComment_AdvertNotCommentable(t *testing.T) {
 
 func TestListComments_Pagination(t *testing.T) {
 	repo := appcomment.NewMemoryRepository()
-	advertID := uuid.New()
+	advertID := int64(103)
 	userID := uuid.New()
 
 	repo.AddAdvert(appcomment.AdvertStatusResult{
@@ -207,7 +207,7 @@ func TestListComments_Pagination(t *testing.T) {
 
 func TestDeleteComment_SuccessAndUnauthorized(t *testing.T) {
 	repo := appcomment.NewMemoryRepository()
-	advertID := uuid.New()
+	advertID := int64(104)
 	user1 := uuid.New()
 	user2 := uuid.New()
 

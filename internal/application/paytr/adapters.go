@@ -25,16 +25,16 @@ func (p PackageLookup) FindByCode(ctx context.Context, code domainpackaging.Pack
 // AdvertRepo adapts advert persistence to AdvertAccess.
 type AdvertRepo struct {
 	Repo interface {
-		FindByIDForOwner(ctx context.Context, ownerID, advertID uuid.UUID) (domainadvert.Advert, error)
-		FindByID(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error)
+		FindByIDForOwner(ctx context.Context, ownerID uuid.UUID, advertID int64) (domainadvert.Advert, error)
+		FindByID(ctx context.Context, advertID int64) (domainadvert.Advert, error)
 	}
 }
 
-func (a AdvertRepo) FindByIDForOwner(ctx context.Context, ownerID, advertID uuid.UUID) (domainadvert.Advert, error) {
+func (a AdvertRepo) FindByIDForOwner(ctx context.Context, ownerID uuid.UUID, advertID int64) (domainadvert.Advert, error) {
 	return a.Repo.FindByIDForOwner(ctx, ownerID, advertID)
 }
 
-func (a AdvertRepo) FindByID(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error) {
+func (a AdvertRepo) FindByID(ctx context.Context, advertID int64) (domainadvert.Advert, error) {
 	return a.Repo.FindByID(ctx, advertID)
 }
 
@@ -63,15 +63,15 @@ func (p PackagingBridge) AssignAdvertPackage(ctx context.Context, in apppackagin
 // AdvertBridge adapts advert.Service to AdvertSubmitter.
 type AdvertBridge struct {
 	Svc interface {
-		SubmitAdvertForReview(ctx context.Context, ownerID, advertID uuid.UUID, expectedVersion int) (domainadvert.OwnerView, error)
-		ResubmitAdvertForReview(ctx context.Context, ownerID, advertID uuid.UUID, expectedVersion int) (domainadvert.OwnerView, error)
+		SubmitAdvertForReview(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error)
+		ResubmitAdvertForReview(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error)
 	}
 }
 
-func (a AdvertBridge) SubmitAdvertForReview(ctx context.Context, ownerID, advertID uuid.UUID, expectedVersion int) (domainadvert.OwnerView, error) {
+func (a AdvertBridge) SubmitAdvertForReview(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error) {
 	return a.Svc.SubmitAdvertForReview(ctx, ownerID, advertID, expectedVersion)
 }
 
-func (a AdvertBridge) ResubmitAdvertForReview(ctx context.Context, ownerID, advertID uuid.UUID, expectedVersion int) (domainadvert.OwnerView, error) {
+func (a AdvertBridge) ResubmitAdvertForReview(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error) {
 	return a.Svc.ResubmitAdvertForReview(ctx, ownerID, advertID, expectedVersion)
 }

@@ -24,7 +24,7 @@ type MemoryStore struct {
 	packages    map[uuid.UUID]domainpackaging.Package
 	assignments map[uuid.UUID]domainpackaging.AdvertPackageAssignment
 	features    map[uuid.UUID]domainpackaging.AdvertFeatureActivation
-	adverts     map[uuid.UUID]domainadvert.Advert
+	adverts     map[int64]domainadvert.Advert
 	users       map[uuid.UUID]domainuser.User
 }
 
@@ -34,7 +34,7 @@ func NewMemoryStore() *MemoryStore {
 		packages:    map[uuid.UUID]domainpackaging.Package{},
 		assignments: map[uuid.UUID]domainpackaging.AdvertPackageAssignment{},
 		features:    map[uuid.UUID]domainpackaging.AdvertFeatureActivation{},
-		adverts:     map[uuid.UUID]domainadvert.Advert{},
+		adverts:     map[int64]domainadvert.Advert{},
 		users:       map[uuid.UUID]domainuser.User{},
 	}
 }
@@ -192,7 +192,7 @@ func (m memoryAssignments) BeginTx(context.Context) (pgx.Tx, error) {
 
 func (m memoryAssignments) WithTx(pgx.Tx) AssignmentRepository { return m }
 
-func (m memoryAssignments) FindActiveByAdvertID(_ context.Context, advertID uuid.UUID) (domainpackaging.AdvertPackageAssignment, error) {
+func (m memoryAssignments) FindActiveByAdvertID(_ context.Context, advertID int64) (domainpackaging.AdvertPackageAssignment, error) {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()
 	return m.findActiveLocked(advertID)
@@ -200,7 +200,7 @@ func (m memoryAssignments) FindActiveByAdvertID(_ context.Context, advertID uuid
 
 func (m memoryAssignments) FindEffectiveActiveByAdvertID(
 	_ context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	at time.Time,
 ) (domainpackaging.AdvertPackageAssignment, error) {
 	m.store.mu.Lock()
@@ -215,11 +215,11 @@ func (m memoryAssignments) FindEffectiveActiveByAdvertID(
 	return a, nil
 }
 
-func (m memoryAssignments) LockActiveByAdvertID(ctx context.Context, advertID uuid.UUID) (domainpackaging.AdvertPackageAssignment, error) {
+func (m memoryAssignments) LockActiveByAdvertID(ctx context.Context, advertID int64) (domainpackaging.AdvertPackageAssignment, error) {
 	return m.FindActiveByAdvertID(ctx, advertID)
 }
 
-func (m memoryAssignments) findActiveLocked(advertID uuid.UUID) (domainpackaging.AdvertPackageAssignment, error) {
+func (m memoryAssignments) findActiveLocked(advertID int64) (domainpackaging.AdvertPackageAssignment, error) {
 	for _, a := range m.store.assignments {
 		if a.AdvertID == advertID && a.Status == domainpackaging.AssignmentStatusActive {
 			return a, nil
@@ -230,7 +230,7 @@ func (m memoryAssignments) findActiveLocked(advertID uuid.UUID) (domainpackaging
 
 func (m memoryAssignments) ListHistoryByAdvertID(
 	_ context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	afterAssignedAt *time.Time,
 	afterID *uuid.UUID,
 	limit int,
@@ -322,7 +322,7 @@ func (m memoryFeatures) WithTx(pgx.Tx) FeatureRepository { return m }
 
 func (m memoryFeatures) FindActiveByAdvertIDAndCode(
 	_ context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	code domainpackaging.FeatureCode,
 ) (domainpackaging.AdvertFeatureActivation, error) {
 	m.store.mu.Lock()
@@ -332,14 +332,14 @@ func (m memoryFeatures) FindActiveByAdvertIDAndCode(
 
 func (m memoryFeatures) LockActiveByAdvertIDAndCode(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	code domainpackaging.FeatureCode,
 ) (domainpackaging.AdvertFeatureActivation, error) {
 	return m.FindActiveByAdvertIDAndCode(ctx, advertID, code)
 }
 
 func (m memoryFeatures) findActiveLocked(
-	advertID uuid.UUID,
+	advertID int64,
 	code domainpackaging.FeatureCode,
 ) (domainpackaging.AdvertFeatureActivation, error) {
 	for _, f := range m.store.features {
@@ -352,7 +352,7 @@ func (m memoryFeatures) findActiveLocked(
 
 func (m memoryFeatures) FindLatestActivationVersion(
 	_ context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	code domainpackaging.FeatureCode,
 ) (int, error) {
 	m.store.mu.Lock()
@@ -384,7 +384,7 @@ func (m memoryFeatures) Create(_ context.Context, a domainpackaging.AdvertFeatur
 
 func (m memoryFeatures) DeactivateActive(
 	_ context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	code domainpackaging.FeatureCode,
 	deactivatedAt time.Time,
 	reason *string,
@@ -443,7 +443,7 @@ func (m memoryFeatures) DeactivateActiveUrgentForPackage(
 
 type memoryAdverts struct{ store *MemoryStore }
 
-func (m memoryAdverts) FindByID(_ context.Context, advertID uuid.UUID) (domainadvert.Advert, error) {
+func (m memoryAdverts) FindByID(_ context.Context, advertID int64) (domainadvert.Advert, error) {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()
 	a, ok := m.store.adverts[advertID]
@@ -453,7 +453,7 @@ func (m memoryAdverts) FindByID(_ context.Context, advertID uuid.UUID) (domainad
 	return a, nil
 }
 
-func (m memoryAdverts) FindByIDForUpdate(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error) {
+func (m memoryAdverts) FindByIDForUpdate(ctx context.Context, advertID int64) (domainadvert.Advert, error) {
 	return m.FindByID(ctx, advertID)
 }
 

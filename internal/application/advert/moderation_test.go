@@ -65,7 +65,7 @@ func TestListAdvertModerationQueuePaginationAndFilter(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		f.seed(t, f.owner, domainadvert.StatusPendingReview, func(a *domainadvert.Advert) {
 			a.CreatedAt = f.clock.Now().Add(-time.Duration(i) * time.Minute)
-			a.ID = uuid.New()
+			a.ID = int64(101 + i)
 		})
 		f.clock.Advance(time.Second)
 	}
@@ -128,7 +128,7 @@ func TestGetAdvertModerationDetail(t *testing.T) {
 		t.Fatal("unexpected leak")
 	}
 
-	_, err = f.svc.GetAdvertModerationDetail(context.Background(), uuid.New())
+	_, err = f.svc.GetAdvertModerationDetail(context.Background(), int64(999999))
 	requireCode(t, err, apperr.CodeNotFound)
 
 	deleted := f.seed(t, f.owner, domainadvert.StatusPendingReview, func(a *domainadvert.Advert) {
@@ -184,7 +184,7 @@ func TestApproveAdvertValidationAndConflicts(t *testing.T) {
 	_, err = f.svc.ApproveAdvert(context.Background(), admin, pending.ID, 9)
 	requireCode(t, err, apperr.CodeStaleVersion)
 
-	_, err = f.svc.ApproveAdvert(context.Background(), admin, uuid.New(), 1)
+	_, err = f.svc.ApproveAdvert(context.Background(), admin, int64(999999), 1)
 	requireCode(t, err, apperr.CodeNotFound)
 
 	deleted := f.seed(t, f.owner, domainadvert.StatusPendingReview, func(a *domainadvert.Advert) {

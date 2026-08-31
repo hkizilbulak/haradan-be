@@ -101,7 +101,7 @@ type ListCommentsResult struct {
 }
 
 // ListComments retrieves published comments for an advert with pagination.
-func (s *Service) ListComments(ctx context.Context, advertID uuid.UUID, limit, offset int) (ListCommentsResult, error) {
+func (s *Service) ListComments(ctx context.Context, advertID int64, limit, offset int) (ListCommentsResult, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -137,7 +137,7 @@ func (s *Service) ListComments(ctx context.Context, advertID uuid.UUID, limit, o
 }
 
 // DeleteComment validates ownership and deletes the comment.
-func (s *Service) DeleteComment(ctx context.Context, advertID, commentID, userID uuid.UUID) error {
+func (s *Service) DeleteComment(ctx context.Context, advertID int64, commentID, userID uuid.UUID) error {
 	cmt, err := s.repo.FindCommentByID(ctx, commentID)
 	if err != nil {
 		if apErr, ok := apperr.As(err); ok && apErr.Kind == apperr.KindNotFound {

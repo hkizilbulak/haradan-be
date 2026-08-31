@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"strconv"
 	"context"
 	"encoding/json"
 	"io"
@@ -81,7 +82,7 @@ func (env *favoriteTestEnv) registerAndLogin(t *testing.T, email string) (string
 	return "Bearer " + tokens.AccessToken, principal.UserID
 }
 
-func (env *favoriteTestEnv) seedPublished(id uuid.UUID) {
+func (env *favoriteTestEnv) seedPublished(id int64) {
 	title := "Favori ilan"
 	now := time.Now().UTC()
 	cat := uuid.New()
@@ -99,10 +100,10 @@ func (env *favoriteTestEnv) seedPublished(id uuid.UUID) {
 func TestFavoriteAddRemoveListHTTP(t *testing.T) {
 	env := newFavoriteEngine(t)
 	auth, _ := env.registerAndLogin(t, "fav-owner@example.com")
-	advertID := uuid.New()
+	advertID := int64(101)
 	env.seedPublished(advertID)
 
-	rec := env.do(http.MethodPut, "/api/v1/me/favorites/"+advertID.String(), "", auth)
+	rec := env.do(http.MethodPut, "/api/v1/me/favorites/"+strconv.FormatInt(advertID, 10), "", auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("add status=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -119,7 +120,7 @@ func TestFavoriteAddRemoveListHTTP(t *testing.T) {
 	var errBody generated.ErrorResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &errBody) // mutation body has no TraceId; ensure success shape
 
-	rec = env.do(http.MethodPut, "/api/v1/me/favorites/"+advertID.String(), "", auth)
+	rec = env.do(http.MethodPut, "/api/v1/me/favorites/"+strconv.FormatInt(advertID, 10), "", auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("idempotent add=%d", rec.Code)
 	}
@@ -145,7 +146,7 @@ func TestFavoriteAddRemoveListHTTP(t *testing.T) {
 		}
 	}
 
-	rec = env.do(http.MethodDelete, "/api/v1/me/favorites/"+advertID.String(), "", auth)
+	rec = env.do(http.MethodDelete, "/api/v1/me/favorites/"+strconv.FormatInt(advertID, 10), "", auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("remove=%d", rec.Code)
 	}
@@ -153,7 +154,7 @@ func TestFavoriteAddRemoveListHTTP(t *testing.T) {
 	if mut.Favorited {
 		t.Fatal("favorited must be false")
 	}
-	rec = env.do(http.MethodDelete, "/api/v1/me/favorites/"+advertID.String(), "", auth)
+	rec = env.do(http.MethodDelete, "/api/v1/me/favorites/"+strconv.FormatInt(advertID, 10), "", auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("idempotent remove=%d", rec.Code)
 	}
@@ -167,10 +168,10 @@ func TestFavoriteAddRemoveListHTTP(t *testing.T) {
 
 func TestFavoriteAuthAndValidationHTTP(t *testing.T) {
 	env := newFavoriteEngine(t)
-	advertID := uuid.New()
+	advertID := int64(102)
 	env.seedPublished(advertID)
 
-	rec := env.do(http.MethodPut, "/api/v1/me/favorites/"+advertID.String(), "", "")
+	rec := env.do(http.MethodPut, "/api/v1/me/favorites/"+strconv.FormatInt(advertID, 10), "", "")
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("missing auth=%d", rec.Code)
 	}
@@ -180,33 +181,33 @@ func TestFavoriteAuthAndValidationHTTP(t *testing.T) {
 		t.Fatalf("traceId=%q", body.TraceId)
 	}
 
-	rec = env.do(http.MethodPut, "/api/v1/me/favorites/"+advertID.String(), "", "Bearer not-a-token")
+	rec = env.do(http.MethodPut, "/api/v1/me/favorites/"+strconv.FormatInt(advertID, 10), "", "Bearer not-a-token")
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("invalid bearer=%d", rec.Code)
 	}
 
-	rec = env.do(http.MethodPut, "/api/v1/me/favorites/not-a-uuid", "", "Bearer x")
+	rec = env.do(http.MethodPut, "/api/v1/me/favorites/not-an-id", "", "Bearer x")
 	if rec.Code != http.StatusBadRequest && rec.Code != http.StatusUnauthorized {
 		// malformed UUID is rejected by generated binder as 400; invalid bearer may win first
-		t.Fatalf("malformed uuid status=%d", rec.Code)
+		t.Fatalf("malformed advert id status=%d", rec.Code)
 	}
 
 	auth, _ := env.registerAndLogin(t, "fav-val@example.com")
-	rec = env.do(http.MethodPut, "/api/v1/me/favorites/not-a-uuid", "", auth)
+	rec = env.do(http.MethodPut, "/api/v1/me/favorites/not-an-id", "", auth)
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("malformed uuid authenticated=%d body=%s", rec.Code, rec.Body.String())
+		t.Fatalf("malformed advert id authenticated=%d body=%s", rec.Code, rec.Body.String())
 	}
 
-	rec = env.do(http.MethodPut, "/api/v1/me/favorites/"+uuid.New().String(), "", auth)
+	rec = env.do(http.MethodPut, "/api/v1/me/favorites/999999999", "", auth)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("missing advert=%d body=%s", rec.Code, rec.Body.String())
 	}
 	var missingBody generated.ErrorResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &missingBody)
 
-	draftID := uuid.New()
+	draftID := int64(105)
 	env.store.PutAdvert(appfavorite.AdvertSnapshot{ID: draftID, Status: string(domainadvert.StatusDraft)})
-	rec = env.do(http.MethodPut, "/api/v1/me/favorites/"+draftID.String(), "", auth)
+	rec = env.do(http.MethodPut, "/api/v1/me/favorites/"+strconv.FormatInt(draftID, 10), "", auth)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("draft add=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -219,7 +220,7 @@ func TestFavoriteAuthAndValidationHTTP(t *testing.T) {
 		t.Fatalf("messages differ: %q vs %q", draftBody.Message, missingBody.Message)
 	}
 
-	deletedID := uuid.New()
+	deletedID := int64(106)
 	now := time.Now().UTC()
 	title := "Silindi"
 	cat := uuid.New()
@@ -229,7 +230,7 @@ func TestFavoriteAuthAndValidationHTTP(t *testing.T) {
 		ID: deletedID, Status: string(domainadvert.StatusPublished), DeletedAt: &now,
 		Title: &title, PublishedAt: &now, CategoryID: &cat, DistrictID: &district, ProvinceID: &province,
 	})
-	rec = env.do(http.MethodPut, "/api/v1/me/favorites/"+deletedID.String(), "", auth)
+	rec = env.do(http.MethodPut, "/api/v1/me/favorites/"+strconv.FormatInt(deletedID, 10), "", auth)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("soft-deleted add=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -244,10 +245,10 @@ func TestFavoriteCrossUserIsolationHTTP(t *testing.T) {
 	env := newFavoriteEngine(t)
 	ownerAuth, _ := env.registerAndLogin(t, "fav-a@example.com")
 	otherAuth, _ := env.registerAndLogin(t, "fav-b@example.com")
-	advertID := uuid.New()
+	advertID := int64(103)
 	env.seedPublished(advertID)
 
-	rec := env.do(http.MethodPut, "/api/v1/me/favorites/"+advertID.String(), "", ownerAuth)
+	rec := env.do(http.MethodPut, "/api/v1/me/favorites/"+strconv.FormatInt(advertID, 10), "", ownerAuth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("owner add=%d", rec.Code)
 	}
@@ -260,7 +261,7 @@ func TestFavoriteCrossUserIsolationHTTP(t *testing.T) {
 	if len(list.Items) != 0 {
 		t.Fatalf("cross-user leak=%+v", list)
 	}
-	rec = env.do(http.MethodDelete, "/api/v1/me/favorites/"+advertID.String(), "", otherAuth)
+	rec = env.do(http.MethodDelete, "/api/v1/me/favorites/"+strconv.FormatInt(advertID, 10), "", otherAuth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("other delete=%d", rec.Code)
 	}
@@ -274,9 +275,9 @@ func TestFavoriteCrossUserIsolationHTTP(t *testing.T) {
 func TestFavoriteUnavailablePlaceholderHTTP(t *testing.T) {
 	env := newFavoriteEngine(t)
 	auth, _ := env.registerAndLogin(t, "fav-ph@example.com")
-	advertID := uuid.New()
+	advertID := int64(104)
 	env.seedPublished(advertID)
-	rec := env.do(http.MethodPut, "/api/v1/me/favorites/"+advertID.String(), "", auth)
+	rec := env.do(http.MethodPut, "/api/v1/me/favorites/"+strconv.FormatInt(advertID, 10), "", auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("add=%d", rec.Code)
 	}

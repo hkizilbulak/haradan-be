@@ -34,8 +34,8 @@ type PackageCatalog interface {
 
 // AdvertAccess loads owner-scoped adverts.
 type AdvertAccess interface {
-	FindByIDForOwner(ctx context.Context, ownerID, advertID uuid.UUID) (domainadvert.Advert, error)
-	FindByID(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error)
+	FindByIDForOwner(ctx context.Context, ownerID uuid.UUID, advertID int64) (domainadvert.Advert, error)
+	FindByID(ctx context.Context, advertID int64) (domainadvert.Advert, error)
 }
 
 // UserAccess loads the payer profile.
@@ -50,8 +50,8 @@ type PackagingAssigner interface {
 
 // AdvertSubmitter moves an advert into PENDING_REVIEW after successful charge.
 type AdvertSubmitter interface {
-	SubmitAdvertForReview(ctx context.Context, ownerID, advertID uuid.UUID, expectedVersion int) (domainadvert.OwnerView, error)
-	ResubmitAdvertForReview(ctx context.Context, ownerID, advertID uuid.UUID, expectedVersion int) (domainadvert.OwnerView, error)
+	SubmitAdvertForReview(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error)
+	ResubmitAdvertForReview(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error)
 }
 
 // TokenGateway talks to PayTR get-token / hash verification.
@@ -124,7 +124,7 @@ func NewService(cfg Config) (*Service, error) {
 // CheckoutInput starts an iframe checkout for an owner advert + package.
 type CheckoutInput struct {
 	OwnerUserID uuid.UUID
-	AdvertID    uuid.UUID
+	AdvertID    int64
 	PackageCode domainpackaging.PackageCode
 	UserIP      string
 }
@@ -138,7 +138,7 @@ type CheckoutResult struct {
 	AmountMinor  int64
 	CurrencyCode string
 	PackageCode  string
-	AdvertID     uuid.UUID
+	AdvertID     int64
 	Status       domainpaytr.ChargeStatus
 }
 
@@ -203,8 +203,8 @@ func (s *Service) StartCheckout(ctx context.Context, in CheckoutInput) (Checkout
 		return CheckoutResult{}, err
 	}
 
-	okURL := s.frontendURL + "/post/payment-result?status=ok&advertId=" + in.AdvertID.String() + "&merchantOid=" + merchantOID
-	failURL := s.frontendURL + "/post/payment-result?status=fail&advertId=" + in.AdvertID.String() + "&merchantOid=" + merchantOID
+	okURL := s.frontendURL + "/post/payment-result?status=ok&advertId=" + fmt.Sprintf("%d", in.AdvertID) + "&merchantOid=" + merchantOID
+	failURL := s.frontendURL + "/post/payment-result?status=fail&advertId=" + fmt.Sprintf("%d", in.AdvertID) + "&merchantOid=" + merchantOID
 	notifyURL := s.apiPublicURL + "/v1/paytr/notify"
 
 	phone := ""

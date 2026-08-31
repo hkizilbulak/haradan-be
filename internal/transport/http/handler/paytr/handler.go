@@ -1,13 +1,14 @@
 package paytrhandler
 
 import (
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 
 	apppaytr "github.com/hkizilbulak/haradan-be/internal/application/paytr"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
@@ -65,8 +66,8 @@ func (h *Handler) StartCheckout(c *gin.Context) {
 		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "Kimlik doğrulama gerekli."))
 		return
 	}
-	advertID, err := uuid.Parse(c.Param("advertId"))
-	if err != nil {
+	advertID, err := strconv.ParseInt(c.Param("advertId"), 10, 64)
+	if err != nil || advertID <= 0 {
 		h.respond(c, h.logger, apperr.Validation("Geçersiz ilan kimliği."))
 		return
 	}
@@ -97,7 +98,7 @@ func (h *Handler) StartCheckout(c *gin.Context) {
 		AmountMinor:  res.AmountMinor,
 		CurrencyCode: res.CurrencyCode,
 		PackageCode:  res.PackageCode,
-		AdvertID:     res.AdvertID.String(),
+		AdvertID:     fmt.Sprintf("%d", res.AdvertID),
 		Status:       string(res.Status),
 	})
 }
@@ -109,8 +110,8 @@ func (h *Handler) GetChargeStatus(c *gin.Context) {
 		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "Kimlik doğrulama gerekli."))
 		return
 	}
-	advertID, err := uuid.Parse(c.Param("advertId"))
-	if err != nil {
+	advertID, err := strconv.ParseInt(c.Param("advertId"), 10, 64)
+	if err != nil || advertID <= 0 {
 		h.respond(c, h.logger, apperr.Validation("Geçersiz ilan kimliği."))
 		return
 	}
@@ -125,7 +126,7 @@ func (h *Handler) GetChargeStatus(c *gin.Context) {
 	}
 	resp := chargeStatusResponse{
 		MerchantOID:  charge.MerchantOID,
-		AdvertID:     charge.AdvertID.String(),
+		AdvertID:     fmt.Sprintf("%d", charge.AdvertID),
 		PackageCode:  string(charge.PackageCode),
 		AmountMinor:  charge.AmountMinor,
 		CurrencyCode: charge.CurrencyCode,

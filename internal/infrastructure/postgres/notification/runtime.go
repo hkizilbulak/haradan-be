@@ -468,7 +468,7 @@ WHERE id = $1 AND status = 'ACTIVE'`
 // DeactivateActiveFeature for the expiry-driven case (reason PACKAGE_EXPIRED).
 func (r *Repository) DeactivateActiveUrgentForAdvert(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	reason string,
 	deactivatedAt, updatedAt time.Time,
 ) (bool, error) {

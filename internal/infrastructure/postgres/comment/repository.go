@@ -34,7 +34,7 @@ func NewRepository(db Querier) *Repository {
 
 // AdvertStatusRow is the advert projection needed for comment status check.
 type AdvertStatusRow struct {
-	ID        uuid.UUID
+	ID        int64
 	Status    string
 	DeletedAt *time.Time
 }
@@ -46,7 +46,7 @@ type CommentRow struct {
 }
 
 // FindAdvertStatus checks whether the advert exists and returns its status.
-func (r *Repository) FindAdvertStatus(ctx context.Context, advertID uuid.UUID) (AdvertStatusRow, error) {
+func (r *Repository) FindAdvertStatus(ctx context.Context, advertID int64) (AdvertStatusRow, error) {
 	const query = `
 		SELECT id, status, deleted_at
 		FROM hrd_adverts
@@ -151,7 +151,7 @@ func (r *Repository) GetUserAuthorName(ctx context.Context, userID uuid.UUID) (s
 }
 
 // ListCommentsByAdvert returns published comments with author names for an advert.
-func (r *Repository) ListCommentsByAdvert(ctx context.Context, advertID uuid.UUID, limit, offset int) ([]CommentRow, int, error) {
+func (r *Repository) ListCommentsByAdvert(ctx context.Context, advertID int64, limit, offset int) ([]CommentRow, int, error) {
 	const countQuery = `
 		SELECT COUNT(*)
 		FROM hrd_advert_comments

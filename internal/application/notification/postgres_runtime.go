@@ -21,7 +21,7 @@ import (
 
 type postgresSnapshots struct{ pool *pgxpool.Pool }
 
-func (s postgresSnapshots) GetAdvertSnapshot(ctx context.Context, id uuid.UUID) (AdvertSnapshot, error) {
+func (s postgresSnapshots) GetAdvertSnapshot(ctx context.Context, id int64) (AdvertSnapshot, error) {
 	var out AdvertSnapshot
 	err := s.pool.QueryRow(ctx, `SELECT id, owner_user_id, COALESCE(title, ''), status FROM hrd_adverts WHERE id = $1 AND deleted_at IS NULL`, id).
 		Scan(&out.ID, &out.OwnerUserID, &out.Title, &out.Status)
@@ -53,7 +53,7 @@ func (s postgresSnapshots) GetPackageByID(ctx context.Context, id uuid.UUID) (do
 	return out, nil
 }
 
-func (s postgresSnapshots) GetEffectiveAssignment(ctx context.Context, advertID uuid.UUID, at time.Time) (PackageAssignmentSnapshot, error) {
+func (s postgresSnapshots) GetEffectiveAssignment(ctx context.Context, advertID int64, at time.Time) (PackageAssignmentSnapshot, error) {
 	return s.assignment(ctx, `SELECT id, advert_id, package_id, ends_at FROM hrd_advert_package_assignments WHERE advert_id = $1 AND status = 'ACTIVE' AND starts_at <= $2 AND (ends_at IS NULL OR ends_at > $2)`, advertID, at)
 }
 func (s postgresSnapshots) GetAssignmentByID(ctx context.Context, id uuid.UUID) (PackageAssignmentSnapshot, error) {
@@ -70,7 +70,7 @@ func (s postgresSnapshots) assignment(ctx context.Context, q string, args ...any
 	}
 	return out, nil
 }
-func (s postgresSnapshots) FindActiveUrgent(ctx context.Context, advertID uuid.UUID) (domainpackaging.AdvertFeatureActivation, error) {
+func (s postgresSnapshots) FindActiveUrgent(ctx context.Context, advertID int64) (domainpackaging.AdvertFeatureActivation, error) {
 	var (
 		out                 domainpackaging.AdvertFeatureActivation
 		featureCode, status string

@@ -48,7 +48,7 @@ type CouponUsage struct {
 	ID                  uuid.UUID
 	CouponID            uuid.UUID
 	UserID              uuid.UUID
-	AdvertID            *uuid.UUID
+	AdvertID            *int64
 	DiscountAmountMinor int64
 	UsedAt              time.Time
 	CreatedAt           time.Time

@@ -33,8 +33,8 @@ type MemoryRuntimeStore struct {
 	users         map[uuid.UUID]domainuser.User
 	packages      map[uuid.UUID]domainpackaging.Package
 	assignments   map[uuid.UUID]domainpackaging.AdvertPackageAssignment
-	adverts       map[uuid.UUID]AdvertSnapshot
-	urgent        map[uuid.UUID]domainpackaging.AdvertFeatureActivation
+	adverts map[int64]AdvertSnapshot
+	urgent        map[int64]domainpackaging.AdvertFeatureActivation
 	campaigns     []domaincampaign.Campaign
 	jobs          []domainmedia.BackgroundJob
 	jobDedup      map[string]struct{}
@@ -50,8 +50,8 @@ func NewMemoryRuntimeStore() *MemoryRuntimeStore {
 		users:         map[uuid.UUID]domainuser.User{},
 		packages:      map[uuid.UUID]domainpackaging.Package{},
 		assignments:   map[uuid.UUID]domainpackaging.AdvertPackageAssignment{},
-		adverts:       map[uuid.UUID]AdvertSnapshot{},
-		urgent:        map[uuid.UUID]domainpackaging.AdvertFeatureActivation{},
+		adverts:       map[int64]AdvertSnapshot{},
+		urgent:        map[int64]domainpackaging.AdvertFeatureActivation{},
 	}
 }
 
@@ -463,7 +463,7 @@ func (m memoryRuntimeRepo) MarkAssignmentExpired(_ context.Context, assignmentID
 // DeactivateActiveUrgentForAdvert deactivates the advert's active URGENT
 // feature activation (if any), mirroring the packaging domain's
 // deactivateUrgentForPackageLoss behavior for the expiry-driven case.
-func (m memoryRuntimeRepo) DeactivateActiveUrgentForAdvert(_ context.Context, advertID uuid.UUID, reason string, deactivatedAt, updatedAt time.Time) (bool, error) {
+func (m memoryRuntimeRepo) DeactivateActiveUrgentForAdvert(_ context.Context, advertID int64, reason string, deactivatedAt, updatedAt time.Time) (bool, error) {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()
 	a, ok := m.store.urgent[advertID]
@@ -505,7 +505,7 @@ func (m memoryJobEnqueuer) EnqueueJob(_ context.Context, job domainmedia.Backgro
 
 type memoryAdvertReader struct{ store *MemoryRuntimeStore }
 
-func (m memoryAdvertReader) GetAdvertSnapshot(_ context.Context, advertID uuid.UUID) (AdvertSnapshot, error) {
+func (m memoryAdvertReader) GetAdvertSnapshot(_ context.Context, advertID int64) (AdvertSnapshot, error) {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()
 	a, ok := m.store.adverts[advertID]
@@ -527,7 +527,7 @@ func (m memoryPackageReader) GetPackageByID(_ context.Context, packageID uuid.UU
 	return p, nil
 }
 
-func (m memoryPackageReader) GetEffectiveAssignment(_ context.Context, advertID uuid.UUID, at time.Time) (PackageAssignmentSnapshot, error) {
+func (m memoryPackageReader) GetEffectiveAssignment(_ context.Context, advertID int64, at time.Time) (PackageAssignmentSnapshot, error) {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()
 	for _, a := range m.store.assignments {
@@ -549,7 +549,7 @@ func (m memoryPackageReader) GetAssignmentByID(_ context.Context, assignmentID u
 	return PackageAssignmentSnapshot{ID: a.ID, AdvertID: a.AdvertID, PackageID: a.PackageID, EndsAt: a.EndsAt}, nil
 }
 
-func (m memoryPackageReader) FindActiveUrgent(_ context.Context, advertID uuid.UUID) (domainpackaging.AdvertFeatureActivation, error) {
+func (m memoryPackageReader) FindActiveUrgent(_ context.Context, advertID int64) (domainpackaging.AdvertFeatureActivation, error) {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()
 	a, ok := m.store.urgent[advertID]

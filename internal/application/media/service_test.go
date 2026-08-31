@@ -40,12 +40,13 @@ const (
 func testAllowedContentTypes() []string { return []string{"image/jpeg", "image/png"} }
 
 type fixture struct {
-	svc      *appmedia.Service
-	store    *appmedia.MemoryStore
-	storage  *appmedia.FakeStorage
-	clock    *testClock
-	owner    uuid.UUID
-	stranger uuid.UUID
+	svc       *appmedia.Service
+	store     *appmedia.MemoryStore
+	storage   *appmedia.FakeStorage
+	clock     *testClock
+	owner     uuid.UUID
+	stranger  uuid.UUID
+	advertSeq int64
 }
 
 // newFixture builds a fully configured service on the fake storage.
@@ -120,8 +121,9 @@ func (f *fixture) seedAsset(ownerID uuid.UUID, lifecycle domainmedia.AssetLifecy
 	return id
 }
 
-func (f *fixture) seedAdvert(ownerID uuid.UUID, status string, mediaVersion int) uuid.UUID {
-	id := uuid.New()
+func (f *fixture) seedAdvert(ownerID uuid.UUID, status string, mediaVersion int) int64 {
+	f.advertSeq++
+	id := f.advertSeq
 	f.store.PutAdvert(appmedia.MemoryAdvert{
 		ID:           id,
 		OwnerUserID:  ownerID,
@@ -628,7 +630,7 @@ func TestAttachToChangesRequestedAdvertAllowed(t *testing.T) {
 func TestAttachSoftDeletedAdvertInvalidState(t *testing.T) {
 	f := newFixture(t)
 	deletedAt := f.clock.Now()
-	advertID := uuid.New()
+	advertID := int64(99)
 	f.store.PutAdvert(appmedia.MemoryAdvert{
 		ID:           advertID,
 		OwnerUserID:  f.owner,

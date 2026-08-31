@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -193,7 +194,6 @@ func (s *Service) CreateAdvertDraft(ctx context.Context, ownerID uuid.UUID, in C
 	}
 
 	draft := domainadvert.Advert{
-		ID:           uuid.New(),
 		OwnerUserID:  ownerID,
 		CategoryID:   in.CategoryID,
 		DistrictID:   in.DistrictID,
@@ -212,7 +212,7 @@ func (s *Service) CreateAdvertDraft(ctx context.Context, ownerID uuid.UUID, in C
 
 	// DRAFT insert and the initial NULL->DRAFT history row share one transaction.
 	if err := s.withTx(ctx, func(ctx context.Context, repo Repository, _ pgx.Tx) error {
-		if err := repo.Create(ctx, draft); err != nil {
+		if err := repo.Create(ctx, &draft); err != nil {
 			return err
 		}
 		return repo.InsertHistory(ctx, domainadvert.StatusHistory{
@@ -245,7 +245,7 @@ func (s *Service) ListMyAdverts(ctx context.Context, ownerID uuid.UUID, in ListI
 		status = &parsed
 	}
 	var afterCreated *time.Time
-	var afterID *uuid.UUID
+	var afterID *int64
 	if in.Cursor != nil && strings.TrimSpace(*in.Cursor) != "" {
 		created, id, err := decodeAdvertCursor(strings.TrimSpace(*in.Cursor))
 		if err != nil {
@@ -277,7 +277,7 @@ func (s *Service) ListMyAdverts(ctx context.Context, ownerID uuid.UUID, in ListI
 }
 
 // GetMyAdvert implements ADVERT-OWNER-03.
-func (s *Service) GetMyAdvert(ctx context.Context, ownerID, advertID uuid.UUID) (domainadvert.OwnerView, error) {
+func (s *Service) GetMyAdvert(ctx context.Context, ownerID uuid.UUID, advertID int64) (domainadvert.OwnerView, error) {
 	found, err := s.repo.FindByIDForOwner(ctx, ownerID, advertID)
 	if err != nil {
 		return domainadvert.OwnerView{}, err
@@ -293,7 +293,7 @@ func (s *Service) GetMyAdvert(ctx context.Context, ownerID, advertID uuid.UUID) 
 // touched here and no status history is written.
 func (s *Service) UpdateAdvertDraftDetails(
 	ctx context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	in UpdateDetailsInput,
 ) (domainadvert.OwnerView, error) {
 	if err := requireExpectedVersion(in.ExpectedVersion); err != nil {
@@ -348,7 +348,7 @@ func (s *Service) UpdateAdvertDraftDetails(
 // change category; a real change clears the dynamic properties.
 func (s *Service) ChangeAdvertDraftCategory(
 	ctx context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	in ChangeCategoryInput,
 ) (domainadvert.OwnerView, error) {
 	if err := requireExpectedVersion(in.ExpectedVersion); err != nil {
@@ -395,7 +395,7 @@ func (s *Service) ChangeAdvertDraftCategory(
 // validation: unknown codes are rejected, required codes are not enforced yet.
 func (s *Service) ReplaceAdvertDynamicProperties(
 	ctx context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	in ReplacePropertiesInput,
 ) (domainadvert.OwnerView, error) {
 	if err := requireExpectedVersion(in.ExpectedVersion); err != nil {
@@ -432,18 +432,18 @@ func (s *Service) ReplaceAdvertDynamicProperties(
 }
 
 // SubmitAdvertForReview implements ADVERT-OWNER-07 (DRAFT -> PENDING_REVIEW).
-func (s *Service) SubmitAdvertForReview(ctx context.Context, ownerID, advertID uuid.UUID, expectedVersion int) (domainadvert.OwnerView, error) {
+func (s *Service) SubmitAdvertForReview(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error) {
 	return s.submitForReview(ctx, ownerID, advertID, expectedVersion, domainadvert.StatusDraft)
 }
 
 // ResubmitAdvertForReview implements ADVERT-OWNER-08 (CHANGES_REQUESTED -> PENDING_REVIEW).
-func (s *Service) ResubmitAdvertForReview(ctx context.Context, ownerID, advertID uuid.UUID, expectedVersion int) (domainadvert.OwnerView, error) {
+func (s *Service) ResubmitAdvertForReview(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error) {
 	return s.submitForReview(ctx, ownerID, advertID, expectedVersion, domainadvert.StatusChangesRequested)
 }
 
 // SoftDeleteAdvertDraft implements ADVERT-OWNER-09. Drafts only; no history row
 // because a soft delete is not a status transition.
-func (s *Service) SoftDeleteAdvertDraft(ctx context.Context, ownerID, advertID uuid.UUID, expectedVersion int) (domainadvert.OwnerView, error) {
+func (s *Service) SoftDeleteAdvertDraft(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error) {
 	if err := requireExpectedVersion(expectedVersion); err != nil {
 		return domainadvert.OwnerView{}, err
 	}
@@ -475,12 +475,12 @@ func (s *Service) SoftDeleteAdvertDraft(ctx context.Context, ownerID, advertID u
 }
 
 // MarkAdvertSold implements ADVERT-OWNER-10 (PUBLISHED -> SOLD).
-func (s *Service) MarkAdvertSold(ctx context.Context, ownerID, advertID uuid.UUID, expectedVersion int) (domainadvert.OwnerView, error) {
+func (s *Service) MarkAdvertSold(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error) {
 	return s.ownerTransition(ctx, ownerID, advertID, expectedVersion, domainadvert.StatusPublished, domainadvert.StatusSold)
 }
 
 // ArchiveAdvert implements ADVERT-OWNER-11 (PUBLISHED -> ARCHIVED).
-func (s *Service) ArchiveAdvert(ctx context.Context, ownerID, advertID uuid.UUID, expectedVersion int) (domainadvert.OwnerView, error) {
+func (s *Service) ArchiveAdvert(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error) {
 	return s.ownerTransition(ctx, ownerID, advertID, expectedVersion, domainadvert.StatusPublished, domainadvert.StatusArchived)
 }
 
@@ -531,7 +531,7 @@ func (s *Service) AutoArchiveSold(ctx context.Context, batchSize int) AutoArchiv
 
 func (s *Service) submitForReview(
 	ctx context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	expectedVersion int,
 	from domainadvert.Status,
 ) (domainadvert.OwnerView, error) {
@@ -586,7 +586,7 @@ func (s *Service) submitForReview(
 
 func (s *Service) ownerTransition(
 	ctx context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	expectedVersion int,
 	from, to domainadvert.Status,
 ) (domainadvert.OwnerView, error) {
@@ -655,7 +655,7 @@ func (s *Service) validateForSubmission(ctx context.Context, a domainadvert.Adve
 	if a.Price == nil || a.Price.AmountMinor <= 0 {
 		fields = append(fields, apperr.FieldError{Field: "price", Message: "Fiyat zorunludur."})
 	}
-	mediaByAdvert, err := s.repo.ListMediaRelations(ctx, []uuid.UUID{a.ID})
+	mediaByAdvert, err := s.repo.ListMediaRelations(ctx, []int64{a.ID})
 	if err != nil {
 		return err
 	}
@@ -834,7 +834,7 @@ func (s *Service) withTx(ctx context.Context, fn func(context.Context, Repositor
 
 // projectOwnerViews attaches media relations and province ids for owner reads.
 func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Advert) ([]domainadvert.OwnerView, error) {
-	ids := make([]uuid.UUID, 0, len(rows))
+	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.ID)
 	}
@@ -907,27 +907,27 @@ func hasProperties(raw json.RawMessage) bool {
 	return len(obj) > 0
 }
 
-func encodeAdvertCursor(createdAt time.Time, id uuid.UUID) string {
-	raw := createdAt.UTC().Format(time.RFC3339Nano) + "|" + id.String()
+func encodeAdvertCursor(createdAt time.Time, id int64) string {
+	raw := createdAt.UTC().Format(time.RFC3339Nano) + "|" + strconv.FormatInt(id, 10)
 	return base64.RawURLEncoding.EncodeToString([]byte(raw))
 }
 
-func decodeAdvertCursor(cursor string) (time.Time, uuid.UUID, error) {
+func decodeAdvertCursor(cursor string) (time.Time, int64, error) {
 	b, err := base64.RawURLEncoding.DecodeString(cursor)
 	if err != nil {
-		return time.Time{}, uuid.Nil, err
+		return time.Time{}, 0, err
 	}
 	parts := strings.SplitN(string(b), "|", 2)
 	if len(parts) != 2 {
-		return time.Time{}, uuid.Nil, fmt.Errorf("bad cursor")
+		return time.Time{}, 0, fmt.Errorf("bad cursor")
 	}
 	createdAt, err := time.Parse(time.RFC3339Nano, parts[0])
 	if err != nil {
-		return time.Time{}, uuid.Nil, err
+		return time.Time{}, 0, err
 	}
-	id, err := uuid.Parse(parts[1])
+	id, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil {
-		return time.Time{}, uuid.Nil, err
+		return time.Time{}, 0, err
 	}
 	return createdAt, id, nil
 }

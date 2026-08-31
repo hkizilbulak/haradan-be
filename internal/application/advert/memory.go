@@ -26,8 +26,8 @@ type MemoryStore struct {
 	mu   sync.Mutex
 	txMu sync.Mutex // serializes BeginTx..Commit like a coarse row lock
 
-	adverts        map[uuid.UUID]domainadvert.Advert
-	mediaRelations map[uuid.UUID][]domainadvert.MediaRelation
+	adverts        map[int64]domainadvert.Advert
+	mediaRelations map[int64][]domainadvert.MediaRelation
 	history        []domainadvert.StatusHistory
 
 	categories map[uuid.UUID]domaincatalog.Category
@@ -41,36 +41,40 @@ type MemoryStore struct {
 // NewMemoryStore builds an empty in-memory store.
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		adverts:        map[uuid.UUID]domainadvert.Advert{},
+		adverts:        map[int64]domainadvert.Advert{},
 		categories:     map[uuid.UUID]domaincatalog.Category{},
 		children:       map[uuid.UUID]int{},
 		formProps:      map[uuid.UUID][]domaincatalog.Property{},
 		districts:      map[uuid.UUID]domaingeo.District{},
 		horses:         map[uuid.UUID]domainhorse.Horse{},
 		users:          map[uuid.UUID]domainuser.User{},
-		mediaRelations: map[uuid.UUID][]domainadvert.MediaRelation{},
+		mediaRelations: map[int64][]domainadvert.MediaRelation{},
 	}
 }
 
-// PutAdvert seeds or replaces an advert.
-func (s *MemoryStore) PutAdvert(a domainadvert.Advert) {
+// PutAdvert seeds or replaces an advert and returns the stored id.
+func (s *MemoryStore) PutAdvert(a domainadvert.Advert) int64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if a.ID == 0 {
+		a.ID = int64(len(s.adverts) + 1)
+	}
 	s.adverts[a.ID] = a
+	return a.ID
 }
 
 // PutMediaRelations seeds media relations for an advert.
-func (s *MemoryStore) PutMediaRelations(advertID uuid.UUID, rels []domainadvert.MediaRelation) {
+func (s *MemoryStore) PutMediaRelations(advertID int64, rels []domainadvert.MediaRelation) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.mediaRelations == nil {
-		s.mediaRelations = make(map[uuid.UUID][]domainadvert.MediaRelation)
+		s.mediaRelations = make(map[int64][]domainadvert.MediaRelation)
 	}
 	s.mediaRelations[advertID] = rels
 }
 
 // Advert returns a seeded advert.
-func (s *MemoryStore) Advert(id uuid.UUID) (domainadvert.Advert, bool) {
+func (s *MemoryStore) Advert(id int64) (domainadvert.Advert, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a, ok := s.adverts[id]
@@ -156,13 +160,16 @@ func (r MemoryRepository) BeginTx(context.Context) (pgx.Tx, error) {
 func (r MemoryRepository) WithTx(pgx.Tx) Repository { return r }
 
 // Create inserts a new advert.
-func (r MemoryRepository) Create(_ context.Context, a domainadvert.Advert) error {
+func (r MemoryRepository) Create(_ context.Context, a *domainadvert.Advert) error {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
+	if a.ID == 0 {
+		a.ID = int64(len(r.store.adverts) + 1)
+	}
 	if _, ok := r.store.adverts[a.ID]; ok {
 		return apperr.Conflict("advert already exists")
 	}
-	r.store.adverts[a.ID] = a
+	r.store.adverts[a.ID] = *a
 	return nil
 }
 
@@ -175,7 +182,7 @@ func (r MemoryRepository) InsertHistory(_ context.Context, h domainadvert.Status
 }
 
 // FindByIDForOwner returns an owner-scoped advert.
-func (r MemoryRepository) FindByIDForOwner(_ context.Context, ownerID, advertID uuid.UUID) (domainadvert.Advert, error) {
+func (r MemoryRepository) FindByIDForOwner(_ context.Context, ownerID uuid.UUID, advertID int64) (domainadvert.Advert, error) {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 	return r.lookupLocked(ownerID, advertID)
@@ -183,12 +190,12 @@ func (r MemoryRepository) FindByIDForOwner(_ context.Context, ownerID, advertID 
 
 // FindByIDForOwnerForUpdate behaves like FindByIDForOwner; the fake transaction
 // already serializes writers.
-func (r MemoryRepository) FindByIDForOwnerForUpdate(ctx context.Context, ownerID, advertID uuid.UUID) (domainadvert.Advert, error) {
+func (r MemoryRepository) FindByIDForOwnerForUpdate(ctx context.Context, ownerID uuid.UUID, advertID int64) (domainadvert.Advert, error) {
 	return r.FindByIDForOwner(ctx, ownerID, advertID)
 }
 
 // FindByID returns a non-deleted advert by id.
-func (r MemoryRepository) FindByID(_ context.Context, advertID uuid.UUID) (domainadvert.Advert, error) {
+func (r MemoryRepository) FindByID(_ context.Context, advertID int64) (domainadvert.Advert, error) {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 	a, ok := r.store.adverts[advertID]
@@ -199,7 +206,7 @@ func (r MemoryRepository) FindByID(_ context.Context, advertID uuid.UUID) (domai
 }
 
 // FindByIDForUpdate behaves like FindByID under the fake transaction lock.
-func (r MemoryRepository) FindByIDForUpdate(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error) {
+func (r MemoryRepository) FindByIDForUpdate(ctx context.Context, advertID int64) (domainadvert.Advert, error) {
 	return r.FindByID(ctx, advertID)
 }
 
@@ -208,7 +215,7 @@ func (r MemoryRepository) ListForModeration(
 	_ context.Context,
 	status *domainadvert.Status,
 	afterCreated *time.Time,
-	afterID *uuid.UUID,
+	afterID *int64,
 	limit int,
 ) ([]domainadvert.Advert, error) {
 	r.store.mu.Lock()
@@ -225,7 +232,7 @@ func (r MemoryRepository) ListForModeration(
 		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
 		}
-		return out[i].ID.String() > out[j].ID.String()
+		return out[i].ID > out[j].ID
 	})
 	if afterCreated != nil && afterID != nil {
 		filtered := out[:0:0]
@@ -233,7 +240,7 @@ func (r MemoryRepository) ListForModeration(
 			if a.CreatedAt.After(*afterCreated) {
 				continue
 			}
-			if a.CreatedAt.Equal(*afterCreated) && a.ID.String() >= afterID.String() {
+			if a.CreatedAt.Equal(*afterCreated) && a.ID >= *afterID {
 				continue
 			}
 			filtered = append(filtered, a)
@@ -247,7 +254,7 @@ func (r MemoryRepository) ListForModeration(
 }
 
 // ListStatusHistory returns history for one advert, oldest first.
-func (r MemoryRepository) ListStatusHistory(_ context.Context, advertID uuid.UUID) ([]domainadvert.StatusHistory, error) {
+func (r MemoryRepository) ListStatusHistory(_ context.Context, advertID int64) ([]domainadvert.StatusHistory, error) {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 	var out []domainadvert.StatusHistory
@@ -266,10 +273,10 @@ func (r MemoryRepository) ListStatusHistory(_ context.Context, advertID uuid.UUI
 }
 
 // ListMediaRelations returns stored media relations for requested advert IDs.
-func (r MemoryRepository) ListMediaRelations(_ context.Context, advertIDs []uuid.UUID) (map[uuid.UUID][]domainadvert.MediaRelation, error) {
+func (r MemoryRepository) ListMediaRelations(_ context.Context, advertIDs []int64) (map[int64][]domainadvert.MediaRelation, error) {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
-	out := make(map[uuid.UUID][]domainadvert.MediaRelation, len(advertIDs))
+	out := make(map[int64][]domainadvert.MediaRelation, len(advertIDs))
 	for _, id := range advertIDs {
 		if rels, ok := r.store.mediaRelations[id]; ok {
 			out[id] = rels
@@ -284,7 +291,7 @@ func (r MemoryRepository) ListByOwner(
 	ownerID uuid.UUID,
 	status *domainadvert.Status,
 	afterCreated *time.Time,
-	afterID *uuid.UUID,
+	afterID *int64,
 	limit int,
 ) ([]domainadvert.Advert, error) {
 	r.store.mu.Lock()
@@ -304,7 +311,7 @@ func (r MemoryRepository) ListByOwner(
 		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
 		}
-		return out[i].ID.String() > out[j].ID.String()
+		return out[i].ID > out[j].ID
 	})
 	if afterCreated != nil && afterID != nil {
 		filtered := out[:0:0]
@@ -312,7 +319,7 @@ func (r MemoryRepository) ListByOwner(
 			if a.CreatedAt.After(*afterCreated) {
 				continue
 			}
-			if a.CreatedAt.Equal(*afterCreated) && a.ID.String() >= afterID.String() {
+			if a.CreatedAt.Equal(*afterCreated) && a.ID >= *afterID {
 				continue
 			}
 			filtered = append(filtered, a)
@@ -328,7 +335,7 @@ func (r MemoryRepository) ListByOwner(
 // UpdateDetails applies the patch when the version still matches.
 func (r MemoryRepository) UpdateDetails(
 	_ context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	patch domainadvert.DetailsPatch,
 	expectedVersion int,
 	now time.Time,
@@ -369,7 +376,7 @@ func (r MemoryRepository) UpdateDetails(
 // UpdateCategoryClearProperties sets a new category and resets properties.
 func (r MemoryRepository) UpdateCategoryClearProperties(
 	_ context.Context,
-	ownerID, advertID, categoryID uuid.UUID,
+	ownerID uuid.UUID, advertID int64, categoryID uuid.UUID,
 	expectedVersion int,
 	now time.Time,
 ) (domainadvert.Advert, error) {
@@ -394,7 +401,7 @@ func (r MemoryRepository) UpdateCategoryClearProperties(
 // ReplaceProperties overwrites the dynamic property object.
 func (r MemoryRepository) ReplaceProperties(
 	_ context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	properties json.RawMessage,
 	expectedVersion int,
 	now time.Time,
@@ -418,7 +425,7 @@ func (r MemoryRepository) ReplaceProperties(
 // SoftDeleteDraft stamps deleted_at on a DRAFT advert.
 func (r MemoryRepository) SoftDeleteDraft(
 	_ context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	expectedVersion int,
 	now time.Time,
 ) (domainadvert.Advert, error) {
@@ -442,7 +449,7 @@ func (r MemoryRepository) SoftDeleteDraft(
 // TransitionStatus moves the status when the from status and version match.
 func (r MemoryRepository) TransitionStatus(
 	_ context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	from, to domainadvert.Status,
 	expectedVersion int,
 	publishedAt *time.Time,
@@ -486,7 +493,7 @@ func (r MemoryRepository) ListSoldForAutoArchive(_ context.Context, soldBefore t
 		if !out[i].SoldAt.Equal(*out[j].SoldAt) {
 			return out[i].SoldAt.Before(*out[j].SoldAt)
 		}
-		return out[i].ID.String() < out[j].ID.String()
+		return out[i].ID < out[j].ID
 	})
 	if limit > 0 && len(out) > limit {
 		out = out[:limit]
@@ -497,7 +504,7 @@ func (r MemoryRepository) ListSoldForAutoArchive(_ context.Context, soldBefore t
 // SystemTransitionStatus moves status without owner filter.
 func (r MemoryRepository) SystemTransitionStatus(
 	_ context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	from, to domainadvert.Status,
 	expectedVersion int,
 	now time.Time,
@@ -518,7 +525,7 @@ func (r MemoryRepository) SystemTransitionStatus(
 	return a, nil
 }
 
-func (r MemoryRepository) lookupLocked(ownerID, advertID uuid.UUID) (domainadvert.Advert, error) {
+func (r MemoryRepository) lookupLocked(ownerID uuid.UUID, advertID int64) (domainadvert.Advert, error) {
 	a, ok := r.store.adverts[advertID]
 	if !ok || a.OwnerUserID != ownerID {
 		return domainadvert.Advert{}, apperr.NotFound(memoryAdvertNotFound)
@@ -528,7 +535,7 @@ func (r MemoryRepository) lookupLocked(ownerID, advertID uuid.UUID) (domainadver
 
 // conditionLocked mirrors the conditional SQL update guard: a missing row is
 // NOT_FOUND, a version mismatch is STALE_VERSION.
-func (r MemoryRepository) conditionLocked(ownerID, advertID uuid.UUID, expectedVersion int) (domainadvert.Advert, error) {
+func (r MemoryRepository) conditionLocked(ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.Advert, error) {
 	current, err := r.lookupLocked(ownerID, advertID)
 	if err != nil {
 		return domainadvert.Advert{}, err

@@ -36,7 +36,7 @@ WHERE a.status = 'PUBLISHED' AND a.deleted_at IS NULL
 ORDER BY ` + order + ` LIMIT $9`
 	var priority *int
 	var publishedAt *time.Time
-	var id *uuid.UUID
+	var id *int64
 	if q.After != nil {
 		priority = &q.After.Priority
 		t := q.After.PublishedAt
@@ -53,7 +53,7 @@ WHERE a.status = 'PUBLISHED' AND a.deleted_at IS NULL
   AND ($1::timestamptz IS NULL OR (a.published_at, a.id) < ($1, $2))
 ORDER BY a.published_at DESC, a.id DESC LIMIT $3`
 	var publishedAt *time.Time
-	var id *uuid.UUID
+	var id *int64
 	if q.After != nil {
 		t := q.After.PublishedAt
 		publishedAt = &t
@@ -91,7 +91,7 @@ LIMIT $1`
 	return scanPublicCards(rows, err, "list homepage featured")
 }
 
-func (r *Repository) GetPublishedDetail(ctx context.Context, advertID uuid.UUID, actorUserID *uuid.UUID) (domainadvert.PublicDetail, error) {
+func (r *Repository) GetPublishedDetail(ctx context.Context, advertID int64, actorUserID *uuid.UUID) (domainadvert.PublicDetail, error) {
 	sql := publicCardSelect("$2") + `
 WHERE a.id = $1 AND a.status = 'PUBLISHED' AND a.deleted_at IS NULL`
 	card, err := scanPublicCard(r.db.QueryRow(ctx, sql, advertID, actorUserID))
@@ -231,7 +231,7 @@ LEFT JOIN LATERAL (
 ) cover ON true`
 }
 
-func (r *Repository) RecordView(ctx context.Context, advertID uuid.UUID, ipAddress string) error {
+func (r *Repository) RecordView(ctx context.Context, advertID int64, ipAddress string) error {
 	if ipAddress == "" {
 		return nil
 	}
@@ -361,7 +361,7 @@ func scanPublicCard(row interface{ Scan(...any) error }) (domainadvert.PublicCar
 	return card, nil
 }
 
-func (r *Repository) listPublicMedia(ctx context.Context, advertID uuid.UUID) ([]domainadvert.PublicMedia, error) {
+func (r *Repository) listPublicMedia(ctx context.Context, advertID int64) ([]domainadvert.PublicMedia, error) {
 	rows, err := r.db.Query(ctx, `
 SELECT am.asset_id, am.display_order, am.is_cover, COALESCE(v.object_key, ma.master_object_key, ma.raw_object_key, '')
 FROM hrd_advert_media am JOIN hrd_media_assets ma ON ma.id = am.asset_id AND ma.lifecycle_status NOT IN ('VALIDATION_FAILED', 'CLEANUP_CANDIDATE', 'DELETING', 'PHYSICALLY_DELETED')
@@ -382,7 +382,7 @@ WHERE am.advert_id = $1 ORDER BY am.display_order, am.asset_id`, advertID)
 	return out, nil
 }
 
-func (r *Repository) listPublicProperties(ctx context.Context, advertID uuid.UUID, raw []byte) ([]domainadvert.PublicProperty, error) {
+func (r *Repository) listPublicProperties(ctx context.Context, advertID int64, raw []byte) ([]domainadvert.PublicProperty, error) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return []domainadvert.PublicProperty{}, nil
 	}

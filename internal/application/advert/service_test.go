@@ -119,7 +119,7 @@ func (f *fixture) seed(t *testing.T, ownerID uuid.UUID, status domainadvert.Stat
 	district := f.district
 	now := f.clock.Now()
 	a := domainadvert.Advert{
-		ID:           uuid.New(),
+		ID:           0,
 		OwnerUserID:  ownerID,
 		CategoryID:   &category,
 		DistrictID:   &district,
@@ -141,7 +141,7 @@ func (f *fixture) seed(t *testing.T, ownerID uuid.UUID, status domainadvert.Stat
 	if mutate != nil {
 		mutate(&a)
 	}
-	f.store.PutAdvert(a)
+	a.ID = f.store.PutAdvert(a)
 
 	// Submission/approval requires a READY cover attachment. Seed a MASTER_READY
 	// cover so submit-path and moderation approval tests can focus on core/
@@ -332,7 +332,7 @@ func TestListMyAdvertsExcludesDeletedAndForeignAndPages(t *testing.T) {
 		t.Fatalf("page1=%+v hasMore=%v cursor=%v", first.Items, first.HasMore, first.NextCursor)
 	}
 	if first.Items[0].ID != newest.ID || first.Items[1].ID != middle.ID {
-		t.Fatalf("unexpected order: %s %s", first.Items[0].ID, first.Items[1].ID)
+		t.Fatalf("unexpected order: %d %d", first.Items[0].ID, first.Items[1].ID)
 	}
 
 	second, err := f.svc.ListMyAdverts(ctx, f.owner, appadvert.ListInput{Limit: ptr(2), Cursor: first.NextCursor})
@@ -376,7 +376,7 @@ func TestGetMyAdvertCrossUserIsNotFound(t *testing.T) {
 	_, err := f.svc.GetMyAdvert(context.Background(), f.owner, foreign.ID)
 	requireCode(t, err, apperr.CodeNotFound)
 
-	_, err = f.svc.GetMyAdvert(context.Background(), f.owner, uuid.New())
+	_, err = f.svc.GetMyAdvert(context.Background(), f.owner, int64(999999))
 	requireCode(t, err, apperr.CodeNotFound)
 
 	own, err := f.svc.GetMyAdvert(context.Background(), f.stranger, foreign.ID)
@@ -1075,7 +1075,7 @@ func TestMarkAdvertSoldAndArchive(t *testing.T) {
 	_, err = f.svc.ArchiveAdvert(ctx, f.owner, draft.ID, 1)
 	requireCode(t, err, apperr.CodeInvalidState)
 
-	_, err = f.svc.MarkAdvertSold(ctx, f.owner, uuid.New(), 1)
+	_, err = f.svc.MarkAdvertSold(ctx, f.owner, int64(999999), 1)
 	requireCode(t, err, apperr.CodeNotFound)
 }
 

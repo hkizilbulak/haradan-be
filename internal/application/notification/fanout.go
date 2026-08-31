@@ -318,7 +318,7 @@ func (s *FanoutService) ProcessAdvertEmailChunk(ctx context.Context, payload jso
 			"body":  notification.Body,
 		}
 		if notification.AdvertID != nil {
-			vars["advertId"] = notification.AdvertID.String()
+			vars["advertId"] = fmt.Sprintf("%d", *notification.AdvertID)
 		}
 		sendErr := s.email.SendTemplateEmail(ctx, user.Email, *tmpl.ResendTemplateID, tmpl.EmailSubjectFallback, vars, idem)
 		if sendErr != nil {

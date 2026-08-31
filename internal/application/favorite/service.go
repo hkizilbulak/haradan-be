@@ -52,7 +52,7 @@ func NewService(cfg Config) (*Service, error) {
 
 // MutationView is FAVORITE-01/02 output.
 type MutationView struct {
-	AdvertID  uuid.UUID
+	AdvertID  int64
 	Favorited bool
 }
 
@@ -65,7 +65,7 @@ type MoneyView struct {
 // CardView is the public-safe card for an available favorite. Cover stays nil
 // until public media URL projection exists; publicUrl is never invented here.
 type CardView struct {
-	ID          uuid.UUID
+	ID          int64
 	Title       string
 	PublishedAt time.Time
 	CategoryID  uuid.UUID
@@ -78,7 +78,7 @@ type CardView struct {
 
 // ListItemView is one FavoriteListItem.
 type ListItemView struct {
-	AdvertID          uuid.UUID
+	AdvertID          int64
 	Available         bool
 	Card              *CardView
 	UnavailableReason *string
@@ -100,7 +100,7 @@ type ListResult struct {
 // AddFavorite implements FAVORITE-01. Duplicate inserts are idempotent success.
 // Missing, soft-deleted and non-PUBLISHED adverts all surface as the same
 // NOT_FOUND to the client so resource existence cannot be probed.
-func (s *Service) AddFavorite(ctx context.Context, userID, advertID uuid.UUID) (MutationView, error) {
+func (s *Service) AddFavorite(ctx context.Context, userID uuid.UUID, advertID int64) (MutationView, error) {
 	if err := requireAdvertID(advertID); err != nil {
 		return MutationView{}, err
 	}
@@ -129,7 +129,7 @@ func (s *Service) AddFavorite(ctx context.Context, userID, advertID uuid.UUID) (
 }
 
 // RemoveFavorite implements FAVORITE-02. Missing relations are idempotent success.
-func (s *Service) RemoveFavorite(ctx context.Context, userID, advertID uuid.UUID) (MutationView, error) {
+func (s *Service) RemoveFavorite(ctx context.Context, userID uuid.UUID, advertID int64) (MutationView, error) {
 	if err := requireAdvertID(advertID); err != nil {
 		return MutationView{}, err
 	}
@@ -233,8 +233,8 @@ func buildCard(a AdvertSnapshot) (CardView, bool) {
 	return card, true
 }
 
-func requireAdvertID(id uuid.UUID) error {
-	if id == uuid.Nil {
+func requireAdvertID(id int64) error {
+	if id <= 0 {
 		return apperr.Validation("Geçersiz istek.", apperr.FieldError{
 			Field:   "advertId",
 			Message: "İlan zorunludur.",

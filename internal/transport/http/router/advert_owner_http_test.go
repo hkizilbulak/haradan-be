@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"strconv"
 	"context"
 	"encoding/json"
 	"io"
@@ -172,7 +173,7 @@ func TestGetMyAdvertHTTP(t *testing.T) {
 	var created generated.OwnerAdvertResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &created)
 
-	rec = env.do(http.MethodGet, "/api/v1/me/adverts/"+created.Id.String(), "", auth)
+	rec = env.do(http.MethodGet, "/api/v1/me/adverts/"+strconv.FormatInt(created.Id, 10), "", auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get status=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -187,7 +188,7 @@ func TestGetMyAdvertNotFoundHTTP(t *testing.T) {
 	env := newAdvertEngine(t)
 	auth, _ := env.registerAndLogin(t, "notfound@example.com", true)
 
-	rec := env.do(http.MethodGet, "/api/v1/me/adverts/"+uuid.New().String(), "", auth)
+	rec := env.do(http.MethodGet, "/api/v1/me/adverts/999999999", "", auth)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -204,7 +205,7 @@ func TestAdvertMissingAuthHTTP(t *testing.T) {
 	for _, tc := range []struct{ method, path string }{
 		{http.MethodPost, "/api/v1/me/adverts"},
 		{http.MethodGet, "/api/v1/me/adverts"},
-		{http.MethodGet, "/api/v1/me/adverts/" + uuid.New().String()},
+		{http.MethodGet, "/api/v1/me/adverts/999999999"},
 	} {
 		rec := env.do(tc.method, tc.path, "", "")
 		if rec.Code != http.StatusUnauthorized {
@@ -217,7 +218,7 @@ func TestGetMyAdvertMalformedUUIDHTTP(t *testing.T) {
 	env := newAdvertEngine(t)
 	auth, _ := env.registerAndLogin(t, "malformed@example.com", true)
 
-	rec := env.do(http.MethodGet, "/api/v1/me/adverts/not-a-uuid", "", auth)
+	rec := env.do(http.MethodGet, "/api/v1/me/adverts/not-an-id", "", auth)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -236,7 +237,7 @@ func TestUpdateAdvertDraftDetailsHTTP(t *testing.T) {
 	var created generated.OwnerAdvertResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &created)
 
-	rec = env.do(http.MethodPatch, "/api/v1/me/adverts/"+created.Id.String(),
+	rec = env.do(http.MethodPatch, "/api/v1/me/adverts/"+strconv.FormatInt(created.Id, 10),
 		`{"title":"Yeni başlık","expectedVersion":1}`, auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
@@ -259,7 +260,7 @@ func TestUpdateAdvertDraftDetailsMalformedHTTP(t *testing.T) {
 	var created generated.OwnerAdvertResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &created)
 
-	rec = env.do(http.MethodPatch, "/api/v1/me/adverts/"+created.Id.String(), `{"title":`, auth)
+	rec = env.do(http.MethodPatch, "/api/v1/me/adverts/"+strconv.FormatInt(created.Id, 10), `{"title":`, auth)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -278,7 +279,7 @@ func TestSubmitAdvertForReviewUnverifiedEmailHTTP(t *testing.T) {
 	var created generated.OwnerAdvertResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &created)
 
-	rec = env.do(http.MethodPost, "/api/v1/me/adverts/"+created.Id.String()+"/submit", `{"expectedVersion":1}`, auth)
+	rec = env.do(http.MethodPost, "/api/v1/me/adverts/"+strconv.FormatInt(created.Id, 10)+"/submit", `{"expectedVersion":1}`, auth)
 	if rec.Code == http.StatusForbidden {
 		t.Fatalf("unverified owner must not be blocked on submit: %s", rec.Body.String())
 	}
@@ -300,7 +301,7 @@ func TestSoftDeleteAdvertDraftHTTP(t *testing.T) {
 	var created generated.OwnerAdvertResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &created)
 
-	rec = env.do(http.MethodDelete, "/api/v1/me/adverts/"+created.Id.String()+"?expectedVersion=1", "", auth)
+	rec = env.do(http.MethodDelete, "/api/v1/me/adverts/"+strconv.FormatInt(created.Id, 10)+"?expectedVersion=1", "", auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -310,7 +311,7 @@ func TestSoftDeleteAdvertDraftHTTP(t *testing.T) {
 		t.Fatalf("%+v", deleted)
 	}
 
-	rec = env.do(http.MethodGet, "/api/v1/me/adverts/"+created.Id.String(), "", auth)
+	rec = env.do(http.MethodGet, "/api/v1/me/adverts/"+strconv.FormatInt(created.Id, 10), "", auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get-after-delete status=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -325,8 +326,8 @@ func TestPublicAndOutOfScopeAdvertRoutesStill501HTTP(t *testing.T) {
 		t.Fatalf("search published status=%d body=%s", rec.Code, rec.Body.String())
 	}
 
-	advertID := uuid.New()
-	rec = env.do(http.MethodPost, "/api/v1/me/adverts/"+advertID.String()+"/media",
+	advertID := int64(101)
+	rec = env.do(http.MethodPost, "/api/v1/me/adverts/"+strconv.FormatInt(advertID, 10)+"/media",
 		`{"assetId":"`+uuid.New().String()+`","expectedMediaVersion":1}`, auth)
 	if rec.Code != http.StatusNotImplemented {
 		t.Fatalf("media attach status=%d body=%s", rec.Code, rec.Body.String())
@@ -350,7 +351,7 @@ func TestReplaceAdvertDynamicPropertiesSellerPhoneHTTP(t *testing.T) {
 	var created generated.OwnerAdvertResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &created)
 
-	rec = env.do(http.MethodPut, "/api/v1/me/adverts/"+created.Id.String()+"/properties",
+	rec = env.do(http.MethodPut, "/api/v1/me/adverts/"+strconv.FormatInt(created.Id, 10)+"/properties",
 		`{"expectedVersion":1,"properties":{"sellerPhone":"+90 532 999 88 77","phone":"+90 532 999 88 77"}}`, auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("put properties status=%d body=%s", rec.Code, rec.Body.String())

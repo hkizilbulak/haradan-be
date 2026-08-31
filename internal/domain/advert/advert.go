@@ -46,7 +46,7 @@ type Money struct {
 
 // Advert is the advert core aggregate mirroring hrd_adverts.
 type Advert struct {
-	ID           uuid.UUID
+	ID           int64
 	OwnerUserID  uuid.UUID
 	CategoryID   *uuid.UUID
 	DistrictID   *uuid.UUID
@@ -69,7 +69,7 @@ type Advert struct {
 // StatusHistory is an immutable advert status transition record.
 type StatusHistory struct {
 	ID          uuid.UUID
-	AdvertID    uuid.UUID
+	AdvertID    int64
 	FromStatus  *Status
 	ToStatus    Status
 	ActorUserID *uuid.UUID
@@ -89,7 +89,7 @@ type MediaRelation struct {
 
 // OwnerView is the owner-scoped advert projection.
 type OwnerView struct {
-	ID                     uuid.UUID
+	ID                     int64
 	Status                 Status
 	Version                int
 	MediaVersion           int

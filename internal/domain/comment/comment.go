@@ -42,7 +42,7 @@ func (s Status) Valid() bool {
 // Comment is the aggregate entity for an advert comment.
 type Comment struct {
 	ID        uuid.UUID
-	AdvertID  uuid.UUID
+	AdvertID  int64
 	UserID    uuid.UUID
 	Content   string
 	Rating    *int

@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"strconv"
 	"context"
 	"encoding/json"
 	"io"
@@ -135,8 +136,8 @@ func (env *mediaTestEnv) putRawUpload(t *testing.T, assetID uuid.UUID) {
 
 // draftAdvert seeds a DRAFT advert directly in the media store, matching what
 // the advert domain would have produced, so MEDIA-04..07 guards resolve.
-func (env *mediaTestEnv) draftAdvert(ownerID uuid.UUID) uuid.UUID {
-	advertID := uuid.New()
+func (env *mediaTestEnv) draftAdvert(ownerID uuid.UUID) int64 {
+	advertID := int64(101)
 	env.mediaStore.PutAdvert(appmedia.MemoryAdvert{
 		ID:           advertID,
 		OwnerUserID:  ownerID,
@@ -180,7 +181,7 @@ func (env *mediaTestEnv) seedReadyAsset(
 	return assetID
 }
 
-func (env *mediaTestEnv) attachAdvert(t *testing.T, advertID, assetID uuid.UUID) {
+func (env *mediaTestEnv) attachAdvert(t *testing.T, advertID int64, assetID uuid.UUID) {
 	t.Helper()
 	now := time.Now().UTC()
 	if err := env.mediaStore.Repo().AttachAdvertMedia(context.Background(), domainmedia.AdvertMediaRelation{
@@ -361,7 +362,7 @@ func TestAttachReorderCoverDetachAdvertMediaHTTP(t *testing.T) {
 	asset2 := env.initiateAsset(t, auth)
 
 	// Attach asset1.
-	rec := env.do(http.MethodPost, "/api/v1/me/adverts/"+advertID.String()+"/media",
+	rec := env.do(http.MethodPost, "/api/v1/me/adverts/"+strconv.FormatInt(advertID, 10)+"/media",
 		`{"assetId":"`+asset1.String()+`","expectedMediaVersion":1}`, auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("attach1 status=%d body=%s", rec.Code, rec.Body.String())
@@ -373,7 +374,7 @@ func TestAttachReorderCoverDetachAdvertMediaHTTP(t *testing.T) {
 	}
 
 	// Attach asset2.
-	rec = env.do(http.MethodPost, "/api/v1/me/adverts/"+advertID.String()+"/media",
+	rec = env.do(http.MethodPost, "/api/v1/me/adverts/"+strconv.FormatInt(advertID, 10)+"/media",
 		`{"assetId":"`+asset2.String()+`","expectedMediaVersion":2}`, auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("attach2 status=%d body=%s", rec.Code, rec.Body.String())
@@ -384,7 +385,7 @@ func TestAttachReorderCoverDetachAdvertMediaHTTP(t *testing.T) {
 	}
 
 	// Reorder: asset2 first, asset1 second.
-	rec = env.do(http.MethodPut, "/api/v1/me/adverts/"+advertID.String()+"/media/order",
+	rec = env.do(http.MethodPut, "/api/v1/me/adverts/"+strconv.FormatInt(advertID, 10)+"/media/order",
 		`{"orderedAssetIds":["`+asset2.String()+`","`+asset1.String()+`"],"expectedMediaVersion":3}`, auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("reorder status=%d body=%s", rec.Code, rec.Body.String())
@@ -401,7 +402,7 @@ func TestAttachReorderCoverDetachAdvertMediaHTTP(t *testing.T) {
 	}
 
 	// Set cover to asset2.
-	rec = env.do(http.MethodPut, "/api/v1/me/adverts/"+advertID.String()+"/media/cover",
+	rec = env.do(http.MethodPut, "/api/v1/me/adverts/"+strconv.FormatInt(advertID, 10)+"/media/cover",
 		`{"assetId":"`+asset2.String()+`","expectedMediaVersion":4}`, auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("cover status=%d body=%s", rec.Code, rec.Body.String())
@@ -421,7 +422,7 @@ func TestAttachReorderCoverDetachAdvertMediaHTTP(t *testing.T) {
 
 	// Detach asset1.
 	rec = env.do(http.MethodDelete,
-		"/api/v1/me/adverts/"+advertID.String()+"/media/"+asset1.String()+"?expectedMediaVersion=5", "", auth)
+		"/api/v1/me/adverts/"+strconv.FormatInt(advertID, 10)+"/media/"+asset1.String()+"?expectedMediaVersion=5", "", auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("detach status=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -444,7 +445,7 @@ func TestAttachAdvertMediaStaleVersionHTTP(t *testing.T) {
 	advertID := env.draftAdvert(ownerID)
 	asset1 := env.initiateAsset(t, auth)
 
-	rec := env.do(http.MethodPost, "/api/v1/me/adverts/"+advertID.String()+"/media",
+	rec := env.do(http.MethodPost, "/api/v1/me/adverts/"+strconv.FormatInt(advertID, 10)+"/media",
 		`{"assetId":"`+asset1.String()+`","expectedMediaVersion":99}`, auth)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
@@ -458,19 +459,19 @@ func TestAttachAdvertMediaStaleVersionHTTP(t *testing.T) {
 
 func TestMediaMissingAuthHTTP(t *testing.T) {
 	env := newMediaEngine(t)
-	advertID := uuid.New()
+	advertID := int64(102)
 	assetID := uuid.New()
 
 	for _, tc := range []struct{ method, path, body string }{
 		{http.MethodPost, "/api/v1/media/uploads", `{}`},
 		{http.MethodPost, "/api/v1/media/assets/" + assetID.String() + "/confirm", `{}`},
 		{http.MethodGet, "/api/v1/media/assets/" + assetID.String(), ""},
-		{http.MethodPost, "/api/v1/me/adverts/" + advertID.String() + "/media",
+		{http.MethodPost, "/api/v1/me/adverts/" + strconv.FormatInt(advertID, 10) + "/media",
 			`{"assetId":"` + assetID.String() + `","expectedMediaVersion":1}`},
-		{http.MethodDelete, "/api/v1/me/adverts/" + advertID.String() + "/media/" + assetID.String() + "?expectedMediaVersion=1", ""},
-		{http.MethodPut, "/api/v1/me/adverts/" + advertID.String() + "/media/order",
+		{http.MethodDelete, "/api/v1/me/adverts/" + strconv.FormatInt(advertID, 10) + "/media/" + assetID.String() + "?expectedMediaVersion=1", ""},
+		{http.MethodPut, "/api/v1/me/adverts/" + strconv.FormatInt(advertID, 10) + "/media/order",
 			`{"orderedAssetIds":["` + assetID.String() + `"],"expectedMediaVersion":1}`},
-		{http.MethodPut, "/api/v1/me/adverts/" + advertID.String() + "/media/cover",
+		{http.MethodPut, "/api/v1/me/adverts/" + strconv.FormatInt(advertID, 10) + "/media/cover",
 			`{"assetId":"` + assetID.String() + `","expectedMediaVersion":1}`},
 	} {
 		rec := env.do(tc.method, tc.path, tc.body, "")
@@ -522,7 +523,7 @@ func TestPublicMediaHEADAndAttachmentHTTP(t *testing.T) {
 	auth, ownerID := env.registerAndLogin(t, "public-media@example.com")
 
 	assetID := env.seedReadyAsset(t, ownerID, domainmedia.ProfileDetail, "public-bytes")
-	advertID := uuid.New()
+	advertID := int64(103)
 	env.mediaStore.PutAdvert(appmedia.MemoryAdvert{
 		ID: advertID, OwnerUserID: ownerID, Status: "PUBLISHED", MediaVersion: 1,
 	})
@@ -622,7 +623,7 @@ func TestMediaResponseNoLeakHTTP(t *testing.T) {
 	advertID := env.draftAdvert(ownerID)
 	assetID := env.initiateAsset(t, auth)
 
-	rec := env.do(http.MethodPost, "/api/v1/me/adverts/"+advertID.String()+"/media",
+	rec := env.do(http.MethodPost, "/api/v1/me/adverts/"+strconv.FormatInt(advertID, 10)+"/media",
 		`{"assetId":"`+assetID.String()+`","expectedMediaVersion":1}`, auth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())

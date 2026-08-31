@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"strconv"
 	"context"
 	"encoding/json"
 	"io"
@@ -182,13 +183,13 @@ func TestPackagingAssignGetCancelUrgentHTTP(t *testing.T) {
 	ownerAuth, ownerID := env.registerLogin(t, "owner-flow@example.com", "PUBLIC_WEB")
 
 	now := time.Now().UTC()
-	advertID := uuid.New()
+	advertID := int64(101)
 	env.pkgStore.PutAdvert(domainadvert.Advert{
 		ID: advertID, OwnerUserID: ownerID, Status: domainadvert.StatusPublished,
 		Version: 1, CreatedAt: now, UpdatedAt: now,
 	})
 
-	rec := env.do(http.MethodPut, "/api/v1/admin/adverts/"+advertID.String()+"/package",
+	rec := env.do(http.MethodPut, "/api/v1/admin/adverts/"+strconv.FormatInt(advertID, 10)+"/package",
 		`{"packageCode":"ADVANCED"}`, adminAuth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("assign=%d %s", rec.Code, rec.Body.String())
@@ -201,12 +202,12 @@ func TestPackagingAssignGetCancelUrgentHTTP(t *testing.T) {
 		t.Fatalf("%+v", assigned)
 	}
 
-	rec = env.do(http.MethodGet, "/api/v1/admin/adverts/"+advertID.String()+"/package", "", adminAuth)
+	rec = env.do(http.MethodGet, "/api/v1/admin/adverts/"+strconv.FormatInt(advertID, 10)+"/package", "", adminAuth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get=%d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = env.do(http.MethodPut, "/api/v1/adverts/"+advertID.String()+"/urgent", "", ownerAuth)
+	rec = env.do(http.MethodPut, "/api/v1/adverts/"+strconv.FormatInt(advertID, 10)+"/urgent", "", ownerAuth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("urgent=%d %s", rec.Code, rec.Body.String())
 	}
@@ -218,18 +219,18 @@ func TestPackagingAssignGetCancelUrgentHTTP(t *testing.T) {
 		t.Fatalf("%+v", urgent)
 	}
 
-	rec = env.do(http.MethodDelete, "/api/v1/adverts/"+advertID.String()+"/urgent", "", ownerAuth)
+	rec = env.do(http.MethodDelete, "/api/v1/adverts/"+strconv.FormatInt(advertID, 10)+"/urgent", "", ownerAuth)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("deactivate=%d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+advertID.String()+"/package/cancel",
+	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+strconv.FormatInt(advertID, 10)+"/package/cancel",
 		`{"reason":"test"}`, adminAuth)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("cancel=%d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = env.do(http.MethodGet, "/api/v1/admin/adverts/"+advertID.String()+"/package", "", adminAuth)
+	rec = env.do(http.MethodGet, "/api/v1/admin/adverts/"+strconv.FormatInt(advertID, 10)+"/package", "", adminAuth)
 	assertError(t, rec, http.StatusNotFound, generated.DomainErrorCodeNOTFOUND)
 }
 

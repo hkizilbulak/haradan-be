@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"strconv"
 	"context"
 	"encoding/json"
 	"io"
@@ -152,7 +153,7 @@ func (env *moderationTestEnv) seedPending(ownerID uuid.UUID) domainadvert.Advert
 	addr := "Ataköy Mah. No:1"
 	now := time.Now().UTC()
 	a := domainadvert.Advert{
-		ID: uuid.New(), OwnerUserID: ownerID,
+		ID: int64(101), OwnerUserID: ownerID,
 		CategoryID: &env.category, DistrictID: &env.district,
 		Title: &title, Description: &desc, Address: &addr,
 		Price:      &domainadvert.Money{AmountMinor: 100000, Currency: "TRY"},
@@ -248,7 +249,7 @@ func TestAdminModerationHappyPathHTTP(t *testing.T) {
 		t.Fatalf("media=%#v", queue.Items[0].Media)
 	}
 
-	rec = env.do(http.MethodGet, "/api/v1/admin/adverts/"+pending.ID.String(), "", adminAuth)
+	rec = env.do(http.MethodGet, "/api/v1/admin/adverts/"+strconv.FormatInt(pending.ID, 10), "", adminAuth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("detail=%d %s", rec.Code, rec.Body.String())
 	}
@@ -264,7 +265,7 @@ func TestAdminModerationHappyPathHTTP(t *testing.T) {
 		}
 	}
 
-	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+pending.ID.String()+"/approve",
+	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+strconv.FormatInt(pending.ID, 10)+"/approve",
 		`{"expectedVersion":1}`, adminAuth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("approve=%d %s", rec.Code, rec.Body.String())
@@ -278,7 +279,7 @@ func TestAdminModerationHappyPathHTTP(t *testing.T) {
 		t.Fatalf("history=%+v", detail.StatusHistory)
 	}
 
-	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+pending.ID.String()+"/suspend",
+	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+strconv.FormatInt(pending.ID, 10)+"/suspend",
 		`{"expectedVersion":2,"reason":"Şikayet"}`, adminAuth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("suspend=%d %s", rec.Code, rec.Body.String())
@@ -295,40 +296,40 @@ func TestAdminModerationActionsHTTP(t *testing.T) {
 	_, ownerID, _ := env.registerLogin(t, "owner-actions@example.com", "PUBLIC_WEB")
 
 	changes := env.seedPending(ownerID)
-	rec := env.do(http.MethodPost, "/api/v1/admin/adverts/"+changes.ID.String()+"/request-changes",
+	rec := env.do(http.MethodPost, "/api/v1/admin/adverts/"+strconv.FormatInt(changes.ID, 10)+"/request-changes",
 		`{"expectedVersion":1,"reason":"Düzelt"}`, adminAuth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("request-changes=%d %s", rec.Code, rec.Body.String())
 	}
 
 	reject := env.seedPending(ownerID)
-	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+reject.ID.String()+"/reject",
+	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+strconv.FormatInt(reject.ID, 10)+"/reject",
 		`{"expectedVersion":1,"reason":"Ret"}`, adminAuth)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("reject=%d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+reject.ID.String()+"/reject",
+	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+strconv.FormatInt(reject.ID, 10)+"/reject",
 		`{"expectedVersion":2,"reason":" "}`, adminAuth)
 	assertError(t, rec, http.StatusUnprocessableEntity, generated.DomainErrorCodeVALIDATIONERROR)
 
-	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+reject.ID.String()+"/approve",
+	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+strconv.FormatInt(reject.ID, 10)+"/approve",
 		`{"expectedVersion":2}`, adminAuth)
 	assertError(t, rec, http.StatusConflict, generated.DomainErrorCodeINVALIDSTATE)
 
-	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+changes.ID.String()+"/approve",
+	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+strconv.FormatInt(changes.ID, 10)+"/approve",
 		`{"expectedVersion":99}`, adminAuth)
 	assertError(t, rec, http.StatusConflict, generated.DomainErrorCodeSTALEVERSION)
 
-	rec = env.do(http.MethodGet, "/api/v1/admin/adverts/"+uuid.New().String(), "", adminAuth)
+	rec = env.do(http.MethodGet, "/api/v1/admin/adverts/999999999", "", adminAuth)
 	assertError(t, rec, http.StatusNotFound, generated.DomainErrorCodeNOTFOUND)
 
-	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/not-a-uuid/approve", `{"expectedVersion":1}`, adminAuth)
+	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/not-an-id/approve", `{"expectedVersion":1}`, adminAuth)
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("malformed uuid=%d", rec.Code)
+		t.Fatalf("malformed advert id=%d", rec.Code)
 	}
 
-	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+reject.ID.String()+"/approve", `{`, adminAuth)
+	rec = env.do(http.MethodPost, "/api/v1/admin/adverts/"+strconv.FormatInt(reject.ID, 10)+"/approve", `{`, adminAuth)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("malformed body=%d", rec.Code)
 	}
@@ -344,8 +345,8 @@ func TestAdminModerationOpsNoLonger501HTTP(t *testing.T) {
 		method, path, body string
 	}{
 		{http.MethodGet, "/api/v1/admin/adverts/moderation", ""},
-		{http.MethodGet, "/api/v1/admin/adverts/" + pending.ID.String(), ""},
-		{http.MethodPost, "/api/v1/admin/adverts/" + pending.ID.String() + "/approve", `{"expectedVersion":1}`},
+		{http.MethodGet, "/api/v1/admin/adverts/" + strconv.FormatInt(pending.ID, 10), ""},
+		{http.MethodPost, "/api/v1/admin/adverts/" + strconv.FormatInt(pending.ID, 10) + "/approve", `{"expectedVersion":1}`},
 	}
 	for _, tc := range cases {
 		rec := env.do(tc.method, tc.path, tc.body, adminAuth)

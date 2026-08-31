@@ -12,7 +12,7 @@ import (
 // AdvertSnapshot is the advert projection needed to decide list availability and
 // to build a PublishedAdvertCard without inventing public media URLs.
 type AdvertSnapshot struct {
-	ID               uuid.UUID
+	ID               int64
 	Status           string
 	DeletedAt        *time.Time
 	Title            *string
@@ -35,7 +35,7 @@ type ListRow struct {
 type Repository interface {
 	// FindAdvertForFavoriteLookup returns an advert by id for add-time
 	// visibility checks. Missing rows are NotFound.
-	FindAdvertForFavoriteLookup(ctx context.Context, advertID uuid.UUID) (AdvertSnapshot, error)
+	FindAdvertForFavoriteLookup(ctx context.Context, advertID int64) (AdvertSnapshot, error)
 
 	// InsertFavorite inserts a relation. Duplicate (user,advert) must be reported
 	// as ErrDuplicateFavorite so the application can treat it as idempotent success.
@@ -43,7 +43,7 @@ type Repository interface {
 
 	// DeleteFavorite removes the relation for the owning user. Missing rows are
 	// not an error (idempotent remove).
-	DeleteFavorite(ctx context.Context, userID, advertID uuid.UUID) error
+	DeleteFavorite(ctx context.Context, userID uuid.UUID, advertID int64) error
 
 	// ListFavoritesByUser returns favorites for one user in created_at DESC, id
 	// DESC order, optionally after a keyset cursor, limited to limit rows.

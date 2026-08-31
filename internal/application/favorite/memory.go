@@ -2,6 +2,7 @@ package favorite
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -16,7 +17,7 @@ import (
 type MemoryStore struct {
 	mu        sync.Mutex
 	favorites map[uuid.UUID]domainfavorite.Favorite
-	adverts   map[uuid.UUID]AdvertSnapshot
+	adverts   map[int64]AdvertSnapshot
 	byPair    map[string]uuid.UUID
 }
 
@@ -24,7 +25,7 @@ type MemoryStore struct {
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		favorites: map[uuid.UUID]domainfavorite.Favorite{},
-		adverts:   map[uuid.UUID]AdvertSnapshot{},
+		adverts:   map[int64]AdvertSnapshot{},
 		byPair:    map[string]uuid.UUID{},
 	}
 }
@@ -47,8 +48,8 @@ func (s *MemoryStore) Favorites() []domainfavorite.Favorite {
 	return out
 }
 
-func pairKey(userID, advertID uuid.UUID) string {
-	return userID.String() + "|" + advertID.String()
+func pairKey(userID uuid.UUID, advertID int64) string {
+	return userID.String() + "|" + fmt.Sprintf("%d", advertID)
 }
 
 // MemoryRepository implements Repository against MemoryStore.
@@ -66,7 +67,7 @@ func NewMemoryService(store *MemoryStore, clock Clock) (*Service, error) {
 	return NewService(Config{Repo: NewMemoryRepository(store), Clock: clock})
 }
 
-func (r MemoryRepository) FindAdvertForFavoriteLookup(_ context.Context, advertID uuid.UUID) (AdvertSnapshot, error) {
+func (r MemoryRepository) FindAdvertForFavoriteLookup(_ context.Context, advertID int64) (AdvertSnapshot, error) {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 	a, ok := r.store.adverts[advertID]
@@ -88,7 +89,7 @@ func (r MemoryRepository) InsertFavorite(_ context.Context, fav domainfavorite.F
 	return nil
 }
 
-func (r MemoryRepository) DeleteFavorite(_ context.Context, userID, advertID uuid.UUID) error {
+func (r MemoryRepository) DeleteFavorite(_ context.Context, userID uuid.UUID, advertID int64) error {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 	key := pairKey(userID, advertID)

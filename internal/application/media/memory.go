@@ -32,7 +32,7 @@ const memoryStateChangedMessage = "Görsel durumu değişti; tekrar deneyin."
 // MemoryAdvert is the advert state the media store needs to answer ownership,
 // status and media version questions.
 type MemoryAdvert struct {
-	ID           uuid.UUID
+	ID           int64
 	OwnerUserID  uuid.UUID
 	Status       string
 	MediaVersion int
@@ -54,8 +54,8 @@ type MemoryStore struct {
 
 	assets    map[uuid.UUID]domainmedia.Asset
 	variants  map[uuid.UUID]map[string]domainmedia.Variant
-	relations map[uuid.UUID][]domainmedia.AdvertMediaRelation
-	adverts   map[uuid.UUID]MemoryAdvert
+	relations map[int64][]domainmedia.AdvertMediaRelation
+	adverts   map[int64]MemoryAdvert
 	banners   map[uuid.UUID]MemoryBanner
 	jobs      []domainmedia.BackgroundJob
 	dedup     map[string]struct{}
@@ -66,8 +66,8 @@ func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		assets:    map[uuid.UUID]domainmedia.Asset{},
 		variants:  map[uuid.UUID]map[string]domainmedia.Variant{},
-		relations: map[uuid.UUID][]domainmedia.AdvertMediaRelation{},
-		adverts:   map[uuid.UUID]MemoryAdvert{},
+		relations: map[int64][]domainmedia.AdvertMediaRelation{},
+		adverts:   map[int64]MemoryAdvert{},
 		banners:   map[uuid.UUID]MemoryBanner{},
 		dedup:     map[string]struct{}{},
 	}
@@ -96,7 +96,7 @@ func (s *MemoryStore) PutAdvert(a MemoryAdvert) {
 }
 
 // Advert returns a seeded advert.
-func (s *MemoryStore) Advert(id uuid.UUID) (MemoryAdvert, bool) {
+func (s *MemoryStore) Advert(id int64) (MemoryAdvert, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a, ok := s.adverts[id]
@@ -143,13 +143,13 @@ func (s *MemoryStore) variantsLocked(assetID uuid.UUID) []domainmedia.Variant {
 }
 
 // Relations returns an advert's media relations ordered by display order.
-func (s *MemoryStore) Relations(advertID uuid.UUID) []domainmedia.AdvertMediaRelation {
+func (s *MemoryStore) Relations(advertID int64) []domainmedia.AdvertMediaRelation {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.relationsLocked(advertID)
 }
 
-func (s *MemoryStore) relationsLocked(advertID uuid.UUID) []domainmedia.AdvertMediaRelation {
+func (s *MemoryStore) relationsLocked(advertID int64) []domainmedia.AdvertMediaRelation {
 	out := append([]domainmedia.AdvertMediaRelation(nil), s.relations[advertID]...)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].DisplayOrder < out[j].DisplayOrder })
 	return out
@@ -446,7 +446,7 @@ func (r MemoryRepository) MarkVariantFailed(
 }
 
 // ListAdvertMediaByAdvert returns the relations joined with asset lifecycle.
-func (r MemoryRepository) ListAdvertMediaByAdvert(_ context.Context, advertID uuid.UUID) ([]RelationRow, error) {
+func (r MemoryRepository) ListAdvertMediaByAdvert(_ context.Context, advertID int64) ([]RelationRow, error) {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 	relations := r.store.relationsLocked(advertID)
@@ -462,7 +462,7 @@ func (r MemoryRepository) ListAdvertMediaByAdvert(_ context.Context, advertID uu
 }
 
 // CountAdvertMediaByAdvert counts the relations of one advert.
-func (r MemoryRepository) CountAdvertMediaByAdvert(_ context.Context, advertID uuid.UUID) (int, error) {
+func (r MemoryRepository) CountAdvertMediaByAdvert(_ context.Context, advertID int64) (int, error) {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 	return len(r.store.relations[advertID]), nil
@@ -527,7 +527,7 @@ func (r MemoryRepository) AttachAdvertMedia(_ context.Context, rel domainmedia.A
 }
 
 // DetachAdvertMedia removes a relation and reports whether it was the cover.
-func (r MemoryRepository) DetachAdvertMedia(_ context.Context, advertID, assetID uuid.UUID) (bool, bool, error) {
+func (r MemoryRepository) DetachAdvertMedia(_ context.Context, advertID int64, assetID uuid.UUID) (bool, bool, error) {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 	relations := r.store.relations[advertID]
@@ -544,7 +544,7 @@ func (r MemoryRepository) DetachAdvertMedia(_ context.Context, advertID, assetID
 // UpdateAdvertMediaDisplayOrder rewrites one relation's display order.
 func (r MemoryRepository) UpdateAdvertMediaDisplayOrder(
 	_ context.Context,
-	advertID, assetID uuid.UUID,
+	advertID int64, assetID uuid.UUID,
 	displayOrder int,
 	now time.Time,
 ) error {
@@ -570,7 +570,7 @@ func (r MemoryRepository) UpdateAdvertMediaDisplayOrder(
 }
 
 // ClearAdvertCover unsets the cover flag on every relation of one advert.
-func (r MemoryRepository) ClearAdvertCover(_ context.Context, advertID uuid.UUID, now time.Time) error {
+func (r MemoryRepository) ClearAdvertCover(_ context.Context, advertID int64, now time.Time) error {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 	relations := r.store.relations[advertID]
@@ -584,7 +584,7 @@ func (r MemoryRepository) ClearAdvertCover(_ context.Context, advertID uuid.UUID
 }
 
 // SetAdvertCover flags one relation as the cover.
-func (r MemoryRepository) SetAdvertCover(_ context.Context, advertID, assetID uuid.UUID, now time.Time) error {
+func (r MemoryRepository) SetAdvertCover(_ context.Context, advertID int64, assetID uuid.UUID, now time.Time) error {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 	relations := r.store.relations[advertID]
@@ -607,7 +607,7 @@ func (r MemoryRepository) SetAdvertCover(_ context.Context, advertID, assetID uu
 }
 
 // FindOwnerAdvertForUpdate returns the owner-scoped advert media slice.
-func (r MemoryRepository) FindOwnerAdvertForUpdate(_ context.Context, ownerID, advertID uuid.UUID) (AdvertRef, error) {
+func (r MemoryRepository) FindOwnerAdvertForUpdate(_ context.Context, ownerID uuid.UUID, advertID int64) (AdvertRef, error) {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 	a, ok := r.store.adverts[advertID]
@@ -620,7 +620,7 @@ func (r MemoryRepository) FindOwnerAdvertForUpdate(_ context.Context, ownerID, a
 // BumpAdvertMediaVersion increments media_version under an optimistic guard.
 func (r MemoryRepository) BumpAdvertMediaVersion(
 	_ context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	expectedMediaVersion int,
 	now time.Time,
 ) (int, error) {

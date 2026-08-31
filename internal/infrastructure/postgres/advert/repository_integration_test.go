@@ -79,7 +79,6 @@ VALUES ($1, $2, $3, $4, true, 1, $5, $5)`,
 
 func newDraft(ownerID uuid.UUID, now time.Time) domainadvert.Advert {
 	return domainadvert.Advert{
-		ID:           uuid.New(),
 		OwnerUserID:  ownerID,
 		Status:       domainadvert.StatusDraft,
 		Properties:   domainadvert.EmptyProperties(),
@@ -99,11 +98,11 @@ func TestRepositoryAdvertLifecycleIntegration(t *testing.T) {
 	repo := pgadvert.NewRepository(nil).WithTx(tx)
 
 	draft := newDraft(ref.owner, now)
-	if err := repo.Create(ctx, draft); err != nil {
+	if err := repo.Create(ctx, &draft); err != nil {
 		t.Fatalf("create advert: %v", err)
 	}
 	if err := repo.InsertHistory(ctx, domainadvert.StatusHistory{
-		ID:          uuid.New(),
+		ID: uuid.New(),
 		AdvertID:    draft.ID,
 		ToStatus:    domainadvert.StatusDraft,
 		ActorUserID: &ref.owner,
@@ -200,7 +199,7 @@ func TestRepositoryAdvertLifecycleIntegration(t *testing.T) {
 		t.Fatalf("pending=%+v", pending)
 	}
 	if err := repo.InsertHistory(ctx, domainadvert.StatusHistory{
-		ID:          uuid.New(),
+		ID: uuid.New(),
 		AdvertID:    draft.ID,
 		FromStatus:  statusPtr(domainadvert.StatusDraft),
 		ToStatus:    domainadvert.StatusPendingReview,
@@ -245,7 +244,7 @@ func TestRepositoryListByOwnerOrderAndSoftDeleteIntegration(t *testing.T) {
 	newest := newDraft(ref.owner, now)
 	foreign := newDraft(ref.stranger, now)
 	for _, a := range []domainadvert.Advert{oldest, middle, newest, foreign} {
-		if err := repo.Create(ctx, a); err != nil {
+		if err := repo.Create(ctx, &a); err != nil {
 			t.Fatalf("create advert: %v", err)
 		}
 	}
@@ -324,13 +323,13 @@ func TestRepositoryAdvertModerationIntegration(t *testing.T) {
 	title := "Moderasyon"
 	desc := "Açıklama"
 	pending := domainadvert.Advert{
-		ID: uuid.New(), OwnerUserID: ref.owner,
+		OwnerUserID: ref.owner,
 		CategoryID: &ref.category, DistrictID: &ref.district,
 		Title: &title, Description: &desc,
 		Status: domainadvert.StatusPendingReview, Properties: domainadvert.EmptyProperties(),
 		Version: 1, MediaVersion: 1, CreatedAt: now, UpdatedAt: now,
 	}
-	if err := repo.Create(ctx, pending); err != nil {
+	if err := repo.Create(ctx, &pending); err != nil {
 		t.Fatalf("create pending: %v", err)
 	}
 
@@ -399,7 +398,7 @@ func TestRepositoryAdvertModerationIntegration(t *testing.T) {
 	}
 
 	draft := newDraft(ref.owner, publishedAt.Add(2*time.Minute))
-	if err := repo.Create(ctx, draft); err != nil {
+	if err := repo.Create(ctx, &draft); err != nil {
 		t.Fatalf("create draft: %v", err)
 	}
 	deletedAt := publishedAt.Add(3 * time.Minute)

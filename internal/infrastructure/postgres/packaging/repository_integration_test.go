@@ -139,12 +139,12 @@ VALUES ($1, $2, $3, $4, true, 1, $5, $5)`,
 	title := "Paket test ilanı"
 	desc := "Paket test açıklaması"
 	advert := domainadvert.Advert{
-		ID: uuid.New(), OwnerUserID: ownerID, Status: domainadvert.StatusPublished,
+		 OwnerUserID: ownerID, Status: domainadvert.StatusPublished,
 		CategoryID: &categoryID, DistrictID: &districtID, Title: &title, Description: &desc,
 		Properties: domainadvert.EmptyProperties(), Version: 1, MediaVersion: 1,
 		PublishedAt: &now, CreatedAt: now, UpdatedAt: now,
 	}
-	if err := adverts.Create(ctx, advert); err != nil {
+	if err := adverts.Create(ctx, &advert); err != nil {
 		t.Fatalf("create advert: %v", err)
 	}
 	t.Cleanup(func() {

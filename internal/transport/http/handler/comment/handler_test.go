@@ -37,7 +37,7 @@ func fakeResponder(c *gin.Context, _ *slog.Logger, err error) {
 func TestDeleteAdvertComment_Handler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := appcomment.NewMemoryRepository()
-	advertID := uuid.New()
+	advertID := int64(101)
 	userID := uuid.New()
 
 	repo.AddAdvert(appcomment.AdvertStatusResult{

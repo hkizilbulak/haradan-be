@@ -36,7 +36,7 @@ func TestProcessExpiryScanUsesReferenceDateForTargetDayOnly(t *testing.T) {
 		domainnotification.TemplateEventTypePackageExpiry1Day,
 	} {
 		store.PutTemplate(domainnotification.NotificationTemplate{
-			ID: uuid.New(), EventType: et, Name: string(et),
+		ID: uuid.New(), EventType: et, Name: string(et),
 			InAppTitleTemplate: "{{.advertTitle}}", InAppBodyTemplate: "{{.advertTitle}}",
 			IsActive: true, Version: 1,
 		})
@@ -44,7 +44,7 @@ func TestProcessExpiryScanUsesReferenceDateForTargetDayOnly(t *testing.T) {
 
 	// Ends later on 2026-08-10 Istanbul (still after real clock) → 5D target for logical 2026-08-05.
 	ends5D := time.Date(2026, 8, 10, 20, 0, 0, 0, loc).UTC()
-	advert5 := uuid.New()
+	advert5 := int64(102)
 	asg5 := uuid.New()
 	store.PutAdvert(appnotification.AdvertSnapshot{ID: advert5, OwnerUserID: ownerID, Title: "FiveDay", Status: "PUBLISHED"})
 	store.PutAssignment(domainpackaging.AdvertPackageAssignment{
@@ -54,7 +54,7 @@ func TestProcessExpiryScanUsesReferenceDateForTargetDayOnly(t *testing.T) {
 
 	// Already past real clock → must still expire via ExpireDueAssignments (real now).
 	pastEnds := now.Add(-time.Hour)
-	advertPast := uuid.New()
+	advertPast := int64(103)
 	asgPast := uuid.New()
 	store.PutAdvert(appnotification.AdvertSnapshot{ID: advertPast, OwnerUserID: ownerID, Title: "Past", Status: "PUBLISHED"})
 	store.PutAssignment(domainpackaging.AdvertPackageAssignment{
@@ -64,7 +64,7 @@ func TestProcessExpiryScanUsesReferenceDateForTargetDayOnly(t *testing.T) {
 
 	// Future relative to real clock and not on referenceDate target days → no reminder.
 	futureEnds := time.Date(2026, 9, 1, 12, 0, 0, 0, loc).UTC()
-	advertFuture := uuid.New()
+	advertFuture := int64(104)
 	asgFuture := uuid.New()
 	store.PutAdvert(appnotification.AdvertSnapshot{ID: advertFuture, OwnerUserID: ownerID, Title: "Future", Status: "PUBLISHED"})
 	store.PutAssignment(domainpackaging.AdvertPackageAssignment{
@@ -133,7 +133,7 @@ func TestProcessExpiryScanContinuationPreservesReferenceDate(t *testing.T) {
 	ends5D := time.Date(2026, 8, 10, 15, 0, 0, 0, loc).UTC()
 	ids := make([]uuid.UUID, 0, 3)
 	for i := 0; i < 3; i++ {
-		advertID := uuid.New()
+		advertID := int64(101)
 		asgID := uuid.New()
 		ids = append(ids, asgID)
 		store.PutAdvert(appnotification.AdvertSnapshot{ID: advertID, OwnerUserID: ownerID, Title: "A", Status: "PUBLISHED"})

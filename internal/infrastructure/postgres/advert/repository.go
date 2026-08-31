@@ -61,22 +61,22 @@ func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 	return tx, nil
 }
 
-// Create inserts a new advert row.
-func (r *Repository) Create(ctx context.Context, a domainadvert.Advert) error {
+// Create inserts a new advert row and assigns the generated id on a.
+func (r *Repository) Create(ctx context.Context, a *domainadvert.Advert) error {
 	const q = `
 INSERT INTO hrd_adverts (
-  id, owner_user_id, category_id, district_id, horse_id, title, description, address,
+  owner_user_id, category_id, district_id, horse_id, title, description, address,
   price_amount_minor, price_currency, status, properties, published_at, sold_at, version, media_version,
   deleted_at, created_at, updated_at
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18,$19
-)`
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18
+) RETURNING id`
 	amount, currency := splitMoney(a.Price)
-	_, err := r.db.Exec(ctx, q,
-		a.ID, a.OwnerUserID, a.CategoryID, a.DistrictID, a.HorseID, a.Title, a.Description, a.Address,
+	err := r.db.QueryRow(ctx, q,
+		a.OwnerUserID, a.CategoryID, a.DistrictID, a.HorseID, a.Title, a.Description, a.Address,
 		amount, currency, string(a.Status), propertiesOrEmpty(a.Properties), a.PublishedAt, a.SoldAt,
 		a.Version, a.MediaVersion, a.DeletedAt, a.CreatedAt, a.UpdatedAt,
-	)
+	).Scan(&a.ID)
 	if err != nil {
 		return apperr.Internal(fmt.Errorf("create advert: %w", pg.SanitizeErr(err)))
 	}
@@ -107,25 +107,25 @@ INSERT INTO hrd_advert_status_history (
 
 // FindByIDForOwner returns an owner-scoped advert. A foreign advert is reported
 // as NOT_FOUND so ownership cannot be probed.
-func (r *Repository) FindByIDForOwner(ctx context.Context, ownerID, advertID uuid.UUID) (domainadvert.Advert, error) {
+func (r *Repository) FindByIDForOwner(ctx context.Context, ownerID uuid.UUID, advertID int64) (domainadvert.Advert, error) {
 	const q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE id = $1 AND owner_user_id = $2`
 	return r.queryOne(ctx, "find advert for owner", q, advertID, ownerID)
 }
 
 // FindByIDForOwnerForUpdate locks an owner-scoped advert row.
-func (r *Repository) FindByIDForOwnerForUpdate(ctx context.Context, ownerID, advertID uuid.UUID) (domainadvert.Advert, error) {
+func (r *Repository) FindByIDForOwnerForUpdate(ctx context.Context, ownerID uuid.UUID, advertID int64) (domainadvert.Advert, error) {
 	const q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE id = $1 AND owner_user_id = $2 FOR UPDATE`
 	return r.queryOne(ctx, "find advert for owner for update", q, advertID, ownerID)
 }
 
 // FindByID returns a non-deleted advert by id (admin scope).
-func (r *Repository) FindByID(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error) {
+func (r *Repository) FindByID(ctx context.Context, advertID int64) (domainadvert.Advert, error) {
 	const q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE id = $1 AND deleted_at IS NULL`
 	return r.queryOne(ctx, "find advert by id", q, advertID)
 }
 
 // FindByIDForUpdate locks a non-deleted advert by id for admin transitions.
-func (r *Repository) FindByIDForUpdate(ctx context.Context, advertID uuid.UUID) (domainadvert.Advert, error) {
+func (r *Repository) FindByIDForUpdate(ctx context.Context, advertID int64) (domainadvert.Advert, error) {
 	const q = `SELECT ` + advertColumns + ` FROM hrd_adverts WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`
 	return r.queryOne(ctx, "find advert by id for update", q, advertID)
 }
@@ -135,7 +135,7 @@ func (r *Repository) ListForModeration(
 	ctx context.Context,
 	status *domainadvert.Status,
 	afterCreated *time.Time,
-	afterID *uuid.UUID,
+	afterID *int64,
 	limit int,
 ) ([]domainadvert.Advert, error) {
 	var (
@@ -181,7 +181,7 @@ func (r *Repository) ListForModeration(
 }
 
 // ListStatusHistory returns status history for one advert, oldest first.
-func (r *Repository) ListStatusHistory(ctx context.Context, advertID uuid.UUID) ([]domainadvert.StatusHistory, error) {
+func (r *Repository) ListStatusHistory(ctx context.Context, advertID int64) ([]domainadvert.StatusHistory, error) {
 	const q = `
 SELECT id, advert_id, from_status, to_status, actor_user_id, is_system, reason, created_at
 FROM hrd_advert_status_history
@@ -220,8 +220,8 @@ ORDER BY created_at ASC, id ASC`
 }
 
 // ListMediaRelations returns advert/media links with asset lifecycle for owner views.
-func (r *Repository) ListMediaRelations(ctx context.Context, advertIDs []uuid.UUID) (map[uuid.UUID][]domainadvert.MediaRelation, error) {
-	out := make(map[uuid.UUID][]domainadvert.MediaRelation, len(advertIDs))
+func (r *Repository) ListMediaRelations(ctx context.Context, advertIDs []int64) (map[int64][]domainadvert.MediaRelation, error) {
+	out := make(map[int64][]domainadvert.MediaRelation, len(advertIDs))
 	if len(advertIDs) == 0 {
 		return out, nil
 	}
@@ -236,7 +236,7 @@ ORDER BY am.advert_id, am.display_order, am.asset_id`, advertIDs)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var advertID uuid.UUID
+		var advertID int64
 		var rel domainadvert.MediaRelation
 		if err := rows.Scan(&advertID, &rel.AssetID, &rel.DisplayOrder, &rel.IsCover, &rel.LifecycleStatus); err != nil {
 			return nil, apperr.Internal(fmt.Errorf("scan owner advert media: %w", pg.SanitizeErr(err)))
@@ -255,7 +255,7 @@ func (r *Repository) ListByOwner(
 	ownerID uuid.UUID,
 	status *domainadvert.Status,
 	afterCreated *time.Time,
-	afterID *uuid.UUID,
+	afterID *int64,
 	limit int,
 ) ([]domainadvert.Advert, error) {
 	const q = `
@@ -300,7 +300,7 @@ LIMIT $5`
 // guard. Callers hold the row lock, so zero rows means the guard lost a race.
 func (r *Repository) UpdateDetails(
 	ctx context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	patch domainadvert.DetailsPatch,
 	expectedVersion int,
 	now time.Time,
@@ -341,7 +341,7 @@ RETURNING ` + advertColumns
 // UpdateCategoryClearProperties sets the category and resets properties to {}.
 func (r *Repository) UpdateCategoryClearProperties(
 	ctx context.Context,
-	ownerID, advertID, categoryID uuid.UUID,
+	ownerID uuid.UUID, advertID int64, categoryID uuid.UUID,
 	expectedVersion int,
 	now time.Time,
 ) (domainadvert.Advert, error) {
@@ -364,7 +364,7 @@ RETURNING ` + advertColumns
 // ReplaceProperties overwrites the dynamic property object.
 func (r *Repository) ReplaceProperties(
 	ctx context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	properties json.RawMessage,
 	expectedVersion int,
 	now time.Time,
@@ -388,7 +388,7 @@ RETURNING ` + advertColumns
 // SoftDeleteDraft stamps deleted_at on a DRAFT advert.
 func (r *Repository) SoftDeleteDraft(
 	ctx context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	expectedVersion int,
 	now time.Time,
 ) (domainadvert.Advert, error) {
@@ -412,7 +412,7 @@ RETURNING ` + advertColumns
 // sold_at is stamped automatically when transitioning to SOLD.
 func (r *Repository) TransitionStatus(
 	ctx context.Context,
-	ownerID, advertID uuid.UUID,
+	ownerID uuid.UUID, advertID int64,
 	from, to domainadvert.Status,
 	expectedVersion int,
 	publishedAt *time.Time,
@@ -478,7 +478,7 @@ LIMIT $2`
 // (no owner filter). Used by background jobs such as auto-archive.
 func (r *Repository) SystemTransitionStatus(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	from, to domainadvert.Status,
 	expectedVersion int,
 	now time.Time,

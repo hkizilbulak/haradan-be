@@ -13,13 +13,13 @@ import (
 
 // AdvertNotificationEmitter is the narrow port advert moderation uses.
 type AdvertNotificationEmitter interface {
-	OnAdvertPublished(ctx context.Context, tx pgx.Tx, advertID uuid.UUID) error
+	OnAdvertPublished(ctx context.Context, tx pgx.Tx, advertID int64) error
 }
 
 // PackagingNotificationEmitter is the narrow port packaging uses.
 type PackagingNotificationEmitter interface {
-	OnPackageAssignedWhilePublished(ctx context.Context, tx pgx.Tx, advertID, assignmentID uuid.UUID) error
-	OnUrgentActivated(ctx context.Context, tx pgx.Tx, advertID, assignmentID uuid.UUID, activationVersion int) error
+	OnPackageAssignedWhilePublished(ctx context.Context, tx pgx.Tx, advertID int64, assignmentID uuid.UUID) error
+	OnUrgentActivated(ctx context.Context, tx pgx.Tx, advertID int64, assignmentID uuid.UUID, activationVersion int) error
 }
 
 // Emitter implements advert and packaging notification hooks.
@@ -59,7 +59,7 @@ func NewEmitter(cfg EmitterConfig) (*Emitter, error) {
 // the only gate; this method trusts it. Packaging assignment/urgent reads
 // below stay non-tx because those rows were committed in an earlier,
 // unrelated transaction (they pre-exist relative to this publish).
-func (e *Emitter) OnAdvertPublished(ctx context.Context, tx pgx.Tx, advertID uuid.UUID) error {
+func (e *Emitter) OnAdvertPublished(ctx context.Context, tx pgx.Tx, advertID int64) error {
 	now := e.clock.Now().UTC()
 	if asg, _, ok, err := EffectiveBroadcastAssignment(ctx, e.packages, advertID, now); err != nil {
 		return err
@@ -86,7 +86,7 @@ func (e *Emitter) OnAdvertPublished(ctx context.Context, tx pgx.Tx, advertID uui
 
 // OnPackageAssignedWhilePublished emits when a broadcast-capable package is
 // assigned to a published advert.
-func (e *Emitter) OnPackageAssignedWhilePublished(ctx context.Context, tx pgx.Tx, advertID, assignmentID uuid.UUID) error {
+func (e *Emitter) OnPackageAssignedWhilePublished(ctx context.Context, tx pgx.Tx, advertID int64, assignmentID uuid.UUID) error {
 	advert, err := e.adverts.GetAdvertSnapshot(ctx, advertID)
 	if err != nil {
 		return err
@@ -111,7 +111,7 @@ func (e *Emitter) OnPackageAssignedWhilePublished(ctx context.Context, tx pgx.Tx
 }
 
 // OnUrgentActivated emits when URGENT is activated on a published advert.
-func (e *Emitter) OnUrgentActivated(ctx context.Context, tx pgx.Tx, advertID, assignmentID uuid.UUID, activationVersion int) error {
+func (e *Emitter) OnUrgentActivated(ctx context.Context, tx pgx.Tx, advertID int64, assignmentID uuid.UUID, activationVersion int) error {
 	advert, err := e.adverts.GetAdvertSnapshot(ctx, advertID)
 	if err != nil {
 		return err

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -227,7 +228,7 @@ func (s *Service) GetHomepageBootstrap(ctx context.Context, limit *int, actorUse
 	return out, nil
 }
 
-func (s *Service) GetPublishedAdvertDetail(ctx context.Context, advertID uuid.UUID, actorUserID *uuid.UUID, clientIP string) (PublicDetail, error) {
+func (s *Service) GetPublishedAdvertDetail(ctx context.Context, advertID int64, actorUserID *uuid.UUID, clientIP string) (PublicDetail, error) {
 	if s.public == nil {
 		return PublicDetail{}, apperr.Internal(fmt.Errorf("public advert repository is not configured"))
 	}
@@ -277,8 +278,8 @@ func homepagePage(rows []PublicCard, limit int) PublicSearchResult {
 	return out
 }
 
-func encodePublicCursor(priority int, publishedAt time.Time, id uuid.UUID) string {
-	raw := fmt.Sprintf("%d|%s|%s", priority, publishedAt.UTC().Format(time.RFC3339Nano), id)
+func encodePublicCursor(priority int, publishedAt time.Time, id int64) string {
+	raw := fmt.Sprintf("%d|%s|%d", priority, publishedAt.UTC().Format(time.RFC3339Nano), id)
 	return base64.RawURLEncoding.EncodeToString([]byte(raw))
 }
 
@@ -299,15 +300,15 @@ func decodePublicCursor(v string) (*PublicCursor, error) {
 	if err != nil {
 		return nil, err
 	}
-	id, err := uuid.Parse(parts[2])
-	if err != nil || id == uuid.Nil {
+	id, err := strconv.ParseInt(parts[2], 10, 64)
+	if err != nil || id <= 0 {
 		return nil, fmt.Errorf("invalid cursor id")
 	}
 	return &PublicCursor{Priority: priority, PublishedAt: publishedAt, ID: id}, nil
 }
 
-func encodeHomepageCursor(publishedAt time.Time, id uuid.UUID) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(publishedAt.UTC().Format(time.RFC3339Nano) + "|" + id.String()))
+func encodeHomepageCursor(publishedAt time.Time, id int64) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(publishedAt.UTC().Format(time.RFC3339Nano) + "|" + strconv.FormatInt(id, 10)))
 }
 
 func decodeHomepageCursor(v string) (*HomepageCursor, error) {
@@ -323,8 +324,8 @@ func decodeHomepageCursor(v string) (*HomepageCursor, error) {
 	if err != nil {
 		return nil, err
 	}
-	id, err := uuid.Parse(parts[1])
-	if err != nil || id == uuid.Nil {
+	id, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil || id <= 0 {
 		return nil, fmt.Errorf("invalid cursor id")
 	}
 	return &HomepageCursor{PublishedAt: publishedAt, ID: id}, nil

@@ -123,7 +123,7 @@ type Notification struct {
 	ID                  uuid.UUID
 	EventType           EventType
 	EventKey            string
-	AdvertID            *uuid.UUID
+	AdvertID            *int64
 	PackageAssignmentID *uuid.UUID
 	CampaignID          *uuid.UUID
 	TemplateID          *uuid.UUID
@@ -183,13 +183,13 @@ func NonBlankBodyTemplate(body string) bool {
 }
 
 // PackageAdvertPublishedEventKey builds the dedup event key for package publish broadcast.
-func PackageAdvertPublishedEventKey(advertID, assignmentID uuid.UUID) string {
-	return string(TemplateEventTypePackageAdvertPublished) + ":" + advertID.String() + ":" + assignmentID.String()
+func PackageAdvertPublishedEventKey(advertID int64, assignmentID uuid.UUID) string {
+	return string(TemplateEventTypePackageAdvertPublished) + ":" + fmt.Sprintf("%d", advertID) + ":" + assignmentID.String()
 }
 
 // UrgentAdvertActivatedEventKey builds the dedup event key for urgent activation.
-func UrgentAdvertActivatedEventKey(advertID uuid.UUID, activationVersion int) string {
-	return string(TemplateEventTypeUrgentAdvertActivated) + ":" + advertID.String() + ":" + fmt.Sprintf("%d", activationVersion)
+func UrgentAdvertActivatedEventKey(advertID int64, activationVersion int) string {
+	return string(TemplateEventTypeUrgentAdvertActivated) + ":" + fmt.Sprintf("%d", advertID) + ":" + fmt.Sprintf("%d", activationVersion)
 }
 
 // PackageExpiryEventKey builds the dedup event key for package expiry reminders.

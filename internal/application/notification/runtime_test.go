@@ -35,7 +35,7 @@ func TestEventWriterDedupAndInactiveTemplateNoOp(t *testing.T) {
 	now := time.Date(2026, 8, 5, 10, 0, 0, 0, time.UTC)
 	clock := fixedClock{t: now}
 
-	advertID := uuid.New()
+	advertID := int64(101)
 	asgID := uuid.New()
 	pkgID := uuid.New()
 	store.PutAdvert(appnotification.AdvertSnapshot{
@@ -218,7 +218,7 @@ func TestExpireDueAssignmentsDeactivatesUrgent(t *testing.T) {
 	now := time.Date(2026, 8, 5, 10, 0, 0, 0, time.UTC)
 	clock := fixedClock{t: now}
 
-	advertID := uuid.New()
+	advertID := int64(102)
 	asgID := uuid.New()
 	pkgID := uuid.New()
 	ownerID := uuid.New()

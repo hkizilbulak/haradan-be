@@ -128,8 +128,8 @@ func TestLoginNotImplemented(t *testing.T) {
 
 func TestOpenAPIRouteCount(t *testing.T) {
 	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)), fakeDeps{})
-	if got := router.CountOpenAPIRoutes(engine); got != 141 {
-		t.Fatalf("route count=%d, want 141", got)
+	if got := router.CountOpenAPIRoutes(engine); got != 142 {
+		t.Fatalf("route count=%d, want 142", got)
 	}
 }
 
@@ -147,9 +147,9 @@ func TestWrongBasePathsNotFound(t *testing.T) {
 
 func TestDeleteCommentRouteMatch(t *testing.T) {
 	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)), fakeDeps{})
-	advID := uuid.New()
+	advID := int64(1)
 	cmtID := uuid.New()
-	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/v1/adverts/%s/comments/%s", advID, cmtID), nil)
+	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/v1/adverts/%d/comments/%s", advID, cmtID), nil)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotImplemented {

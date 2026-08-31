@@ -59,14 +59,14 @@ func (r pgAssignmentRepo) WithTx(tx pgx.Tx) AssignmentRepository {
 
 func (r pgAssignmentRepo) FindActiveByAdvertID(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 ) (domainpackaging.AdvertPackageAssignment, error) {
 	return r.FindActiveAssignmentByAdvertID(ctx, advertID)
 }
 
 func (r pgAssignmentRepo) FindEffectiveActiveByAdvertID(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	at time.Time,
 ) (domainpackaging.AdvertPackageAssignment, error) {
 	return r.FindEffectiveActiveAssignmentByAdvertID(ctx, advertID, at)
@@ -74,14 +74,14 @@ func (r pgAssignmentRepo) FindEffectiveActiveByAdvertID(
 
 func (r pgAssignmentRepo) LockActiveByAdvertID(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 ) (domainpackaging.AdvertPackageAssignment, error) {
 	return r.LockActiveAssignmentByAdvertID(ctx, advertID)
 }
 
 func (r pgAssignmentRepo) ListHistoryByAdvertID(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	afterAssignedAt *time.Time,
 	afterID *uuid.UUID,
 	limit int,
@@ -114,7 +114,7 @@ func (r pgFeatureRepo) WithTx(tx pgx.Tx) FeatureRepository {
 
 func (r pgFeatureRepo) FindActiveByAdvertIDAndCode(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	code domainpackaging.FeatureCode,
 ) (domainpackaging.AdvertFeatureActivation, error) {
 	return r.FindActiveFeatureByAdvertIDAndCode(ctx, advertID, code)
@@ -122,7 +122,7 @@ func (r pgFeatureRepo) FindActiveByAdvertIDAndCode(
 
 func (r pgFeatureRepo) LockActiveByAdvertIDAndCode(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	code domainpackaging.FeatureCode,
 ) (domainpackaging.AdvertFeatureActivation, error) {
 	return r.LockActiveFeatureByAdvertIDAndCode(ctx, advertID, code)
@@ -134,7 +134,7 @@ func (r pgFeatureRepo) Create(ctx context.Context, a domainpackaging.AdvertFeatu
 
 func (r pgFeatureRepo) DeactivateActive(
 	ctx context.Context,
-	advertID uuid.UUID,
+	advertID int64,
 	code domainpackaging.FeatureCode,
 	deactivatedAt time.Time,
 	reason *string,

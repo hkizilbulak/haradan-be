@@ -31,7 +31,7 @@ func mapAdvert(row pgfavorite.AdvertRow) AdvertSnapshot {
 	}
 }
 
-func (r pgRepo) FindAdvertForFavoriteLookup(ctx context.Context, advertID uuid.UUID) (AdvertSnapshot, error) {
+func (r pgRepo) FindAdvertForFavoriteLookup(ctx context.Context, advertID int64) (AdvertSnapshot, error) {
 	row, err := r.Repository.FindAdvertForFavoriteLookup(ctx, advertID)
 	if err != nil {
 		return AdvertSnapshot{}, err
@@ -47,7 +47,7 @@ func (r pgRepo) InsertFavorite(ctx context.Context, fav domainfavorite.Favorite)
 	return err
 }
 
-func (r pgRepo) DeleteFavorite(ctx context.Context, userID, advertID uuid.UUID) error {
+func (r pgRepo) DeleteFavorite(ctx context.Context, userID uuid.UUID, advertID int64) error {
 	return r.Repository.DeleteFavorite(ctx, userID, advertID)
 }
 
