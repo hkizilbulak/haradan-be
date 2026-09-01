@@ -46,7 +46,7 @@ func (r *Repository) WithTx(tx pgx.Tx) appadminuser.Repository {
 const userColumns = `id, email, email_normalized, password_hash, role, status, email_verified_at,
 first_name, last_name, phone, security_stamp, failed_login_count, locked_until, created_at, updated_at`
 
-func (r *Repository) ListUsers(ctx context.Context, status *domainuser.Status, role *domainuser.Role, query string, afterCreated *time.Time, afterID *uuid.UUID, limit int) ([]domainuser.User, error) {
+func (r *Repository) ListUsers(ctx context.Context, status *domainuser.Status, role *domainuser.Role, query string, afterCreated *time.Time, afterID *uuid.UUID, limit int) ([]domainuser.User, int, error) {
 	const q = `
 SELECT ` + userColumns + `
 FROM hrd_users
@@ -65,23 +65,34 @@ LIMIT $6`
 		v := string(*role)
 		dbRole = &v
 	}
+	var totalCount int
+	countQ := `
+SELECT count(*)
+FROM hrd_users
+WHERE ($1::varchar IS NULL OR status = $1)
+  AND ($2::varchar IS NULL OR role = $2)
+  AND ($3::text = '' OR email ILIKE '%' || $3 || '%' OR first_name ILIKE '%' || $3 || '%' OR last_name ILIKE '%' || $3 || '%')`
+	if err := r.db.QueryRow(ctx, countQ, dbStatus, dbRole, query).Scan(&totalCount); err != nil {
+		return nil, 0, apperr.Internal(fmt.Errorf("count admin users: %w", pg.SanitizeErr(err)))
+	}
+
 	rows, err := r.db.Query(ctx, q, dbStatus, dbRole, query, afterCreated, afterID, limit)
 	if err != nil {
-		return nil, apperr.Internal(fmt.Errorf("list admin users: %w", pg.SanitizeErr(err)))
+		return nil, 0, apperr.Internal(fmt.Errorf("list admin users: %w", pg.SanitizeErr(err)))
 	}
 	defer rows.Close()
 	out := make([]domainuser.User, 0, limit)
 	for rows.Next() {
 		user, err := scanUser(rows)
 		if err != nil {
-			return nil, apperr.Internal(fmt.Errorf("scan admin user: %w", pg.SanitizeErr(err)))
+			return nil, 0, apperr.Internal(fmt.Errorf("scan admin user: %w", pg.SanitizeErr(err)))
 		}
 		out = append(out, user)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, apperr.Internal(fmt.Errorf("list admin users rows: %w", pg.SanitizeErr(err)))
+		return nil, 0, apperr.Internal(fmt.Errorf("list admin users rows: %w", pg.SanitizeErr(err)))
 	}
-	return out, nil
+	return out, totalCount, nil
 }
 
 func (r *Repository) FindUser(ctx context.Context, userID uuid.UUID) (domainuser.User, error) {

@@ -137,7 +137,7 @@ func (r *Repository) ListForModeration(
 	afterCreated *time.Time,
 	afterID *int64,
 	limit int,
-) ([]domainadvert.Advert, error) {
+) ([]domainadvert.Advert, int, error) {
 	var (
 		q    string
 		args []any
@@ -160,9 +160,22 @@ func (r *Repository) ListForModeration(
 		}
 	}
 
+	var totalCount int
+	var countQ string
+	var countArgs []any
+	if status != nil {
+		countQ = `SELECT count(*) FROM hrd_adverts WHERE deleted_at IS NULL AND status = $1`
+		countArgs = []any{string(*status)}
+	} else {
+		countQ = `SELECT count(*) FROM hrd_adverts WHERE deleted_at IS NULL`
+	}
+	if err := r.db.QueryRow(ctx, countQ, countArgs...).Scan(&totalCount); err != nil {
+		return nil, 0, apperr.Internal(fmt.Errorf("count moderation adverts: %w", pg.SanitizeErr(err)))
+	}
+
 	rows, err := r.db.Query(ctx, q, args...)
 	if err != nil {
-		return nil, apperr.Internal(fmt.Errorf("list moderation adverts: %w", pg.SanitizeErr(err)))
+		return nil, 0, apperr.Internal(fmt.Errorf("list moderation adverts: %w", pg.SanitizeErr(err)))
 	}
 	defer rows.Close()
 
@@ -170,14 +183,14 @@ func (r *Repository) ListForModeration(
 	for rows.Next() {
 		a, err := scanAdvert(rows)
 		if err != nil {
-			return nil, apperr.Internal(fmt.Errorf("scan moderation advert: %w", pg.SanitizeErr(err)))
+			return nil, 0, apperr.Internal(fmt.Errorf("scan moderation advert: %w", pg.SanitizeErr(err)))
 		}
 		out = append(out, a)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, apperr.Internal(fmt.Errorf("iterate moderation adverts: %w", pg.SanitizeErr(err)))
+		return nil, 0, apperr.Internal(fmt.Errorf("iterate moderation adverts: %w", pg.SanitizeErr(err)))
 	}
-	return out, nil
+	return out, totalCount, nil
 }
 
 // ListStatusHistory returns status history for one advert, oldest first.

@@ -33,6 +33,7 @@ type ListResult struct {
 	Items      []StudFarmListItem
 	NextCursor *string
 	HasMore    bool
+	TotalCount int
 }
 
 // CreateParam holds data to create a new stud farm.

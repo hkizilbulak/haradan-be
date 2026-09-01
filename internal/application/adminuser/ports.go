@@ -17,7 +17,7 @@ type Repository interface {
 	BeginTx(ctx context.Context) (pgx.Tx, error)
 	WithTx(tx pgx.Tx) Repository
 
-	ListUsers(ctx context.Context, status *domainuser.Status, role *domainuser.Role, query string, afterCreated *time.Time, afterID *uuid.UUID, limit int) ([]domainuser.User, error)
+	ListUsers(ctx context.Context, status *domainuser.Status, role *domainuser.Role, query string, afterCreated *time.Time, afterID *uuid.UUID, limit int) ([]domainuser.User, int, error)
 	FindUser(ctx context.Context, userID uuid.UUID) (domainuser.User, error)
 	FindUserForUpdate(ctx context.Context, userID uuid.UUID) (domainuser.User, error)
 	GetDetail(ctx context.Context, userID uuid.UUID, now time.Time) (Detail, error)

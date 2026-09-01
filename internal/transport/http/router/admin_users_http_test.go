@@ -25,14 +25,30 @@ import (
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/router"
 )
 
-type adminUserHTTPRepo struct{ users []domainuser.User }
+type adminUserHTTPRepo struct {
+	users   []domainuser.User
+	listErr error
+}
 
 func (r *adminUserHTTPRepo) BeginTx(context.Context) (pgx.Tx, error) {
 	return adminHTTPStubTx{}, nil
 }
 func (r *adminUserHTTPRepo) WithTx(pgx.Tx) appadminuser.Repository { return r }
-func (r *adminUserHTTPRepo) ListUsers(_ context.Context, _ *domainuser.Status, _ *domainuser.Role, _ string, _ *time.Time, _ *uuid.UUID, limit int) ([]domainuser.User, error) {
-	return r.users[:minAdminHTTP(limit, len(r.users))], nil
+func (m *adminUserHTTPRepo) ListUsers(_ context.Context, status *domainuser.Status, role *domainuser.Role, _ string, _ *time.Time, _ *uuid.UUID, _ int) ([]domainuser.User, int, error) {
+	if m.listErr != nil {
+		return nil, 0, m.listErr
+	}
+	var out []domainuser.User
+	for _, u := range m.users {
+		if status != nil && *status != u.Status {
+			continue
+		}
+		if role != nil && *role != u.Role {
+			continue
+		}
+		out = append(out, u)
+	}
+	return out, len(out), nil
 }
 func (r *adminUserHTTPRepo) FindUser(_ context.Context, userID uuid.UUID) (domainuser.User, error) {
 	for _, u := range r.users {

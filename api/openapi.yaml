@@ -7346,6 +7346,7 @@ components:
       required:
       - items
       - hasMore
+      - totalCount
       properties:
         items:
           type: array
@@ -7356,6 +7357,8 @@ components:
           nullable: true
         hasMore:
           type: boolean
+        totalCount:
+          type: integer
 
     CreateAdvertCommentRequest:
       type: object
@@ -8701,6 +8704,7 @@ components:
       required:
       - items
       - hasMore
+      - totalCount
       properties:
         items:
           type: array
@@ -8711,6 +8715,8 @@ components:
           nullable: true
         hasMore:
           type: boolean
+        totalCount:
+          type: integer
     AdminUserDetailResponse:
       allOf:
       - "$ref": "#/components/schemas/AdminUserListItem"
@@ -9200,6 +9206,7 @@ components:
       required:
       - items
       - hasMore
+      - totalCount
       properties:
         items:
           type: array
@@ -9210,6 +9217,8 @@ components:
           nullable: true
         hasMore:
           type: boolean
+        totalCount:
+          type: integer
     StatusHistoryItem:
       type: object
       additionalProperties: false

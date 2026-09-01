@@ -217,7 +217,7 @@ func (r MemoryRepository) ListForModeration(
 	afterCreated *time.Time,
 	afterID *int64,
 	limit int,
-) ([]domainadvert.Advert, error) {
+) ([]domainadvert.Advert, int, error) {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 
@@ -228,6 +228,7 @@ func (r MemoryRepository) ListForModeration(
 		}
 		out = append(out, a)
 	}
+	totalCount := len(out)
 	sort.SliceStable(out, func(i, j int) bool {
 		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
 			return out[i].CreatedAt.After(out[j].CreatedAt)
@@ -250,7 +251,7 @@ func (r MemoryRepository) ListForModeration(
 	if limit > 0 && len(out) > limit {
 		out = out[:limit]
 	}
-	return out, nil
+	return out, totalCount, nil
 }
 
 // ListStatusHistory returns history for one advert, oldest first.

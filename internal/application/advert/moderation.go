@@ -57,7 +57,7 @@ func (s *Service) ListAdvertModerationQueue(ctx context.Context, in ModerationLi
 		afterID = &id
 	}
 
-	rows, err := s.repo.ListForModeration(ctx, status, afterCreated, afterID, limit+1)
+	rows, totalCount, err := s.repo.ListForModeration(ctx, status, afterCreated, afterID, limit+1)
 	if err != nil {
 		return ListResult{}, err
 	}
@@ -75,7 +75,7 @@ func (s *Service) ListAdvertModerationQueue(ctx context.Context, in ModerationLi
 		cursor := encodeAdvertCursor(last.CreatedAt, last.ID)
 		next = &cursor
 	}
-	return ListResult{Items: items, NextCursor: next, HasMore: hasMore}, nil
+	return ListResult{Items: items, NextCursor: next, HasMore: hasMore, TotalCount: totalCount}, nil
 }
 
 // GetAdvertModerationDetail implements ADVERT-ADMIN-02.

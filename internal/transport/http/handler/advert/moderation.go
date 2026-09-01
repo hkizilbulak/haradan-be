@@ -42,6 +42,7 @@ func (h *Handler) ListAdvertModerationQueue(c *gin.Context, params generated.Lis
 		Items:      items,
 		NextCursor: out.NextCursor,
 		HasMore:    out.HasMore,
+		TotalCount: out.TotalCount,
 	})
 }
 

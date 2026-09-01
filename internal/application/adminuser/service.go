@@ -99,6 +99,7 @@ type ListResult struct {
 	Items      []domainuser.User
 	NextCursor *string
 	HasMore    bool
+	TotalCount int
 }
 
 type EventListResult struct {
@@ -143,7 +144,7 @@ func (s *Service) ListUsers(ctx context.Context, in ListInput) (ListResult, erro
 	if err != nil {
 		return ListResult{}, err
 	}
-	rows, err := s.repo.ListUsers(ctx, status, role, strings.TrimSpace(deref(in.Query)), created, id, limit+1)
+	rows, totalCount, err := s.repo.ListUsers(ctx, status, role, strings.TrimSpace(deref(in.Query)), created, id, limit+1)
 	if err != nil {
 		return ListResult{}, err
 	}
@@ -151,7 +152,7 @@ func (s *Service) ListUsers(ctx context.Context, in ListInput) (ListResult, erro
 	if hasMore {
 		rows = rows[:limit]
 	}
-	result := ListResult{Items: rows, HasMore: hasMore}
+	result := ListResult{Items: rows, HasMore: hasMore, TotalCount: totalCount}
 	if hasMore && len(rows) != 0 {
 		cursor := encodeCursor(rows[len(rows)-1].CreatedAt, rows[len(rows)-1].ID)
 		result.NextCursor = &cursor

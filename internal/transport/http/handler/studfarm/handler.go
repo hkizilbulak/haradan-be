@@ -71,6 +71,7 @@ func (h *Handler) ListStudFarms(c *gin.Context, params generated.ListStudFarmsPa
 		Items:      items,
 		NextCursor: result.NextCursor,
 		HasMore:    result.HasMore,
+		TotalCount: result.TotalCount,
 	})
 }
 

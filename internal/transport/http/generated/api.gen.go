@@ -895,6 +895,7 @@ type AdminUserListResponse struct {
 	HasMore    bool                `json:"hasMore"`
 	Items      []AdminUserListItem `json:"items"`
 	NextCursor *string             `json:"nextCursor,omitempty"`
+	TotalCount int                 `json:"totalCount"`
 }
 
 // AdvertCommentItem defines model for AdvertCommentItem.
@@ -1534,6 +1535,7 @@ type ModerationQueueResponse struct {
 	HasMore    bool                  `json:"hasMore"`
 	Items      []OwnerAdvertResponse `json:"items"`
 	NextCursor *string               `json:"nextCursor,omitempty"`
+	TotalCount int                   `json:"totalCount"`
 }
 
 // ModerationReasonRequest defines model for ModerationReasonRequest.
@@ -2027,6 +2029,7 @@ type StudFarmListResponse struct {
 	HasMore    bool           `json:"hasMore"`
 	Items      []StudFarmItem `json:"items"`
 	NextCursor *string        `json:"nextCursor,omitempty"`
+	TotalCount int            `json:"totalCount"`
 }
 
 // StudFarmNoteCreateRequest defines model for StudFarmNoteCreateRequest.

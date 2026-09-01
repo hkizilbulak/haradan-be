@@ -69,7 +69,7 @@ func (h *Handler) ListUsers(c *gin.Context, params generated.ListUsersParams) {
 	for _, user := range out.Items {
 		items = append(items, mapListItem(user))
 	}
-	c.JSON(http.StatusOK, generated.AdminUserListResponse{Items: items, NextCursor: out.NextCursor, HasMore: out.HasMore})
+	c.JSON(http.StatusOK, generated.AdminUserListResponse{Items: items, NextCursor: out.NextCursor, HasMore: out.HasMore, TotalCount: out.TotalCount})
 }
 
 func (h *Handler) CreateAdminUser(c *gin.Context) {

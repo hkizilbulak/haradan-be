@@ -69,6 +69,11 @@ func (r *Repository) List(ctx context.Context, cursor *string, limit int) (domai
 		LIMIT $1
 	`, whereClause)
 
+	var totalCount int
+	if err := r.db.QueryRow(ctx, "SELECT count(*) FROM hrd_stud_farms").Scan(&totalCount); err != nil {
+		return domainstudfarm.ListResult{}, apperr.Internal(fmt.Errorf("count stud farms: %w", pg.SanitizeErr(err)))
+	}
+
 	rows, err := r.db.Query(ctx, q, args...)
 	if err != nil {
 		return domainstudfarm.ListResult{}, apperr.Internal(fmt.Errorf("query stud farms: %w", pg.SanitizeErr(err)))
@@ -105,6 +110,7 @@ func (r *Repository) List(ctx context.Context, cursor *string, limit int) (domai
 		Items:      items,
 		NextCursor: nextCursor,
 		HasMore:    hasMore,
+		TotalCount: totalCount,
 	}, nil
 }
 

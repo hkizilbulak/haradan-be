@@ -53,7 +53,7 @@ type Repository interface {
 		afterCreated *time.Time,
 		afterID *int64,
 		limit int,
-	) ([]domainadvert.Advert, error)
+	) ([]domainadvert.Advert, int, error)
 
 	// ListStatusHistory returns history for one advert, oldest first.
 	ListStatusHistory(ctx context.Context, advertID int64) ([]domainadvert.StatusHistory, error)

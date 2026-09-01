@@ -110,6 +110,7 @@ type ListResult struct {
 	Items      []domainadvert.OwnerView
 	NextCursor *string
 	HasMore    bool
+	TotalCount int
 }
 
 // UpdateDetailsInput is ADVERT-OWNER-04 input.
