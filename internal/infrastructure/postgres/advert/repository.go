@@ -279,7 +279,7 @@ WHERE owner_user_id = $1
   AND ($2::varchar IS NULL OR status = $2::varchar)
   AND (
     $3::timestamptz IS NULL
-    OR (created_at, id) < ($3::timestamptz, $4::uuid)
+    OR (created_at, id) < ($3::timestamptz, $4::bigint)
   )
 ORDER BY created_at DESC, id DESC
 LIMIT $5`
