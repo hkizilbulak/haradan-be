@@ -189,7 +189,7 @@ const adminPropertyColumns = `id, category_id, code, title, help_text, data_type
 sort_order, options, validation, default_value, ui_metadata, is_active, is_form_visible, is_public_visible, version`
 
 func (r *Repository) ListCategoriesAdmin(ctx context.Context, active *bool, limit int) ([]domaincatalog.Category, error) {
-	q := `SELECT id, parent_id, slug, name, description, is_active, sort_order, version, created_at, updated_at FROM hrd_categories`
+	q := `SELECT id, parent_id, slug, name, description, is_active, allow_tjk, sort_order, version, created_at, updated_at FROM hrd_categories`
 	args := []any{}
 	if active != nil {
 		q += ` WHERE is_active = $1`
