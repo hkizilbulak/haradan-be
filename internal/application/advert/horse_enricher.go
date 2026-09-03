@@ -259,6 +259,8 @@ func EnrichHorseProperties(category domaincatalog.Category, h domainhorse.Horse,
 		setIfEmpty("STALLION_BREED", normBreed)
 		setIfEmpty("STALLION_AGE", normAge)
 		setIfEmpty("COAT_COLOR", normCoat)
+		setIfEmpty("HORSE_GENDER", "Erkek")
+		setIfEmpty("gender", "Erkek")
 		setIfEmpty("studHorseName", strings.TrimSpace(h.OriginalName))
 		setIfEmpty("studSire", sire)
 		setIfEmpty("studDam", dam)
