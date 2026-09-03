@@ -45,3 +45,25 @@ INSERT INTO hrd_category_properties (
 		t.Fatalf("order=%+v", got)
 	}
 }
+
+func TestListStudFormPropertiesIntegration(t *testing.T) {
+	ctx, tx, cleanup := testutil.OpenTestTx(t)
+	defer cleanup()
+
+	asimID := uuid.MustParse("c1000000-0000-4000-8000-000000000003")
+	arapID := uuid.MustParse("c1000000-0000-4000-8000-000000000031")
+	ingilizID := uuid.MustParse("c1000000-0000-4000-8000-000000000032")
+
+	repo := pgcatalog.NewRepository(tx)
+	for _, id := range []uuid.UUID{asimID, arapID, ingilizID} {
+		props, err := repo.ListFormProperties(ctx, id)
+		if err != nil {
+			t.Fatalf("list properties for %s: %v", id, err)
+		}
+		t.Logf("=== Properties for %s (count: %d) ===", id, len(props))
+		for _, p := range props {
+			t.Logf(" - Code: %s, Title: %s, DataType: %s, IsRequired: %v, Options: %s", p.Code, p.Title, p.DataType, p.IsRequired, string(p.Options))
+		}
+	}
+}
+

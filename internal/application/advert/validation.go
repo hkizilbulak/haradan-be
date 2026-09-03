@@ -11,6 +11,7 @@ import (
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
 	domaincatalog "github.com/hkizilbulak/haradan-be/internal/domain/catalog"
+	"github.com/hkizilbulak/haradan-be/internal/platform/textnorm"
 )
 
 const (
@@ -91,6 +92,49 @@ func normalizeDescription(in *string) *string {
 }
 
 // validateDynamicProperties checks a property map against the category form
+var propertyAliases = map[string][]string{
+	"studhorse":      {"studhorsename", "registeredname", "horsename"},
+	"studhorsename":  {"studhorse", "registeredname", "horsename"},
+	"registeredname": {"studhorse", "studhorsename", "horsename"},
+	"horsename":      {"studhorse", "studhorsename", "registeredname"},
+	"studsire":       {"sire"},
+	"sire":           {"studsire"},
+	"studdam":        {"dam"},
+	"dam":            {"studdam"},
+	"studdamsire":    {"studdamsire", "damsire"},
+	"damsire":        {"studdamsire", "studdamsire"},
+	"studbreed":      {"stallionbreed", "horsebreed", "breed"},
+	"stallionbreed":  {"studbreed", "horsebreed", "breed"},
+	"horsebreed":     {"studbreed", "stallionbreed", "breed"},
+	"breed":          {"studbreed", "stallionbreed", "horsebreed"},
+	"studage":        {"stallionage", "horseage", "age"},
+	"stallionage":    {"studage", "horseage", "age"},
+	"horseage":       {"studage", "stallionage", "age"},
+	"age":            {"studage", "stallionage", "horseage"},
+	"studcoatcolor":  {"coatcolor"},
+	"coatcolor":      {"studcoatcolor"},
+}
+
+func findPropertyDef(byCode, byNormCode map[string]domaincatalog.Property, code string) (domaincatalog.Property, bool) {
+	if def, ok := byCode[code]; ok {
+		return def, true
+	}
+	norm := normalizeCode(code)
+	if def, ok := byNormCode[norm]; ok {
+		return def, true
+	}
+	for _, alias := range propertyAliases[norm] {
+		if def, ok := byNormCode[alias]; ok {
+			return def, true
+		}
+		if def, ok := byCode[alias]; ok {
+			return def, true
+		}
+	}
+	return domaincatalog.Property{}, false
+}
+
+// validateDynamicProperties checks a property map against the category form
 // definition. Only active, form-visible property codes are accepted; unknown
 // keys are rejected. Draft mode skips is_required, submit mode enforces it.
 func validateDynamicProperties(
@@ -124,10 +168,7 @@ func validateDynamicProperties(
 			}
 			continue
 		}
-		def, ok := byCode[code]
-		if !ok {
-			def, ok = byNormCode[normalizeCode(code)]
-		}
+		def, ok := findPropertyDef(byCode, byNormCode, code)
 		if !ok {
 			if !isJSONNull(value) {
 				normalized[code] = value
@@ -170,10 +211,19 @@ func validateDynamicProperties(
 			}
 			if _, ok := normalized[def.Code]; !ok {
 				if _, okNorm := normalized[normalizeCode(def.Code)]; !okNorm {
-					fieldErrors = append(fieldErrors, apperr.FieldError{
-						Field:   "properties." + def.Code,
-						Message: "Bu özellik zorunludur.",
-					})
+					hasAlias := false
+					for _, alias := range propertyAliases[normalizeCode(def.Code)] {
+						if _, okAlias := normalized[alias]; okAlias {
+							hasAlias = true
+							break
+						}
+					}
+					if !hasAlias {
+						fieldErrors = append(fieldErrors, apperr.FieldError{
+							Field:   "properties." + def.Code,
+							Message: "Bu özellik zorunludur.",
+						})
+					}
 				}
 			}
 		}
@@ -316,40 +366,116 @@ func optionAllowed(options json.RawMessage, value string) bool {
 	if err := json.Unmarshal(options, &entries); err != nil || len(entries) == 0 {
 		return true
 	}
-	valLower := strings.ToLower(strings.TrimSpace(value))
-	if valLower == "" {
+	valTrimmed := strings.TrimSpace(value)
+	if valTrimmed == "" {
 		return true
 	}
+	valFold := textnorm.TurkishFold(valTrimmed)
+	valLower := strings.ToLower(valTrimmed)
+
 	for _, entry := range entries {
+		var candidateStrings []string
 		if s, ok := decodeString(entry); ok {
-			sLower := strings.ToLower(strings.TrimSpace(s))
-			if strings.EqualFold(s, value) || sLower == valLower || strings.Contains(sLower, valLower) || strings.Contains(valLower, sLower) {
-				return true
-			}
-			if isBooleanMatch(valLower, sLower) {
-				return true
-			}
-			continue
-		}
-		var obj map[string]json.RawMessage
-		if err := json.Unmarshal(entry, &obj); err != nil {
-			continue
-		}
-		for _, key := range []string{"value", "code", "label", "title", "name", "id"} {
-			if raw, ok := obj[key]; ok {
-				if s, ok := decodeString(raw); ok {
-					sLower := strings.ToLower(strings.TrimSpace(s))
-					if strings.EqualFold(s, value) || sLower == valLower || strings.Contains(sLower, valLower) || strings.Contains(valLower, sLower) {
-						return true
-					}
-					if isBooleanMatch(valLower, sLower) {
-						return true
+			candidateStrings = append(candidateStrings, s)
+		} else {
+			var obj map[string]json.RawMessage
+			if err := json.Unmarshal(entry, &obj); err == nil {
+				for _, key := range []string{"value", "code", "label", "title", "name", "id"} {
+					if raw, ok := obj[key]; ok {
+						if s, ok := decodeString(raw); ok {
+							candidateStrings = append(candidateStrings, s)
+						}
 					}
 				}
 			}
 		}
+
+		for _, s := range candidateStrings {
+			sTrimmed := strings.TrimSpace(s)
+			sFold := textnorm.TurkishFold(sTrimmed)
+			sLower := strings.ToLower(sTrimmed)
+
+			if strings.EqualFold(sTrimmed, valTrimmed) || sFold == valFold || sLower == valLower ||
+				strings.Contains(sFold, valFold) || strings.Contains(valFold, sFold) ||
+				strings.Contains(sLower, valLower) || strings.Contains(valLower, sLower) {
+				return true
+			}
+			if isBooleanMatch(valFold, sFold) || isBooleanMatch(valLower, sLower) {
+				return true
+			}
+			if isAgeMatch(valTrimmed, sTrimmed) {
+				return true
+			}
+			if isBreedMatch(valFold, sFold) {
+				return true
+			}
+		}
 	}
 	return false
+}
+
+func isBreedMatch(v1, v2 string) bool {
+	v1Fold := textnorm.TurkishFold(v1)
+	v2Fold := textnorm.TurkishFold(v2)
+	isArab1 := strings.Contains(v1Fold, "arap") || strings.Contains(v1Fold, "arabian")
+	isArab2 := strings.Contains(v2Fold, "arap") || strings.Contains(v2Fold, "arabian")
+	if isArab1 && isArab2 {
+		return true
+	}
+	isIng1 := strings.Contains(v1Fold, "ingiliz") || strings.Contains(v1Fold, "thoroughbred")
+	isIng2 := strings.Contains(v2Fold, "ingiliz") || strings.Contains(v2Fold, "thoroughbred")
+	if isIng1 && isIng2 {
+		return true
+	}
+	return false
+}
+
+func isAgeMatch(val, opt string) bool {
+	valNum, errVal := parseLeadingFloat(val)
+	optNum, errOpt := parseLeadingFloat(opt)
+	if errVal == nil && errOpt == nil && valNum == optNum {
+		return true
+	}
+	optFold := textnorm.TurkishFold(opt)
+	if errVal == nil {
+		if strings.Contains(optFold, "5+") || strings.Contains(optFold, "5 +") || strings.Contains(optFold, "5 ve üzeri") {
+			if valNum >= 5 {
+				return true
+			}
+		}
+		if strings.Contains(optFold, "10-15") || strings.Contains(optFold, "10 - 15") {
+			if valNum >= 10 && valNum <= 15 {
+				return true
+			}
+		}
+		if strings.Contains(optFold, "15 üzeri") || strings.Contains(optFold, "15+") || strings.Contains(optFold, "15 +") {
+			if valNum >= 15 {
+				return true
+			}
+		}
+		if strings.Contains(optFold, "0-1") || strings.Contains(optFold, "tay") {
+			if valNum <= 1 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func parseLeadingFloat(s string) (float64, error) {
+	s = strings.TrimSpace(strings.ReplaceAll(s, ",", "."))
+	var b strings.Builder
+	for i, r := range s {
+		if (r >= '0' && r <= '9') || r == '.' {
+			b.WriteRune(r)
+		} else if i > 0 {
+			break
+		}
+	}
+	if b.Len() == 0 {
+		return 0, fmt.Errorf("no number")
+	}
+	return strconv.ParseFloat(b.String(), 64)
 }
 
 func isBooleanMatch(v1, v2 string) bool {
