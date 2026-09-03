@@ -104,8 +104,10 @@ func validateDynamicProperties(
 	}
 
 	byCode := make(map[string]domaincatalog.Property, len(defs))
+	byNormCode := make(map[string]domaincatalog.Property, len(defs))
 	for _, d := range defs {
 		byCode[d.Code] = d
+		byNormCode[normalizeCode(d.Code)] = d
 	}
 
 	var fieldErrors []apperr.FieldError
@@ -124,6 +126,9 @@ func validateDynamicProperties(
 		}
 		def, ok := byCode[code]
 		if !ok {
+			def, ok = byNormCode[normalizeCode(code)]
+		}
+		if !ok {
 			if !isJSONNull(value) {
 				normalized[code] = value
 			}
@@ -141,6 +146,7 @@ func validateDynamicProperties(
 		if clean == nil {
 			continue
 		}
+		normalized[def.Code] = clean
 		normalized[code] = clean
 	}
 
@@ -163,10 +169,12 @@ func validateDynamicProperties(
 				continue
 			}
 			if _, ok := normalized[def.Code]; !ok {
-				fieldErrors = append(fieldErrors, apperr.FieldError{
-					Field:   "properties." + def.Code,
-					Message: "Bu özellik zorunludur.",
-				})
+				if _, okNorm := normalized[normalizeCode(def.Code)]; !okNorm {
+					fieldErrors = append(fieldErrors, apperr.FieldError{
+						Field:   "properties." + def.Code,
+						Message: "Bu özellik zorunludur.",
+					})
+				}
 			}
 		}
 	}
@@ -180,6 +188,10 @@ func validateDynamicProperties(
 		return nil, apperr.Internal(fmt.Errorf("encode properties: %w", err))
 	}
 	return encoded, nil
+}
+
+func normalizeCode(c string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(c), "-", ""), "_", ""))
 }
 
 func decodePropertyObject(raw json.RawMessage) (map[string]json.RawMessage, error) {
@@ -241,15 +253,26 @@ func normalizePropertyValue(def domaincatalog.Property, value json.RawMessage) (
 			var s string
 			if sErr := json.Unmarshal(value, &s); sErr == nil {
 				s = strings.ToLower(strings.TrimSpace(s))
-				if s == "true" || s == "1" {
+				if s == "true" || s == "1" || s == "evet" || s == "var" || s == "yes" {
 					b = true
-				} else if s == "false" || s == "0" {
+				} else if s == "false" || s == "0" || s == "hayir" || s == "hayır" || s == "yok" || s == "no" {
 					b = false
 				} else {
 					return nil, &apperr.FieldError{Field: field, Message: "Doğru/yanlış değeri bekleniyor."}
 				}
 			} else {
-				return nil, &apperr.FieldError{Field: field, Message: "Doğru/yanlış değeri bekleniyor."}
+				var n json.Number
+				if numErr := json.Unmarshal(value, &n); numErr == nil {
+					if n.String() == "1" {
+						b = true
+					} else if n.String() == "0" {
+						b = false
+					} else {
+						return nil, &apperr.FieldError{Field: field, Message: "Doğru/yanlış değeri bekleniyor."}
+					}
+				} else {
+					return nil, &apperr.FieldError{Field: field, Message: "Doğru/yanlış değeri bekleniyor."}
+				}
 			}
 		}
 		return json.RawMessage(strconv.FormatBool(b)), nil
@@ -261,6 +284,13 @@ func normalizePropertyValue(def domaincatalog.Property, value json.RawMessage) (
 		}
 		s = strings.TrimSpace(s)
 		if s == "" {
+			return nil, nil
+		}
+		// If a boolean falsy or truthy value is passed for a single select without a matching option, treat as unset
+		if (s == "false" || s == "0" || strings.EqualFold(s, "hayir") || strings.EqualFold(s, "hayır") || strings.EqualFold(s, "yok")) && !optionAllowed(def.Options, s) {
+			return nil, nil
+		}
+		if (s == "true" || s == "1" || strings.EqualFold(s, "evet") || strings.EqualFold(s, "var")) && !optionAllowed(def.Options, s) {
 			return nil, nil
 		}
 		if !optionAllowed(def.Options, s) {
@@ -296,17 +326,23 @@ func optionAllowed(options json.RawMessage, value string) bool {
 			if strings.EqualFold(s, value) || sLower == valLower || strings.Contains(sLower, valLower) || strings.Contains(valLower, sLower) {
 				return true
 			}
+			if isBooleanMatch(valLower, sLower) {
+				return true
+			}
 			continue
 		}
 		var obj map[string]json.RawMessage
 		if err := json.Unmarshal(entry, &obj); err != nil {
 			continue
 		}
-		for _, key := range []string{"value", "code", "label", "title", "name"} {
+		for _, key := range []string{"value", "code", "label", "title", "name", "id"} {
 			if raw, ok := obj[key]; ok {
 				if s, ok := decodeString(raw); ok {
 					sLower := strings.ToLower(strings.TrimSpace(s))
 					if strings.EqualFold(s, value) || sLower == valLower || strings.Contains(sLower, valLower) || strings.Contains(valLower, sLower) {
+						return true
+					}
+					if isBooleanMatch(valLower, sLower) {
 						return true
 					}
 				}
@@ -316,16 +352,67 @@ func optionAllowed(options json.RawMessage, value string) bool {
 	return false
 }
 
+func isBooleanMatch(v1, v2 string) bool {
+	truthy := map[string]bool{"true": true, "1": true, "evet": true, "var": true, "yes": true}
+	falsy := map[string]bool{"false": true, "0": true, "hayir": true, "hayır": true, "yok": true, "no": true}
+	if truthy[v1] && truthy[v2] {
+		return true
+	}
+	if falsy[v1] && falsy[v2] {
+		return true
+	}
+	return false
+}
+
 func decodeString(raw json.RawMessage) (string, bool) {
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
 		return "", false
 	}
-	return s, true
+	var s string
+	if err := json.Unmarshal(trimmed, &s); err == nil {
+		return s, true
+	}
+	var b bool
+	if err := json.Unmarshal(trimmed, &b); err == nil {
+		return strconv.FormatBool(b), true
+	}
+	var num json.Number
+	dec := json.NewDecoder(bytes.NewReader(trimmed))
+	dec.UseNumber()
+	if err := dec.Decode(&num); err == nil && num.String() != "" {
+		return num.String(), true
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &obj); err == nil {
+		for _, k := range []string{"value", "label", "code", "title", "name", "id"} {
+			if v, ok := obj[k]; ok {
+				if str, ok := decodeString(v); ok && str != "" {
+					return str, true
+				}
+			}
+		}
+	}
+	var arr []json.RawMessage
+	if err := json.Unmarshal(trimmed, &arr); err == nil && len(arr) > 0 {
+		return decodeString(arr[0])
+	}
+	return "", false
 }
 
 func decodeNumber(raw json.RawMessage) (json.Number, bool) {
-	dec := json.NewDecoder(bytes.NewReader(raw))
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return "", false
+	}
+	var b bool
+	if err := json.Unmarshal(trimmed, &b); err == nil {
+		if b {
+			return json.Number("1"), true
+		}
+		return json.Number("0"), true
+	}
+	dec := json.NewDecoder(bytes.NewReader(trimmed))
 	dec.UseNumber()
 	var v any
 	if err := dec.Decode(&v); err != nil {
@@ -339,6 +426,7 @@ func decodeNumber(raw json.RawMessage) (json.Number, bool) {
 		if s == "" {
 			return "", false
 		}
+		s = strings.ReplaceAll(s, ",", ".")
 		return json.Number(s), true
 	}
 	return "", false
