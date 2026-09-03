@@ -463,7 +463,7 @@ func (s *Service) SoftDeleteAdvertDraft(ctx context.Context, ownerID uuid.UUID, 
 		if current.Version != expectedVersion {
 			return apperr.StaleVersion(staleVersionMessage)
 		}
-		if current.Status != domainadvert.StatusDraft {
+		if current.Status != domainadvert.StatusDraft && current.Status != domainadvert.StatusChangesRequested {
 			return apperr.InvalidState("Yalnızca taslak ilanlar silinebilir.")
 		}
 		updated, err = repo.SoftDeleteDraft(ctx, ownerID, advertID, expectedVersion, s.clock.Now())

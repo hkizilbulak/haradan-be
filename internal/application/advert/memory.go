@@ -436,7 +436,7 @@ func (r MemoryRepository) SoftDeleteDraft(
 	if err != nil {
 		return domainadvert.Advert{}, err
 	}
-	if current.Status != domainadvert.StatusDraft {
+	if current.Status != domainadvert.StatusDraft && current.Status != domainadvert.StatusChangesRequested {
 		return domainadvert.Advert{}, apperr.InvalidState("Yalnızca taslak ilanlar silinebilir.")
 	}
 	deletedAt := now
