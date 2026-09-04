@@ -233,6 +233,47 @@ func TestCreateAdvertDraftEmptyIsAllowed(t *testing.T) {
 	}
 }
 
+func TestCreateAdvertDraftReusesExistingDraftWithSameTitle(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	// 1st draft creation
+	d1, err := f.svc.CreateAdvertDraft(ctx, f.owner, appadvert.CreateDraftInput{
+		Title: ptr("yılmaz pansiyon hara"),
+		Price: &appadvert.MoneyInput{AmountMinor: ptr(int64(5000000)), Currency: ptr("TRY")},
+	})
+	if err != nil {
+		t.Fatalf("first draft: %v", err)
+	}
+
+	// 2nd draft creation with identical title (case-insensitive) and updated price
+	d2, err := f.svc.CreateAdvertDraft(ctx, f.owner, appadvert.CreateDraftInput{
+		Title: ptr("Yılmaz Pansiyon Hara"),
+		Price: &appadvert.MoneyInput{AmountMinor: ptr(int64(6000000)), Currency: ptr("TRY")},
+	})
+	if err != nil {
+		t.Fatalf("second draft: %v", err)
+	}
+
+	// Must reuse the same draft ID rather than creating a duplicate
+	if d1.ID != d2.ID {
+		t.Fatalf("expected reused ID %d, got %d", d1.ID, d2.ID)
+	}
+	if d2.Price == nil || d2.Price.AmountMinor != 6000000 {
+		t.Fatalf("expected updated price, got %+v", d2.Price)
+	}
+
+	// List drafts for owner - must have exactly 1 draft
+	statusDraft := string(domainadvert.StatusDraft)
+	list, err := f.svc.ListMyAdverts(ctx, f.owner, appadvert.ListInput{Status: &statusDraft})
+	if err != nil {
+		t.Fatalf("list drafts: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("expected exactly 1 draft, got %d", len(list.Items))
+	}
+}
+
 func TestCreateAdvertDraftValidation(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()

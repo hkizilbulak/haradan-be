@@ -194,6 +194,68 @@ func (s *Service) CreateAdvertDraft(ctx context.Context, ownerID uuid.UUID, in C
 		}
 	}
 
+	// If owner already has an active draft with the same title, reuse and update it instead of creating duplicates
+	if title != nil && strings.TrimSpace(*title) != "" {
+		statusDraft := domainadvert.StatusDraft
+		existingDrafts, err := s.repo.ListByOwner(ctx, ownerID, &statusDraft, nil, nil, 100)
+		if err == nil && len(existingDrafts) > 0 {
+			var matched *domainadvert.Advert
+			var duplicateIDs []int64
+			for i := range existingDrafts {
+				ed := existingDrafts[i]
+				if ed.Title != nil && strings.EqualFold(strings.TrimSpace(*ed.Title), strings.TrimSpace(*title)) {
+					if matched == nil {
+						matched = &ed
+					} else {
+						duplicateIDs = append(duplicateIDs, ed.ID)
+					}
+				}
+			}
+
+			if matched != nil {
+				var updated domainadvert.Advert
+				err := s.withTx(ctx, func(ctx context.Context, repo Repository, _ pgx.Tx) error {
+					// Soft delete any older duplicates with the exact same title
+					for _, dupID := range duplicateIDs {
+						if dup, findErr := repo.FindByIDForOwner(ctx, ownerID, dupID); findErr == nil {
+							_, _ = repo.SoftDeleteDraft(ctx, ownerID, dupID, dup.Version, now)
+						}
+					}
+
+					curr, err := repo.FindByIDForOwnerForUpdate(ctx, ownerID, matched.ID)
+					if err != nil {
+						return err
+					}
+					if in.CategoryID != nil && (curr.CategoryID == nil || *curr.CategoryID != *in.CategoryID) {
+						curr, err = repo.UpdateCategoryClearProperties(ctx, ownerID, matched.ID, *in.CategoryID, curr.Version, now)
+						if err != nil {
+							return err
+						}
+					}
+					patch := domainadvert.DetailsPatch{
+						DistrictIDSet:  true,
+						DistrictID:     in.DistrictID,
+						HorseIDSet:     true,
+						HorseID:        in.HorseID,
+						TitleSet:       true,
+						Title:          title,
+						DescriptionSet: true,
+						Description:    normalizeDescription(in.Description),
+						AddressSet:     true,
+						Address:        normalizeDescription(in.Address),
+						PriceSet:       true,
+						Price:          price,
+					}
+					updated, err = repo.UpdateDetails(ctx, ownerID, matched.ID, patch, curr.Version, now)
+					return err
+				})
+				if err == nil {
+					return updated.ToOwnerView(), nil
+				}
+			}
+		}
+	}
+
 	draft := domainadvert.Advert{
 		OwnerUserID:  ownerID,
 		CategoryID:   in.CategoryID,
@@ -260,6 +322,32 @@ func (s *Service) ListMyAdverts(ctx context.Context, ownerID uuid.UUID, in ListI
 	if err != nil {
 		return ListResult{}, err
 	}
+
+	// For DRAFT listings: deduplicate drafts with identical titles so each in-progress advert has exactly 1 draft.
+	if status != nil && *status == domainadvert.StatusDraft {
+		seenTitle := make(map[string]bool)
+		uniqueRows := make([]domainadvert.Advert, 0, len(rows))
+		now := s.clock.Now()
+		for _, row := range rows {
+			if row.Title != nil && strings.TrimSpace(*row.Title) != "" {
+				norm := strings.ToLower(strings.TrimSpace(*row.Title))
+				if seenTitle[norm] {
+					// Duplicate older draft! Soft-delete it so it's cleaned up in the database.
+					dupID := row.ID
+					dupVer := row.Version
+					_ = s.withTx(ctx, func(ctx context.Context, repo Repository, _ pgx.Tx) error {
+						_, err := repo.SoftDeleteDraft(ctx, ownerID, dupID, dupVer, now)
+						return err
+					})
+					continue
+				}
+				seenTitle[norm] = true
+			}
+			uniqueRows = append(uniqueRows, row)
+		}
+		rows = uniqueRows
+	}
+
 	hasMore := len(rows) > limit
 	if hasMore {
 		rows = rows[:limit]
