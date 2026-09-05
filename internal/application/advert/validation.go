@@ -156,6 +156,59 @@ func validateDynamicProperties(
 
 	var fieldErrors []apperr.FieldError
 	normalized := make(map[string]json.RawMessage, len(values))
+
+	// 1. Process category property definitions, prioritizing exact matches over aliases.
+	for _, def := range defs {
+		norm := normalizeCode(def.Code)
+		var val json.RawMessage
+		var hasVal bool
+
+		if v, ok := values[def.Code]; ok && !isJSONNull(v) {
+			val = v
+			hasVal = true
+		} else {
+			for k, v := range values {
+				if normalizeCode(k) == norm && !isJSONNull(v) {
+					val = v
+					hasVal = true
+					break
+				}
+			}
+		}
+
+		if !hasVal {
+			for _, alias := range propertyAliases[norm] {
+				if v, ok := values[alias]; ok && !isJSONNull(v) {
+					val = v
+					hasVal = true
+					break
+				}
+				for k, v := range values {
+					if normalizeCode(k) == alias && !isJSONNull(v) {
+						val = v
+						hasVal = true
+						break
+					}
+				}
+				if hasVal {
+					break
+				}
+			}
+		}
+
+		if hasVal {
+			clean, verr := normalizePropertyValue(def, val)
+			if verr != nil {
+				fieldErrors = append(fieldErrors, *verr)
+				continue
+			}
+			if clean != nil {
+				normalized[def.Code] = clean
+			}
+		}
+	}
+
+	// 2. Process special keys and non-conflicting extra keys.
 	for code, value := range values {
 		if code == "sellerPhone" || code == "phone" {
 			if isJSONNull(value) {
@@ -168,27 +221,25 @@ func validateDynamicProperties(
 			}
 			continue
 		}
-		def, ok := findPropertyDef(byCode, byNormCode, code)
-		if !ok {
-			if !isJSONNull(value) {
-				normalized[code] = value
+		if _, ok := byCode[code]; ok {
+			continue
+		}
+		if _, ok := byNormCode[normalizeCode(code)]; ok {
+			continue
+		}
+		isAliasOfCategoryDef := false
+		for _, alias := range propertyAliases[normalizeCode(code)] {
+			if _, ok := byNormCode[alias]; ok {
+				isAliasOfCategoryDef = true
+				break
 			}
+		}
+		if isAliasOfCategoryDef {
 			continue
 		}
-		if isJSONNull(value) {
-			continue
+		if !isJSONNull(value) {
+			normalized[code] = value
 		}
-		clean, verr := normalizePropertyValue(def, value)
-		if verr != nil {
-			fieldErrors = append(fieldErrors, *verr)
-			continue
-		}
-		// A blank value normalizes to "unset" and must not satisfy is_required.
-		if clean == nil {
-			continue
-		}
-		normalized[def.Code] = clean
-		normalized[code] = clean
 	}
 
 	if mode == propertyModeSubmit {

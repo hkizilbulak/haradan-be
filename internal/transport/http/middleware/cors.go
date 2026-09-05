@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const corsAllowHeaders = "Accept,Authorization,Content-Type,X-Request-ID"
+const corsAllowHeaders = "Accept,Authorization,Content-Type,X-Request-ID,Cache-Control,Pragma,If-Match,If-None-Match"
 const corsAllowMethods = "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS"
 
 // CORS allows browser clients from an explicit deployment-configured origin
