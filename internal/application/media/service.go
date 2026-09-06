@@ -377,24 +377,29 @@ func (s *Service) AttachMediaToAdvert(
 		}
 		hasCover := false
 		nextOrder := 0
+		takenOrders := make(map[int]struct{}, len(rows))
 		for _, row := range rows {
 			if row.Relation.AssetID == assetID {
-				return apperr.Conflict(assetAlreadyAttached)
+				// Idempotent retry: same asset already on the advert.
+				view = ownerMediaView(advertID, expectedMediaVersion, rows)
+				return nil
 			}
 			if row.Relation.IsCover {
 				hasCover = true
 			}
+			takenOrders[row.Relation.DisplayOrder] = struct{}{}
 			if row.Relation.DisplayOrder >= nextOrder {
 				nextOrder = row.Relation.DisplayOrder + 1
 			}
 		}
+		// Prefer the client order when free. If it collides (common when a
+		// client re-sends batch indices 0..n against an advert that already
+		// has media), append instead of CONFLICT — intentional reordering
+		// belongs on MEDIA-06.
 		order := nextOrder
 		if displayOrder != nil {
-			order = *displayOrder
-			for _, row := range rows {
-				if row.Relation.DisplayOrder == order {
-					return apperr.Conflict(displayOrderTakenMessage)
-				}
+			if _, taken := takenOrders[*displayOrder]; !taken {
+				order = *displayOrder
 			}
 		}
 

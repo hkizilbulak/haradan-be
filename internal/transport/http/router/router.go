@@ -112,7 +112,7 @@ func requestLogger(logger *slog.Logger) gin.HandlerFunc {
 func CountOpenAPIRoutes(engine *gin.Engine) int {
 	count := 0
 	for _, route := range engine.Routes() {
-		if route.Path == "" || strings.HasPrefix(route.Path, APIBasePath+"/v1/catalog/dynamic") || strings.HasPrefix(route.Path, APIBasePath+"/v1/coupons") || strings.HasPrefix(route.Path, APIBasePath+"/v1/paytr") {
+		if route.Path == "" || strings.HasPrefix(route.Path, APIBasePath+"/v1/catalog/dynamic") || strings.HasPrefix(route.Path, APIBasePath+"/v1/coupons") || strings.HasPrefix(route.Path, APIBasePath+"/v1/paytr") || route.Path == APIBasePath+"/payments/paymentNotify" || route.Path == APIBasePath+"/payment/paymentNotify" {
 			continue
 		}
 		count++

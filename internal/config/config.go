@@ -143,6 +143,9 @@ type Config struct {
 	PayTRDebugOn      bool
 	PayTRHTTPTimeout  time.Duration
 	PayTRAPIPublicURL string // e.g. https://api.example.com/api — notify callback base
+	// PayTRUserIP overrides the payer IP sent to get-token. Required for local
+	// development when the request IP is loopback (PayTR rejects 127.0.0.1/::1).
+	PayTRUserIP string
 }
 
 const defaultTJKBaseURL = "https://www.tjk.org"
@@ -524,6 +527,7 @@ func Load() (Config, error) {
 	cfg.PayTRMerchantKey = strings.TrimSpace(os.Getenv("PAYTR_MERCHANT_KEY"))
 	cfg.PayTRMerchantSalt = strings.TrimSpace(os.Getenv("PAYTR_MERCHANT_SALT"))
 	cfg.PayTRAPIPublicURL = strings.TrimSpace(os.Getenv("PAYTR_API_PUBLIC_URL"))
+	cfg.PayTRUserIP = strings.TrimSpace(os.Getenv("PAYTR_USER_IP"))
 	if cfg.PayTRHTTPTimeout, err = durationEnv("PAYTR_HTTP_TIMEOUT", 30*time.Second); err != nil {
 		return Config{}, err
 	}

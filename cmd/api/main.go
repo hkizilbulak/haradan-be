@@ -318,26 +318,28 @@ func run() error {
 			DebugOn:        cfg.PayTRDebugOn,
 			NoInstallment:  true,
 			MaxInstallment: "0",
+			TimeoutLimit:   "30",
 			Currency:       "TL",
 		})
 		if err != nil {
 			return fmt.Errorf("paytr client: %w", err)
 		}
 		paytrSvc, err = apppaytr.NewService(apppaytr.Config{
-			Charges:      pgpaytr.NewPostgresChargeRepository(db.Pool()),
-			Packages:     apppaytr.PackageLookup{Svc: packagingSvc},
-			Adverts:      apppaytr.AdvertRepo{Repo: advertRepo},
-			Users:        apppaytr.UserRepo{Repo: userRepo},
-			Packaging:    apppaytr.PackagingBridge{Svc: packagingSvc},
-			Submitter:    apppaytr.AdvertBridge{Svc: advertSvc},
-			Gateway:      gateway,
-			FrontendURL:  cfg.FrontendURL,
-			APIPublicURL: cfg.PayTRAPIPublicURL,
+			Charges:        pgpaytr.NewPostgresChargeRepository(db.Pool()),
+			Packages:       apppaytr.PackageLookup{Svc: packagingSvc},
+			Adverts:        apppaytr.AdvertRepo{Repo: advertRepo},
+			Users:          apppaytr.UserRepo{Repo: userRepo},
+			Packaging:      apppaytr.PackagingBridge{Svc: packagingSvc},
+			Submitter:      apppaytr.AdvertBridge{Svc: advertSvc},
+			Gateway:        gateway,
+			FrontendURL:    cfg.FrontendURL,
+			APIPublicURL:   cfg.PayTRAPIPublicURL,
+			UserIPOverride: cfg.PayTRUserIP,
 		})
 		if err != nil {
 			return fmt.Errorf("paytr service: %w", err)
 		}
-		log.Info("paytr checkout enabled", "testMode", cfg.PayTRTestMode)
+		log.Info("paytr checkout enabled", "testMode", cfg.PayTRTestMode, "userIPOverride", cfg.PayTRUserIP != "")
 	}
 
 	commentSvc, err := appcomment.NewPostgresService(db.Pool())

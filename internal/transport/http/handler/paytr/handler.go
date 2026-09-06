@@ -144,9 +144,12 @@ func (h *Handler) GetChargeStatus(c *gin.Context) {
 }
 
 // Notify POST /v1/paytr/notify — public PayTR callback (form-urlencoded).
+// Response contract mirrors legacy PaymentController.paymentNotify:
+// HTTP 200, Content-Type application/json, body plain "OK" or the bad-hash text.
 func (h *Handler) Notify(c *gin.Context) {
 	if err := c.Request.ParseForm(); err != nil {
-		c.String(http.StatusOK, "OK")
+		// Malformed body: acknowledge so PayTR does not spin forever; no side effects.
+		writeNotifyResponse(c, "OK")
 		return
 	}
 	values := map[string]string{}
@@ -165,9 +168,18 @@ func (h *Handler) Notify(c *gin.Context) {
 		RawPayloadJSON:   apppaytr.NotifyPayloadMap(values),
 	})
 	if err != nil && h.logger != nil {
-		h.logger.Error("paytr notify side-effect failed", "err", err.Error())
+		h.logger.Error("paytr notify side-effect failed",
+			"err", err.Error(),
+			"merchant_oid", c.PostForm("merchant_oid"),
+			"status", c.PostForm("status"),
+		)
 	}
-	c.Header("Content-Type", "text/plain; charset=utf-8")
+	writeNotifyResponse(c, body)
+}
+
+// writeNotifyResponse matches legacy PaymentController: application/json + plain body.
+func writeNotifyResponse(c *gin.Context, body string) {
+	c.Header("Content-Type", "application/json; charset=utf-8")
 	c.String(http.StatusOK, body)
 }
 

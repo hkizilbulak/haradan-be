@@ -467,9 +467,14 @@ func TestAdvertMediaAttachReorderCoverDetachLifecycle(t *testing.T) {
 		t.Fatalf("exactly one cover expected, got %d", coverCount)
 	}
 
-	// A duplicate attach is a conflict, not a silent no-op.
-	_, err = f.svc.AttachMediaToAdvert(ctx, f.owner, advertID, assetA, nil, 4)
-	requireCode(t, err, apperr.CodeConflict)
+	// A duplicate attach is idempotent and does not bump mediaVersion.
+	dup, err := f.svc.AttachMediaToAdvert(ctx, f.owner, advertID, assetA, nil, 4)
+	if err != nil {
+		t.Fatalf("duplicate attach: %v", err)
+	}
+	if dup.MediaVersion != 4 || len(dup.Items) != 3 {
+		t.Fatalf("duplicate attach must be idempotent: %+v", dup)
+	}
 
 	reordered, err := f.svc.ReorderAdvertMedia(ctx, f.owner, advertID, []uuid.UUID{assetC, assetA, assetB}, 4)
 	if err != nil {
@@ -532,6 +537,34 @@ func TestAdvertMediaAttachReorderCoverDetachLifecycle(t *testing.T) {
 	}
 	if again.MediaVersion != 7 || len(again.Items) != 2 {
 		t.Fatalf("repeat detach changed state: %+v", again)
+	}
+}
+
+func TestAttachMediaTakenDisplayOrderAppends(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	advertID := f.seedAdvert(f.owner, "DRAFT", 1)
+	assetA := f.seedAsset(f.owner, domainmedia.AssetMasterReady)
+	assetB := f.seedAsset(f.owner, domainmedia.AssetMasterReady)
+
+	if _, err := f.svc.AttachMediaToAdvert(ctx, f.owner, advertID, assetA, nil, 1); err != nil {
+		t.Fatalf("attach A: %v", err)
+	}
+	// Client re-sends displayOrder 0 (already taken) — append instead of CONFLICT.
+	order0 := 0
+	view, err := f.svc.AttachMediaToAdvert(ctx, f.owner, advertID, assetB, &order0, 2)
+	if err != nil {
+		t.Fatalf("attach B with taken order: %v", err)
+	}
+	if len(view.Items) != 2 {
+		t.Fatalf("items=%+v", view.Items)
+	}
+	byAsset := map[uuid.UUID]int{}
+	for _, item := range view.Items {
+		byAsset[item.AssetID] = item.DisplayOrder
+	}
+	if byAsset[assetA] != 0 || byAsset[assetB] != 1 {
+		t.Fatalf("orders=%v", byAsset)
 	}
 }
 
