@@ -4070,7 +4070,7 @@ paths:
     post:
       operationId: AttachMediaToAdvert
       summary: AttachMediaToAdvert
-      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. expectedMediaVersion'
+      description: 'Exposure FE_AUTH. Actor: ACTIVE owner. expectedMediaVersion is required. displayOrder is optional; when omitted or already taken the asset is appended. Re-attaching the same assetId is idempotent. Use PUT .../media/order to reorder.'
       tags:
       - Media
       x-function-id: MEDIA-04

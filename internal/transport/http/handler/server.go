@@ -127,7 +127,14 @@ func (s *Server) RegisterPayTRRoutes(r gin.IRouter) {
 	if s.paytr == nil {
 		return
 	}
+	// Canonical callback used by new checkout (PAYTR_API_PUBLIC_URL + /v1/paytr/notify).
 	r.POST("/v1/paytr/notify", s.paytr.Notify)
+	// Legacy haradan PaymentController aliases so PayTR panel URLs keep working:
+	//   https://…/api/payments/paymentNotify
+	//   https://…/api/payment/paymentNotify  (nginx/historic rewrite)
+	r.POST("/payments/paymentNotify", s.paytr.Notify)
+	r.POST("/payment/paymentNotify", s.paytr.Notify)
+
 	r.POST("/v1/me/adverts/:advertId/paytr/checkout", s.paytr.StartCheckout)
 	r.GET("/v1/me/adverts/:advertId/paytr/charges/:merchantOid", s.paytr.GetChargeStatus)
 }

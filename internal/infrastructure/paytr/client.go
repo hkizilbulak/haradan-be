@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -89,10 +91,24 @@ func New(cfg Config) (*Client, error) {
 	if cfg.MaxInstallment == "" {
 		cfg.MaxInstallment = "0"
 	}
+	// PayTR (Cloudflare) occasionally returns an empty body over HTTP/2.
+	// Force HTTP/1.1 like the official sample clients.
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		ForceAttemptHTTP2:     false,
+		MaxIdleConns:          10,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS12},
+		TLSNextProto:          map[string]func(string, *tls.Conn) http.RoundTripper{},
+	}
 	return &Client{
 		cfg: cfg,
 		http: &http.Client{
-			Timeout: timeout,
+			Timeout:   timeout,
+			Transport: transport,
 			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
@@ -146,7 +162,6 @@ func (c *Client) GetToken(ctx context.Context, in TokenRequest) (TokenResult, er
 	form.Set("merchant_oid", in.MerchantOID)
 	form.Set("email", in.Email)
 	form.Set("payment_amount", in.PaymentAmount)
-	form.Set("payment_type", "card")
 	form.Set("paytr_token", paytrToken)
 	form.Set("user_basket", basket)
 	form.Set("debug_on", debugOn)
@@ -160,6 +175,8 @@ func (c *Client) GetToken(ctx context.Context, in TokenRequest) (TokenResult, er
 	form.Set("timeout_limit", c.cfg.TimeoutLimit)
 	form.Set("currency", c.cfg.Currency)
 	form.Set("test_mode", testMode)
+	// Notify URL is normally configured in the PayTR merchant panel (legacy did
+	// not send it on get-token). Only forward when explicitly provided.
 	if strings.TrimSpace(in.MerchantNotifyURL) != "" {
 		form.Set("merchant_notify_url", in.MerchantNotifyURL)
 	}
@@ -169,6 +186,9 @@ func (c *Client) GetToken(ctx context.Context, in TokenRequest) (TokenResult, er
 		return TokenResult{}, fmt.Errorf("paytr token request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Proto = "HTTP/1.1"
+	req.ProtoMajor = 1
+	req.ProtoMinor = 1
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -178,6 +198,9 @@ func (c *Client) GetToken(ctx context.Context, in TokenRequest) (TokenResult, er
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorBytes))
 	if err != nil {
 		return TokenResult{}, fmt.Errorf("paytr token read: %w", err)
+	}
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		return TokenResult{}, fmt.Errorf("paytr token rejected: empty response (HTTP %d)", resp.StatusCode)
 	}
 	var parsed struct {
 		Status string `json:"status"`

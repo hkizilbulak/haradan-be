@@ -4,7 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -69,32 +74,39 @@ type systemClock struct{}
 
 func (systemClock) Now() time.Time { return time.Now().UTC() }
 
+// PublicIPLookup resolves the machine's egress IP for local PayTR testing.
+type PublicIPLookup func(ctx context.Context) (string, error)
+
 // Config wires the checkout application service.
 type Config struct {
-	Charges      ChargeRepository
-	Packages     PackageCatalog
-	Adverts      AdvertAccess
-	Users        UserAccess
-	Packaging    PackagingAssigner
-	Submitter    AdvertSubmitter
-	Gateway      TokenGateway
-	FrontendURL  string
-	APIPublicURL string // public base including /api, used for merchant_notify_url
-	Clock        Clock
+	Charges        ChargeRepository
+	Packages       PackageCatalog
+	Adverts        AdvertAccess
+	Users          UserAccess
+	Packaging      PackagingAssigner
+	Submitter      AdvertSubmitter
+	Gateway        TokenGateway
+	FrontendURL    string
+	APIPublicURL   string // public base including /api, used for merchant_notify_url
+	UserIPOverride string // optional fixed payer IP (local/dev)
+	PublicIP       PublicIPLookup
+	Clock          Clock
 }
 
 // Service orchestrates PayTR iframe checkout for listing packages.
 type Service struct {
-	charges      ChargeRepository
-	packages     PackageCatalog
-	adverts      AdvertAccess
-	users        UserAccess
-	packaging    PackagingAssigner
-	submitter    AdvertSubmitter
-	gateway      TokenGateway
-	frontendURL  string
-	apiPublicURL string
-	clock        Clock
+	charges        ChargeRepository
+	packages       PackageCatalog
+	adverts        AdvertAccess
+	users          UserAccess
+	packaging      PackagingAssigner
+	submitter      AdvertSubmitter
+	gateway        TokenGateway
+	frontendURL    string
+	apiPublicURL   string
+	userIPOverride string
+	publicIP       PublicIPLookup
+	clock          Clock
 }
 
 // NewService constructs the PayTR application service.
@@ -107,17 +119,23 @@ func NewService(cfg Config) (*Service, error) {
 	if clock == nil {
 		clock = systemClock{}
 	}
+	publicIP := cfg.PublicIP
+	if publicIP == nil {
+		publicIP = lookupEgressIP
+	}
 	return &Service{
-		charges:      cfg.Charges,
-		packages:     cfg.Packages,
-		adverts:      cfg.Adverts,
-		users:        cfg.Users,
-		packaging:    cfg.Packaging,
-		submitter:    cfg.Submitter,
-		gateway:      cfg.Gateway,
-		frontendURL:  strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/"),
-		apiPublicURL: strings.TrimRight(strings.TrimSpace(cfg.APIPublicURL), "/"),
-		clock:        clock,
+		charges:        cfg.Charges,
+		packages:       cfg.Packages,
+		adverts:        cfg.Adverts,
+		users:          cfg.Users,
+		packaging:      cfg.Packaging,
+		submitter:      cfg.Submitter,
+		gateway:        cfg.Gateway,
+		frontendURL:    strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/"),
+		apiPublicURL:   strings.TrimRight(strings.TrimSpace(cfg.APIPublicURL), "/"),
+		userIPOverride: strings.TrimSpace(cfg.UserIPOverride),
+		publicIP:       publicIP,
+		clock:          clock,
 	}, nil
 }
 
@@ -147,9 +165,9 @@ func (s *Service) StartCheckout(ctx context.Context, in CheckoutInput) (Checkout
 	if !in.PackageCode.Valid() {
 		return CheckoutResult{}, apperr.Validation("Geçersiz paket kodu.")
 	}
-	ip := strings.TrimSpace(in.UserIP)
-	if ip == "" {
-		return CheckoutResult{}, apperr.Validation("İstemci IP adresi gerekli.")
+	ip, err := s.resolvePayerIP(ctx, in.UserIP)
+	if err != nil {
+		return CheckoutResult{}, err
 	}
 
 	advert, err := s.adverts.FindByIDForOwner(ctx, in.OwnerUserID, in.AdvertID)
@@ -205,7 +223,13 @@ func (s *Service) StartCheckout(ctx context.Context, in CheckoutInput) (Checkout
 
 	okURL := s.frontendURL + "/post/payment-result?status=ok&advertId=" + fmt.Sprintf("%d", in.AdvertID) + "&merchantOid=" + merchantOID
 	failURL := s.frontendURL + "/post/payment-result?status=fail&advertId=" + fmt.Sprintf("%d", in.AdvertID) + "&merchantOid=" + merchantOID
-	notifyURL := s.apiPublicURL + "/v1/paytr/notify"
+	// Legacy configured notify URL in the PayTR panel only. Sending a localhost
+	// notify URL on get-token is useless (PayTR cannot reach it) and can make
+	// the request look invalid — only forward publicly reachable HTTPS bases.
+	notifyURL := ""
+	if isPublicAPIBase(s.apiPublicURL) {
+		notifyURL = s.apiPublicURL + "/v1/paytr/notify"
+	}
 
 	phone := ""
 	if user.Phone != nil {
@@ -245,7 +269,7 @@ func (s *Service) StartCheckout(ctx context.Context, in CheckoutInput) (Checkout
 		charge.FailReasonMsg = &msg
 		charge.UpdatedAt = s.clock.Now()
 		_ = s.charges.Update(ctx, charge)
-		return CheckoutResult{}, apperr.DependencyUnavailable("Ödeme servisi şu anda kullanılamıyor.")
+		return CheckoutResult{}, apperr.DependencyUnavailable(checkoutUnavailableMessage(err))
 	}
 
 	reqJSON := tokenRes.RequestForm.Encode()
@@ -283,28 +307,42 @@ type NotifyInput struct {
 	RawPayloadJSON   string
 }
 
-// HandleNotify processes PayTR notification. Always returns a body PayTR
-// expects ("OK" on accepted processing, error text only on bad hash).
+// HandleNotify processes PayTR notification.
+// Response bodies match legacy PaymentService.notify:
+//   - "OK" on accepted success/failure processing (and unknown merchant_oid)
+//   - "PAYTR notification failed: bad hash" when HMAC does not match
+// Side-effect failures return "ERR" so PayTR retries (safer than legacy which
+// marked payment ACTIVE before doping and could NPE on missing payment).
 func (s *Service) HandleNotify(ctx context.Context, in NotifyInput) (string, error) {
+	const (
+		notifyOK      = "OK"
+		notifyBadHash = "PAYTR notification failed: bad hash"
+		notifyRetry   = "ERR"
+	)
+
 	merchantOID := strings.TrimSpace(in.MerchantOID)
 	status := strings.TrimSpace(in.Status)
 	totalAmount := strings.TrimSpace(in.TotalAmount)
 	hash := strings.TrimSpace(in.Hash)
 
 	if merchantOID == "" || status == "" || totalAmount == "" || hash == "" {
-		return "PAYTR notification failed: missing fields", nil
+		return notifyBadHash, nil
 	}
 	if !s.gateway.VerifyNotifyHash(merchantOID, status, totalAmount, hash) {
-		return "PAYTR notification failed: bad hash", nil
+		return notifyBadHash, nil
 	}
 
 	charge, err := s.charges.FindByMerchantOIDForUpdate(ctx, merchantOID)
 	if err != nil {
-		// Acknowledge unknown merchant_oid to stop PayTR retries after logging.
-		return "OK", err
+		// Legacy updatePaymentLog no-ops when payment is missing; acknowledge OK
+		// so PayTR stops retrying callbacks for unknown/expired oids.
+		if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindNotFound {
+			return notifyOK, nil
+		}
+		return notifyRetry, err
 	}
 	if charge.Status == domainpaytr.ChargeStatusSucceeded {
-		return "OK", nil
+		return notifyOK, nil
 	}
 
 	raw := strings.TrimSpace(in.RawPayloadJSON)
@@ -325,7 +363,7 @@ func (s *Service) HandleNotify(ctx context.Context, in NotifyInput) (string, err
 		}
 		charge.UpdatedAt = now
 		_ = s.charges.Update(ctx, charge)
-		return "OK", nil
+		return notifyOK, nil
 	}
 
 	expectedAmount := paytrclient.AmountMinorString(charge.AmountMinor)
@@ -337,30 +375,32 @@ func (s *Service) HandleNotify(ctx context.Context, in NotifyInput) (string, err
 		charge.FailReasonMsg = &msg
 		charge.UpdatedAt = now
 		_ = s.charges.Update(ctx, charge)
-		return "OK", nil
+		return notifyOK, nil
 	}
 
+	// Side effects before marking SUCCEEDED (legacy marked ACTIVE first; we
+	// only commit success after package assign + submit-for-review).
 	if _, err := s.packaging.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
 		ActorUserID: charge.OwnerUserID,
 		AdvertID:    charge.AdvertID,
 		PackageCode: charge.PackageCode,
 		Source:      domainpackaging.AssignmentSourcePayment,
 	}); err != nil {
-		return "ERR", err
+		return notifyRetry, err
 	}
 
 	advert, err := s.adverts.FindByID(ctx, charge.AdvertID)
 	if err != nil {
-		return "ERR", err
+		return notifyRetry, err
 	}
 	switch advert.Status {
 	case domainadvert.StatusDraft:
 		if _, err := s.submitter.SubmitAdvertForReview(ctx, charge.OwnerUserID, charge.AdvertID, advert.Version); err != nil {
-			return "ERR", err
+			return notifyRetry, err
 		}
 	case domainadvert.StatusChangesRequested:
 		if _, err := s.submitter.ResubmitAdvertForReview(ctx, charge.OwnerUserID, charge.AdvertID, advert.Version); err != nil {
-			return "ERR", err
+			return notifyRetry, err
 		}
 	case domainadvert.StatusPendingReview:
 		// Already submitted (retry) — ok.
@@ -375,9 +415,9 @@ func (s *Service) HandleNotify(ctx context.Context, in NotifyInput) (string, err
 	charge.AdvertSubmittedAt = &submittedAt
 	charge.UpdatedAt = now
 	if err := s.charges.Update(ctx, charge); err != nil {
-		return "ERR", err
+		return notifyRetry, err
 	}
-	return "OK", nil
+	return notifyOK, nil
 }
 
 // GetChargeForOwner returns charge status for FE polling.
@@ -399,4 +439,98 @@ func NotifyPayloadMap(values map[string]string) string {
 		return "{}"
 	}
 	return string(raw)
+}
+
+func (s *Service) resolvePayerIP(ctx context.Context, raw string) (string, error) {
+	ip := strings.TrimSpace(raw)
+	if s.userIPOverride != "" {
+		return s.userIPOverride, nil
+	}
+	if ip == "" {
+		return "", apperr.Validation("İstemci IP adresi gerekli.")
+	}
+	if !isLoopbackIP(ip) {
+		return ip, nil
+	}
+	// PayTR rejects loopback IPs; mirror legacy Utils.getExternalIp(localhost).
+	pub, err := s.publicIP(ctx)
+	if err != nil || strings.TrimSpace(pub) == "" {
+		return "", apperr.DependencyUnavailable("Ödeme için dış IP adresi alınamadı. PAYTR_USER_IP tanımlayın.")
+	}
+	return strings.TrimSpace(pub), nil
+}
+
+func checkoutUnavailableMessage(err error) string {
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "magaza aktif") || strings.Contains(msg, "gecersiz istek") || strings.Contains(msg, "geçersiz istek") {
+		return "PayTR mağazası aktif değil veya kimlik bilgileri geçersiz. Mağaza panelini kontrol edin."
+	}
+	return "Ödeme servisi şu anda kullanılamıyor."
+}
+
+func isPublicAPIBase(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Host == "" {
+		return false
+	}
+	if !strings.EqualFold(u.Scheme, "https") {
+		return false
+	}
+	host := u.Hostname()
+	return host != "" && !isLoopbackIP(host)
+}
+
+func isLoopbackIP(raw string) bool {
+	host := strings.TrimSpace(raw)
+	if host == "" {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+var (
+	egressIPMu    sync.Mutex
+	egressIPCache string
+	egressIPAt    time.Time
+)
+
+func lookupEgressIP(ctx context.Context) (string, error) {
+	egressIPMu.Lock()
+	cached := egressIPCache
+	at := egressIPAt
+	egressIPMu.Unlock()
+	if cached != "" && time.Since(at) < 30*time.Minute {
+		return cached, nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://checkip.amazonaws.com", nil)
+	if err != nil {
+		return "", err
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("egress ip lookup HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64))
+	if err != nil {
+		return "", err
+	}
+	ip := strings.TrimSpace(string(body))
+	if net.ParseIP(ip) == nil {
+		return "", fmt.Errorf("egress ip lookup returned invalid value")
+	}
+	egressIPMu.Lock()
+	egressIPCache = ip
+	egressIPAt = time.Now()
+	egressIPMu.Unlock()
+	return ip, nil
 }
