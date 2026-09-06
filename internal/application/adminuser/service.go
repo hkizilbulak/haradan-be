@@ -546,7 +546,7 @@ func parseEventType(value *string) (*domainauth.SecurityEventType, error) {
 }
 
 func validRole(value domainuser.Role) bool {
-	return value == domainuser.RoleUser || value == domainuser.RoleAdmin
+	return value == domainuser.RoleUser || value == domainuser.RoleAdmin || value == domainuser.RoleCallCenter
 }
 func validStatus(value domainuser.Status) bool {
 	return value == domainuser.StatusActive || value == domainuser.StatusDisabled || value == domainuser.StatusClosed

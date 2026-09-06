@@ -17,3 +17,11 @@ func RequireAdminBO(p domainauth.Principal) error {
 	}
 	return nil
 }
+
+// RequireAdminOrCallCenterBO accepts role=admin or role=CALL_CENTER with session clientContext=ADMIN_BO.
+func RequireAdminOrCallCenterBO(p domainauth.Principal) error {
+	if (p.Role != string(domainuser.RoleAdmin) && p.Role != string(domainuser.RoleCallCenter)) || p.ClientContext != domainauth.ClientContextAdminBO {
+		return apperr.Forbidden(apperr.CodeForbidden, forbiddenMessage)
+	}
+	return nil
+}

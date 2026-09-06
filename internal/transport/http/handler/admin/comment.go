@@ -10,6 +10,8 @@ import (
 
 	appcomment "github.com/hkizilbulak/haradan-be/internal/application/comment"
 	domaincomment "github.com/hkizilbulak/haradan-be/internal/domain/comment"
+	"github.com/hkizilbulak/haradan-be/internal/application/authz"
+	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authctx"
 )
 
 type ErrorResponder func(c *gin.Context, logger *slog.Logger, err error)
@@ -35,6 +37,10 @@ func (h *CommentHandler) RegisterRoutes(r gin.IRouter) {
 }
 
 func (h *CommentHandler) List(c *gin.Context) {
+	if !h.requireAdminOrCallCenterBO(c) {
+		return
+	}
+
 	statusStr := c.Query("status")
 	limitStr := c.Query("limit")
 	offsetStr := c.Query("offset")
@@ -69,6 +75,10 @@ func (h *CommentHandler) List(c *gin.Context) {
 }
 
 func (h *CommentHandler) Approve(c *gin.Context) {
+	if !h.requireAdminOrCallCenterBO(c) {
+		return
+	}
+
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
@@ -84,6 +94,10 @@ func (h *CommentHandler) Approve(c *gin.Context) {
 }
 
 func (h *CommentHandler) Reject(c *gin.Context) {
+	if !h.requireAdminOrCallCenterBO(c) {
+		return
+	}
+
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
@@ -99,6 +113,10 @@ func (h *CommentHandler) Reject(c *gin.Context) {
 }
 
 func (h *CommentHandler) Delete(c *gin.Context) {
+	if !h.requireAdminOrCallCenterBO(c) {
+		return
+	}
+
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
@@ -111,4 +129,16 @@ func (h *CommentHandler) Delete(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func (h *CommentHandler) requireAdminOrCallCenterBO(c *gin.Context) bool {
+	principal, ok := authctx.PrincipalFromContext(c.Request.Context())
+	if !ok {
+		return false
+	}
+	if err := authz.RequireAdminOrCallCenterBO(principal); err != nil {
+		h.respond(c, h.logger, err)
+		return false
+	}
+	return true
 }

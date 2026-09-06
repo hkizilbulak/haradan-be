@@ -779,7 +779,7 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (TokenResult, error)
 	if user.IsLocked(now) {
 		return TokenResult{}, apperr.Unauthenticated(apperr.CodeUnauthenticated, genericAuthFailure)
 	}
-	if in.ClientContext == domainauth.ClientContextAdminBO && user.Role != domainuser.RoleAdmin {
+	if in.ClientContext == domainauth.ClientContextAdminBO && user.Role != domainuser.RoleAdmin && user.Role != domainuser.RoleCallCenter {
 		uid := user.ID
 		s.bestEffortEvent(ctx, domainauth.SecurityEvent{
 			ID:            uuid.New(),

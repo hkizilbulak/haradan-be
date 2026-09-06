@@ -711,14 +711,17 @@ func (e UploadAuthorizationMethod) Valid() bool {
 
 // Defines values for UserRole.
 const (
-	Admin UserRole = "admin"
-	User  UserRole = "user"
+	Admin      UserRole = "admin"
+	CALLCENTER UserRole = "CALL_CENTER"
+	User       UserRole = "user"
 )
 
 // Valid indicates whether the value is a known member of the UserRole enum.
 func (e UserRole) Valid() bool {
 	switch e {
 	case Admin:
+		return true
+	case CALLCENTER:
 		return true
 	case User:
 		return true

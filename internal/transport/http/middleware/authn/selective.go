@@ -192,6 +192,24 @@ var AdvertCommentProtectedRoutes = []ProtectedRoute{
 	{Method: "DELETE", Path: "/api/v1/adverts/:advertId/comments/:commentId"},
 }
 
+var StudFarmAdminProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/stud-farms"},
+	{Method: "POST", Path: "/api/v1/stud-farms"},
+	{Method: "DELETE", Path: "/api/v1/stud-farms/:studFarmId"},
+	{Method: "PUT", Path: "/api/v1/stud-farms/:studFarmId"},
+	{Method: "GET", Path: "/api/v1/stud-farms/:studFarmId/notes"},
+	{Method: "POST", Path: "/api/v1/stud-farms/:studFarmId/notes"},
+	{Method: "DELETE", Path: "/api/v1/stud-farms/:studFarmId/notes/:noteId"},
+	{Method: "PUT", Path: "/api/v1/stud-farms/:studFarmId/notes/:noteId"},
+}
+
+var AdminCommentProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/admin/comments"},
+	{Method: "PATCH", Path: "/api/v1/admin/comments/:id/approve"},
+	{Method: "PATCH", Path: "/api/v1/admin/comments/:id/reject"},
+	{Method: "DELETE", Path: "/api/v1/admin/comments/:id"},
+}
+
 // Selective runs Bearer access-token auth only for the listed method+path pairs.
 // Unlisted routes (including public Health/Geo/Catalog/Auth and remaining 501 FE_AUTH
 // stubs) are left untouched.

@@ -10,8 +10,9 @@ import (
 type Role string
 
 const (
-	RoleUser  Role = "user"
-	RoleAdmin Role = "admin"
+	RoleUser       Role = "user"
+	RoleAdmin      Role = "admin"
+	RoleCallCenter Role = "CALL_CENTER"
 )
 
 // Status is the canonical account status.
