@@ -73,6 +73,41 @@ func (h *Handler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, mapToken(out))
 }
 
+// GoogleLogin handles POST /v1/auth/google.
+func (h *Handler) GoogleLogin(c *gin.Context) {
+	var body generated.GoogleLoginRequest
+	if !bind.JSONBody(c, &body) {
+		return
+	}
+	var idToken, credential, code, redirectURI string
+	if body.IdToken != nil {
+		idToken = *body.IdToken
+	}
+	if body.Credential != nil {
+		credential = *body.Credential
+	}
+	if body.Code != nil {
+		code = *body.Code
+	}
+	if body.RedirectUri != nil {
+		redirectURI = *body.RedirectUri
+	}
+	out, err := h.svc.GoogleLogin(c.Request.Context(), appauth.GoogleLoginInput{
+		IDToken:       idToken,
+		Credential:    credential,
+		Code:          code,
+		RedirectURI:   redirectURI,
+		ClientContext: domainauth.ClientContext(body.ClientContext),
+		UserAgent:     c.Request.UserAgent(),
+		ClientIP:      c.ClientIP(),
+	})
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, mapToken(out))
+}
+
 // RefreshSession handles POST /v1/auth/refresh.
 func (h *Handler) RefreshSession(c *gin.Context) {
 	var body generated.RefreshSessionRequest

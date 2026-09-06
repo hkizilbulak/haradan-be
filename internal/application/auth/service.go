@@ -106,19 +106,23 @@ type Service struct {
 	emailVerifyTTL    time.Duration
 	dummyPasswordHash string
 	autoVerifyEmail   bool
+	googleClientID     string
+	googleClientSecret string
 }
 
 // Config wires auth application dependencies.
 type Config struct {
-	Users             UserRepository
-	Sessions          SessionRepository
-	UserTx            UserRepositoryFactory
-	Hasher            PasswordHasher
-	Tokens            TokenManager
-	Clock             Clock
-	EmailSender       EmailSender
-	EmailVerifyTTL    time.Duration
-	DummyPasswordHash string
+	Users              UserRepository
+	Sessions           SessionRepository
+	UserTx             UserRepositoryFactory
+	Hasher             PasswordHasher
+	Tokens             TokenManager
+	Clock              Clock
+	EmailSender        EmailSender
+	EmailVerifyTTL     time.Duration
+	DummyPasswordHash  string
+	GoogleClientID     string
+	GoogleClientSecret string
 	// AutoVerifyEmail skips the email verification step and marks new accounts
 	// as verified immediately on registration. Use when email delivery is not
 	// configured (e.g. EMAIL_PROVIDER=unconfigured).
@@ -148,16 +152,18 @@ func NewService(cfg Config) (*Service, error) {
 		}
 	}
 	return &Service{
-		users:             cfg.Users,
-		sessions:          cfg.Sessions,
-		userTx:            cfg.UserTx,
-		hasher:            cfg.Hasher,
-		tokens:            cfg.Tokens,
-		clock:             clock,
-		email:             email,
-		emailVerifyTTL:    cfg.EmailVerifyTTL,
-		dummyPasswordHash: dummy,
-		autoVerifyEmail:   cfg.AutoVerifyEmail,
+		users:              cfg.Users,
+		sessions:           cfg.Sessions,
+		userTx:             cfg.UserTx,
+		hasher:             cfg.Hasher,
+		tokens:             cfg.Tokens,
+		clock:              clock,
+		email:              email,
+		emailVerifyTTL:     cfg.EmailVerifyTTL,
+		dummyPasswordHash:  dummy,
+		autoVerifyEmail:    cfg.AutoVerifyEmail,
+		googleClientID:     cfg.GoogleClientID,
+		googleClientSecret: cfg.GoogleClientSecret,
 	}, nil
 }
 
@@ -309,6 +315,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResul
 		Phone:           normalizedPhone,
 		SecurityStamp:   uuid.New(),
 		EmailVerifiedAt: &verifiedAt,
+		Channel:         domainuser.ChannelEmail,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
@@ -1001,6 +1008,7 @@ type ProfileView struct {
 	Phone         *string
 	Role          domainuser.Role
 	Status        domainuser.Status
+	Channel       domainuser.Channel
 }
 
 // SessionView is AUTH-08 list item without hashes/tokens.
@@ -1192,6 +1200,7 @@ func mapProfile(u domainuser.User) ProfileView {
 		Phone:         u.Phone,
 		Role:          u.Role,
 		Status:        u.Status,
+		Channel:       u.Channel,
 	}
 }
 

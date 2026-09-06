@@ -22,6 +22,15 @@ func (s *Server) Login(c *gin.Context) {
 	s.auth.Login(c)
 }
 
+// GoogleLogin handles AUTH-14.
+func (s *Server) GoogleLogin(c *gin.Context) {
+	if s.auth == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.auth.GoogleLogin(c)
+}
+
 // RefreshSession handles AUTH-05.
 func (s *Server) RefreshSession(c *gin.Context) {
 	if s.auth == nil {

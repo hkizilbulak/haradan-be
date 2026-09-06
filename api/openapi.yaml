@@ -3024,6 +3024,51 @@ paths:
         - RATE_LIMITED
         '500':
         - INTERNAL_ERROR
+  "/v1/auth/google":
+    post:
+      operationId: GoogleLogin
+      summary: GoogleLogin
+      description: 'Exposure PUBLIC. Actor: Anonymous. Google OAuth Sign-in/Sign-up'
+      tags:
+      - Auth
+      x-function-id: AUTH-14
+      x-exposure: PUBLIC
+      x-actor: Anonymous
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AuthTokenResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/GoogleLoginRequest"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
   "/v1/auth/logout":
     post:
       operationId: LogoutCurrentSession
@@ -7756,6 +7801,22 @@ components:
           type: string
           format: email
       additionalProperties: false
+    GoogleLoginRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - clientContext
+      properties:
+        idToken:
+          type: string
+        credential:
+          type: string
+        code:
+          type: string
+        redirectUri:
+          type: string
+        clientContext:
+          "$ref": "#/components/schemas/ClientContext"
     AuthTokenResponse:
       type: object
       additionalProperties: false
@@ -7807,6 +7868,8 @@ components:
           "$ref": "#/components/schemas/UserRole"
         status:
           "$ref": "#/components/schemas/UserStatus"
+        channel:
+          type: string
     UpdateMyProfileRequest:
       type: object
       properties:
@@ -8698,6 +8761,8 @@ components:
         createdAt:
           type: string
           format: date-time
+        channel:
+          type: string
     AdminUserListResponse:
       type: object
       additionalProperties: false

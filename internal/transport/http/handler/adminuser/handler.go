@@ -257,10 +257,15 @@ func (h *Handler) ListUserSecurityEvents(c *gin.Context, userID generated.UserId
 }
 
 func mapListItem(user domainuser.User) generated.AdminUserListItem {
+	ch := string(user.Channel)
+	if ch == "" {
+		ch = string(domainuser.ChannelEmail)
+	}
 	return generated.AdminUserListItem{
 		Id: openapi_types.UUID(user.ID), Email: user.Email, FirstName: user.FirstName, LastName: user.LastName,
 		Role: generated.UserRole(user.Role), Status: generated.UserStatus(user.Status),
 		EmailVerified: user.EmailVerifiedAt != nil, CreatedAt: user.CreatedAt,
+		Channel: &ch,
 	}
 }
 

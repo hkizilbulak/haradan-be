@@ -848,6 +848,7 @@ type AdminCategoryPropertyResponse struct {
 // AdminUserCreateResponse defines model for AdminUserCreateResponse.
 type AdminUserCreateResponse struct {
 	ActiveSessionCount int                `json:"activeSessionCount"`
+	Channel            *string            `json:"channel,omitempty"`
 	CreatedAt          time.Time          `json:"createdAt"`
 	Email              string             `json:"email"`
 	EmailVerified      bool               `json:"emailVerified"`
@@ -866,6 +867,7 @@ type AdminUserCreateResponse struct {
 // AdminUserDetailResponse defines model for AdminUserDetailResponse.
 type AdminUserDetailResponse struct {
 	ActiveSessionCount int                `json:"activeSessionCount"`
+	Channel            *string            `json:"channel,omitempty"`
 	CreatedAt          time.Time          `json:"createdAt"`
 	Email              string             `json:"email"`
 	EmailVerified      bool               `json:"emailVerified"`
@@ -880,6 +882,7 @@ type AdminUserDetailResponse struct {
 
 // AdminUserListItem defines model for AdminUserListItem.
 type AdminUserListItem struct {
+	Channel       *string            `json:"channel,omitempty"`
 	CreatedAt     time.Time          `json:"createdAt"`
 	Email         string             `json:"email"`
 	EmailVerified bool               `json:"emailVerified"`
@@ -1330,6 +1333,15 @@ type GenericAuthMessageResponse struct {
 	Message string `json:"message"`
 }
 
+// GoogleLoginRequest defines model for GoogleLoginRequest.
+type GoogleLoginRequest struct {
+	ClientContext ClientContext `json:"clientContext"`
+	Code          *string       `json:"code,omitempty"`
+	Credential    *string       `json:"credential,omitempty"`
+	IdToken       *string       `json:"idToken,omitempty"`
+	RedirectUri   *string       `json:"redirectUri,omitempty"`
+}
+
 // HealthResponse defines model for HealthResponse.
 type HealthResponse struct {
 	// Checks Non-sensitive check labels only
@@ -1572,6 +1584,7 @@ type MyNotificationView struct {
 
 // MyProfileResponse defines model for MyProfileResponse.
 type MyProfileResponse struct {
+	Channel       *string            `json:"channel,omitempty"`
 	Email         string             `json:"email"`
 	EmailVerified bool               `json:"emailVerified"`
 	FirstName     string             `json:"firstName"`
@@ -2703,6 +2716,9 @@ type CreateAdvertCommentJSONRequestBody = CreateAdvertCommentRequest
 // ConfirmEmailChangeJSONRequestBody defines body for ConfirmEmailChange for application/json ContentType.
 type ConfirmEmailChangeJSONRequestBody = TokenRequest
 
+// GoogleLoginJSONRequestBody defines body for GoogleLogin for application/json ContentType.
+type GoogleLoginJSONRequestBody = GoogleLoginRequest
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -3011,6 +3027,9 @@ type ServerInterface interface {
 	// ConfirmEmailChange ConfirmEmailChange
 	// (POST /v1/auth/email/confirm)
 	ConfirmEmailChange(c *gin.Context)
+	// GoogleLogin GoogleLogin
+	// (POST /v1/auth/google)
+	GoogleLogin(c *gin.Context)
 	// Login Login
 	// (POST /v1/auth/login)
 	Login(c *gin.Context)
@@ -5263,6 +5282,19 @@ func (siw *ServerInterfaceWrapper) ConfirmEmailChange(c *gin.Context) {
 	siw.Handler.ConfirmEmailChange(c)
 }
 
+// GoogleLogin operation middleware
+func (siw *ServerInterfaceWrapper) GoogleLogin(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GoogleLogin(c)
+}
+
 // Login operation middleware
 func (siw *ServerInterfaceWrapper) Login(c *gin.Context) {
 
@@ -6944,6 +6976,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/homepage/featured", wrapper.ListHomepageFeatured)
 	router.POST(options.BaseURL+"/v1/auth/email/confirm", wrapper.ConfirmEmailChange)
 	router.POST(options.BaseURL+"/v1/auth/login", wrapper.Login)
+	router.POST(options.BaseURL+"/v1/auth/google", wrapper.GoogleLogin)
 	router.POST(options.BaseURL+"/v1/auth/logout", wrapper.LogoutCurrentSession)
 	router.POST(options.BaseURL+"/v1/auth/logout-all", wrapper.LogoutAllSessions)
 	router.POST(options.BaseURL+"/v1/auth/password/forgot", wrapper.RequestPasswordReset)

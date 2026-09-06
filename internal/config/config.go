@@ -43,6 +43,8 @@ type Config struct {
 	Argon2MemoryKiB      uint32
 	Argon2Threads        uint8
 	Argon2KeyLen         uint32
+	GoogleClientID       string
+	GoogleClientSecret   string
 
 	// Media upload settings. MIME allowlist stays optional (empty = uploads
 	// unavailable). MEDIA_MAX_BYTE_SIZE defaults to 64 MiB and is capped there.
@@ -253,6 +255,9 @@ func Load() (Config, error) {
 	if cfg.RefreshIdleTTL > cfg.RefreshAbsoluteTTL {
 		return Config{}, fmt.Errorf("AUTH_REFRESH_IDLE_TTL must not exceed AUTH_REFRESH_ABSOLUTE_TTL")
 	}
+
+	cfg.GoogleClientID = strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID"))
+	cfg.GoogleClientSecret = strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_SECRET"))
 
 	if cfg.Argon2Time, err = uint32Env("AUTH_ARGON2_TIME", 3); err != nil {
 		return Config{}, err

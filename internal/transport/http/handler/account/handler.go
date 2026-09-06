@@ -12,6 +12,7 @@ import (
 
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler/bind"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authctx"
@@ -170,6 +171,10 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 }
 
 func mapProfile(out appauth.ProfileView) generated.MyProfileResponse {
+	ch := string(out.Channel)
+	if ch == "" {
+		ch = string(domainuser.ChannelEmail)
+	}
 	return generated.MyProfileResponse{
 		Id:            out.ID,
 		Email:         out.Email,
@@ -179,6 +184,7 @@ func mapProfile(out appauth.ProfileView) generated.MyProfileResponse {
 		Phone:         out.Phone,
 		Role:          generated.UserRole(out.Role),
 		Status:        generated.UserStatus(out.Status),
+		Channel:       &ch,
 	}
 }
 

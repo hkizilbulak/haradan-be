@@ -33,7 +33,7 @@ func NewRepository(db Querier) *Repository {
 }
 
 const userColumns = `id, email, email_normalized, password_hash, role, status, email_verified_at,
-first_name, last_name, phone, security_stamp, failed_login_count, locked_until, created_at, updated_at`
+first_name, last_name, phone, security_stamp, failed_login_count, locked_until, created_at, updated_at, channel`
 
 // FindByNormalizedEmail returns a user by normalized email.
 func (r *Repository) FindByNormalizedEmail(ctx context.Context, emailNormalized string) (domainuser.User, error) {
@@ -76,16 +76,20 @@ func (r *Repository) FindByIDForUpdate(ctx context.Context, id uuid.UUID) (domai
 
 // Create inserts a new user.
 func (r *Repository) Create(ctx context.Context, u domainuser.User) error {
+	ch := string(u.Channel)
+	if ch == "" {
+		ch = string(domainuser.ChannelEmail)
+	}
 	const q = `
 INSERT INTO hrd_users (
   id, email, email_normalized, password_hash, role, status, email_verified_at,
-  first_name, last_name, phone, security_stamp, failed_login_count, locked_until, created_at, updated_at
+  first_name, last_name, phone, security_stamp, failed_login_count, locked_until, created_at, updated_at, channel
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16
 )`
 	_, err := r.db.Exec(ctx, q,
 		u.ID, u.Email, u.EmailNormalized, u.PasswordHash, string(u.Role), string(u.Status), u.EmailVerifiedAt,
-		u.FirstName, u.LastName, u.Phone, u.SecurityStamp, u.FailedLoginCount, u.LockedUntil, u.CreatedAt, u.UpdatedAt,
+		u.FirstName, u.LastName, u.Phone, u.SecurityStamp, u.FailedLoginCount, u.LockedUntil, u.CreatedAt, u.UpdatedAt, ch,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -191,19 +195,36 @@ RETURNING ` + userColumns
 	return u, nil
 }
 
+// UpdateChannel updates the user auth/registration channel.
+func (r *Repository) UpdateChannel(ctx context.Context, userID uuid.UUID, ch domainuser.Channel, now time.Time) error {
+	const q = `UPDATE hrd_users SET channel = $2, updated_at = $3 WHERE id = $1`
+	tag, err := r.db.Exec(ctx, q, userID, string(ch), now)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("update user channel: %w", pg.SanitizeErr(err)))
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("user not found")
+	}
+	return nil
+}
+
 func scanUser(row pgx.Row) (domainuser.User, error) {
 	var u domainuser.User
-	var role, status string
+	var role, status, channel string
 	err := row.Scan(
 		&u.ID, &u.Email, &u.EmailNormalized, &u.PasswordHash, &role, &status, &u.EmailVerifiedAt,
 		&u.FirstName, &u.LastName, &u.Phone, &u.SecurityStamp, &u.FailedLoginCount, &u.LockedUntil,
-		&u.CreatedAt, &u.UpdatedAt,
+		&u.CreatedAt, &u.UpdatedAt, &channel,
 	)
 	if err != nil {
 		return domainuser.User{}, err
 	}
 	u.Role = domainuser.Role(role)
 	u.Status = domainuser.Status(status)
+	if channel == "" {
+		channel = string(domainuser.ChannelEmail)
+	}
+	u.Channel = domainuser.Channel(channel)
 	return u, nil
 }
 

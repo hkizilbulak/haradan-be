@@ -168,6 +168,18 @@ func (m memUsers) UpdateEmail(_ context.Context, userID uuid.UUID, email, emailN
 	m.store.users[userID], m.store.byEmail[emailNormalized] = u, userID
 	return nil
 }
+func (m memUsers) UpdateChannel(_ context.Context, userID uuid.UUID, ch domainuser.Channel, now time.Time) error {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	u, ok := m.store.users[userID]
+	if !ok {
+		return apperr.NotFound("user not found")
+	}
+	u.Channel = ch
+	u.UpdatedAt = now
+	m.store.users[userID] = u
+	return nil
+}
 func (m memUsers) UpdateProfile(_ context.Context, userID uuid.UUID, patch ProfilePatch, now time.Time) (domainuser.User, error) {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()

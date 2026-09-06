@@ -23,6 +23,14 @@ const (
 	StatusClosed   Status = "CLOSED"
 )
 
+// Channel is the registration or auth method.
+type Channel string
+
+const (
+	ChannelEmail  Channel = "EMAIL"
+	ChannelGoogle Channel = "GOOGLE"
+)
+
 // User is the IAM user aggregate root.
 type User struct {
 	ID               uuid.UUID
@@ -31,6 +39,7 @@ type User struct {
 	PasswordHash     string
 	Role             Role
 	Status           Status
+	Channel          Channel
 	EmailVerifiedAt  *time.Time
 	FirstName        string
 	LastName         string

@@ -44,7 +44,7 @@ func (r *Repository) WithTx(tx pgx.Tx) appadminuser.Repository {
 }
 
 const userColumns = `id, email, email_normalized, password_hash, role, status, email_verified_at,
-first_name, last_name, phone, security_stamp, failed_login_count, locked_until, created_at, updated_at`
+first_name, last_name, phone, security_stamp, failed_login_count, locked_until, created_at, updated_at, channel`
 
 func (r *Repository) ListUsers(ctx context.Context, status *domainuser.Status, role *domainuser.Role, query string, afterCreated *time.Time, afterID *uuid.UUID, limit int) ([]domainuser.User, int, error) {
 	const q = `
@@ -357,19 +357,27 @@ func isUniqueViolation(err error) bool {
 
 func scanUser(row pgx.Row) (domainuser.User, error) {
 	var user domainuser.User
-	var role, status string
+	var role, status, channel string
 	err := row.Scan(&user.ID, &user.Email, &user.EmailNormalized, &user.PasswordHash, &role, &status, &user.EmailVerifiedAt,
-		&user.FirstName, &user.LastName, &user.Phone, &user.SecurityStamp, &user.FailedLoginCount, &user.LockedUntil, &user.CreatedAt, &user.UpdatedAt)
+		&user.FirstName, &user.LastName, &user.Phone, &user.SecurityStamp, &user.FailedLoginCount, &user.LockedUntil, &user.CreatedAt, &user.UpdatedAt, &channel)
 	user.Role, user.Status = domainuser.Role(role), domainuser.Status(status)
+	if channel == "" {
+		channel = string(domainuser.ChannelEmail)
+	}
+	user.Channel = domainuser.Channel(channel)
 	return user, err
 }
 
 func scanUserWithCount(row pgx.Row, count *int) (domainuser.User, error) {
 	var user domainuser.User
-	var role, status string
+	var role, status, channel string
 	err := row.Scan(&user.ID, &user.Email, &user.EmailNormalized, &user.PasswordHash, &role, &status, &user.EmailVerifiedAt,
-		&user.FirstName, &user.LastName, &user.Phone, &user.SecurityStamp, &user.FailedLoginCount, &user.LockedUntil, &user.CreatedAt, &user.UpdatedAt, count)
+		&user.FirstName, &user.LastName, &user.Phone, &user.SecurityStamp, &user.FailedLoginCount, &user.LockedUntil, &user.CreatedAt, &user.UpdatedAt, &channel, count)
 	user.Role, user.Status = domainuser.Role(role), domainuser.Status(status)
+	if channel == "" {
+		channel = string(domainuser.ChannelEmail)
+	}
+	user.Channel = domainuser.Channel(channel)
 	return user, err
 }
 

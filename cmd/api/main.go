@@ -143,11 +143,13 @@ func run() error {
 	}
 
 	authSvc, err := appauth.NewPostgresService(db.Pool(), appauth.Config{
-		Hasher:            hasher,
-		Tokens:            tokenMgr,
-		EmailSender:       emailSender,
-		EmailVerifyTTL:    cfg.EmailVerificationTTL,
-		DummyPasswordHash: password.DummyHash(hasher),
+		Hasher:             hasher,
+		Tokens:             tokenMgr,
+		EmailSender:        emailSender,
+		EmailVerifyTTL:     cfg.EmailVerificationTTL,
+		DummyPasswordHash:  password.DummyHash(hasher),
+		GoogleClientID:     cfg.GoogleClientID,
+		GoogleClientSecret: cfg.GoogleClientSecret,
 	})
 	if err != nil {
 		return fmt.Errorf("auth service: %w", err)
