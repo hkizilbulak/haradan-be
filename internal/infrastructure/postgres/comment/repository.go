@@ -226,7 +226,7 @@ func (r *Repository) ListCommentsByAdvert(ctx context.Context, advertID int64, l
 func (r *Repository) AdminListComments(ctx context.Context, status *domaincomment.Status, limit, offset int) ([]CommentRow, int, error) {
 	var countArgs []any
 	var selectArgs []any
-	
+
 	countQuery := `
 		SELECT COUNT(*)
 		FROM hrd_advert_comments
@@ -245,7 +245,7 @@ func (r *Repository) AdminListComments(ctx context.Context, status *domaincommen
 		selectQuery += ` AND c.status = $1`
 		countArgs = append(countArgs, string(*status))
 		selectArgs = append(selectArgs, string(*status))
-		
+
 		selectQuery += ` ORDER BY c.created_at DESC, c.id DESC LIMIT $2 OFFSET $3`
 		selectArgs = append(selectArgs, limit, offset)
 	} else {

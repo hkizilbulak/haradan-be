@@ -398,7 +398,7 @@ func adminUserHTTPLogin(t *testing.T, authSvc *appauth.Service, store *appauth.M
 		engine.ServeHTTP(rec, req)
 		return rec
 	}
-	rec := register("/api/v1/auth/register", `{"email":"admin-users@example.com","password":"Password1","firstName":"Admin","lastName":"User"}`)
+	rec := register("/api/v1/auth/register", `{"email":"admin-users@example.com","password":"Password1","firstName":"Admin","lastName":"User","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register=%d %s", rec.Code, rec.Body.String())
 	}

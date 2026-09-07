@@ -139,7 +139,7 @@ VALUES ($1, $2, $3, $4, true, 1, $5, $5)`,
 	title := "Paket test ilanı"
 	desc := "Paket test açıklaması"
 	advert := domainadvert.Advert{
-		 OwnerUserID: ownerID, Status: domainadvert.StatusPublished,
+		OwnerUserID: ownerID, Status: domainadvert.StatusPublished,
 		CategoryID: &categoryID, DistrictID: &districtID, Title: &title, Description: &desc,
 		Properties: domainadvert.EmptyProperties(), Version: 1, MediaVersion: 1,
 		PublishedAt: &now, CreatedAt: now, UpdatedAt: now,

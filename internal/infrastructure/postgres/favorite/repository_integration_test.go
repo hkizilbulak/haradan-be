@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
+	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
 	domainfavorite "github.com/hkizilbulak/haradan-be/internal/domain/favorite"
 	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
 	pgadvert "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/advert"

@@ -109,6 +109,9 @@ func (m memUsers) Create(_ context.Context, u domainuser.User) error {
 	m.store.byEmail[u.EmailNormalized] = u.ID
 	return nil
 }
+func (m memUsers) CreateWithConsents(ctx context.Context, u domainuser.User, _ domainuser.UserSetting, _ []domainuser.UserConsentLog) error {
+	return m.Create(ctx, u)
+}
 func (m memUsers) RecordFailedLogin(_ context.Context, userID uuid.UUID, now time.Time) error {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()

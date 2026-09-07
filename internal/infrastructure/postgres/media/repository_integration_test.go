@@ -194,7 +194,7 @@ func TestRepositoryVariantsIntegration(t *testing.T) {
 
 	for _, profile := range domainmedia.RequiredTransformProfiles() {
 		v, err := repo.UpsertPendingVariant(ctx, domainmedia.Variant{
-			ID: uuid.New(),
+			ID:                uuid.New(),
 			AssetID:           asset.ID,
 			TransformProfile:  profile,
 			LifecycleStatus:   domainmedia.VariantPending,
@@ -212,7 +212,7 @@ func TestRepositoryVariantsIntegration(t *testing.T) {
 
 	// The same master and profile must never produce a duplicate row.
 	first, err := repo.UpsertPendingVariant(ctx, domainmedia.Variant{
-		ID: uuid.New(),
+		ID:                uuid.New(),
 		AssetID:           asset.ID,
 		TransformProfile:  domainmedia.ProfileDetail,
 		LifecycleStatus:   domainmedia.VariantPending,
@@ -307,7 +307,7 @@ func TestRepositoryAdvertMediaRelationsIntegration(t *testing.T) {
 
 	relation := func(assetID uuid.UUID, order int, isCover bool) domainmedia.AdvertMediaRelation {
 		return domainmedia.AdvertMediaRelation{
-			ID: uuid.New(),
+			ID:           uuid.New(),
 			AdvertID:     ref.advert,
 			AssetID:      assetID,
 			DisplayOrder: order,
@@ -449,7 +449,7 @@ func TestRepositoryJobDeduplicationIntegration(t *testing.T) {
 
 	key := domainmedia.ValidateJobDedupKey(asset.ID)
 	job := domainmedia.BackgroundJob{
-		ID: uuid.New(),
+		ID:               uuid.New(),
 		JobType:          domainmedia.JobValidateAndNormalize,
 		Status:           domainmedia.JobQueued,
 		Payload:          domainmedia.EmptyMetadata(),

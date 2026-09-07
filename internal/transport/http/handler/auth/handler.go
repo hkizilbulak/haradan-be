@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
+	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
 	domainauth "github.com/hkizilbulak/haradan-be/internal/domain/auth"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler/bind"
@@ -38,13 +39,35 @@ func (h *Handler) RegisterUser(c *gin.Context) {
 	if body.Phone != nil {
 		phone = body.Phone
 	}
+	var allowEmail, allowSms, allowWhatsapp bool
+	if body.AllowEmail != nil {
+		allowEmail = *body.AllowEmail
+	}
+	if body.AllowSms != nil {
+		allowSms = *body.AllowSms
+	}
+	if body.AllowWhatsapp != nil {
+		allowWhatsapp = *body.AllowWhatsapp
+	}
+	if !body.TermsAccepted || !body.KvkkAccepted {
+		h.respond(c, h.logger, apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "termsAccepted", Message: "Kullanıcı sözleşmesi ve KVKK onaylanmalıdır."}))
+		return
+	}
+
 	out, err := h.svc.Register(c.Request.Context(), appauth.RegisterInput{
-		Email:     string(body.Email),
-		Password:  body.Password,
-		FirstName: body.FirstName,
-		LastName:  body.LastName,
-		Phone:     phone,
-		ClientIP:  c.ClientIP(),
+		Email:         string(body.Email),
+		Password:      body.Password,
+		FirstName:     body.FirstName,
+		LastName:      body.LastName,
+		Phone:         phone,
+		ClientIP:      c.ClientIP(),
+		UserAgent:     body.UserAgent,
+		Channel:       string(body.Channel),
+		TermsAccepted: body.TermsAccepted,
+		KVKKAccepted:  body.KvkkAccepted,
+		AllowEmail:    allowEmail,
+		AllowSMS:      allowSms,
+		AllowWhatsapp: allowWhatsapp,
 	})
 	if err != nil {
 		h.respond(c, h.logger, err)

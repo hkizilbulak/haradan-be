@@ -44,7 +44,7 @@ func newAuthEngine(t *testing.T) (*httptest.ResponseRecorder, func(method, path,
 func TestAuthRegisterLoginRefreshLogoutHTTP(t *testing.T) {
 	_, do := newAuthEngine(t)
 
-	rec := do(http.MethodPost, "/api/v1/auth/register", `{"email":"http@example.com","password":"Password1","firstName":"A","lastName":"B"}`, "")
+	rec := do(http.MethodPost, "/api/v1/auth/register", `{"email":"http@example.com","password":"Password1","firstName":"A","lastName":"B","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register status=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -109,7 +109,7 @@ func TestAuthMalformedJSON400(t *testing.T) {
 
 func TestAuthValidation422(t *testing.T) {
 	_, do := newAuthEngine(t)
-	rec := do(http.MethodPost, "/api/v1/auth/register", `{"email":"ok@example.com","password":"short","firstName":"A","lastName":"B"}`, "")
+	rec := do(http.MethodPost, "/api/v1/auth/register", `{"email":"ok@example.com","password":"short","firstName":"A","lastName":"B","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -117,7 +117,7 @@ func TestAuthValidation422(t *testing.T) {
 
 func TestAuthLoginUnauthorized(t *testing.T) {
 	_, do := newAuthEngine(t)
-	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"u@example.com","password":"Password1","firstName":"A","lastName":"B"}`, "")
+	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"u@example.com","password":"Password1","firstName":"A","lastName":"B","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	rec := do(http.MethodPost, "/api/v1/auth/login", `{"email":"u@example.com","password":"WrongPass1","clientContext":"PUBLIC_WEB"}`, "")
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status=%d", rec.Code)
@@ -159,7 +159,7 @@ func TestAuthEmptyBody400(t *testing.T) {
 
 func TestAuthRefreshRejectsAccessToken(t *testing.T) {
 	_, do := newAuthEngine(t)
-	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"ra@example.com","password":"Password1","firstName":"A","lastName":"B"}`, "")
+	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"ra@example.com","password":"Password1","firstName":"A","lastName":"B","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	rec := do(http.MethodPost, "/api/v1/auth/login", `{"email":"ra@example.com","password":"Password1","clientContext":"PUBLIC_WEB"}`, "")
 	var tokens generated.AuthTokenResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &tokens)
@@ -213,7 +213,7 @@ func TestAuthVerifyAndResendHTTP(t *testing.T) {
 		return rec
 	}
 
-	rec := do(http.MethodPost, "/api/v1/auth/register", `{"email":"verifyhttp@example.com","password":"Password1","firstName":"A","lastName":"B"}`)
+	rec := do(http.MethodPost, "/api/v1/auth/register", `{"email":"verifyhttp@example.com","password":"Password1","firstName":"A","lastName":"B","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register=%d %s", rec.Code, rec.Body.String())
 	}

@@ -46,7 +46,7 @@ func newAccountEngine(t *testing.T) (*appauth.Service, func(method, path, body, 
 
 func TestAccountSessionHappyPathHTTP(t *testing.T) {
 	_, do := newAccountEngine(t)
-	rec := do(http.MethodPost, "/api/v1/auth/register", `{"email":"acct@example.com","password":"Password1","firstName":"Ada","lastName":"Lovelace"}`, "")
+	rec := do(http.MethodPost, "/api/v1/auth/register", `{"email":"acct@example.com","password":"Password1","firstName":"Ada","lastName":"Lovelace","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register=%d %s", rec.Code, rec.Body.String())
 	}
@@ -140,7 +140,7 @@ func TestAccountAuthRequiredAndPublicUnaffected(t *testing.T) {
 
 func TestAccountOpsNoLonger501(t *testing.T) {
 	_, do := newAccountEngine(t)
-	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"n501@example.com","password":"Password1","firstName":"A","lastName":"B"}`, "")
+	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"n501@example.com","password":"Password1","firstName":"A","lastName":"B","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	rec := do(http.MethodPost, "/api/v1/auth/login", `{"email":"n501@example.com","password":"Password1","clientContext":"PUBLIC_WEB"}`, "")
 	var tokens generated.AuthTokenResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &tokens)
@@ -166,7 +166,7 @@ func TestAccountOpsNoLonger501(t *testing.T) {
 
 func TestUpdateMyProfileMalformed400(t *testing.T) {
 	_, do := newAccountEngine(t)
-	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"badbody@example.com","password":"Password1","firstName":"A","lastName":"B"}`, "")
+	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"badbody@example.com","password":"Password1","firstName":"A","lastName":"B","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	rec := do(http.MethodPost, "/api/v1/auth/login", `{"email":"badbody@example.com","password":"Password1","clientContext":"PUBLIC_WEB"}`, "")
 	var tokens generated.AuthTokenResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &tokens)
@@ -178,7 +178,7 @@ func TestUpdateMyProfileMalformed400(t *testing.T) {
 
 func TestSelectiveMiddlewareBoundariesHTTP(t *testing.T) {
 	_, do := newAccountEngine(t)
-	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"bound@example.com","password":"Password1","firstName":"A","lastName":"B"}`, "")
+	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"bound@example.com","password":"Password1","firstName":"A","lastName":"B","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	rec := do(http.MethodPost, "/api/v1/auth/login", `{"email":"bound@example.com","password":"Password1","clientContext":"PUBLIC_WEB"}`, "")
 	var tokens generated.AuthTokenResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &tokens)
@@ -206,8 +206,8 @@ func TestSelectiveMiddlewareBoundariesHTTP(t *testing.T) {
 
 func TestCrossUserSessionRevokeHTTP(t *testing.T) {
 	_, do := newAccountEngine(t)
-	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"ua@example.com","password":"Password1","firstName":"A","lastName":"B"}`, "")
-	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"ub@example.com","password":"Password1","firstName":"C","lastName":"D"}`, "")
+	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"ua@example.com","password":"Password1","firstName":"A","lastName":"B","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
+	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"ub@example.com","password":"Password1","firstName":"C","lastName":"D","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	rec := do(http.MethodPost, "/api/v1/auth/login", `{"email":"ua@example.com","password":"Password1","clientContext":"PUBLIC_WEB"}`, "")
 	var a generated.AuthTokenResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &a)
@@ -241,7 +241,7 @@ func TestCrossUserSessionRevokeHTTP(t *testing.T) {
 
 func TestEmptySessionsJSONArrayHTTP(t *testing.T) {
 	svc, do := newAccountEngine(t)
-	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"arr@example.com","password":"Password1","firstName":"A","lastName":"B"}`, "")
+	_ = do(http.MethodPost, "/api/v1/auth/register", `{"email":"arr@example.com","password":"Password1","firstName":"A","lastName":"B","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	rec := do(http.MethodPost, "/api/v1/auth/login", `{"email":"arr@example.com","password":"Password1","clientContext":"PUBLIC_WEB"}`, "")
 	var tokens generated.AuthTokenResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &tokens)

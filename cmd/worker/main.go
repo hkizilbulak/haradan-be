@@ -12,9 +12,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 
+	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	appjobadmin "github.com/hkizilbulak/haradan-be/internal/application/jobadmin"
 	"github.com/hkizilbulak/haradan-be/internal/application/jobscheduler"
-	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	appmedia "github.com/hkizilbulak/haradan-be/internal/application/media"
 	appnotification "github.com/hkizilbulak/haradan-be/internal/application/notification"
 	apptjk "github.com/hkizilbulak/haradan-be/internal/application/tjk"

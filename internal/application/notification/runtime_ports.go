@@ -33,7 +33,7 @@ type AdvertSnapshot struct {
 // PackageAssignmentSnapshot holds assignment fields for notifications.
 type PackageAssignmentSnapshot struct {
 	ID        uuid.UUID
-	AdvertID int64
+	AdvertID  int64
 	PackageID uuid.UUID
 	EndsAt    *time.Time
 }

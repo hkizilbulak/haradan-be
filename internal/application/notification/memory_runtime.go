@@ -33,7 +33,7 @@ type MemoryRuntimeStore struct {
 	users         map[uuid.UUID]domainuser.User
 	packages      map[uuid.UUID]domainpackaging.Package
 	assignments   map[uuid.UUID]domainpackaging.AdvertPackageAssignment
-	adverts map[int64]AdvertSnapshot
+	adverts       map[int64]AdvertSnapshot
 	urgent        map[int64]domainpackaging.AdvertFeatureActivation
 	campaigns     []domaincampaign.Campaign
 	jobs          []domainmedia.BackgroundJob

@@ -36,7 +36,7 @@ func TestProcessExpiryScanUsesReferenceDateForTargetDayOnly(t *testing.T) {
 		domainnotification.TemplateEventTypePackageExpiry1Day,
 	} {
 		store.PutTemplate(domainnotification.NotificationTemplate{
-		ID: uuid.New(), EventType: et, Name: string(et),
+			ID: uuid.New(), EventType: et, Name: string(et),
 			InAppTitleTemplate: "{{.advertTitle}}", InAppBodyTemplate: "{{.advertTitle}}",
 			IsActive: true, Version: 1,
 		})

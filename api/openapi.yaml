@@ -7711,6 +7711,11 @@ components:
       - password
       - firstName
       - lastName
+      - termsAccepted
+      - kvkkAccepted
+      - channel
+      - userAgent
+      - phone
       properties:
         email:
           type: string
@@ -7725,6 +7730,26 @@ components:
         phone:
           type: string
           nullable: true
+        termsAccepted:
+          type: boolean
+        kvkkAccepted:
+          type: boolean
+        allowEmail:
+          type: boolean
+        allowSms:
+          type: boolean
+        allowWhatsapp:
+          type: boolean
+        channel:
+          type: string
+          enum:
+          - WEB
+          - IOS
+          - ANDROID
+          - WEB_BO
+          - CALL_CENTER
+        userAgent:
+          type: string
       additionalProperties: false
     TokenRequest:
       type: object

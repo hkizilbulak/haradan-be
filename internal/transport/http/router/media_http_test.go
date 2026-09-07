@@ -1,13 +1,13 @@
 package router_test
 
 import (
-	"strconv"
 	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -85,7 +85,7 @@ func newMediaEngine(t *testing.T) *mediaTestEnv {
 func (env *mediaTestEnv) registerAndLogin(t *testing.T, email string) (bearer string, ownerID uuid.UUID) {
 	t.Helper()
 	rec := env.do(http.MethodPost, "/api/v1/auth/register",
-		`{"email":"`+email+`","password":"Password1","firstName":"Ada","lastName":"Lovelace"}`, "")
+		`{"email":"`+email+`","password":"Password1","firstName":"Ada","lastName":"Lovelace","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register=%d %s", rec.Code, rec.Body.String())
 	}

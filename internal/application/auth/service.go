@@ -96,16 +96,16 @@ func displayFullName(firstName, lastName string) string {
 
 // Service implements AUTH-01/02/03/04/05/06 use cases.
 type Service struct {
-	users             UserRepository
-	sessions          SessionRepository
-	userTx            UserRepositoryFactory
-	hasher            PasswordHasher
-	tokens            TokenManager
-	clock             Clock
-	email             EmailSender
-	emailVerifyTTL    time.Duration
-	dummyPasswordHash string
-	autoVerifyEmail   bool
+	users              UserRepository
+	sessions           SessionRepository
+	userTx             UserRepositoryFactory
+	hasher             PasswordHasher
+	tokens             TokenManager
+	clock              Clock
+	email              EmailSender
+	emailVerifyTTL     time.Duration
+	dummyPasswordHash  string
+	autoVerifyEmail    bool
 	googleClientID     string
 	googleClientSecret string
 }
@@ -169,12 +169,19 @@ func NewService(cfg Config) (*Service, error) {
 
 // RegisterInput is AUTH-01 input.
 type RegisterInput struct {
-	Email     string
-	Password  string
-	FirstName string
-	LastName  string
-	Phone     *string
-	ClientIP  string
+	Email         string
+	Password      string
+	FirstName     string
+	LastName      string
+	Phone         *string
+	ClientIP      string
+	UserAgent     string
+	Channel       string
+	TermsAccepted bool
+	KVKKAccepted  bool
+	AllowEmail    bool
+	AllowSMS      bool
+	AllowWhatsapp bool
 }
 
 // RegisterResult is AUTH-01 output.
@@ -315,13 +322,87 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResul
 		Phone:           normalizedPhone,
 		SecurityStamp:   uuid.New(),
 		EmailVerifiedAt: &verifiedAt,
-		Channel:         domainuser.ChannelEmail,
+		Channel:         domainuser.Channel(in.Channel),
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
 
+	setting := domainuser.UserSetting{
+		UserID:        user.ID,
+		AllowEmail:    in.AllowEmail,
+		AllowSMS:      in.AllowSMS,
+		AllowWhatsapp: in.AllowWhatsapp,
+	}
+
+	logs := []domainuser.UserConsentLog{
+		{
+			ID:            uuid.New(),
+			UserID:        user.ID,
+			AgreementType: "MEMBERSHIP_AGREEMENT",
+			Version:       "v1",
+			IsGranted:     in.TermsAccepted,
+			IPAddress:     &in.ClientIP,
+			UserAgent:     &in.UserAgent,
+			Channel:       in.Channel,
+			CreatedAt:     now,
+		},
+		{
+			ID:            uuid.New(),
+			UserID:        user.ID,
+			AgreementType: "KVKK_EXPLICIT_CONSENT",
+			Version:       "v1",
+			IsGranted:     in.KVKKAccepted,
+			IPAddress:     &in.ClientIP,
+			UserAgent:     &in.UserAgent,
+			Channel:       in.Channel,
+			CreatedAt:     now,
+		},
+	}
+
+	if in.AllowEmail {
+		logs = append(logs, domainuser.UserConsentLog{
+			ID:            uuid.New(),
+			UserID:        user.ID,
+			AgreementType: "COMMUNICATION_EMAIL",
+			Version:       "v1",
+			IsGranted:     true,
+			IPAddress:     &in.ClientIP,
+			UserAgent:     &in.UserAgent,
+			Channel:       in.Channel,
+			CreatedAt:     now,
+		})
+	}
+
+	if in.AllowSMS {
+		logs = append(logs, domainuser.UserConsentLog{
+			ID:            uuid.New(),
+			UserID:        user.ID,
+			AgreementType: "COMMUNICATION_SMS",
+			Version:       "v1",
+			IsGranted:     true,
+			IPAddress:     &in.ClientIP,
+			UserAgent:     &in.UserAgent,
+			Channel:       in.Channel,
+			CreatedAt:     now,
+		})
+	}
+
+	if in.AllowWhatsapp {
+		logs = append(logs, domainuser.UserConsentLog{
+			ID:            uuid.New(),
+			UserID:        user.ID,
+			AgreementType: "COMMUNICATION_WHATSAPP",
+			Version:       "v1",
+			IsGranted:     true,
+			IPAddress:     &in.ClientIP,
+			UserAgent:     &in.UserAgent,
+			Channel:       in.Channel,
+			CreatedAt:     now,
+		})
+	}
+
 	if err := s.withTx(ctx, func(ctx context.Context, users UserRepository, _ SessionRepository) error {
-		return users.Create(ctx, user)
+		return users.CreateWithConsents(ctx, user, setting, logs)
 	}); err != nil {
 		if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindConflict {
 			return RegisterResult{Message: registerSuccessMessage}, nil

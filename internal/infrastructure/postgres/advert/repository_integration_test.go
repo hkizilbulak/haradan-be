@@ -102,7 +102,7 @@ func TestRepositoryAdvertLifecycleIntegration(t *testing.T) {
 		t.Fatalf("create advert: %v", err)
 	}
 	if err := repo.InsertHistory(ctx, domainadvert.StatusHistory{
-		ID: uuid.New(),
+		ID:          uuid.New(),
 		AdvertID:    draft.ID,
 		ToStatus:    domainadvert.StatusDraft,
 		ActorUserID: &ref.owner,
@@ -199,7 +199,7 @@ func TestRepositoryAdvertLifecycleIntegration(t *testing.T) {
 		t.Fatalf("pending=%+v", pending)
 	}
 	if err := repo.InsertHistory(ctx, domainadvert.StatusHistory{
-		ID: uuid.New(),
+		ID:          uuid.New(),
 		AdvertID:    draft.ID,
 		FromStatus:  statusPtr(domainadvert.StatusDraft),
 		ToStatus:    domainadvert.StatusPendingReview,
@@ -324,7 +324,7 @@ func TestRepositoryAdvertModerationIntegration(t *testing.T) {
 	desc := "Açıklama"
 	pending := domainadvert.Advert{
 		OwnerUserID: ref.owner,
-		CategoryID: &ref.category, DistrictID: &ref.district,
+		CategoryID:  &ref.category, DistrictID: &ref.district,
 		Title: &title, Description: &desc,
 		Status: domainadvert.StatusPendingReview, Properties: domainadvert.EmptyProperties(),
 		Version: 1, MediaVersion: 1, CreatedAt: now, UpdatedAt: now,

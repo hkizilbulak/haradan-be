@@ -59,5 +59,26 @@ func (u User) IsActive() bool {
 
 // IsLocked reports whether a temporary lock is in effect at now.
 func (u User) IsLocked(now time.Time) bool {
-	return u.LockedUntil != nil && now.Before(*u.LockedUntil)
+	return u.LockedUntil != nil && u.LockedUntil.After(now)
+}
+
+// UserSetting represents user preferences and settings.
+type UserSetting struct {
+	UserID        uuid.UUID
+	AllowEmail    bool
+	AllowSMS      bool
+	AllowWhatsapp bool
+}
+
+// UserConsentLog represents an audit log entry for user consents.
+type UserConsentLog struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	AgreementType string
+	Version       string
+	IsGranted     bool
+	IPAddress     *string
+	UserAgent     *string
+	Channel       string
+	CreatedAt     time.Time
 }

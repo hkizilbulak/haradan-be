@@ -69,7 +69,7 @@ func NewEventWriter(cfg EventWriterConfig) (*EventWriter, error) {
 
 // WritePackageAdvertPublishedInput carries package publish broadcast event data.
 type WritePackageAdvertPublishedInput struct {
-	AdvertID int64
+	AdvertID     int64
 	AssignmentID uuid.UUID
 }
 
@@ -78,7 +78,7 @@ type WriteAdvancedAdvertPublishedInput = WritePackageAdvertPublishedInput
 
 // WriteUrgentAdvertActivatedInput carries urgent activation event data.
 type WriteUrgentAdvertActivatedInput struct {
-	AdvertID int64
+	AdvertID          int64
 	AssignmentID      uuid.UUID
 	ActivationVersion int
 }

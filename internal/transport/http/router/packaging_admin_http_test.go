@@ -1,13 +1,13 @@
 package router_test
 
 import (
-	"strconv"
 	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -87,7 +87,7 @@ func newPackagingEngine(t *testing.T) *packagingTestEnv {
 func (env *packagingTestEnv) registerLogin(t *testing.T, email, clientContext string) (string, uuid.UUID) {
 	t.Helper()
 	rec := env.do(http.MethodPost, "/api/v1/auth/register",
-		`{"email":"`+email+`","password":"Password1","firstName":"Ada","lastName":"Lovelace"}`, "")
+		`{"email":"`+email+`","password":"Password1","firstName":"Ada","lastName":"Lovelace","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register=%d %s", rec.Code, rec.Body.String())
 	}
@@ -115,7 +115,7 @@ func (env *packagingTestEnv) registerLogin(t *testing.T, email, clientContext st
 func (env *packagingTestEnv) registerAdminBO(t *testing.T, email string) (string, uuid.UUID) {
 	t.Helper()
 	rec := env.do(http.MethodPost, "/api/v1/auth/register",
-		`{"email":"`+email+`","password":"Password1","firstName":"Ada","lastName":"Admin"}`, "")
+		`{"email":"`+email+`","password":"Password1","firstName":"Ada","lastName":"Admin","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register=%d %s", rec.Code, rec.Body.String())
 	}

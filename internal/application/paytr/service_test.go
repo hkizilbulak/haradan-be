@@ -170,13 +170,13 @@ func testSvc(t *testing.T) (*apppaytr.Service, *memCharges, *stubPackaging, *stu
 	submitter := &stubSubmitter{}
 	std := domainpackaging.PackageCode("STANDARD")
 	svc, err := apppaytr.NewService(apppaytr.Config{
-		Charges:  charges,
-		Packages: stubPackages{pkg: domainpackaging.Package{Code: std, DisplayName: "Standart", IsActive: true, DisplayPriceAmountMinor: &price}},
-		Adverts:  stubAdverts{adv: adv},
-		Users:    stubUsers{u: user},
-		Packaging: packaging,
-		Submitter: submitter,
-		Gateway: stubGateway{token: "tok123", salt: "salt", key: "key"},
+		Charges:      charges,
+		Packages:     stubPackages{pkg: domainpackaging.Package{Code: std, DisplayName: "Standart", IsActive: true, DisplayPriceAmountMinor: &price}},
+		Adverts:      stubAdverts{adv: adv},
+		Users:        stubUsers{u: user},
+		Packaging:    packaging,
+		Submitter:    submitter,
+		Gateway:      stubGateway{token: "tok123", salt: "salt", key: "key"},
 		FrontendURL:  "http://localhost:8081",
 		APIPublicURL: "http://localhost:8080/api",
 		Clock:        fixedClock{t: time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)},

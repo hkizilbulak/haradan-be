@@ -311,6 +311,7 @@ type NotifyInput struct {
 // Response bodies match legacy PaymentService.notify:
 //   - "OK" on accepted success/failure processing (and unknown merchant_oid)
 //   - "PAYTR notification failed: bad hash" when HMAC does not match
+//
 // Side-effect failures return "ERR" so PayTR retries (safer than legacy which
 // marked payment ACTIVE before doping and could NPE on missing payment).
 func (s *Service) HandleNotify(ctx context.Context, in NotifyInput) (string, error) {

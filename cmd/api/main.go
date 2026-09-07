@@ -55,11 +55,11 @@ import (
 	"github.com/hkizilbulak/haradan-be/internal/platform/database"
 	applogger "github.com/hkizilbulak/haradan-be/internal/platform/logger"
 	"github.com/hkizilbulak/haradan-be/internal/platform/migration"
-	"github.com/hkizilbulak/haradan-be/migrations"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/password"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/token"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/router"
+	"github.com/hkizilbulak/haradan-be/migrations"
 )
 
 func main() {

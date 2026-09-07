@@ -538,6 +538,33 @@ func (e PropertyDataType) Valid() bool {
 	}
 }
 
+// Defines values for RegisterUserRequestChannel.
+const (
+	RegisterUserRequestChannelANDROID    RegisterUserRequestChannel = "ANDROID"
+	RegisterUserRequestChannelCALLCENTER RegisterUserRequestChannel = "CALL_CENTER"
+	RegisterUserRequestChannelIOS        RegisterUserRequestChannel = "IOS"
+	RegisterUserRequestChannelWEB        RegisterUserRequestChannel = "WEB"
+	RegisterUserRequestChannelWEBBO      RegisterUserRequestChannel = "WEB_BO"
+)
+
+// Valid indicates whether the value is a known member of the RegisterUserRequestChannel enum.
+func (e RegisterUserRequestChannel) Valid() bool {
+	switch e {
+	case RegisterUserRequestChannelANDROID:
+		return true
+	case RegisterUserRequestChannelCALLCENTER:
+		return true
+	case RegisterUserRequestChannelIOS:
+		return true
+	case RegisterUserRequestChannelWEB:
+		return true
+	case RegisterUserRequestChannelWEBBO:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SecurityEventType.
 const (
 	SecurityEventTypeACCOUNTSTATUSCHANGE   SecurityEventType = "ACCOUNT_STATUS_CHANGE"
@@ -711,19 +738,19 @@ func (e UploadAuthorizationMethod) Valid() bool {
 
 // Defines values for UserRole.
 const (
-	Admin      UserRole = "admin"
-	CALLCENTER UserRole = "CALL_CENTER"
-	User       UserRole = "user"
+	UserRoleAdmin      UserRole = "admin"
+	UserRoleCALLCENTER UserRole = "CALL_CENTER"
+	UserRoleUser       UserRole = "user"
 )
 
 // Valid indicates whether the value is a known member of the UserRole enum.
 func (e UserRole) Valid() bool {
 	switch e {
-	case Admin:
+	case UserRoleAdmin:
 		return true
-	case CALLCENTER:
+	case UserRoleCALLCENTER:
 		return true
-	case User:
+	case UserRoleUser:
 		return true
 	default:
 		return false
@@ -1870,12 +1897,22 @@ type RefreshSessionRequest struct {
 
 // RegisterUserRequest defines model for RegisterUserRequest.
 type RegisterUserRequest struct {
-	Email     openapi_types.Email `json:"email"`
-	FirstName string              `json:"firstName"`
-	LastName  string              `json:"lastName"`
-	Password  string              `json:"password"`
-	Phone     *string             `json:"phone,omitempty"`
+	AllowEmail    *bool                      `json:"allowEmail,omitempty"`
+	AllowSms      *bool                      `json:"allowSms,omitempty"`
+	AllowWhatsapp *bool                      `json:"allowWhatsapp,omitempty"`
+	Channel       RegisterUserRequestChannel `json:"channel"`
+	Email         openapi_types.Email        `json:"email"`
+	FirstName     string                     `json:"firstName"`
+	KvkkAccepted  bool                       `json:"kvkkAccepted"`
+	LastName      string                     `json:"lastName"`
+	Password      string                     `json:"password"`
+	Phone         *string                    `json:"phone"`
+	TermsAccepted bool                       `json:"termsAccepted"`
+	UserAgent     string                     `json:"userAgent"`
 }
+
+// RegisterUserRequestChannel defines model for RegisterUserRequest.Channel.
+type RegisterUserRequestChannel string
 
 // ReorderAdvertMediaRequest defines model for ReorderAdvertMediaRequest.
 type ReorderAdvertMediaRequest struct {

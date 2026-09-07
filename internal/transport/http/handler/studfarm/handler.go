@@ -9,9 +9,9 @@ import (
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
+	"github.com/hkizilbulak/haradan-be/internal/application/authz"
 	domainstudfarm "github.com/hkizilbulak/haradan-be/internal/domain/studfarm"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
-	"github.com/hkizilbulak/haradan-be/internal/application/authz"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authctx"
 )
 

@@ -1,13 +1,13 @@
 package router_test
 
 import (
-	"strconv"
 	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -84,7 +84,7 @@ func newModerationEngine(t *testing.T) *moderationTestEnv {
 func (env *moderationTestEnv) registerLogin(t *testing.T, email, clientContext string) (string, uuid.UUID, *generated.AuthTokenResponse) {
 	t.Helper()
 	rec := env.do(http.MethodPost, "/api/v1/auth/register",
-		`{"email":"`+email+`","password":"Password1","firstName":"Ada","lastName":"Lovelace"}`, "")
+		`{"email":"`+email+`","password":"Password1","firstName":"Ada","lastName":"Lovelace","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register=%d %s", rec.Code, rec.Body.String())
 	}
@@ -112,7 +112,7 @@ func (env *moderationTestEnv) registerAdminBO(t *testing.T, email string) (strin
 	t.Helper()
 	// Register + promote before ADMIN_BO login.
 	rec := env.do(http.MethodPost, "/api/v1/auth/register",
-		`{"email":"`+email+`","password":"Password1","firstName":"Ada","lastName":"Admin"}`, "")
+		`{"email":"`+email+`","password":"Password1","firstName":"Ada","lastName":"Admin","termsAccepted":true,"kvkkAccepted":true,"channel":"WEB","userAgent":"test-agent"}`, "")
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register=%d %s", rec.Code, rec.Body.String())
 	}

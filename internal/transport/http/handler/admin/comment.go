@@ -8,9 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/hkizilbulak/haradan-be/internal/application/authz"
 	appcomment "github.com/hkizilbulak/haradan-be/internal/application/comment"
 	domaincomment "github.com/hkizilbulak/haradan-be/internal/domain/comment"
-	"github.com/hkizilbulak/haradan-be/internal/application/authz"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/middleware/authctx"
 )
 

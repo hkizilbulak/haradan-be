@@ -17,6 +17,7 @@ type UserRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (domainuser.User, error)
 	FindByIDForUpdate(ctx context.Context, id uuid.UUID) (domainuser.User, error)
 	Create(ctx context.Context, u domainuser.User) error
+	CreateWithConsents(ctx context.Context, u domainuser.User, setting domainuser.UserSetting, logs []domainuser.UserConsentLog) error
 	RecordFailedLogin(ctx context.Context, userID uuid.UUID, now time.Time) error
 	ResetFailedLogin(ctx context.Context, userID uuid.UUID, now time.Time) error
 	MarkEmailVerified(ctx context.Context, userID uuid.UUID, verifiedAt time.Time) error

@@ -100,6 +100,85 @@ INSERT INTO hrd_users (
 	return nil
 }
 
+// CreateWithConsents inserts a new user along with settings and consent logs using pgx.Batch.
+func (r *Repository) CreateWithConsents(ctx context.Context, u domainuser.User, setting domainuser.UserSetting, logs []domainuser.UserConsentLog) error {
+	ch := string(u.Channel)
+	if ch == "" {
+		ch = string(domainuser.ChannelEmail)
+	}
+
+	batch := &pgx.Batch{}
+
+	// 1. Insert User
+	const qUser = `
+INSERT INTO hrd_users (
+  id, email, email_normalized, password_hash, role, status, email_verified_at,
+  first_name, last_name, phone, security_stamp, failed_login_count, locked_until, created_at, updated_at, channel
+) VALUES (
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16
+)`
+	batch.Queue(qUser,
+		u.ID, u.Email, u.EmailNormalized, u.PasswordHash, string(u.Role), string(u.Status), u.EmailVerifiedAt,
+		u.FirstName, u.LastName, u.Phone, u.SecurityStamp, u.FailedLoginCount, u.LockedUntil, u.CreatedAt, u.UpdatedAt, ch,
+	)
+
+	// 2. Insert User Setting
+	const qSetting = `
+INSERT INTO hrd_user_settings (user_id, allow_email, allow_sms, allow_whatsapp)
+VALUES ($1, $2, $3, $4)`
+	batch.Queue(qSetting, setting.UserID, setting.AllowEmail, setting.AllowSMS, setting.AllowWhatsapp)
+
+	// 3. Insert Consent Logs
+	const qLog = `
+INSERT INTO hrd_user_consent_logs (id, user_id, agreement_type, version, is_granted, ip_address, user_agent, channel, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	for _, l := range logs {
+		batch.Queue(qLog, l.ID, l.UserID, l.AgreementType, l.Version, l.IsGranted, l.IPAddress, l.UserAgent, l.Channel, l.CreatedAt)
+	}
+
+	tx, ok := r.db.(pgx.Tx)
+	if !ok {
+		return apperr.Internal(errors.New("CreateWithConsents requires a transaction"))
+	}
+
+	bRes := tx.SendBatch(ctx, batch)
+	defer bRes.Close()
+
+	for i := 0; i < batch.Len(); i++ {
+		_, err := bRes.Exec()
+		if err != nil {
+			if isUniqueViolation(err) && i == 0 {
+				return apperr.Conflict("email already registered")
+			}
+			return apperr.Internal(fmt.Errorf("batch exec at index %d: %w", i, pg.SanitizeErr(err)))
+		}
+	}
+
+	return nil
+}
+
+// LogDistanceSalesAgreement inserts a DISTANCE_SALES_AGREEMENT log.
+func (r *Repository) LogDistanceSalesAgreement(ctx context.Context, log domainuser.UserConsentLog) error {
+	const q = `
+INSERT INTO hrd_user_consent_logs (id, user_id, agreement_type, version, is_granted, ip_address, user_agent, channel, created_at)
+VALUES ($1, $2, 'DISTANCE_SALES_AGREEMENT', $3, $4, $5, $6, $7, $8)`
+	_, err := r.db.Exec(ctx, q, log.ID, log.UserID, log.Version, log.IsGranted, log.IPAddress, log.UserAgent, log.Channel, log.CreatedAt)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("log distance sales agreement: %w", pg.SanitizeErr(err)))
+	}
+	return nil
+}
+
+// UpdateCommunicationPreferences updates user communication preferences.
+func (r *Repository) UpdateCommunicationPreferences(ctx context.Context, userID uuid.UUID, allowEmail, allowSMS, allowWhatsapp bool) error {
+	const q = `UPDATE hrd_user_settings SET allow_email = $2, allow_sms = $3, allow_whatsapp = $4 WHERE user_id = $1`
+	_, err := r.db.Exec(ctx, q, userID, allowEmail, allowSMS, allowWhatsapp)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("update communication preferences: %w", pg.SanitizeErr(err)))
+	}
+	return nil
+}
+
 // RecordFailedLogin increments failed_login_count. Exact lock thresholds are not locked in docs.
 func (r *Repository) RecordFailedLogin(ctx context.Context, userID uuid.UUID, now time.Time) error {
 	const q = `
