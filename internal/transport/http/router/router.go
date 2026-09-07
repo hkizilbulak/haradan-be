@@ -45,7 +45,8 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 				len(authn.BannerAdminProtectedRoutes)+len(authn.AdminUserProtectedRoutes)+
 				len(authn.TJKAdminProtectedRoutes)+len(authn.CatalogAdminProtectedRoutes)+
 				len(authn.MediaAdminProtectedRoutes)+len(authn.AdvertCommentProtectedRoutes)+
-				len(authn.StudFarmAdminProtectedRoutes)+len(authn.AdminCommentProtectedRoutes))
+				len(authn.StudFarmAdminProtectedRoutes)+len(authn.AdminCommentProtectedRoutes)+
+				len(authn.CouponAdminProtectedRoutes)+len(authn.CouponUserProtectedRoutes))
 		protected = append(protected, authn.AccountSessionProtectedRoutes...)
 		protected = append(protected, authn.AdvertOwnerProtectedRoutes...)
 		protected = append(protected, authn.MediaProtectedRoutes...)
@@ -62,6 +63,8 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 		protected = append(protected, authn.AdvertCommentProtectedRoutes...)
 		protected = append(protected, authn.StudFarmAdminProtectedRoutes...)
 		protected = append(protected, authn.AdminCommentProtectedRoutes...)
+		protected = append(protected, authn.CouponAdminProtectedRoutes...)
+		protected = append(protected, authn.CouponUserProtectedRoutes...)
 		r.Use(authn.Selective(opt.AuthService, logger, protected))
 		r.Use(authn.OptionalSelective(opt.AuthService, logger, authn.PublicFavoriteEnrichmentRoutes))
 	}
@@ -75,6 +78,9 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 	}
 	if rs, ok := server.(interface{ RegisterCouponRoutes(gin.IRouter) }); ok {
 		rs.RegisterCouponRoutes(r.Group(APIBasePath))
+	}
+	if rs, ok := server.(interface{ RegisterAdminCampaignRoutes(gin.IRouter) }); ok {
+		rs.RegisterAdminCampaignRoutes(r.Group(APIBasePath))
 	}
 	if rs, ok := server.(interface{ RegisterPayTRRoutes(gin.IRouter) }); ok {
 		rs.RegisterPayTRRoutes(r.Group(APIBasePath))
@@ -122,3 +128,4 @@ func CountOpenAPIRoutes(engine *gin.Engine) int {
 	}
 	return count
 }
+

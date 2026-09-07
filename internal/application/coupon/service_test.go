@@ -74,6 +74,16 @@ func (m *mockRepo) RecordUsage(ctx context.Context, usage domain.CouponUsage, no
 	return nil
 }
 
+func (m *mockRepo) DeleteCoupon(ctx context.Context, id uuid.UUID) error {
+	c, ok := m.coupons[id]
+	if !ok {
+		return domainErrNotFound()
+	}
+	delete(m.coupons, id)
+	delete(m.byCode, c.Code)
+	return nil
+}
+
 func domainErrNotFound() error {
 	return &mockErr{msg: "not found"}
 }

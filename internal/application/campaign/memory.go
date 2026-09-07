@@ -175,6 +175,16 @@ func (m memoryRepo) UpdateOptimistic(_ context.Context, c domaincampaign.Campaig
 	return c, nil
 }
 
+func (m memoryRepo) Delete(_ context.Context, id uuid.UUID) error {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	if _, ok := m.store.campaigns[id]; !ok {
+		return apperr.NotFound(campaignNotFoundMessage)
+	}
+	delete(m.store.campaigns, id)
+	return nil
+}
+
 type memoryPackages struct{ store *MemoryStore }
 
 func (m memoryPackages) FindByCode(_ context.Context, code domainpackaging.PackageCode) (domainpackaging.Package, error) {

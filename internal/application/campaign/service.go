@@ -369,6 +369,14 @@ func (s *Service) UpdateCampaign(ctx context.Context, in UpdateCampaignInput) (d
 	return out, nil
 }
 
+// DeleteCampaign removes a campaign and any cascading entities (ACTIVE ADMIN only).
+func (s *Service) DeleteCampaign(ctx context.Context, actorUserID, campaignID uuid.UUID) error {
+	if err := s.requireAdmin(ctx, actorUserID); err != nil {
+		return err
+	}
+	return s.repo.Delete(ctx, campaignID)
+}
+
 func (s *Service) applyCampaignPatch(
 	ctx context.Context,
 	current domaincampaign.Campaign,

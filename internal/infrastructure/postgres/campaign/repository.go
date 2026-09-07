@@ -286,3 +286,25 @@ func isCheckViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23514"
 }
+
+func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("begin delete campaign tx: %w", err))
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, `DELETE FROM hrd_notifications WHERE campaign_id = $1`, id); err != nil {
+		return apperr.Internal(fmt.Errorf("delete campaign notifications: %w", pg.SanitizeErr(err)))
+	}
+
+	tag, err := tx.Exec(ctx, `DELETE FROM hrd_campaigns WHERE id = $1`, id)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("delete campaign: %w", pg.SanitizeErr(err)))
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound(campaignNotFoundMessage)
+	}
+	return tx.Commit(ctx)
+}
+

@@ -187,3 +187,24 @@ func (r *Repository) RecordUsage(ctx context.Context, usage domain.CouponUsage, 
 
 	return tx.Commit(ctx)
 }
+
+func (r *Repository) DeleteCoupon(ctx context.Context, id uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("begin delete coupon tx: %w", err))
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, `DELETE FROM hrd_coupon_usages WHERE coupon_id = $1`, id); err != nil {
+		return apperr.Internal(fmt.Errorf("delete coupon usages: %w", err))
+	}
+
+	tag, err := tx.Exec(ctx, `DELETE FROM hrd_coupons WHERE id = $1`, id)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("delete coupon: %w", err))
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("Kupon bulunamadı.")
+	}
+	return tx.Commit(ctx)
+}

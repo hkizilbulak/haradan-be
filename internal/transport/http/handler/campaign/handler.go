@@ -201,6 +201,27 @@ func (h *Handler) UpdateAdminCampaign(c *gin.Context, campaignID generated.Campa
 	c.JSON(http.StatusOK, view)
 }
 
+// DeleteAdminCampaign handles DELETE /v1/admin/campaigns/:campaignId
+func (h *Handler) DeleteAdminCampaign(c *gin.Context) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	idStr := c.Param("campaignId")
+	campaignID, err := uuid.Parse(idStr)
+	if err != nil || campaignID == uuid.Nil {
+		h.respond(c, h.logger, apperr.Validation("Geçersiz kampanya ID'si.", apperr.FieldError{
+			Field: "campaignId", Message: "Geçerli bir UUID giriniz.",
+		}))
+		return
+	}
+	if err := h.svc.DeleteCampaign(c.Request.Context(), actorID, campaignID); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func (h *Handler) mapCampaign(ctx context.Context, camp domaincampaign.Campaign) (generated.CampaignAdminView, error) {
 	view := generated.CampaignAdminView{
 		Id:                      camp.ID,

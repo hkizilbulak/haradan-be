@@ -26,6 +26,7 @@ type Service interface {
 	GetByID(context.Context, uuid.UUID) (domain.Coupon, error)
 	List(context.Context, *string, *bool, int, int) ([]domain.Coupon, int, error)
 	ValidateCoupon(context.Context, uuid.UUID, string, int64, *string) (appcoupon.ValidationResult, error)
+	Delete(context.Context, uuid.UUID) error
 }
 
 type ErrorResponder func(*gin.Context, *slog.Logger, error)
@@ -244,6 +245,25 @@ func (h *Handler) AdminGetByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, mapCouponResponse(res))
+}
+
+func (h *Handler) AdminDelete(c *gin.Context) {
+	if _, ok := h.admin(c); !ok {
+		return
+	}
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.respond(c, h.logger, apperr.Validation("Geçersiz kupon kimliği."))
+		return
+	}
+
+	if err := h.service.Delete(c.Request.Context(), id); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 type ListResponse struct {

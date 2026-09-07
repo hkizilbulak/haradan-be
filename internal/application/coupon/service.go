@@ -21,6 +21,7 @@ type Repository interface {
 	SetActiveStatus(context.Context, uuid.UUID, bool, int, time.Time) (domain.Coupon, error)
 	GetUserUsageCount(context.Context, uuid.UUID, uuid.UUID) (int, error)
 	RecordUsage(context.Context, domain.CouponUsage, time.Time) error
+	DeleteCoupon(context.Context, uuid.UUID) error
 }
 
 type Config struct {
@@ -187,6 +188,11 @@ func (s *Service) List(ctx context.Context, search *string, isActive *bool, limi
 	}
 	return s.repo.ListCoupons(ctx, search, isActive, limit, offset)
 }
+
+func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
+	return s.repo.DeleteCoupon(ctx, id)
+}
+
 
 type ValidationResult struct {
 	Valid               bool           `json:"valid"`

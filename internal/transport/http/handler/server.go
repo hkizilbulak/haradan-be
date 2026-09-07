@@ -1,8 +1,9 @@
 package handler
 
 import (
-	openapi_types "github.com/oapi-codegen/runtime/types"
 	"net/http"
+
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"context"
 	"log/slog"
@@ -150,6 +151,7 @@ func (s *Server) RegisterCouponRoutes(r gin.IRouter) {
 		v1Admin.GET("/:id", s.coupon.AdminGetByID)
 		v1Admin.PUT("/:id", s.coupon.AdminUpdate)
 		v1Admin.PATCH("/:id/active", s.coupon.AdminSetActive)
+		v1Admin.DELETE("/:id", s.coupon.AdminDelete)
 	}
 
 	v1Public := r.Group("/v1/coupons")
@@ -159,11 +161,18 @@ func (s *Server) RegisterCouponRoutes(r gin.IRouter) {
 }
 
 func (s *Server) RegisterAdminCommentRoutes(r gin.IRouter) {
-	
+
 	if s.admincomment == nil {
 		return
 	}
 	s.admincomment.RegisterRoutes(r)
+}
+
+func (s *Server) RegisterAdminCampaignRoutes(r gin.IRouter) {
+	if s.campaign == nil {
+		return
+	}
+	r.DELETE("/v1/admin/campaigns/:campaignId", s.campaign.DeleteAdminCampaign)
 }
 
 func (s *Server) WithTJKService(svc *apptjk.Service) *Server {

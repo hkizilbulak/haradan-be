@@ -122,16 +122,17 @@ var PackagingAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "POST", Path: "/api/v1/admin/campaigns"},
 	{Method: "GET", Path: "/api/v1/admin/campaigns/:campaignId"},
 	{Method: "PATCH", Path: "/api/v1/admin/campaigns/:campaignId"},
+	{Method: "DELETE", Path: "/api/v1/admin/campaigns/:campaignId"},
 	{Method: "GET", Path: "/api/v1/admin/notification-templates"},
 	{Method: "GET", Path: "/api/v1/admin/notification-templates/:eventType"},
 	{Method: "PATCH", Path: "/api/v1/admin/notification-templates/:eventType"},
 	{Method: "GET", Path: "/api/v1/admin/email-templates/provider"},
 	{Method: "GET", Path: "/api/v1/admin/email-templates/provider/:templateId/variables"},
 	{Method: "GET", Path: "/api/v1/admin/jobs"},
-	{Method: "GET", Path: "/api/v1/admin/jobs/:jobId"},
-	{Method: "PATCH", Path: "/api/v1/admin/jobs/:jobId"},
-	{Method: "POST", Path: "/api/v1/admin/jobs/:jobId/run"},
-	{Method: "GET", Path: "/api/v1/admin/jobs/:jobId/history"},
+	{Method: "POST", Path: "/api/v1/admin/jobs/:name/run"},
+	{Method: "GET", Path: "/api/v1/admin/jobs/runs"},
+	{Method: "GET", Path: "/api/v1/admin/jobs/runs/:runId"},
+	{Method: "POST", Path: "/api/v1/admin/jobs/runs/:runId/cancel"},
 }
 
 // BannerAdminProtectedRoutes are banner management BO_AUTH routes.
@@ -181,6 +182,7 @@ var CouponAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/coupons/:id"},
 	{Method: "PUT", Path: "/api/v1/admin/coupons/:id"},
 	{Method: "PATCH", Path: "/api/v1/admin/coupons/:id/active"},
+	{Method: "DELETE", Path: "/api/v1/admin/coupons/:id"},
 }
 
 var CouponUserProtectedRoutes = []ProtectedRoute{

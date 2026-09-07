@@ -55,4 +55,5 @@ type Repository interface {
 	List(ctx context.Context, f ListFilter) ([]domaincampaign.Campaign, error)
 	LockByID(ctx context.Context, id uuid.UUID) (domaincampaign.Campaign, error)
 	UpdateOptimistic(ctx context.Context, c domaincampaign.Campaign, expectedVersion int) (domaincampaign.Campaign, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }
