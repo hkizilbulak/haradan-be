@@ -23,6 +23,7 @@ import (
 	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
 	appcomment "github.com/hkizilbulak/haradan-be/internal/application/comment"
+	appcoupon "github.com/hkizilbulak/haradan-be/internal/application/coupon"
 	appemail "github.com/hkizilbulak/haradan-be/internal/application/email"
 	appfavorite "github.com/hkizilbulak/haradan-be/internal/application/favorite"
 	appgeo "github.com/hkizilbulak/haradan-be/internal/application/geo"
@@ -42,6 +43,7 @@ import (
 	pgadminuser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/adminuser"
 	pgadvert "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/advert"
 	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
+	pgcoupon "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/coupon"
 	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
 	pghorse "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/horse"
 	pgjobdef "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/jobdef"
@@ -349,6 +351,13 @@ func run() error {
 
 	studfarmSvc := appstudfarm.NewService(pgstudfarm.NewRepository(db.Pool()))
 
+	couponSvc, err := appcoupon.NewService(appcoupon.Config{
+		Repo: pgcoupon.NewRepository(db.Pool()),
+	})
+	if err != nil {
+		return fmt.Errorf("coupon service: %w", err)
+	}
+
 	srvHandler := handler.NewServer(
 		log, db, geoSvc, catalogSvc, horseSvc, advertSvc, mediaSvc, favoriteSvc,
 		packagingSvc, campaignSvc, campaignPackages, notificationSvc, authSvc, notificationInboxSvc,
@@ -361,7 +370,8 @@ func run() error {
 		WithPayTRService(paytrSvc).
 		WithCommentService(commentSvc).
 		WithAdminCommentService(commentSvc).
-		WithStudFarmService(studfarmSvc)
+		WithStudFarmService(studfarmSvc).
+		WithCouponService(couponSvc)
 	engine := router.New(srvHandler, log, router.Options{
 		AuthService:        authSvc,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,

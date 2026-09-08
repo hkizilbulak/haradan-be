@@ -72,8 +72,8 @@ func ValidateEmbeddedMigrations(fsys fs.FS) error {
 		return fmt.Errorf("list migrations: %w", err)
 	}
 	sort.Strings(entries)
-	if len(entries) != 41 {
-		return fmt.Errorf("expected 41 SQL migration files, got %d", len(entries))
+	if len(entries) != 42 {
+		return fmt.Errorf("expected 42 SQL migration files, got %d", len(entries))
 	}
 
 	created := make(map[string]struct{})
