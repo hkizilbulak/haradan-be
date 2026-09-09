@@ -2054,11 +2054,11 @@ type StatusHistoryItem struct {
 
 // StudFarmCreateRequest defines model for StudFarmCreateRequest.
 type StudFarmCreateRequest struct {
-	Email     openapi_types.Email `json:"email"`
-	FirstName string              `json:"first_name"`
-	LastName  string              `json:"last_name"`
-	Location  *string             `json:"location,omitempty"`
-	Phone     *string             `json:"phone,omitempty"`
+	Email     *string `json:"email,omitempty"`
+	FirstName string  `json:"first_name"`
+	LastName  *string `json:"last_name,omitempty"`
+	Location  *string `json:"location,omitempty"`
+	Phone     *string `json:"phone,omitempty"`
 }
 
 // StudFarmItem defines model for StudFarmItem.

@@ -1,12 +1,12 @@
 package studfarm
 
 import (
-	"github.com/google/uuid"
-
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/hkizilbulak/haradan-be/internal/application/authz"
@@ -93,10 +93,19 @@ func (h *Handler) CreateStudFarm(c *gin.Context) {
 		return
 	}
 
+	var lastName string
+	if req.LastName != nil {
+		lastName = strings.TrimSpace(*req.LastName)
+	}
+	var email string
+	if req.Email != nil {
+		email = strings.TrimSpace(*req.Email)
+	}
+
 	param := domainstudfarm.CreateParam{
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
-		Email:     string(req.Email),
+		FirstName: strings.TrimSpace(req.FirstName),
+		LastName:  lastName,
+		Email:     email,
 		Phone:     req.Phone,
 		Location:  req.Location,
 	}
@@ -243,10 +252,19 @@ func (h *Handler) UpdateStudFarm(c *gin.Context, id openapi_types.UUID) {
 		return
 	}
 
+	var lastName string
+	if req.LastName != nil {
+		lastName = strings.TrimSpace(*req.LastName)
+	}
+	var email string
+	if req.Email != nil {
+		email = strings.TrimSpace(*req.Email)
+	}
+
 	param := domainstudfarm.CreateParam{
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
-		Email:     string(req.Email),
+		FirstName: strings.TrimSpace(req.FirstName),
+		LastName:  lastName,
+		Email:     email,
 		Phone:     req.Phone,
 		Location:  req.Location,
 	}

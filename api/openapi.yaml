@@ -7270,8 +7270,6 @@ components:
       required:
       - id
       - first_name
-      - last_name
-      - email
       - created_at
       - updated_at
       properties:
@@ -7365,8 +7363,6 @@ components:
       additionalProperties: false
       required:
       - first_name
-      - last_name
-      - email
       properties:
         first_name:
           type: string
@@ -7374,11 +7370,12 @@ components:
           maxLength: 100
         last_name:
           type: string
-          minLength: 1
+          nullable: true
           maxLength: 100
         email:
           type: string
-          format: email
+          nullable: true
+          maxLength: 320
         phone:
           type: string
           nullable: true

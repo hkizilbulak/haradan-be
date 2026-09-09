@@ -1,9 +1,10 @@
 package studfarm
 
 import (
-	"github.com/google/uuid"
-
 	"context"
+	"strings"
+
+	"github.com/google/uuid"
 
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
 	domainstudfarm "github.com/hkizilbulak/haradan-be/internal/domain/studfarm"
@@ -35,6 +36,9 @@ func (s *service) List(ctx context.Context, cursor *string, limit int) (domainst
 
 // Create handles the business logic of creating a new stud farm.
 func (s *service) Create(ctx context.Context, param domainstudfarm.CreateParam) (domainstudfarm.StudFarm, error) {
+	if strings.TrimSpace(param.FirstName) == "" {
+		return domainstudfarm.StudFarm{}, apperr.Validation("first name is required")
+	}
 	return s.repo.Create(ctx, param)
 }
 
@@ -72,14 +76,8 @@ func (s *service) UpdateNote(ctx context.Context, studFarmId uuid.UUID, noteId u
 }
 
 func (s *service) Update(ctx context.Context, id uuid.UUID, param domainstudfarm.CreateParam) error {
-	if param.FirstName == "" {
+	if strings.TrimSpace(param.FirstName) == "" {
 		return apperr.Validation("first name is required")
-	}
-	if param.LastName == "" {
-		return apperr.Validation("last name is required")
-	}
-	if param.Email == "" {
-		return apperr.Validation("email is required")
 	}
 	return s.repo.Update(ctx, id, param)
 }
