@@ -149,31 +149,32 @@ func (s *Server) GetHomepageBootstrap(c *gin.Context, params generated.GetHomepa
 		}
 	}
 
-	c.JSON(http.StatusOK, generated.HomepageBootstrapResponse{
-		NewAdverts: mapGeneratedSearchPage(feeds.NewAdverts),
-		Urgent:     mapGeneratedSearchPage(feeds.Urgent),
-		Featured:   mapGeneratedSearchPage(feeds.Featured),
-		Showcase: generated.HomepageShowcaseResponse{
+	c.JSON(http.StatusOK, homepageBootstrapJSON{
+		NewAdverts: mapPublicPage(feeds.NewAdverts),
+		Urgent:     mapPublicPage(feeds.Urgent),
+		Featured:   mapPublicPage(feeds.Featured),
+		Showcase: homepageShowcaseJSON{
 			Seed:  feeds.Showcase.Seed,
-			Items: mapGeneratedCards(feeds.Showcase.Items),
+			Items: mapPublicCardsJSONList(feeds.Showcase.Items),
 		},
 		Banners:    generated.ActiveBannerListResponse{Items: bannerItems},
 		Categories: categories,
 	})
 }
 
-func mapGeneratedSearchPage(v appadvert.PublicSearchResult) generated.PublishedAdvertSearchResponse {
-	items := make([]generated.PublishedAdvertCard, 0, len(v.Items))
-	for _, item := range v.Items {
-		items = append(items, mapPublicCard(item))
-	}
-	return generated.PublishedAdvertSearchResponse{Items: items, HasMore: v.HasMore, NextCursor: v.NextCursor}
+type homepageBootstrapJSON struct {
+	NewAdverts publicSearchPageJSON               `json:"newAdverts"`
+	Urgent     publicSearchPageJSON               `json:"urgent"`
+	Featured   publicSearchPageJSON               `json:"featured"`
+	Showcase   homepageShowcaseJSON               `json:"showcase"`
+	Banners    generated.ActiveBannerListResponse `json:"banners"`
+	Categories generated.CategoryTreeResponse     `json:"categories"`
 }
 
-func mapGeneratedCards(items []domainadvert.PublicCard) []generated.PublishedAdvertCard {
-	out := make([]generated.PublishedAdvertCard, 0, len(items))
+func mapPublicCardsJSONList(items []domainadvert.PublicCard) []publicCardJSON {
+	out := make([]publicCardJSON, 0, len(items))
 	for _, item := range items {
-		out = append(out, mapPublicCard(item))
+		out = append(out, mapPublicCardJSON(item))
 	}
 	return out
 }
