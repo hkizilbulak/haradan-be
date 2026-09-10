@@ -121,8 +121,12 @@ func (r *fakeRepo) FindUserForUpdate(_ context.Context, id uuid.UUID) (domainuse
 	}
 	return domainuser.User{}, apperr.NotFound("user not found")
 }
-func (r *fakeRepo) GetDetail(context.Context, uuid.UUID, time.Time) (Detail, error) {
-	panic("not used")
+func (r *fakeRepo) GetDetail(ctx context.Context, userID uuid.UUID, _ time.Time) (Detail, error) {
+	u, err := r.FindUser(ctx, userID)
+	if err != nil {
+		return Detail{}, err
+	}
+	return Detail{User: u}, nil
 }
 func (r *fakeRepo) ActiveSessionCount(context.Context, uuid.UUID, time.Time) (int, error) {
 	return 0, nil
@@ -159,6 +163,9 @@ func (r *fakeRepo) InsertSecurityEvent(_ context.Context, event domainauth.Secur
 }
 func (r *fakeRepo) ListSecurityEvents(_ context.Context, _ uuid.UUID, _ *domainauth.SecurityEventType, _ *time.Time, _ *uuid.UUID, limit int) ([]domainauth.SecurityEvent, error) {
 	return r.events[:min(limit, len(r.events))], nil
+}
+func (r *fakeRepo) ListConsentLogs(_ context.Context, _ uuid.UUID) ([]domainuser.UserConsentLog, error) {
+	return nil, nil
 }
 func (r *fakeRepo) CreateUser(_ context.Context, user domainuser.User) error {
 	for _, existing := range append(r.created, r.users...) {

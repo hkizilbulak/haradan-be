@@ -86,6 +86,9 @@ func (r *adminUserHTTPRepo) InsertSecurityEvent(context.Context, domainauth.Secu
 func (r *adminUserHTTPRepo) ListSecurityEvents(context.Context, uuid.UUID, *domainauth.SecurityEventType, *time.Time, *uuid.UUID, int) ([]domainauth.SecurityEvent, error) {
 	panic("not used")
 }
+func (r *adminUserHTTPRepo) ListConsentLogs(context.Context, uuid.UUID) ([]domainuser.UserConsentLog, error) {
+	return nil, nil
+}
 func (r *adminUserHTTPRepo) CreateUser(_ context.Context, user domainuser.User) error {
 	for _, existing := range r.users {
 		if existing.EmailNormalized == user.EmailNormalized {
