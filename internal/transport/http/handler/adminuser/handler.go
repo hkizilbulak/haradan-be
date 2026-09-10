@@ -123,6 +123,9 @@ func (h *Handler) UpdateAdminUser(c *gin.Context, userID generated.UserIdPath) {
 		"firstName":         {},
 		"lastName":          {},
 		"phone":             {},
+		"allowEmail":        {},
+		"allowSms":          {},
+		"allowWhatsapp":     {},
 	})
 	if err != nil {
 		bind.RespondBadBody(c)
@@ -198,6 +201,44 @@ func (h *Handler) GetUserAdminDetail(c *gin.Context, userID generated.UserIdPath
 	c.JSON(http.StatusOK, mapDetail(out))
 }
 
+func (h *Handler) GetAdminUserConsentLogs(c *gin.Context, userID generated.UserIdPath) {
+	if _, ok := h.requireAdminBO(c); !ok {
+		return
+	}
+	out, err := h.svc.ListConsentLogs(c.Request.Context(), uuid.UUID(userID))
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	var res []generated.UserConsentLog
+	for _, log := range out {
+		var ip, ua *string
+		if log.IPAddress != nil {
+			v := *log.IPAddress
+			ip = &v
+		}
+		if log.UserAgent != nil {
+			v := *log.UserAgent
+			ua = &v
+		}
+		res = append(res, generated.UserConsentLog{
+			AgreementType: log.AgreementType,
+			Channel:       log.Channel,
+			CreatedAt:     log.CreatedAt,
+			Id:            openapi_types.UUID(log.ID),
+			IpAddress:     ip,
+			IsGranted:     log.IsGranted,
+			UserAgent:     ua,
+			UserId:        openapi_types.UUID(log.UserID),
+			Version:       log.Version,
+		})
+	}
+	if res == nil {
+		res = []generated.UserConsentLog{}
+	}
+	c.JSON(http.StatusOK, res)
+}
+
 func (h *Handler) ChangeUserRole(c *gin.Context, userID generated.UserIdPath) {
 	actorID, ok := h.requireAdminBO(c)
 	if !ok {
@@ -268,6 +309,8 @@ func mapListItem(user domainuser.User) generated.AdminUserListItem {
 		Channel: &ch,
 	}
 }
+
+func ptrBool(b bool) *bool { return &b }
 
 func mapDetail(detail appadminuser.Detail) generated.AdminUserDetailResponse {
 	user := detail.User

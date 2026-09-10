@@ -54,6 +54,14 @@ func (s *Server) GetUserAdminDetail(c *gin.Context, userID generated.UserIdPath)
 	s.adminuser.GetUserAdminDetail(c, userID)
 }
 
+func (s *Server) GetAdminUserConsentLogs(c *gin.Context, userID generated.UserIdPath) {
+	if s.adminuser == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.adminuser.GetAdminUserConsentLogs(c, userID)
+}
+
 func (s *Server) ChangeUserRole(c *gin.Context, userID generated.UserIdPath) {
 	if s.adminuser == nil {
 		respondNotImplemented(c)

@@ -63,11 +63,12 @@ func (s *Service) UpdateProfile(ctx context.Context, in UpdateProfileInput) (Det
 		if err != nil {
 			return err
 		}
-		sessions, err := repo.ActiveSessionCount(ctx, updated.ID, now)
+
+		updatedDetail, err := repo.GetDetail(ctx, updated.ID, now)
 		if err != nil {
 			return err
 		}
-		out = Detail{User: updated, ActiveSessionCount: sessions}
+		out = updatedDetail
 		return nil
 	})
 	return out, err

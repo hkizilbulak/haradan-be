@@ -2239,6 +2239,52 @@ paths:
         - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
+  "/v1/admin/users/{userId}/consent-logs":
+    get:
+      operationId: GetAdminUserConsentLogs
+      summary: GetAdminUserConsentLogs
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminUsers
+      x-function-id: ADMIN-USER-10
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      parameters:
+      - "$ref": "#/components/parameters/UserIdPath"
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserConsentLog"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
   "/v1/admin/users/{userId}/email/change-request":
     post:
       operationId: RequestAdminUserEmailChange
@@ -7264,12 +7310,49 @@ components:
         format: uuid
 
   schemas:
+    UserConsentLog:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - userId
+      - agreementType
+      - version
+      - isGranted
+      - channel
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        agreementType:
+          type: string
+        version:
+          type: string
+        isGranted:
+          type: boolean
+        ipAddress:
+          type: string
+          nullable: true
+        userAgent:
+          type: string
+          nullable: true
+        channel:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
     StudFarmItem:
       type: object
       additionalProperties: false
       required:
       - id
       - first_name
+      - last_name
+      - email
       - created_at
       - updated_at
       properties:

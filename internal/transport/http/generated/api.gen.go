@@ -2337,6 +2337,19 @@ type UploadConstraints struct {
 	RequiredHeaders     []string `json:"requiredHeaders"`
 }
 
+// UserConsentLog defines model for UserConsentLog.
+type UserConsentLog struct {
+	AgreementType string             `json:"agreementType"`
+	Channel       string             `json:"channel"`
+	CreatedAt     time.Time          `json:"createdAt"`
+	Id            openapi_types.UUID `json:"id"`
+	IpAddress     *string            `json:"ipAddress,omitempty"`
+	IsGranted     bool               `json:"isGranted"`
+	UserAgent     *string            `json:"userAgent,omitempty"`
+	UserId        openapi_types.UUID `json:"userId"`
+	Version       string             `json:"version"`
+}
+
 // UserRole defines model for UserRole.
 type UserRole string
 
@@ -3028,6 +3041,9 @@ type ServerInterface interface {
 	// UpdateAdminUser UpdateAdminUser
 	// (PATCH /v1/admin/users/{userId})
 	UpdateAdminUser(c *gin.Context, userId UserIdPath)
+	// GetAdminUserConsentLogs GetAdminUserConsentLogs
+	// (GET /v1/admin/users/{userId}/consent-logs)
+	GetAdminUserConsentLogs(c *gin.Context, userId UserIdPath)
 	// RequestAdminUserEmailChange RequestAdminUserEmailChange
 	// (POST /v1/admin/users/{userId}/email/change-request)
 	RequestAdminUserEmailChange(c *gin.Context, userId UserIdPath)
@@ -4886,6 +4902,31 @@ func (siw *ServerInterfaceWrapper) UpdateAdminUser(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateAdminUser(c, userId)
+}
+
+// GetAdminUserConsentLogs operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminUserConsentLogs(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAdminUserConsentLogs(c, userId)
 }
 
 // RequestAdminUserEmailChange operation middleware
@@ -7000,6 +7041,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/v1/admin/users/:userId/invitation/resend", wrapper.ResendAdminUserInvitation)
 	router.GET(options.BaseURL+"/v1/admin/users/:userId", wrapper.GetUserAdminDetail)
 	router.PATCH(options.BaseURL+"/v1/admin/users/:userId", wrapper.UpdateAdminUser)
+	router.GET(options.BaseURL+"/v1/admin/users/:userId/consent-logs", wrapper.GetAdminUserConsentLogs)
 	router.POST(options.BaseURL+"/v1/admin/users/:userId/email/change-request", wrapper.RequestAdminUserEmailChange)
 	router.POST(options.BaseURL+"/v1/admin/users/:userId/role", wrapper.ChangeUserRole)
 	router.GET(options.BaseURL+"/v1/admin/users/:userId/security-events", wrapper.ListUserSecurityEvents)

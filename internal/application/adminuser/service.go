@@ -454,6 +454,13 @@ func (s *Service) ListSecurityEvents(ctx context.Context, userID uuid.UUID, in E
 	return result, nil
 }
 
+func (s *Service) ListConsentLogs(ctx context.Context, userID uuid.UUID) ([]domainuser.UserConsentLog, error) {
+	if _, err := s.repo.FindUser(ctx, userID); err != nil {
+		return nil, err
+	}
+	return s.repo.ListConsentLogs(ctx, userID)
+}
+
 // ensureActiveAdminRemains rejects transitions that would leave zero ACTIVE admins.
 func (s *Service) ensureActiveAdminRemains(ctx context.Context, repo Repository, current domainuser.User, nextRole domainuser.Role, nextStatus domainuser.Status) error {
 	wasActiveAdmin := current.Role == domainuser.RoleAdmin && current.Status == domainuser.StatusActive

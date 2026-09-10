@@ -27,6 +27,7 @@ type Repository interface {
 	RevokeAllSessions(ctx context.Context, userID uuid.UUID, now time.Time, reason string) error
 	InsertSecurityEvent(ctx context.Context, event domainauth.SecurityEvent) error
 	ListSecurityEvents(ctx context.Context, userID uuid.UUID, eventType *domainauth.SecurityEventType, afterCreated *time.Time, afterID *uuid.UUID, limit int) ([]domainauth.SecurityEvent, error)
+	ListConsentLogs(ctx context.Context, userID uuid.UUID) ([]domainuser.UserConsentLog, error)
 
 	CreateUser(ctx context.Context, user domainuser.User) error
 	UpdateProfile(ctx context.Context, userID uuid.UUID, firstName, lastName string, phone *string, now time.Time) (domainuser.User, error)

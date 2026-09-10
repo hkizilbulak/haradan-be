@@ -117,16 +117,27 @@ func (r *Repository) GetDetail(ctx context.Context, userID uuid.UUID, now time.T
 SELECT ` + userColumns + `,
   (SELECT count(*) FROM hrd_auth_sessions
    WHERE user_id = u.id AND revoked_at IS NULL AND absolute_expires_at > $2 AND idle_expires_at > $2)
-FROM hrd_users u WHERE id = $1`
+FROM hrd_users u
+WHERE u.id = $1`
 	var count int
-	user, err := scanUserWithCount(r.db.QueryRow(ctx, q, userID, now), &count)
+	var user domainuser.User
+	var role, status, channel string
+	err := r.db.QueryRow(ctx, q, userID, now).Scan(&user.ID, &user.Email, &user.EmailNormalized, &user.PasswordHash, &role, &status, &user.EmailVerifiedAt,
+		&user.FirstName, &user.LastName, &user.Phone, &user.SecurityStamp, &user.FailedLoginCount, &user.LockedUntil, &user.CreatedAt, &user.UpdatedAt, &channel, &count)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return appadminuser.Detail{}, apperr.NotFound("user not found")
 	}
 	if err != nil {
 		return appadminuser.Detail{}, apperr.Internal(fmt.Errorf("get admin user detail: %w", pg.SanitizeErr(err)))
 	}
-	return appadminuser.Detail{User: user, ActiveSessionCount: count}, nil
+	user.Role, user.Status = domainuser.Role(role), domainuser.Status(status)
+	if channel == "" {
+		channel = string(domainuser.ChannelEmail)
+	}
+	user.Channel = domainuser.Channel(channel)
+	
+	detail := appadminuser.Detail{User: user, ActiveSessionCount: count}
+	return detail, nil
 }
 
 func (r *Repository) ActiveSessionCount(ctx context.Context, userID uuid.UUID, now time.Time) (int, error) {
@@ -380,5 +391,37 @@ func scanUserWithCount(row pgx.Row, count *int) (domainuser.User, error) {
 	user.Channel = domainuser.Channel(channel)
 	return user, err
 }
+
+func (r *Repository) ListConsentLogs(ctx context.Context, userID uuid.UUID) ([]domainuser.UserConsentLog, error) {
+	const q = `
+SELECT id, user_id, agreement_type, version, is_granted, ip_address, user_agent, channel, created_at
+FROM hrd_user_consent_logs
+WHERE user_id = $1
+ORDER BY created_at DESC`
+	rows, err := r.db.Query(ctx, q, userID)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list consent logs: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+	var logs []domainuser.UserConsentLog
+	for rows.Next() {
+		var log domainuser.UserConsentLog
+		var channel string
+		if err := rows.Scan(&log.ID, &log.UserID, &log.AgreementType, &log.Version, &log.IsGranted, &log.IPAddress, &log.UserAgent, &channel, &log.CreatedAt); err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan consent log: %w", pg.SanitizeErr(err)))
+		}
+		if channel == "" {
+			channel = string(domainuser.ChannelEmail)
+		}
+		log.Channel = channel
+		logs = append(logs, log)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list consent logs rows: %w", pg.SanitizeErr(err)))
+	}
+	return logs, nil
+}
+
+
 
 var _ appadminuser.Repository = (*Repository)(nil)

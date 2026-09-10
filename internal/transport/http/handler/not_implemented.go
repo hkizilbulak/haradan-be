@@ -164,6 +164,10 @@ func (NotImplementedServer) GetUserAdminDetail(c *gin.Context, userId generated.
 	respondNotImplemented(c)
 }
 
+func (NotImplementedServer) GetAdminUserConsentLogs(c *gin.Context, userId generated.UserIdPath) {
+	respondNotImplemented(c)
+}
+
 func (NotImplementedServer) ChangeUserRole(c *gin.Context, userId generated.UserIdPath) {
 	respondNotImplemented(c)
 }

@@ -95,6 +95,7 @@ var AdminUserProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/users/:userId/security-events"},
 	{Method: "POST", Path: "/api/v1/admin/users/:userId/invitation/resend"},
 	{Method: "POST", Path: "/api/v1/admin/users/:userId/email/change-request"},
+	{Method: "GET", Path: "/api/v1/admin/users/:userId/consent-logs"},
 }
 
 var TJKAdminProtectedRoutes = []ProtectedRoute{
