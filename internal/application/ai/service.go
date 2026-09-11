@@ -85,7 +85,7 @@ type geminiResponse struct {
 	} `json:"candidates"`
 }
 
-const systemPrompt = `Sen profesyonel bir metin yazarısın. Sana verilen yarış atı (TJK) verilerini analiz ederek satılık yarış atı ilanı için çarpıcı, kısa bir ilan başlığı ve HTML formatında zengin bir metin açıklaması oluşturacaksın. Açıklama metnini HTML formatında (örneğin <strong>, <ul>, <li> etiketleri kullanarak) düzenle. Açıklamada atın pedigrisi, önemli koşuları, anne/baba bilgileri gibi detayları öne çıkar. JSON formatında yanıt ver. JSON şu anahtarları içermeli: "title" (İlan başlığı), "description" (HTML formatında açıklama).`
+const systemPrompt = `Sen profesyonel bir metin yazarısın. Sana verilen yarış atı (TJK) verilerini analiz ederek satılık yarış atı ilanı için çarpıcı ve ÇOK KISA (maksimum 4-5 kelime) bir ilan başlığı ve HTML formatında zengin bir metin açıklaması oluşturacaksın. Açıklama metnini HTML formatında (örneğin <strong>, <ul>, <li> etiketleri kullanarak) düzenle. Açıklamada atın pedigrisi, önemli koşuları, anne/baba bilgileri gibi detayları öne çıkar. JSON formatında yanıt ver. JSON şu anahtarları içermeli: "title" (İlan başlığı), "description" (HTML formatında açıklama).`
 
 func (s *Service) GenerateAdvert(ctx context.Context, req GenerateAdvertRequest) (GenerateAdvertResponse, error) {
 	if s.apiKey == "" {
