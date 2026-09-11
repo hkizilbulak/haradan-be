@@ -2,6 +2,8 @@ package router
 
 import (
 	"log/slog"
+	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,6 +77,19 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 	})
 	if hs, ok := server.(interface{ PutMediaAssetContent(*gin.Context) }); ok {
 		r.PUT(APIBasePath+"/v1/media/assets/:assetId/content", hs.PutMediaAssetContent)
+	}
+	if hs, ok := server.(interface {
+		PublishAdvert(*gin.Context, generated.AdvertIdPath)
+	}); ok {
+		r.POST(APIBasePath+"/v1/me/adverts/:advertId/publish", func(c *gin.Context) {
+			rawID := c.Param("advertId")
+			val, err := strconv.ParseInt(rawID, 10, 64)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid advert id"})
+				return
+			}
+			hs.PublishAdvert(c, generated.AdvertIdPath(val))
+		})
 	}
 	if rs, ok := server.(interface{ RegisterCouponRoutes(gin.IRouter) }); ok {
 		rs.RegisterCouponRoutes(r.Group(APIBasePath))

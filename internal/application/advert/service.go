@@ -573,6 +573,11 @@ func (s *Service) ArchiveAdvert(ctx context.Context, ownerID uuid.UUID, advertID
 	return s.ownerTransition(ctx, ownerID, advertID, expectedVersion, domainadvert.StatusPublished, domainadvert.StatusArchived)
 }
 
+// PublishAdvert implements owner publishing an ARCHIVED advert (ARCHIVED -> PUBLISHED).
+func (s *Service) PublishAdvert(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error) {
+	return s.ownerTransition(ctx, ownerID, advertID, expectedVersion, domainadvert.StatusArchived, domainadvert.StatusPublished)
+}
+
 // AutoArchiveSoldResult summarises one auto-archive batch run.
 type AutoArchiveSoldResult struct {
 	Archived int
@@ -702,7 +707,11 @@ func (s *Service) ownerTransition(
 		if current.Status != from {
 			return apperr.InvalidState("İlan bu durumda bu işleme uygun değil.")
 		}
-		updated, err = repo.TransitionStatus(ctx, ownerID, advertID, from, to, expectedVersion, nil, now)
+		var publishedAt *time.Time
+		if to == domainadvert.StatusPublished {
+			publishedAt = &now
+		}
+		updated, err = repo.TransitionStatus(ctx, ownerID, advertID, from, to, expectedVersion, publishedAt, now)
 		if err != nil {
 			return err
 		}

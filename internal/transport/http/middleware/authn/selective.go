@@ -39,6 +39,7 @@ var AdvertOwnerProtectedRoutes = []ProtectedRoute{
 	{Method: "DELETE", Path: "/api/v1/me/adverts/:advertId"},
 	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/sold"},
 	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/archive"},
+	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/publish"},
 	{Method: "PUT", Path: "/api/v1/me/adverts/:advertId/package"},
 	{Method: "POST", Path: "/api/v1/me/adverts/:advertId/paytr/checkout"},
 	{Method: "GET", Path: "/api/v1/me/adverts/:advertId/paytr/charges/:merchantOid"},

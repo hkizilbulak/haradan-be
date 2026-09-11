@@ -114,6 +114,15 @@ func (s *Server) ArchiveAdvert(c *gin.Context, advertId generated.AdvertIdPath) 
 	s.advert.ArchiveAdvert(c, advertId)
 }
 
+// PublishAdvert implements owner publishing an ARCHIVED advert.
+func (s *Server) PublishAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
+	if s.advert == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.advert.PublishAdvert(c, advertId)
+}
+
 // ChangeAdvertDraftCategory implements ADVERT-OWNER-05.
 func (s *Server) ChangeAdvertDraftCategory(c *gin.Context, advertId generated.AdvertIdPath) {
 	if s.advert == nil {

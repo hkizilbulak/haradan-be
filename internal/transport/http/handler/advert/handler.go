@@ -257,6 +257,20 @@ func (h *Handler) ArchiveAdvert(c *gin.Context, advertID generated.AdvertIdPath)
 	c.JSON(http.StatusOK, mapOwnerView(out))
 }
 
+// PublishAdvert handles POST /v1/me/adverts/{advertId}/publish.
+func (h *Handler) PublishAdvert(c *gin.Context, advertID generated.AdvertIdPath) {
+	ownerID, expectedVersion, ok := h.principalAndExpectedVersion(c)
+	if !ok {
+		return
+	}
+	out, err := h.svc.PublishAdvert(c.Request.Context(), ownerID, advertID, expectedVersion)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, mapOwnerView(out))
+}
+
 func (h *Handler) requirePrincipal(c *gin.Context) (uuid.UUID, bool) {
 	p, ok := authctx.PrincipalFromContext(c.Request.Context())
 	if !ok {
