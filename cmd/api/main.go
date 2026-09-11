@@ -18,6 +18,7 @@ import (
 
 	appadminuser "github.com/hkizilbulak/haradan-be/internal/application/adminuser"
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
+	appai "github.com/hkizilbulak/haradan-be/internal/application/ai"
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	appbanner "github.com/hkizilbulak/haradan-be/internal/application/banner"
 	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
@@ -358,6 +359,16 @@ func run() error {
 		return fmt.Errorf("coupon service: %w", err)
 	}
 
+	aiSvc, err := appai.NewService(appai.Config{
+		ApiURL:      cfg.AIApiURL,
+		ApiKey:      cfg.AIApiKey,
+		Model:       cfg.AIModel,
+		Temperature: cfg.AITemperature,
+	})
+	if err != nil {
+		return fmt.Errorf("ai service: %w", err)
+	}
+
 	srvHandler := handler.NewServer(
 		log, db, geoSvc, catalogSvc, horseSvc, advertSvc, mediaSvc, favoriteSvc,
 		packagingSvc, campaignSvc, campaignPackages, notificationSvc, authSvc, notificationInboxSvc,
@@ -371,7 +382,8 @@ func run() error {
 		WithCommentService(commentSvc).
 		WithAdminCommentService(commentSvc).
 		WithStudFarmService(studfarmSvc).
-		WithCouponService(couponSvc)
+		WithCouponService(couponSvc).
+		WithAIService(aiSvc)
 	engine := router.New(srvHandler, log, router.Options{
 		AuthService:        authSvc,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,

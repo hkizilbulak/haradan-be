@@ -146,6 +146,12 @@ type Config struct {
 	// PayTRUserIP overrides the payer IP sent to get-token. Required for local
 	// development when the request IP is loopback (PayTR rejects 127.0.0.1/::1).
 	PayTRUserIP string
+
+	// AI configuration for advert generation
+	AIApiURL      string
+	AIApiKey      string
+	AIModel       string
+	AITemperature float64
 }
 
 const defaultTJKBaseURL = "https://www.tjk.org"
@@ -563,10 +569,20 @@ func Load() (Config, error) {
 		if cfg.PayTRAPIPublicURL == "" {
 			return Config{}, fmt.Errorf("PAYTR_API_PUBLIC_URL must not be empty when PayTR is enabled")
 		}
-		u, parseErr := url.Parse(cfg.PayTRAPIPublicURL)
-		if parseErr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-			return Config{}, fmt.Errorf("PAYTR_API_PUBLIC_URL is not a valid http(s) URL")
+		u, err := url.Parse(cfg.PayTRAPIPublicURL)
+		if err != nil {
+			return Config{}, fmt.Errorf("invalid PAYTR_API_PUBLIC_URL: %w", err)
 		}
+		if u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+			return Config{}, fmt.Errorf("PAYTR_API_PUBLIC_URL must not contain userinfo, query, or fragment")
+		}
+	}
+
+	cfg.AIApiURL = getenvDefault("AI_API_URL", "https://api.openai.com/v1/chat/completions")
+	cfg.AIApiKey = strings.TrimSpace(os.Getenv("AI_API_KEY"))
+	cfg.AIModel = getenvDefault("AI_MODEL", "gpt-4o-mini")
+	if cfg.AITemperature, err = float64Env("AI_TEMPERATURE", 0.7); err != nil {
+		return Config{}, err
 	}
 
 	return cfg, nil
@@ -1091,4 +1107,16 @@ func uint32Env(key string, fallback uint32) (uint32, error) {
 		return 0, fmt.Errorf("%s is not a valid integer", key)
 	}
 	return uint32(n), nil
+}
+
+func float64Env(key string, fallback float64) (float64, error) {
+	raw, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return fallback, nil
+	}
+	f, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s is not a valid float", key)
+	}
+	return f, nil
 }

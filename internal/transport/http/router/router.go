@@ -119,6 +119,9 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 	if rs, ok := server.(interface{ RegisterCatalogDynamicRoutes(gin.IRouter) }); ok {
 		rs.RegisterCatalogDynamicRoutes(r.Group(APIBasePath))
 	}
+	if rs, ok := server.(interface{ RegisterAIRoutes(gin.IRouter) }); ok {
+		rs.RegisterAIRoutes(r.Group(APIBasePath))
+	}
 	return r
 }
 

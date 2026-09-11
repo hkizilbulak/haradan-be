@@ -13,6 +13,7 @@ import (
 	appadminuser "github.com/hkizilbulak/haradan-be/internal/application/adminuser"
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
+	appai "github.com/hkizilbulak/haradan-be/internal/application/ai"
 	appbanner "github.com/hkizilbulak/haradan-be/internal/application/banner"
 	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
@@ -35,6 +36,7 @@ import (
 	admincommenthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/admin"
 	adminuserhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/adminuser"
 	adverthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/advert"
+	aihandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/ai"
 	authhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/auth"
 	bannerhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/banner"
 	campaignhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/campaign"
@@ -87,6 +89,7 @@ type Server struct {
 	paytr        *paytrhandler.Handler
 	studfarm     *studfarmhandler.Handler
 	admincomment *admincommenthandler.CommentHandler
+	ai           *aihandler.Handler
 }
 
 func (s *Server) WithCommentService(svc *appcomment.Service) *Server {
@@ -173,6 +176,20 @@ func (s *Server) RegisterAdminCampaignRoutes(r gin.IRouter) {
 		return
 	}
 	r.DELETE("/v1/admin/campaigns/:campaignId", s.campaign.DeleteAdminCampaign)
+}
+
+func (s *Server) WithAIService(svc *appai.Service) *Server {
+	if svc != nil {
+		s.ai = aihandler.NewHandler(svc, s.logger, respondError)
+	}
+	return s
+}
+
+func (s *Server) RegisterAIRoutes(r gin.IRouter) {
+	if s.ai == nil {
+		return
+	}
+	r.POST("/v1/ai/generate-tjk-advert", s.ai.GenerateAdvert)
 }
 
 func (s *Server) WithTJKService(svc *apptjk.Service) *Server {
