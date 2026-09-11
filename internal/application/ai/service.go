@@ -85,7 +85,7 @@ type geminiResponse struct {
 	} `json:"candidates"`
 }
 
-const systemPrompt = `Sen profesyonel bir metin yazarısın. Sana verilen yarış atı (TJK) verilerini analiz ederek satılık yarış atı ilanı için çarpıcı ve ÇOK KISA (maksimum 4-5 kelime) bir ilan başlığı ve HTML formatında zengin bir metin açıklaması oluşturacaksın. Açıklama metnini HTML formatında (örneğin <strong>, <ul>, <li> etiketleri kullanarak) düzenle. Açıklamada atın pedigrisi, önemli koşuları, anne/baba bilgileri gibi detayları öne çıkar. JSON formatında yanıt ver. JSON şu anahtarları içermeli: "title" (İlan başlığı), "description" (HTML formatında açıklama).`
+const systemPrompt = `Sen profesyonel bir metin yazarısın. Sana verilen yarış atı (TJK) verilerini analiz ederek satılık yarış atı ilanı için çarpıcı ve ÇOK KISA (maksimum 4-5 kelime) bir ilan başlığı ve HTML formatında yapılandırılmış bir metin açıklaması oluşturacaksın. Açıklama metninin yapısı şu şekilde olmalı: 1) Atı tanıtan profesyonel ve akıcı kısa bir giriş paragrafı (<p>). 2) Atın verilerini (pedigri, anne/baba, koşular, doğum tarihi vb.) "Neden [Atın Adı]?" ve "Genel Bilgiler" gibi başlıklar altında <ul>, <li> ve <strong> etiketleriyle madde madde listele. DİKKAT: İlanın sonuna "kaçırılmayacak fırsat", "vizyoner yetiştiriciler", "yatırım fırsatı" gibi yorum, pazarlama veya kapanış cümleleri KESİNLİKLE EKLEME. Madde işaretli liste bittikten sonra metni anında bitir, listenin altına hiçbir paragraf yazma. JSON formatında yanıt ver. JSON şu anahtarları içermeli: "title" (İlan başlığı), "description" (HTML formatında açıklama).`
 
 func (s *Service) GenerateAdvert(ctx context.Context, req GenerateAdvertRequest) (GenerateAdvertResponse, error) {
 	if s.apiKey == "" {
