@@ -65,9 +65,12 @@ func (s *Service) ListAdvertModerationQueue(ctx context.Context, in ModerationLi
 	if hasMore {
 		rows = rows[:limit]
 	}
-	items := make([]domainadvert.OwnerView, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, row.ToOwnerView())
+	items, err := s.projectOwnerViews(ctx, rows)
+	if err != nil {
+		items = make([]domainadvert.OwnerView, 0, len(rows))
+		for _, row := range rows {
+			items = append(items, row.ToOwnerView())
+		}
 	}
 	var next *string
 	if hasMore && len(rows) > 0 {
@@ -216,8 +219,13 @@ func (s *Service) moderationDetail(ctx context.Context, a domainadvert.Advert) (
 	if history == nil {
 		history = []domainadvert.StatusHistory{}
 	}
+	ownerView := a.ToOwnerView()
+	views, err := s.projectOwnerViews(ctx, []domainadvert.Advert{a})
+	if err == nil && len(views) > 0 {
+		ownerView = views[0]
+	}
 	return domainadvert.ModerationDetailView{
-		OwnerView:     a.ToOwnerView(),
+		OwnerView:     ownerView,
 		OwnerUserID:   a.OwnerUserID,
 		StatusHistory: history,
 	}, nil

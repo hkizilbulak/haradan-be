@@ -596,6 +596,15 @@ func TestUrgentRequiresAdvancedAndAllowsUrgent(t *testing.T) {
 	}
 	_, err = f.svc.ActivateUrgent(ctx, f.owner.ID, f.advert.ID)
 	requireKind(t, err, apperr.KindConflict)
+
+	// Admin can override and activate urgent even when package does not allow it.
+	act, err := f.svc.ActivateUrgent(ctx, f.admin.ID, f.advert.ID)
+	if err != nil {
+		t.Fatalf("expected admin to bypass allowsUrgent restriction, got: %v", err)
+	}
+	if act.FeatureCode != domainpackaging.FeatureCodeUrgent {
+		t.Fatalf("unexpected feature code: %v", act.FeatureCode)
+	}
 }
 
 func TestUrgentFutureAssignmentRejected(t *testing.T) {

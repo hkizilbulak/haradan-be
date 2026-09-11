@@ -126,6 +126,15 @@ func (s *Server) DeactivateAdvertUrgent(c *gin.Context, advertId generated.Adver
 	s.packaging.DeactivateAdvertUrgent(c, advertId)
 }
 
+// GetAdvertUrgent implements URGENT status check.
+func (s *Server) GetAdvertUrgent(c *gin.Context, advertId generated.AdvertIdPath) {
+	if s.packaging == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.packaging.GetAdvertUrgent(c, advertId)
+}
+
 // ListAdminCampaigns implements campaign admin list.
 func (s *Server) ListAdminCampaigns(c *gin.Context, params generated.ListAdminCampaignsParams) {
 	if s.campaign == nil {

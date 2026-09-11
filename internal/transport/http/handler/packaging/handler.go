@@ -194,7 +194,40 @@ func (h *Handler) GetAdminAdvertPackage(c *gin.Context, advertID generated.Adver
 		h.respond(c, h.logger, err)
 		return
 	}
-	c.JSON(http.StatusOK, mapAssignmentView(out))
+	isUrgent, _ := h.svc.IsUrgentActive(c.Request.Context(), advertID)
+	view := mapAssignmentView(out)
+	c.JSON(http.StatusOK, gin.H{
+		"id":               view.Id,
+		"advertId":         view.AdvertId,
+		"packageCode":      view.PackageCode,
+		"status":           view.Status,
+		"startsAt":         view.StartsAt,
+		"endsAt":           view.EndsAt,
+		"assignedByUserId": view.AssignedByUserId,
+		"assignedAt":       view.AssignedAt,
+		"supersededAt":     view.SupersededAt,
+		"expiredAt":        view.ExpiredAt,
+		"cancelledAt":      view.CancelledAt,
+		"reason":           view.Reason,
+		"source":           view.Source,
+		"version":          view.Version,
+		"createdAt":        view.CreatedAt,
+		"updatedAt":        view.UpdatedAt,
+		"isUrgent":         isUrgent,
+	})
+}
+
+// GetAdvertUrgent handles GET /v1/adverts/{advertId}/urgent.
+func (h *Handler) GetAdvertUrgent(c *gin.Context, advertID generated.AdvertIdPath) {
+	isUrgent, err := h.svc.IsUrgentActive(c.Request.Context(), advertID)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"advertId": advertID,
+		"isUrgent": isUrgent,
+	})
 }
 
 // AssignAdminAdvertPackage handles PUT /v1/admin/adverts/{advertId}/package.

@@ -676,9 +676,44 @@ func (s *Service) ActivateUrgent(ctx context.Context, actorUserID uuid.UUID, adv
 			return err
 		}
 
+		now := s.clock.Now().UTC()
+		var pkg domainpackaging.Package
 		assignment, err := assignments.LockActiveByAdvertID(ctx, advertID)
 		if err != nil {
 			if isNotFound(err) {
+				if actor.Role == domainuser.RoleAdmin {
+					pkgs, listErr := s.packages.List(ctx, false)
+					if listErr == nil && len(pkgs) > 0 {
+						var defaultPkg *domainpackaging.Package
+						for i := range pkgs {
+							if pkgs[i].IsActive {
+								defaultPkg = &pkgs[i]
+								break
+							}
+						}
+						if defaultPkg != nil {
+							newAsg := domainpackaging.AdvertPackageAssignment{
+								ID:               uuid.New(),
+								AdvertID:         advertID,
+								PackageID:        defaultPkg.ID,
+								Status:           domainpackaging.AssignmentStatusActive,
+								Source:           domainpackaging.AssignmentSourceAdmin,
+								AssignedByUserID: actor.ID,
+								StartsAt:         now,
+								AssignedAt:       now,
+								Version:          1,
+								CreatedAt:        now,
+								UpdatedAt:        now,
+							}
+							if saveErr := assignments.Create(ctx, newAsg); saveErr != nil {
+								return saveErr
+							}
+							assignment = newAsg
+							pkg = *defaultPkg
+							goto packageResolved
+						}
+					}
+				}
 				return apperr.InvalidState(urgentRequiresCapabilityMsg)
 			}
 			return err
@@ -686,18 +721,23 @@ func (s *Service) ActivateUrgent(ctx context.Context, actorUserID uuid.UUID, adv
 		if assignment.AdvertID != advertID {
 			return apperr.Internal(fmt.Errorf("assignment advert mismatch"))
 		}
-		now := s.clock.Now().UTC()
 		if !assignment.IsEffectiveAt(now) {
-			return apperr.InvalidState(urgentRequiresCapabilityMsg)
+			if actor.Role != domainuser.RoleAdmin {
+				return apperr.InvalidState(urgentRequiresCapabilityMsg)
+			}
 		}
-		pkg, err := s.packages.FindByID(ctx, assignment.PackageID)
-		if err != nil {
-			return err
+		{
+			p, pErr := s.packages.FindByID(ctx, assignment.PackageID)
+			if pErr != nil {
+				return pErr
+			}
+			pkg = p
 		}
-		if !pkg.AllowsUrgentFeature() {
+		if actor.Role != domainuser.RoleAdmin && !pkg.AllowsUrgentFeature() {
 			return apperr.InvalidState(urgentRequiresCapabilityMsg)
 		}
 
+	packageResolved:
 		// Advert + assignment row locks serialize activation_version generation
 		// for the same advert before reading latest / creating ACTIVE.
 		existing, err := features.LockActiveByAdvertIDAndCode(ctx, advertID, domainpackaging.FeatureCodeUrgent)
@@ -770,6 +810,18 @@ func (s *Service) DeactivateUrgent(ctx context.Context, actorUserID uuid.UUID, a
 		_, err = features.DeactivateActive(ctx, advertID, domainpackaging.FeatureCodeUrgent, now, nil, now)
 		return err
 	})
+}
+
+// IsUrgentActive checks whether the advert currently has an ACTIVE urgent feature activation.
+func (s *Service) IsUrgentActive(ctx context.Context, advertID int64) (bool, error) {
+	_, err := s.features.FindActiveByAdvertIDAndCode(ctx, advertID, domainpackaging.FeatureCodeUrgent)
+	if err == nil {
+		return true, nil
+	}
+	if isNotFound(err) {
+		return false, nil
+	}
+	return false, err
 }
 
 // deactivateFeaturesForPackageLoss clears URGENT + FEATURED when entitlement changes.

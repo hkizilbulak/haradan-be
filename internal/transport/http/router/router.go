@@ -91,6 +91,19 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 			hs.PublishAdvert(c, generated.AdvertIdPath(val))
 		})
 	}
+	if hs, ok := server.(interface {
+		GetAdvertUrgent(*gin.Context, generated.AdvertIdPath)
+	}); ok {
+		r.GET(APIBasePath+"/v1/adverts/:advertId/urgent", func(c *gin.Context) {
+			rawID := c.Param("advertId")
+			val, err := strconv.ParseInt(rawID, 10, 64)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid advert id"})
+				return
+			}
+			hs.GetAdvertUrgent(c, generated.AdvertIdPath(val))
+		})
+	}
 	if rs, ok := server.(interface{ RegisterCouponRoutes(gin.IRouter) }); ok {
 		rs.RegisterCouponRoutes(r.Group(APIBasePath))
 	}
