@@ -139,6 +139,7 @@ type CatalogReader interface {
 // GeoReader resolves the advert district reference.
 type GeoReader interface {
 	GetActiveDistrict(ctx context.Context, id uuid.UUID) (domaingeo.District, error)
+	ListActiveProvinces(ctx context.Context) ([]domaingeo.Province, error)
 }
 
 // HorseReader resolves the advert horse reference.

@@ -629,6 +629,10 @@ func (g memoryGeo) GetActiveDistrict(_ context.Context, id uuid.UUID) (domaingeo
 	return d, nil
 }
 
+func (g memoryGeo) ListActiveProvinces(_ context.Context) ([]domaingeo.Province, error) {
+	return nil, nil
+}
+
 type memoryHorses struct{ store *MemoryStore }
 
 func (h memoryHorses) FindByID(_ context.Context, id uuid.UUID) (domainhorse.Horse, error) {

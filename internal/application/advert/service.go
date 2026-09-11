@@ -951,6 +951,38 @@ func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Adv
 			if geoErr == nil {
 				pid := district.ProvinceID
 				view.ProvinceID = &pid
+
+				props := map[string]interface{}{}
+				if len(view.Properties) > 0 {
+					_ = json.Unmarshal(view.Properties, &props)
+				}
+				if props == nil {
+					props = map[string]interface{}{}
+				}
+				if _, ok := props["ilce"]; !ok {
+					props["ilce"] = district.Name
+				}
+				if _, ok := props["districtName"]; !ok {
+					props["districtName"] = district.Name
+				}
+
+				provinces, pErr := s.geo.ListActiveProvinces(ctx)
+				if pErr == nil {
+					for _, p := range provinces {
+						if p.ID == district.ProvinceID {
+							if _, ok := props["sehir"]; !ok {
+								props["sehir"] = p.Name
+							}
+							if _, ok := props["provinceName"]; !ok {
+								props["provinceName"] = p.Name
+							}
+							break
+						}
+					}
+				}
+				if updatedProps, mErr := json.Marshal(props); mErr == nil {
+					view.Properties = updatedProps
+				}
 			}
 		}
 		items = append(items, view)
