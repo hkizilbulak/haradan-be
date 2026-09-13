@@ -286,3 +286,56 @@ func (h *Handler) requireAdminBO(c *gin.Context) (uuid.UUID, bool) {
 	}
 	return p.UserID, true
 }
+
+type PublicCampaignView struct {
+	Code                            string  `json:"code"`
+	Name                            string  `json:"name"`
+	Title                           string  `json:"title"`
+	Description                     *string `json:"description,omitempty"`
+	BadgeText                       *string `json:"badgeText,omitempty"`
+	TargetPackageCode               *string `json:"targetPackageCode,omitempty"`
+	DisplayOriginalPriceAmountMinor *int64  `json:"displayOriginalPriceAmountMinor,omitempty"`
+	DisplayCampaignPriceAmountMinor *int64  `json:"displayCampaignPriceAmountMinor,omitempty"`
+	CurrencyCode                    string  `json:"currencyCode"`
+	CTALabel                        *string `json:"ctaLabel,omitempty"`
+	CTAURL                          *string `json:"ctaUrl,omitempty"`
+}
+
+type PublicCampaignListResponse struct {
+	Items []PublicCampaignView `json:"items"`
+}
+
+// ListPublicCampaigns handles GET /v1/campaigns.
+func (h *Handler) ListPublicCampaigns(c *gin.Context) {
+	out, err := h.svc.ListPublicActive(c.Request.Context())
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	items := make([]PublicCampaignView, 0, len(out))
+	for _, item := range out {
+		var targetCode *string
+		if item.TargetPackageID != nil {
+			pkg, err := h.packages.FindByID(c.Request.Context(), *item.TargetPackageID)
+			if err == nil {
+				codeStr := string(pkg.Code)
+				targetCode = &codeStr
+			}
+		}
+		items = append(items, PublicCampaignView{
+			Code:                            item.Code,
+			Name:                            item.Name,
+			Title:                           item.Title,
+			Description:                     item.Description,
+			BadgeText:                       item.BadgeText,
+			TargetPackageCode:               targetCode,
+			DisplayOriginalPriceAmountMinor: item.DisplayOriginalPriceAmountMinor,
+			DisplayCampaignPriceAmountMinor: item.DisplayCampaignPriceAmountMinor,
+			CurrencyCode:                    item.CurrencyCode,
+			CTALabel:                        item.CTALabel,
+			CTAURL:                          item.CTAURL,
+		})
+	}
+	c.JSON(http.StatusOK, PublicCampaignListResponse{Items: items})
+}
+

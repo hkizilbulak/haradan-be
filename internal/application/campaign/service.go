@@ -331,6 +331,27 @@ func (s *Service) ListCampaigns(ctx context.Context, actorUserID uuid.UUID, in L
 	return out, nil
 }
 
+// ListPublicActive returns active campaigns for public display without requiring admin auth.
+func (s *Service) ListPublicActive(ctx context.Context) ([]domaincampaign.Campaign, error) {
+	active := true
+	rows, err := s.repo.List(ctx, ListFilter{
+		IsActive: &active,
+		Limit:    100,
+	})
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	out := make([]domaincampaign.Campaign, 0, len(rows))
+	for _, c := range rows {
+		if !c.IsActive || c.StartsAt.After(now) || (c.EndsAt != nil && c.EndsAt.Before(now)) {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
+
 // UpdateCampaign applies a partial optimistic patch (ACTIVE ADMIN only).
 func (s *Service) UpdateCampaign(ctx context.Context, in UpdateCampaignInput) (domaincampaign.Campaign, error) {
 	if err := s.requireAdmin(ctx, in.ActorUserID); err != nil {

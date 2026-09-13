@@ -160,6 +160,7 @@ func (s *Server) RegisterCouponRoutes(r gin.IRouter) {
 	v1Public := r.Group("/v1/coupons")
 	{
 		v1Public.POST("/validate", s.coupon.UserValidate)
+		v1Public.GET("/active", s.coupon.PublicListActive)
 	}
 }
 
@@ -176,6 +177,7 @@ func (s *Server) RegisterAdminCampaignRoutes(r gin.IRouter) {
 		return
 	}
 	r.DELETE("/v1/admin/campaigns/:campaignId", s.campaign.DeleteAdminCampaign)
+	r.GET("/v1/campaigns", s.campaign.ListPublicCampaigns)
 }
 
 func (s *Server) WithAIService(svc *appai.Service) *Server {

@@ -14,9 +14,11 @@ import (
 
 	"github.com/google/uuid"
 
+	appcoupon "github.com/hkizilbulak/haradan-be/internal/application/coupon"
 	apppackaging "github.com/hkizilbulak/haradan-be/internal/application/packaging"
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domaincoupon "github.com/hkizilbulak/haradan-be/internal/domain/coupon"
 	domainpackaging "github.com/hkizilbulak/haradan-be/internal/domain/packaging"
 	domainpaytr "github.com/hkizilbulak/haradan-be/internal/domain/paytr"
 	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
@@ -65,6 +67,12 @@ type TokenGateway interface {
 	VerifyNotifyHash(merchantOID, status, totalAmount, hash string) bool
 }
 
+// CouponValidator validates and records promotional coupon usage.
+type CouponValidator interface {
+	ValidateCoupon(ctx context.Context, userID uuid.UUID, code string, spendAmountMinor int64, packageCode *string) (appcoupon.ValidationResult, error)
+	RecordUsage(ctx context.Context, usage domaincoupon.CouponUsage) error
+}
+
 // Clock abstracts time for tests.
 type Clock interface {
 	Now() time.Time
@@ -86,6 +94,7 @@ type Config struct {
 	Packaging      PackagingAssigner
 	Submitter      AdvertSubmitter
 	Gateway        TokenGateway
+	Coupons        CouponValidator
 	FrontendURL    string
 	APIPublicURL   string // public base including /api, used for merchant_notify_url
 	UserIPOverride string // optional fixed payer IP (local/dev)
@@ -102,6 +111,7 @@ type Service struct {
 	packaging      PackagingAssigner
 	submitter      AdvertSubmitter
 	gateway        TokenGateway
+	coupons        CouponValidator
 	frontendURL    string
 	apiPublicURL   string
 	userIPOverride string
@@ -131,6 +141,7 @@ func NewService(cfg Config) (*Service, error) {
 		packaging:      cfg.Packaging,
 		submitter:      cfg.Submitter,
 		gateway:        cfg.Gateway,
+		coupons:        cfg.Coupons,
 		frontendURL:    strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/"),
 		apiPublicURL:   strings.TrimRight(strings.TrimSpace(cfg.APIPublicURL), "/"),
 		userIPOverride: strings.TrimSpace(cfg.UserIPOverride),
@@ -144,6 +155,7 @@ type CheckoutInput struct {
 	OwnerUserID uuid.UUID
 	AdvertID    int64
 	PackageCode domainpackaging.PackageCode
+	CouponCode  *string
 	UserIP      string
 }
 
@@ -192,6 +204,20 @@ func (s *Service) StartCheckout(ctx context.Context, in CheckoutInput) (Checkout
 		return CheckoutResult{}, apperr.InvalidState("Paket ücreti tanımlı değil.")
 	}
 	amount := *pkg.DisplayPriceAmountMinor
+	var appliedCoupon *domaincoupon.Coupon
+
+	if in.CouponCode != nil && strings.TrimSpace(*in.CouponCode) != "" && s.coupons != nil {
+		pkgStr := string(in.PackageCode)
+		val, err := s.coupons.ValidateCoupon(ctx, in.OwnerUserID, strings.TrimSpace(*in.CouponCode), amount, &pkgStr)
+		if err != nil {
+			return CheckoutResult{}, err
+		}
+		if !val.Valid {
+			return CheckoutResult{}, apperr.Validation(val.Message)
+		}
+		amount = val.FinalAmountMinor
+		appliedCoupon = val.Coupon
+	}
 
 	user, err := s.users.FindByID(ctx, in.OwnerUserID)
 	if err != nil {
@@ -203,6 +229,44 @@ func (s *Service) StartCheckout(ctx context.Context, in CheckoutInput) (Checkout
 
 	now := s.clock.Now()
 	merchantOID := "hrd" + strings.ReplaceAll(uuid.NewString(), "-", "")
+
+	if amount <= 0 {
+		// Coupon covered 100% of the cost. Assign package and submit advert directly.
+		if appliedCoupon != nil && s.coupons != nil {
+			_ = s.coupons.RecordUsage(ctx, domaincoupon.CouponUsage{
+				ID:                  uuid.New(),
+				CouponID:            appliedCoupon.ID,
+				UserID:              in.OwnerUserID,
+				AdvertID:            &in.AdvertID,
+				DiscountAmountMinor: *pkg.DisplayPriceAmountMinor,
+				UsedAt:              now,
+				CreatedAt:           now,
+			})
+		}
+		_, err = s.packaging.AssignAdvertPackage(ctx, apppackaging.AssignAdvertPackageInput{
+			AdvertID:    in.AdvertID,
+			PackageCode: in.PackageCode,
+			ActorUserID: in.OwnerUserID,
+			Source:      domainpackaging.AssignmentSourcePayment,
+		})
+		if err != nil {
+			return CheckoutResult{}, err
+		}
+		_, err = s.submitter.SubmitAdvertForReview(ctx, in.OwnerUserID, in.AdvertID, advert.Version+1)
+		if err != nil {
+			return CheckoutResult{}, err
+		}
+		return CheckoutResult{
+			ChargeID:     uuid.Nil,
+			MerchantOID:  merchantOID,
+			AmountMinor:  0,
+			CurrencyCode: "TRY",
+			PackageCode:  string(in.PackageCode),
+			AdvertID:     in.AdvertID,
+			Status:       domainpaytr.ChargeStatusSucceeded,
+		}, nil
+	}
+
 	charge := domainpaytr.Charge{
 		ID:           uuid.New(),
 		MerchantOID:  merchantOID,

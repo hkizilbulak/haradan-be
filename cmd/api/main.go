@@ -310,6 +310,13 @@ func run() error {
 		return fmt.Errorf("job admin service: %w", err)
 	}
 
+	couponSvc, err := appcoupon.NewService(appcoupon.Config{
+		Repo: pgcoupon.NewRepository(db.Pool()),
+	})
+	if err != nil {
+		return fmt.Errorf("coupon service: %w", err)
+	}
+
 	var paytrSvc *apppaytr.Service
 	if cfg.PayTREnabled {
 		gateway, err := paytrclient.New(paytrclient.Config{
@@ -335,6 +342,7 @@ func run() error {
 			Packaging:      apppaytr.PackagingBridge{Svc: packagingSvc},
 			Submitter:      apppaytr.AdvertBridge{Svc: advertSvc},
 			Gateway:        gateway,
+			Coupons:        couponSvc,
 			FrontendURL:    cfg.FrontendURL,
 			APIPublicURL:   cfg.PayTRAPIPublicURL,
 			UserIPOverride: cfg.PayTRUserIP,
@@ -351,13 +359,6 @@ func run() error {
 	}
 
 	studfarmSvc := appstudfarm.NewService(pgstudfarm.NewRepository(db.Pool()))
-
-	couponSvc, err := appcoupon.NewService(appcoupon.Config{
-		Repo: pgcoupon.NewRepository(db.Pool()),
-	})
-	if err != nil {
-		return fmt.Errorf("coupon service: %w", err)
-	}
 
 	aiSvc, err := appai.NewService(appai.Config{
 		ApiURL:      cfg.AIApiURL,

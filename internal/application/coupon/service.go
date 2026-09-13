@@ -240,3 +240,8 @@ func (s *Service) ValidateCoupon(ctx context.Context, userID uuid.UUID, code str
 		FinalAmountMinor:    finalAmount,
 	}, nil
 }
+
+func (s *Service) RecordUsage(ctx context.Context, usage domain.CouponUsage) error {
+	return s.repo.RecordUsage(ctx, usage, s.now())
+}
+

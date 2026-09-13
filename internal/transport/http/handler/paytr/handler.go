@@ -33,7 +33,8 @@ func NewHandler(svc *apppaytr.Service, log *slog.Logger, respond ErrorResponder)
 }
 
 type checkoutRequest struct {
-	PackageCode string `json:"packageCode"`
+	PackageCode string  `json:"packageCode"`
+	CouponCode  *string `json:"couponCode,omitempty"`
 }
 
 type checkoutResponse struct {
@@ -84,6 +85,7 @@ func (h *Handler) StartCheckout(c *gin.Context) {
 		OwnerUserID: principal.UserID,
 		AdvertID:    advertID,
 		PackageCode: code,
+		CouponCode:  body.CouponCode,
 		UserIP:      clientIP(c),
 	})
 	if err != nil {

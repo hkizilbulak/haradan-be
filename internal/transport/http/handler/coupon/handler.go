@@ -319,10 +319,9 @@ type ValidateCouponRequest struct {
 }
 
 func (h *Handler) UserValidate(c *gin.Context) {
-	p, ok := authctx.PrincipalFromContext(c.Request.Context())
-	if !ok {
-		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "Kimlik doğrulama gerekli."))
-		return
+	var userID uuid.UUID
+	if p, ok := authctx.PrincipalFromContext(c.Request.Context()); ok {
+		userID = p.UserID
 	}
 
 	var req ValidateCouponRequest
@@ -330,7 +329,7 @@ func (h *Handler) UserValidate(c *gin.Context) {
 		return
 	}
 
-	res, err := h.service.ValidateCoupon(c.Request.Context(), p.UserID, req.Code, req.SpendAmountMinor, req.PackageCode)
+	res, err := h.service.ValidateCoupon(c.Request.Context(), userID, req.Code, req.SpendAmountMinor, req.PackageCode)
 	if err != nil {
 		h.respond(c, h.logger, err)
 		return
@@ -338,3 +337,48 @@ func (h *Handler) UserValidate(c *gin.Context) {
 
 	c.JSON(http.StatusOK, res)
 }
+
+type PublicActiveCouponResponse struct {
+	Code                  string  `json:"code"`
+	Name                  string  `json:"name"`
+	DiscountType          string  `json:"discountType"`
+	DiscountValue         int64   `json:"discountValue"`
+	MinSpendAmountMinor   *int64  `json:"minSpendAmountMinor,omitempty"`
+	ApplicablePackageCode *string `json:"applicablePackageCode,omitempty"`
+}
+
+type PublicActiveCouponsResponse struct {
+	Items []PublicActiveCouponResponse `json:"items"`
+}
+
+// PublicListActive GET /v1/coupons/active
+func (h *Handler) PublicListActive(c *gin.Context) {
+	active := true
+	list, _, err := h.service.List(c.Request.Context(), nil, &active, 50, 0)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+
+	now := time.Now().UTC()
+	items := make([]PublicActiveCouponResponse, 0, len(list))
+	for _, item := range list {
+		if !item.IsActive || item.StartsAt.After(now) || (item.EndsAt != nil && item.EndsAt.Before(now)) {
+			continue
+		}
+		if item.MaxUses != nil && item.UsesCount >= *item.MaxUses {
+			continue
+		}
+		items = append(items, PublicActiveCouponResponse{
+			Code:                  item.Code,
+			Name:                  item.Name,
+			DiscountType:          string(item.DiscountType),
+			DiscountValue:         item.DiscountValue,
+			MinSpendAmountMinor:   item.MinSpendAmountMinor,
+			ApplicablePackageCode: item.ApplicablePackageCode,
+		})
+	}
+
+	c.JSON(http.StatusOK, PublicActiveCouponsResponse{Items: items})
+}
+

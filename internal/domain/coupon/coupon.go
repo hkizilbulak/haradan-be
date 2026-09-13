@@ -25,23 +25,23 @@ func ParseDiscountType(v string) (DiscountType, bool) {
 }
 
 type Coupon struct {
-	ID                    uuid.UUID
-	Code                  string
-	Name                  string
-	DiscountType          DiscountType
-	DiscountValue         int64
-	MaxUses               *int
-	UsesCount             int
-	MaxUsesPerUser        int
-	MinSpendAmountMinor   *int64
-	ApplicablePackageCode *string
-	StartsAt              time.Time
-	EndsAt                *time.Time
-	IsActive              bool
-	CreatedByUserID       uuid.UUID
-	Version               int
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
+	ID                    uuid.UUID    `json:"id"`
+	Code                  string       `json:"code"`
+	Name                  string       `json:"name"`
+	DiscountType          DiscountType `json:"discountType"`
+	DiscountValue         int64        `json:"discountValue"`
+	MaxUses               *int         `json:"maxUses,omitempty"`
+	UsesCount             int          `json:"usesCount"`
+	MaxUsesPerUser        int          `json:"maxUsesPerUser"`
+	MinSpendAmountMinor   *int64       `json:"minSpendAmountMinor,omitempty"`
+	ApplicablePackageCode *string      `json:"applicablePackageCode,omitempty"`
+	StartsAt              time.Time    `json:"startsAt"`
+	EndsAt                *time.Time   `json:"endsAt,omitempty"`
+	IsActive              bool         `json:"isActive"`
+	CreatedByUserID       uuid.UUID    `json:"createdByUserId"`
+	Version               int          `json:"version"`
+	CreatedAt             time.Time    `json:"createdAt"`
+	UpdatedAt             time.Time    `json:"updatedAt"`
 }
 
 type CouponUsage struct {

@@ -243,6 +243,7 @@ var PublicFavoriteEnrichmentRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/homepage/showcase"},
 	{Method: "GET", Path: "/api/v1/homepage/urgent"},
 	{Method: "GET", Path: "/api/v1/homepage/featured"},
+	{Method: "POST", Path: "/api/v1/coupons/validate"},
 }
 
 // OptionalSelective runs soft Bearer auth on the listed public routes.
