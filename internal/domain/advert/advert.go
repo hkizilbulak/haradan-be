@@ -201,14 +201,14 @@ func OwnerTransitionAllowed(from, to Status) bool {
 	return false
 }
 
-// AdminTransitionAllowed reports whether an admin moderation action may drive
-// from -> to. Resume/unsuspend is intentionally absent (phase-one OpenAPI).
 func AdminTransitionAllowed(from, to Status) bool {
 	switch from {
 	case StatusPendingReview:
 		return to == StatusPublished || to == StatusChangesRequested || to == StatusRejected
 	case StatusPublished:
 		return to == StatusSuspended
+	case StatusSuspended:
+		return to == StatusPublished
 	}
 	return false
 }

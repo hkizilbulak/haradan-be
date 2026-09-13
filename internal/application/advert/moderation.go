@@ -90,14 +90,66 @@ func (s *Service) GetAdvertModerationDetail(ctx context.Context, advertID int64)
 	return s.moderationDetail(ctx, found)
 }
 
-// ApproveAdvert implements ADVERT-ADMIN-03: PENDING_REVIEW → PUBLISHED.
+// ApproveAdvert implements ADVERT-ADMIN-03: PENDING_REVIEW / SUSPENDED → PUBLISHED.
 func (s *Service) ApproveAdvert(
 	ctx context.Context,
 	actorUserID uuid.UUID, advertID int64,
 	expectedVersion int,
 ) (domainadvert.ModerationDetailView, error) {
-	return s.adminTransition(ctx, actorUserID, advertID, expectedVersion, nil,
-		domainadvert.StatusPendingReview, domainadvert.StatusPublished, true)
+	if err := requireExpectedVersion(expectedVersion); err != nil {
+		return domainadvert.ModerationDetailView{}, err
+	}
+
+	var updated domainadvert.Advert
+	now := s.clock.Now()
+	err := s.withTx(ctx, func(ctx context.Context, repo Repository, tx pgx.Tx) error {
+		current, err := repo.FindByIDForUpdate(ctx, advertID)
+		if err != nil {
+			return err
+		}
+		if current.Version != expectedVersion {
+			return apperr.StaleVersion(staleVersionMessage)
+		}
+		if current.Status != domainadvert.StatusPendingReview && current.Status != domainadvert.StatusSuspended {
+			return apperr.InvalidState(adminInvalidStateMessage)
+		}
+		if !domainadvert.AdminTransitionAllowed(current.Status, domainadvert.StatusPublished) {
+			return apperr.Internal(
+				fmt.Errorf("unsupported admin transition %s->%s", current.Status, domainadvert.StatusPublished),
+			)
+		}
+		if err := s.validateForSubmission(ctx, current); err != nil {
+			return err
+		}
+		var publishedAt *time.Time
+		if current.PublishedAt != nil {
+			publishedAt = current.PublishedAt
+		} else {
+			publishedAt = &now
+		}
+		fromStatus := current.Status
+		updated, err = repo.TransitionStatus(
+			ctx, current.OwnerUserID, advertID, fromStatus, domainadvert.StatusPublished, expectedVersion, publishedAt, now,
+		)
+		if err != nil {
+			return err
+		}
+		return repo.InsertHistory(ctx, domainadvert.StatusHistory{
+			ID:          uuid.New(),
+			AdvertID:    advertID,
+			FromStatus:  &fromStatus,
+			ToStatus:    domainadvert.StatusPublished,
+			ActorUserID: &actorUserID,
+			IsSystem:    false,
+			Reason:      nil,
+			CreatedAt:   now,
+		})
+	})
+	if err != nil {
+		return domainadvert.ModerationDetailView{}, err
+	}
+
+	return s.moderationDetail(ctx, updated)
 }
 
 // RequestAdvertChanges implements ADVERT-ADMIN-04: PENDING_REVIEW → CHANGES_REQUESTED.
