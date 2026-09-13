@@ -968,6 +968,17 @@ func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Adv
 						propsModified = true
 					}
 				}
+				if u.Phone != nil && strings.TrimSpace(*u.Phone) != "" {
+					phoneVal := strings.TrimSpace(*u.Phone)
+					if _, ok := props["sellerPhone"]; !ok {
+						props["sellerPhone"] = phoneVal
+						propsModified = true
+					}
+					if _, ok := props["phone"]; !ok {
+						props["phone"] = phoneVal
+						propsModified = true
+					}
+				}
 			}
 		}
 
