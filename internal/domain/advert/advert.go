@@ -90,6 +90,7 @@ type MediaRelation struct {
 // OwnerView is the owner-scoped advert projection.
 type OwnerView struct {
 	ID                     int64
+	OwnerUserID            uuid.UUID
 	Status                 Status
 	Version                int
 	MediaVersion           int
@@ -106,6 +107,7 @@ type OwnerView struct {
 	PublishedAt            *time.Time
 	SoldAt                 *time.Time
 	DeletedAt              *time.Time
+	CreatedAt              time.Time
 	UpdatedAt              time.Time
 	CategoryClearedWarning *bool
 }
@@ -154,6 +156,7 @@ func (a Advert) ToOwnerView() OwnerView {
 	}
 	return OwnerView{
 		ID:           a.ID,
+		OwnerUserID:  a.OwnerUserID,
 		Status:       a.Status,
 		Version:      a.Version,
 		MediaVersion: a.MediaVersion,
@@ -169,6 +172,7 @@ func (a Advert) ToOwnerView() OwnerView {
 		PublishedAt:  a.PublishedAt,
 		SoldAt:       a.SoldAt,
 		DeletedAt:    a.DeletedAt,
+		CreatedAt:    a.CreatedAt,
 		UpdatedAt:    a.UpdatedAt,
 	}
 }

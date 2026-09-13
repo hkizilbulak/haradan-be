@@ -128,8 +128,8 @@ func TestLoginNotImplemented(t *testing.T) {
 
 func TestOpenAPIRouteCount(t *testing.T) {
 	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)), fakeDeps{})
-	if got := router.CountOpenAPIRoutes(engine); got != 145 {
-		t.Fatalf("route count=%d, want 145", got)
+	if got := router.CountOpenAPIRoutes(engine); got != 146 {
+		t.Fatalf("route count=%d, want 146", got)
 	}
 }
 

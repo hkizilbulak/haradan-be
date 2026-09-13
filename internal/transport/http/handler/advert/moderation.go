@@ -182,6 +182,7 @@ func mapModerationDetail(v domainadvert.ModerationDetailView) generated.Moderati
 		Media:                  owner.Media,
 		PublishedAt:            owner.PublishedAt,
 		DeletedAt:              owner.DeletedAt,
+		CreatedAt:              owner.CreatedAt,
 		CategoryClearedWarning: owner.CategoryClearedWarning,
 		OwnerUserId:            v.OwnerUserID,
 		StatusHistory:          history,

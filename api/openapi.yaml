@@ -8540,9 +8540,17 @@ components:
           type: string
           format: date-time
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
         deletedAt:
           type: string
           format: date-time
+          nullable: true
+        ownerUserId:
+          type: string
+          format: uuid
           nullable: true
         categoryClearedWarning:
           type: boolean

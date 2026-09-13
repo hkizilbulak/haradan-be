@@ -332,8 +332,17 @@ func mapOwnerAdvertBase(v domainadvert.OwnerView) generated.OwnerAdvertResponse 
 			LifecycleStatus: generated.MediaAssetLifecycle(m.LifecycleStatus),
 		})
 	}
+	var createdAt *time.Time
+	if !v.CreatedAt.IsZero() {
+		createdAt = &v.CreatedAt
+	}
+	var ownerUserID *uuid.UUID
+	if v.OwnerUserID != uuid.Nil {
+		ownerUserID = &v.OwnerUserID
+	}
 	return generated.OwnerAdvertResponse{
 		Id:                     v.ID,
+		OwnerUserId:            ownerUserID,
 		Status:                 generated.AdvertStatus(v.Status),
 		Version:                v.Version,
 		MediaVersion:           v.MediaVersion,
@@ -347,6 +356,7 @@ func mapOwnerAdvertBase(v domainadvert.OwnerView) generated.OwnerAdvertResponse 
 		Media:                  media,
 		PublishedAt:            v.PublishedAt,
 		DeletedAt:              v.DeletedAt,
+		CreatedAt:              createdAt,
 		CategoryClearedWarning: v.CategoryClearedWarning,
 	}
 }

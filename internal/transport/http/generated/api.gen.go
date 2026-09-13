@@ -1555,6 +1555,7 @@ type MediaVariantStatusItem struct {
 type ModerationAdvertDetailResponse struct {
 	CategoryClearedWarning *bool                    `json:"categoryClearedWarning,omitempty"`
 	CategoryId             *openapi_types.UUID      `json:"categoryId"`
+	CreatedAt              *time.Time               `json:"createdAt,omitempty"`
 	DeletedAt              *time.Time               `json:"deletedAt"`
 	Description            *string                  `json:"description"`
 	DistrictId             *openapi_types.UUID      `json:"districtId"`
@@ -1665,6 +1666,7 @@ type OwnerAdvertListResponse struct {
 type OwnerAdvertResponse struct {
 	CategoryClearedWarning *bool                    `json:"categoryClearedWarning,omitempty"`
 	CategoryId             *openapi_types.UUID      `json:"categoryId"`
+	CreatedAt              *time.Time               `json:"createdAt,omitempty"`
 	DeletedAt              *time.Time               `json:"deletedAt"`
 	Description            *string                  `json:"description"`
 	DistrictId             *openapi_types.UUID      `json:"districtId"`
@@ -1672,6 +1674,7 @@ type OwnerAdvertResponse struct {
 	Id                     int64                    `json:"id"`
 	Media                  []OwnerMediaRelationItem `json:"media"`
 	MediaVersion           int                      `json:"mediaVersion"`
+	OwnerUserId            *openapi_types.UUID      `json:"ownerUserId,omitempty"`
 	Price                  *Money                   `json:"price"`
 	Properties             map[string]interface{}   `json:"properties"`
 	PublishedAt            *time.Time               `json:"publishedAt"`

@@ -245,8 +245,11 @@ func TestAdminModerationHappyPathHTTP(t *testing.T) {
 	if len(queue.Items) != 1 || queue.Items[0].Id != pending.ID {
 		t.Fatalf("%+v", queue)
 	}
-	if queue.Items[0].Media == nil || len(queue.Items[0].Media) != 0 {
+	if queue.Items[0].Media == nil || len(queue.Items[0].Media) != 1 {
 		t.Fatalf("media=%#v", queue.Items[0].Media)
+	}
+	if queue.Items[0].CreatedAt == nil {
+		t.Fatalf("expected createdAt")
 	}
 
 	rec = env.do(http.MethodGet, "/api/v1/admin/adverts/"+strconv.FormatInt(pending.ID, 10), "", adminAuth)

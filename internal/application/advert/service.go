@@ -946,24 +946,44 @@ func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Adv
 		if media := mediaByAdvert[row.ID]; len(media) > 0 {
 			view.Media = media
 		}
+
+		props := map[string]interface{}{}
+		if len(view.Properties) > 0 {
+			_ = json.Unmarshal(view.Properties, &props)
+		}
+		if props == nil {
+			props = map[string]interface{}{}
+		}
+		propsModified := false
+
+		if s.users != nil && row.OwnerUserID != uuid.Nil {
+			if u, uErr := s.users.FindByID(ctx, row.OwnerUserID); uErr == nil {
+				fullName := strings.TrimSpace(u.FirstName + " " + u.LastName)
+				if fullName == "" {
+					fullName = u.Email
+				}
+				if fullName != "" {
+					if _, ok := props["ownerName"]; !ok {
+						props["ownerName"] = fullName
+						propsModified = true
+					}
+				}
+			}
+		}
+
 		if row.DistrictID != nil {
 			district, geoErr := s.geo.GetActiveDistrict(ctx, *row.DistrictID)
 			if geoErr == nil {
 				pid := district.ProvinceID
 				view.ProvinceID = &pid
 
-				props := map[string]interface{}{}
-				if len(view.Properties) > 0 {
-					_ = json.Unmarshal(view.Properties, &props)
-				}
-				if props == nil {
-					props = map[string]interface{}{}
-				}
 				if _, ok := props["ilce"]; !ok {
 					props["ilce"] = district.Name
+					propsModified = true
 				}
 				if _, ok := props["districtName"]; !ok {
 					props["districtName"] = district.Name
+					propsModified = true
 				}
 
 				provinces, pErr := s.geo.ListActiveProvinces(ctx)
@@ -972,17 +992,22 @@ func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Adv
 						if p.ID == district.ProvinceID {
 							if _, ok := props["sehir"]; !ok {
 								props["sehir"] = p.Name
+								propsModified = true
 							}
 							if _, ok := props["provinceName"]; !ok {
 								props["provinceName"] = p.Name
+								propsModified = true
 							}
 							break
 						}
 					}
 				}
-				if updatedProps, mErr := json.Marshal(props); mErr == nil {
-					view.Properties = updatedProps
-				}
+			}
+		}
+
+		if propsModified {
+			if updatedProps, mErr := json.Marshal(props); mErr == nil {
+				view.Properties = updatedProps
 			}
 		}
 		items = append(items, view)
