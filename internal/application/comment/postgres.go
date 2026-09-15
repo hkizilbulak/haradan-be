@@ -50,16 +50,17 @@ func (r pgRepo) ListCommentsByAdvert(ctx context.Context, advertID int64, limit,
 	return rows, total, nil
 }
 
-func (r pgRepo) AdminListComments(ctx context.Context, status *domaincomment.Status, limit, offset int) ([]CommentRow, int, error) {
-	infraRows, total, err := r.Repository.AdminListComments(ctx, status, limit, offset)
+func (r pgRepo) AdminListComments(ctx context.Context, filter AdminCommentFilter, limit, offset int) ([]CommentRow, int, error) {
+	infraRows, total, err := r.Repository.AdminListComments(ctx, filter.Statuses, filter.AdvertTitle, filter.StartDate, filter.EndDate, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
 	rows := make([]CommentRow, 0, len(infraRows))
 	for _, ir := range infraRows {
 		rows = append(rows, CommentRow{
-			Comment:    ir.Comment,
-			AuthorName: ir.AuthorName,
+			Comment:     ir.Comment,
+			AuthorName:  ir.AuthorName,
+			AdvertTitle: ir.AdvertTitle,
 		})
 	}
 	return rows, total, nil

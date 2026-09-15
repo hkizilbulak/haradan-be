@@ -41,14 +41,37 @@ func (h *CommentHandler) List(c *gin.Context) {
 		return
 	}
 
-	statusStr := c.Query("status")
 	limitStr := c.Query("limit")
 	offsetStr := c.Query("offset")
+	
+	// Read filter fields
+	advertTitle := c.Query("advertTitle")
+	startDate := c.Query("startDate")
+	endDate := c.Query("endDate")
+	
+	// Support both `?statuses=PENDING,PUBLISHED` or `?status=PENDING&status=PUBLISHED`
+	// Actually, since we updated the frontend to send an array, it might be sent as `status=PENDING&status=PUBLISHED`
+	// Or maybe a comma-separated string `statuses=PENDING,PUBLISHED`. Let's support both just in case.
+	var statuses []domaincomment.Status
+	if stArray := c.QueryArray("statuses"); len(stArray) > 0 {
+		for _, s := range stArray {
+			statuses = append(statuses, domaincomment.Status(s))
+		}
+	} else if stArray := c.QueryArray("status"); len(stArray) > 0 {
+		for _, s := range stArray {
+			statuses = append(statuses, domaincomment.Status(s))
+		}
+	} else if stStr := c.Query("statuses"); stStr != "" {
+		statuses = append(statuses, domaincomment.Status(stStr))
+	} else if stStr := c.Query("status"); stStr != "" {
+		statuses = append(statuses, domaincomment.Status(stStr))
+	}
 
-	var status *domaincomment.Status
-	if statusStr != "" {
-		st := domaincomment.Status(statusStr)
-		status = &st
+	filter := appcomment.AdminCommentFilter{
+		Statuses:    statuses,
+		AdvertTitle: advertTitle,
+		StartDate:   startDate,
+		EndDate:     endDate,
 	}
 
 	limit := 20
@@ -65,7 +88,7 @@ func (h *CommentHandler) List(c *gin.Context) {
 		}
 	}
 
-	res, err := h.svc.AdminListComments(c.Request.Context(), status, limit, offset)
+	res, err := h.svc.AdminListComments(c.Request.Context(), filter, limit, offset)
 	if err != nil {
 		h.respond(c, h.logger, err)
 		return

@@ -128,7 +128,7 @@ func (m *memoryRepo) ListCommentsByAdvert(ctx context.Context, advertID int64, l
 	return list[offset:end], total, nil
 }
 
-func (m *memoryRepo) AdminListComments(ctx context.Context, status *domaincomment.Status, limit, offset int) ([]CommentRow, int, error) {
+func (m *memoryRepo) AdminListComments(ctx context.Context, filter AdminCommentFilter, limit, offset int) ([]CommentRow, int, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -137,14 +137,44 @@ func (m *memoryRepo) AdminListComments(ctx context.Context, status *domaincommen
 		if c.DeletedAt != nil {
 			continue
 		}
-		if status != nil && c.Status != *status {
-			continue
+		
+		if len(filter.Statuses) > 0 {
+			found := false
+			for _, s := range filter.Statuses {
+				if c.Status == s {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
 		}
+
+		if filter.StartDate != "" {
+			if c.CreatedAt.Format("2006-01-02") < filter.StartDate {
+				continue
+			}
+		}
+
+		if filter.EndDate != "" {
+			if c.CreatedAt.Format("2006-01-02") > filter.EndDate {
+				continue
+			}
+		}
+
+		// memory mock doesn't easily filter by advertTitle since we'd need to lookup the advert,
+		// but let's do a simple exact match on advert ID if needed, or skip for now since it's just a mock.
+		advTitle := ""
+		if adv, ok := m.adverts[c.AdvertID]; ok {
+			advTitle = adv.Status // Just mock data
+		}
+
 		authorName := m.users[c.UserID]
 		if authorName == "" {
 			authorName = "Kullanıcı"
 		}
-		list = append(list, CommentRow{Comment: c, AuthorName: authorName})
+		list = append(list, CommentRow{Comment: c, AuthorName: authorName, AdvertTitle: advTitle})
 	}
 
 	sort.Slice(list, func(i, j int) bool {

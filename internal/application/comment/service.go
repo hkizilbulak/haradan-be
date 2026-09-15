@@ -157,8 +157,8 @@ func (s *Service) DeleteComment(ctx context.Context, advertID int64, commentID, 
 	return s.repo.DeleteComment(ctx, commentID)
 }
 
-// AdminListComments retrieves all comments based on status with pagination for admin.
-func (s *Service) AdminListComments(ctx context.Context, status *domaincomment.Status, limit, offset int) (ListCommentsResult, error) {
+// AdminListComments retrieves all comments based on filter with pagination for admin.
+func (s *Service) AdminListComments(ctx context.Context, filter AdminCommentFilter, limit, offset int) (ListCommentsResult, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -169,7 +169,7 @@ func (s *Service) AdminListComments(ctx context.Context, status *domaincomment.S
 		offset = 0
 	}
 
-	rows, total, err := s.repo.AdminListComments(ctx, status, limit, offset)
+	rows, total, err := s.repo.AdminListComments(ctx, filter, limit, offset)
 	if err != nil {
 		return ListCommentsResult{}, fmt.Errorf("failed to list admin comments: %w", err)
 	}

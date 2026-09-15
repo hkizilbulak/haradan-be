@@ -41,8 +41,9 @@ type AdvertStatusRow struct {
 
 // CommentRow is the infra comment row with author display name.
 type CommentRow struct {
-	Comment    domaincomment.Comment
-	AuthorName string
+	Comment     domaincomment.Comment
+	AuthorName  string
+	AdvertTitle string
 }
 
 // FindAdvertStatus checks whether the advert exists and returns its status.
@@ -222,36 +223,67 @@ func (r *Repository) ListCommentsByAdvert(ctx context.Context, advertID int64, l
 	return result, total, nil
 }
 
-// AdminListComments returns all comments based on status.
-func (r *Repository) AdminListComments(ctx context.Context, status *domaincomment.Status, limit, offset int) ([]CommentRow, int, error) {
+// AdminListComments returns all comments based on filters.
+func (r *Repository) AdminListComments(ctx context.Context, statuses []domaincomment.Status, advertTitle, startDate, endDate string, limit, offset int) ([]CommentRow, int, error) {
 	var countArgs []any
 	var selectArgs []any
 
 	countQuery := `
 		SELECT COUNT(*)
-		FROM hrd_advert_comments
-		WHERE deleted_at IS NULL
+		FROM hrd_advert_comments c
+		LEFT JOIN hrd_adverts a ON a.id = c.advert_id
+		WHERE c.deleted_at IS NULL
 	`
 	selectQuery := `
 		SELECT c.id, c.advert_id, c.user_id, c.content, c.rating, c.status, c.created_at, c.updated_at, c.deleted_at,
-		       COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), COALESCE(u.email, '')
+		       COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), COALESCE(u.email, ''), COALESCE(a.title, '')
 		FROM hrd_advert_comments c
 		LEFT JOIN hrd_users u ON u.id = c.user_id
+		LEFT JOIN hrd_adverts a ON a.id = c.advert_id
 		WHERE c.deleted_at IS NULL
 	`
 
-	if status != nil {
-		countQuery += ` AND status = $1`
-		selectQuery += ` AND c.status = $1`
-		countArgs = append(countArgs, string(*status))
-		selectArgs = append(selectArgs, string(*status))
-
-		selectQuery += ` ORDER BY c.created_at DESC, c.id DESC LIMIT $2 OFFSET $3`
-		selectArgs = append(selectArgs, limit, offset)
-	} else {
-		selectQuery += ` ORDER BY c.created_at DESC, c.id DESC LIMIT $1 OFFSET $2`
-		selectArgs = append(selectArgs, limit, offset)
+	argIdx := 1
+	if len(statuses) > 0 {
+		var statusArgs []string
+		for _, s := range statuses {
+			statusArgs = append(statusArgs, string(s))
+		}
+		// Build IN clause manually or use pgx helper, simpler for a slice:
+		// Since pgx supports passing slice to ANY(), we can do:
+		countQuery += fmt.Sprintf(" AND c.status = ANY($%d)", argIdx)
+		selectQuery += fmt.Sprintf(" AND c.status = ANY($%d)", argIdx)
+		countArgs = append(countArgs, statusArgs)
+		selectArgs = append(selectArgs, statusArgs)
+		argIdx++
 	}
+
+	if advertTitle != "" {
+		countQuery += fmt.Sprintf(" AND a.title ILIKE $%d", argIdx)
+		selectQuery += fmt.Sprintf(" AND a.title ILIKE $%d", argIdx)
+		countArgs = append(countArgs, "%"+advertTitle+"%")
+		selectArgs = append(selectArgs, "%"+advertTitle+"%")
+		argIdx++
+	}
+
+	if startDate != "" {
+		countQuery += fmt.Sprintf(" AND c.created_at >= $%d", argIdx)
+		selectQuery += fmt.Sprintf(" AND c.created_at >= $%d", argIdx)
+		countArgs = append(countArgs, startDate)
+		selectArgs = append(selectArgs, startDate)
+		argIdx++
+	}
+
+	if endDate != "" {
+		countQuery += fmt.Sprintf(" AND c.created_at <= $%d", argIdx)
+		selectQuery += fmt.Sprintf(" AND c.created_at <= $%d", argIdx)
+		countArgs = append(countArgs, endDate)
+		selectArgs = append(selectArgs, endDate)
+		argIdx++
+	}
+
+	selectQuery += fmt.Sprintf(" ORDER BY c.created_at DESC, c.id DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+	selectArgs = append(selectArgs, limit, offset)
 
 	var total int
 	err := r.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
@@ -275,11 +307,12 @@ func (r *Repository) AdminListComments(ctx context.Context, status *domaincommen
 			c          domaincomment.Comment
 			st         string
 			fn, ln, em string
+			advTitle   string
 			rating     *int
 		)
 		err := rows.Scan(
 			&c.ID, &c.AdvertID, &c.UserID, &c.Content, &rating, &st, &c.CreatedAt, &c.UpdatedAt, &c.DeletedAt,
-			&fn, &ln, &em,
+			&fn, &ln, &em, &advTitle,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("scan admin comment: %w", err)
@@ -298,8 +331,9 @@ func (r *Repository) AdminListComments(ctx context.Context, status *domaincommen
 		}
 
 		result = append(result, CommentRow{
-			Comment:    c,
-			AuthorName: authorName,
+			Comment:     c,
+			AuthorName:  authorName,
+			AdvertTitle: advTitle,
 		})
 	}
 	if err := rows.Err(); err != nil {

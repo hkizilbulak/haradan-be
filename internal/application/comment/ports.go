@@ -9,10 +9,18 @@ import (
 	domaincomment "github.com/hkizilbulak/haradan-be/internal/domain/comment"
 )
 
-// CommentRow represents a comment joined with author profile details for API display.
 type CommentRow struct {
-	Comment    domaincomment.Comment
-	AuthorName string
+	Comment     domaincomment.Comment
+	AuthorName  string
+	AdvertTitle string
+}
+
+// AdminCommentFilter holds filter criteria for admin comments.
+type AdminCommentFilter struct {
+	Statuses    []domaincomment.Status
+	AdvertTitle string
+	StartDate   string
+	EndDate     string
 }
 
 // CreateCommentInput is the DTO for creating a comment.
@@ -50,8 +58,8 @@ type Repository interface {
 	// ListCommentsByAdvert returns published comments for an advert ordered by created_at DESC.
 	ListCommentsByAdvert(ctx context.Context, advertID int64, limit, offset int) ([]CommentRow, int, error)
 
-	// AdminListComments returns all comments based on status.
-	AdminListComments(ctx context.Context, status *domaincomment.Status, limit, offset int) ([]CommentRow, int, error)
+	// AdminListComments returns all comments based on the filter.
+	AdminListComments(ctx context.Context, filter AdminCommentFilter, limit, offset int) ([]CommentRow, int, error)
 
 	// UpdateCommentStatus updates the moderation status of a comment.
 	UpdateCommentStatus(ctx context.Context, commentID uuid.UUID, status domaincomment.Status) error
