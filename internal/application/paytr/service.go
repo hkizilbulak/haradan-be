@@ -189,7 +189,7 @@ func (s *Service) StartCheckout(ctx context.Context, in CheckoutInput) (Checkout
 	if advert.IsDeleted() {
 		return CheckoutResult{}, apperr.NotFound("İlan bulunamadı.")
 	}
-	if !domainadvert.CanOwnerEditDetails(advert.Status) {
+	if advert.Status == domainadvert.StatusSold || advert.Status == domainadvert.StatusArchived {
 		return CheckoutResult{}, apperr.InvalidState("Bu ilan durumunda ödeme başlatılamaz.")
 	}
 
