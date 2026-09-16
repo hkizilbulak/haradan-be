@@ -357,7 +357,7 @@ func VariantJobDedupKey(assetID uuid.UUID, profile string) string {
 // re-cover advert media in the given advert status. Phase one allows media edits
 // in DRAFT and CHANGES_REQUESTED only.
 func AdvertEditableForMedia(status string) bool {
-	return status == "DRAFT" || status == "CHANGES_REQUESTED"
+	return status == "DRAFT" || status == "CHANGES_REQUESTED" || status == "REJECTED"
 }
 
 // AttachableAssetLifecycles lists the lifecycles an asset may have when it is

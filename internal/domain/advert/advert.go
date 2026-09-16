@@ -182,16 +182,16 @@ func (a Advert) IsDeleted() bool { return a.DeletedAt != nil }
 
 // CanOwnerEditDetails reports whether the owner may edit core content fields.
 func CanOwnerEditDetails(s Status) bool {
-	return s == StatusDraft || s == StatusChangesRequested || s == StatusPublished
+	return s == StatusDraft || s == StatusChangesRequested || s == StatusPublished || s == StatusRejected
 }
 
 // CanOwnerChangeCategory reports whether the owner may change the category.
-func CanOwnerChangeCategory(s Status) bool { return s == StatusDraft }
+func CanOwnerChangeCategory(s Status) bool { return s == StatusDraft || s == StatusRejected }
 
 // OwnerTransitionAllowed reports whether the owner may drive from -> to.
 func OwnerTransitionAllowed(from, to Status) bool {
 	switch from {
-	case StatusDraft, StatusChangesRequested:
+	case StatusDraft, StatusChangesRequested, StatusRejected:
 		return to == StatusPendingReview
 	case StatusPublished:
 		return to == StatusSold || to == StatusArchived

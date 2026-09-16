@@ -148,7 +148,8 @@ func (f *fixture) seed(t *testing.T, ownerID uuid.UUID, status domainadvert.Stat
 	// property logic.
 	if status == domainadvert.StatusDraft ||
 		status == domainadvert.StatusChangesRequested ||
-		status == domainadvert.StatusPendingReview {
+		status == domainadvert.StatusPendingReview ||
+		status == domainadvert.StatusRejected {
 		assetID := uuid.New()
 		f.store.PutMediaRelations(a.ID, []domainadvert.MediaRelation{{
 			AssetID:         assetID,
@@ -528,6 +529,15 @@ func TestUpdateAdvertDraftDetailsInvalidState(t *testing.T) {
 		Title:           ptr("Yayındaki Başlık Güncellendi"),
 	}); err != nil {
 		t.Fatalf("PUBLISHED must be editable: %v", err)
+	}
+
+	rejected := f.seed(t, f.owner, domainadvert.StatusRejected, nil)
+	if _, err := f.svc.UpdateAdvertDraftDetails(context.Background(), f.owner, rejected.ID, appadvert.UpdateDetailsInput{
+		ExpectedVersion: 1,
+		TitleSet:        true,
+		Title:           ptr("Reddedilen İlan Güncellendi"),
+	}); err != nil {
+		t.Fatalf("REJECTED must be editable: %v", err)
 	}
 }
 
@@ -1069,6 +1079,15 @@ func TestResubmitAdvertForReview(t *testing.T) {
 	}
 	if view.Status != domainadvert.StatusPendingReview || view.Version != 2 {
 		t.Fatalf("view=%+v", view)
+	}
+
+	rejected := f.seed(t, f.owner, domainadvert.StatusRejected, nil)
+	viewRejected, err := f.svc.ResubmitAdvertForReview(ctx, f.owner, rejected.ID, 1)
+	if err != nil {
+		t.Fatalf("resubmit rejected: %v", err)
+	}
+	if viewRejected.Status != domainadvert.StatusPendingReview || viewRejected.Version != 2 {
+		t.Fatalf("viewRejected=%+v", viewRejected)
 	}
 
 	draft := f.seed(t, f.owner, domainadvert.StatusDraft, nil)

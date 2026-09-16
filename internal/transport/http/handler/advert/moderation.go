@@ -34,15 +34,15 @@ func (h *Handler) ListAdvertModerationQueue(c *gin.Context, params generated.Lis
 		h.respond(c, h.logger, err)
 		return
 	}
-	items := make([]generated.OwnerAdvertResponse, 0, len(out.Items))
+	items := make([]ownerAdvertJSON, 0, len(out.Items))
 	for _, item := range out.Items {
-		items = append(items, mapOwnerAdvertBase(item))
+		items = append(items, mapOwnerView(item))
 	}
-	c.JSON(http.StatusOK, generated.ModerationQueueResponse{
-		Items:      items,
-		NextCursor: out.NextCursor,
-		HasMore:    out.HasMore,
-		TotalCount: out.TotalCount,
+	c.JSON(http.StatusOK, gin.H{
+		"items":      items,
+		"nextCursor": out.NextCursor,
+		"hasMore":    out.HasMore,
+		"totalCount": out.TotalCount,
 	})
 }
 

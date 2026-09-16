@@ -387,7 +387,7 @@ func (r MemoryRepository) UpdateCategoryClearProperties(
 	if err != nil {
 		return domainadvert.Advert{}, err
 	}
-	if current.Status != domainadvert.StatusDraft {
+	if current.Status != domainadvert.StatusDraft && current.Status != domainadvert.StatusRejected {
 		return domainadvert.Advert{}, apperr.StaleVersion(staleVersionMessage)
 	}
 	id := categoryID
@@ -469,6 +469,9 @@ func (r MemoryRepository) TransitionStatus(
 	if publishedAt != nil {
 		published := *publishedAt
 		current.PublishedAt = &published
+	}
+	if from == domainadvert.StatusRejected {
+		current.CreatedAt = now
 	}
 	current.Version++
 	current.UpdatedAt = now

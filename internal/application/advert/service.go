@@ -520,14 +520,14 @@ func (s *Service) ReplaceAdvertDynamicProperties(
 	return updated.ToOwnerView(), nil
 }
 
-// SubmitAdvertForReview implements ADVERT-OWNER-07 (DRAFT -> PENDING_REVIEW).
+// SubmitAdvertForReview implements ADVERT-OWNER-07 (DRAFT or REJECTED -> PENDING_REVIEW).
 func (s *Service) SubmitAdvertForReview(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error) {
-	return s.submitForReview(ctx, ownerID, advertID, expectedVersion, domainadvert.StatusDraft)
+	return s.submitForReview(ctx, ownerID, advertID, expectedVersion, domainadvert.StatusDraft, domainadvert.StatusRejected)
 }
 
-// ResubmitAdvertForReview implements ADVERT-OWNER-08 (CHANGES_REQUESTED -> PENDING_REVIEW).
+// ResubmitAdvertForReview implements ADVERT-OWNER-08 (CHANGES_REQUESTED or REJECTED -> PENDING_REVIEW).
 func (s *Service) ResubmitAdvertForReview(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error) {
-	return s.submitForReview(ctx, ownerID, advertID, expectedVersion, domainadvert.StatusChangesRequested)
+	return s.submitForReview(ctx, ownerID, advertID, expectedVersion, domainadvert.StatusChangesRequested, domainadvert.StatusRejected)
 }
 
 // SoftDeleteAdvertDraft implements ADVERT-OWNER-09. Drafts only; no history row
@@ -627,7 +627,7 @@ func (s *Service) submitForReview(
 	ctx context.Context,
 	ownerID uuid.UUID, advertID int64,
 	expectedVersion int,
-	from domainadvert.Status,
+	allowedFrom ...domainadvert.Status,
 ) (domainadvert.OwnerView, error) {
 	if err := requireExpectedVersion(expectedVersion); err != nil {
 		return domainadvert.OwnerView{}, err
@@ -649,12 +649,20 @@ func (s *Service) submitForReview(
 		if current.Version != expectedVersion {
 			return apperr.StaleVersion(staleVersionMessage)
 		}
-		if current.Status != from {
+		fromMatched := false
+		for _, st := range allowedFrom {
+			if current.Status == st {
+				fromMatched = true
+				break
+			}
+		}
+		if !fromMatched {
 			return apperr.InvalidState("İlan bu durumda incelemeye gönderilemez.")
 		}
 		if err := s.validateForSubmission(ctx, current); err != nil {
 			return err
 		}
+		from := current.Status
 		updated, err = repo.TransitionStatus(
 			ctx, ownerID, advertID, from, domainadvert.StatusPendingReview, expectedVersion, nil, now,
 		)

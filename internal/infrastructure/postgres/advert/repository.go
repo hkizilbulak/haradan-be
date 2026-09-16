@@ -334,7 +334,7 @@ WHERE id = $1
   AND owner_user_id = $2
   AND version = $3
   AND deleted_at IS NULL
-  AND status IN ('DRAFT', 'CHANGES_REQUESTED', 'PUBLISHED')
+  AND status IN ('DRAFT', 'CHANGES_REQUESTED', 'PUBLISHED', 'REJECTED')
 RETURNING ` + advertColumns
 
 	amount, currency := splitMoney(patch.Price)
@@ -368,7 +368,7 @@ WHERE id = $1
   AND owner_user_id = $2
   AND version = $3
   AND deleted_at IS NULL
-  AND status = 'DRAFT'
+  AND status IN ('DRAFT', 'REJECTED')
 RETURNING ` + advertColumns
 
 	return r.updateOne(ctx, "change advert category", q, advertID, ownerID, expectedVersion, categoryID, now)
@@ -391,7 +391,7 @@ WHERE id = $1
   AND owner_user_id = $2
   AND version = $3
   AND deleted_at IS NULL
-  AND status IN ('DRAFT', 'CHANGES_REQUESTED', 'PUBLISHED')
+  AND status IN ('DRAFT', 'CHANGES_REQUESTED', 'PUBLISHED', 'REJECTED')
 RETURNING ` + advertColumns
 
 	return r.updateOne(ctx, "replace advert properties", q,
@@ -441,6 +441,7 @@ UPDATE hrd_adverts
 SET status = $5::varchar,
     published_at = COALESCE($6::timestamptz, published_at),
     sold_at = CASE WHEN $8::timestamptz IS NOT NULL THEN $8::timestamptz ELSE sold_at END,
+    created_at = CASE WHEN $4::varchar = 'REJECTED' THEN $7 ELSE created_at END,
     version = version + 1,
     updated_at = $7
 WHERE id = $1

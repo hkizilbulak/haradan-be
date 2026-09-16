@@ -623,7 +623,7 @@ func TestAttachCrossUserAssetOrAdvertNotFound(t *testing.T) {
 }
 
 func TestMediaMutationsRejectedOutsideEditableStatuses(t *testing.T) {
-	closedStatuses := []string{"PENDING_REVIEW", "PUBLISHED", "REJECTED", "SUSPENDED", "SOLD", "ARCHIVED"}
+	closedStatuses := []string{"PENDING_REVIEW", "PUBLISHED", "SUSPENDED", "SOLD", "ARCHIVED"}
 	for _, status := range closedStatuses {
 		t.Run(status, func(t *testing.T) {
 			f := newFixture(t)
