@@ -362,6 +362,14 @@ func (s *Server) RegisterCatalogDynamicRoutes(rg gin.IRouter) {
 	}
 }
 
+func (s *Server) RegisterHorseRoutes(rg gin.IRouter) {
+	if s.horse != nil {
+		s.horse.RegisterRoutes(rg)
+	} else {
+		horsehandler.NewHandler(nil, s.logger, respondError).RegisterRoutes(rg)
+	}
+}
+
 func (s *Server) DeleteStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID, noteId openapi_types.UUID) {
 	if s.studfarm != nil {
 		s.studfarm.DeleteStudFarmNote(c, studFarmId, noteId)

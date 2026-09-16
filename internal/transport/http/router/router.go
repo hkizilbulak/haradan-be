@@ -121,6 +121,9 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 	if rs, ok := server.(interface{ RegisterAIRoutes(gin.IRouter) }); ok {
 		rs.RegisterAIRoutes(r.Group(APIBasePath))
 	}
+	if rs, ok := server.(interface{ RegisterHorseRoutes(gin.IRouter) }); ok {
+		rs.RegisterHorseRoutes(r.Group(APIBasePath))
+	}
 	return r
 }
 
@@ -151,7 +154,7 @@ func requestLogger(logger *slog.Logger) gin.HandlerFunc {
 func CountOpenAPIRoutes(engine *gin.Engine) int {
 	count := 0
 	for _, route := range engine.Routes() {
-		if route.Path == "" || strings.HasPrefix(route.Path, APIBasePath+"/v1/catalog/dynamic") || strings.HasPrefix(route.Path, APIBasePath+"/v1/coupons") || strings.HasPrefix(route.Path, APIBasePath+"/v1/paytr") || route.Path == APIBasePath+"/payments/paymentNotify" || route.Path == APIBasePath+"/payment/paymentNotify" {
+		if route.Path == "" || strings.HasPrefix(route.Path, APIBasePath+"/v1/catalog/dynamic") || strings.HasPrefix(route.Path, APIBasePath+"/v1/coupons") || strings.HasPrefix(route.Path, APIBasePath+"/v1/paytr") || route.Path == APIBasePath+"/payments/paymentNotify" || route.Path == APIBasePath+"/payment/paymentNotify" || strings.HasPrefix(route.Path, APIBasePath+"/v1/tjk") {
 			continue
 		}
 		count++

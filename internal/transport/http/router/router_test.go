@@ -156,3 +156,18 @@ func TestDeleteCommentRouteMatch(t *testing.T) {
 		t.Fatalf("expected 501 Not Implemented for Foundation router, got %d (body=%s)", rec.Code, rec.Body.String())
 	}
 }
+
+func TestHorseTJKRedirectRouteMatch(t *testing.T) {
+	engine := router.NewFoundation(slog.New(slog.NewTextHandler(io.Discard, nil)), fakeDeps{})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tjk/redirect?atId=99137", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302 Found, got %d (body=%s)", rec.Code, rec.Body.String())
+	}
+	location := rec.Header().Get("Location")
+	if !strings.Contains(location, "QueryParameter_AtId=99137") {
+		t.Fatalf("unexpected location: %s", location)
+	}
+}
+
