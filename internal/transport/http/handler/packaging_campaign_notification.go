@@ -99,6 +99,15 @@ func (s *Server) ListAdminAdvertPackageHistory(
 	s.packaging.ListAdminAdvertPackageHistory(c, advertId, params)
 }
 
+// ListAdminAdvertPayments implements admin advert payments list.
+func (s *Server) ListAdminAdvertPayments(c *gin.Context, advertId generated.AdvertIdPath) {
+	if s.paytr == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.paytr.ListAdminAdvertPayments(c, int64(advertId))
+}
+
 // CancelAdminAdvertPackage implements admin advert package cancel.
 func (s *Server) CancelAdminAdvertPackage(c *gin.Context, advertId generated.AdvertIdPath) {
 	if s.packaging == nil {

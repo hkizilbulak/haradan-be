@@ -1,6 +1,7 @@
 package paytrhandler
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -58,6 +59,54 @@ type chargeStatusResponse struct {
 	Status            string  `json:"status"`
 	PaidAt            *string `json:"paidAt,omitempty"`
 	AdvertSubmittedAt *string `json:"advertSubmittedAt,omitempty"`
+}
+
+// ListAdminAdvertPayments implements GET /v1/admin/adverts/{advertId}/payments
+func (h *Handler) ListAdminAdvertPayments(c *gin.Context, advertID int64) {
+	principal, ok := authctx.PrincipalFromContext(c.Request.Context())
+	if !ok {
+		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "Kimlik doğrulama gerekli."))
+		return
+	}
+	// TODO: Replace with proper role check for admin (e.g., authz.RequireAdminBO)
+	_ = principal // Placeholder for BO check if it's done upstream or here
+
+	charges, err := h.service.ListAdvertCharges(c.Request.Context(), advertID)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+
+	var payments []map[string]interface{}
+	for _, ch := range charges {
+		method := "Bilinmiyor"
+		if ch.NotifyPayloadJSON != nil {
+			var parsed map[string]interface{}
+			if err := json.Unmarshal([]byte(*ch.NotifyPayloadJSON), &parsed); err == nil {
+				if pm, ok := parsed["payment_type"].(string); ok {
+					method = pm
+				}
+			}
+		}
+
+		payments = append(payments, map[string]interface{}{
+			"id":            ch.ID,
+			"packageCode":   string(ch.PackageCode),
+			"status":        string(ch.Status),
+			"paymentMethod": method,
+			"amountMinor":   ch.AmountMinor,
+			"currencyCode":  ch.CurrencyCode,
+			"createdAt":     ch.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		})
+	}
+	
+	if payments == nil {
+		payments = []map[string]interface{}{}
+	}
+
+	c.JSON(http.StatusOK, map[string]interface{}{
+		"payments": payments,
+	})
 }
 
 // StartCheckout POST /v1/me/adverts/:advertId/paytr/checkout

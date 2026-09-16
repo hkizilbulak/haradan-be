@@ -75,6 +75,31 @@ func (r *PostgresChargeRepository) FindByIDForOwner(ctx context.Context, ownerID
 		WHERE id = $1 AND owner_user_id = $2`, chargeID, ownerID)
 }
 
+func (r *PostgresChargeRepository) FindByAdvertID(ctx context.Context, advertID int64) ([]domainpaytr.Charge, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT `+chargeColumns+`
+		FROM hrd_paytr_charges
+		WHERE advert_id = $1
+		ORDER BY created_at DESC`, advertID)
+	if err != nil {
+		return nil, sanitize(err)
+	}
+	defer rows.Close()
+
+	var charges []domainpaytr.Charge
+	for rows.Next() {
+		c, err := scanCharge(rows)
+		if err != nil {
+			return nil, err
+		}
+		charges = append(charges, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, sanitize(err)
+	}
+	return charges, nil
+}
+
 func (r *PostgresChargeRepository) Update(ctx context.Context, c domainpaytr.Charge) error {
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE hrd_paytr_charges SET

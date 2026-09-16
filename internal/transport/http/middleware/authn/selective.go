@@ -119,6 +119,7 @@ var PackagingAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId/package"},
 	{Method: "PUT", Path: "/api/v1/admin/adverts/:advertId/package"},
 	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId/package-history"},
+	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId/payments"},
 	{Method: "POST", Path: "/api/v1/admin/adverts/:advertId/package/cancel"},
 	{Method: "GET", Path: "/api/v1/admin/campaigns"},
 	{Method: "POST", Path: "/api/v1/admin/campaigns"},

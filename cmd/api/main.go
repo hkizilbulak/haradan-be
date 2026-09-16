@@ -317,9 +317,9 @@ func run() error {
 		return fmt.Errorf("coupon service: %w", err)
 	}
 
-	var paytrSvc *apppaytr.Service
+	var gateway apppaytr.TokenGateway = dummyPayTRGateway{}
 	if cfg.PayTREnabled {
-		gateway, err := paytrclient.New(paytrclient.Config{
+		gw, err := paytrclient.New(paytrclient.Config{
 			MerchantID:     cfg.PayTRMerchantID,
 			MerchantKey:    cfg.PayTRMerchantKey,
 			MerchantSalt:   cfg.PayTRMerchantSalt,
@@ -334,22 +334,26 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("paytr client: %w", err)
 		}
-		paytrSvc, err = apppaytr.NewService(apppaytr.Config{
-			Charges:        pgpaytr.NewPostgresChargeRepository(db.Pool()),
-			Packages:       apppaytr.PackageLookup{Svc: packagingSvc},
-			Adverts:        apppaytr.AdvertRepo{Repo: advertRepo},
-			Users:          apppaytr.UserRepo{Repo: userRepo},
-			Packaging:      apppaytr.PackagingBridge{Svc: packagingSvc},
-			Submitter:      apppaytr.AdvertBridge{Svc: advertSvc},
-			Gateway:        gateway,
-			Coupons:        couponSvc,
-			FrontendURL:    cfg.FrontendURL,
-			APIPublicURL:   cfg.PayTRAPIPublicURL,
-			UserIPOverride: cfg.PayTRUserIP,
-		})
-		if err != nil {
-			return fmt.Errorf("paytr service: %w", err)
-		}
+		gateway = gw
+	}
+
+	paytrSvc, err := apppaytr.NewService(apppaytr.Config{
+		Charges:        pgpaytr.NewPostgresChargeRepository(db.Pool()),
+		Packages:       apppaytr.PackageLookup{Svc: packagingSvc},
+		Adverts:        apppaytr.AdvertRepo{Repo: advertRepo},
+		Users:          apppaytr.UserRepo{Repo: userRepo},
+		Packaging:      apppaytr.PackagingBridge{Svc: packagingSvc},
+		Submitter:      apppaytr.AdvertBridge{Svc: advertSvc},
+		Gateway:        gateway,
+		Coupons:        couponSvc,
+		FrontendURL:    cfg.FrontendURL,
+		APIPublicURL:   cfg.PayTRAPIPublicURL,
+		UserIPOverride: cfg.PayTRUserIP,
+	})
+	if err != nil {
+		return fmt.Errorf("paytr service: %w", err)
+	}
+	if cfg.PayTREnabled {
 		log.Info("paytr checkout enabled", "testMode", cfg.PayTRTestMode, "userIPOverride", cfg.PayTRUserIP != "")
 	}
 
@@ -437,6 +441,16 @@ func run() error {
 
 	log.Info("http server stopped")
 	return nil
+}
+
+type dummyPayTRGateway struct{}
+
+func (dummyPayTRGateway) GetToken(ctx context.Context, in paytrclient.TokenRequest) (paytrclient.TokenResult, error) {
+	return paytrclient.TokenResult{}, fmt.Errorf("paytr checkout is disabled")
+}
+
+func (dummyPayTRGateway) VerifyNotifyHash(merchantOID, status, totalAmount, hash string) bool {
+	return false
 }
 
 func applyMigrations(databaseURL string, pingTimeout time.Duration, log *slog.Logger) error {

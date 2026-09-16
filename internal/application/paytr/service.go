@@ -31,6 +31,7 @@ type ChargeRepository interface {
 	FindByMerchantOID(ctx context.Context, merchantOID string) (domainpaytr.Charge, error)
 	FindByMerchantOIDForUpdate(ctx context.Context, merchantOID string) (domainpaytr.Charge, error)
 	FindByIDForOwner(ctx context.Context, ownerID, chargeID uuid.UUID) (domainpaytr.Charge, error)
+	FindByAdvertID(ctx context.Context, advertID int64) ([]domainpaytr.Charge, error)
 	Update(ctx context.Context, c domainpaytr.Charge) error
 }
 
@@ -117,6 +118,11 @@ type Service struct {
 	userIPOverride string
 	publicIP       PublicIPLookup
 	clock          Clock
+}
+
+// ListAdvertCharges returns all charges for an advert (admin use case).
+func (s *Service) ListAdvertCharges(ctx context.Context, advertID int64) ([]domainpaytr.Charge, error) {
+	return s.charges.FindByAdvertID(ctx, advertID)
 }
 
 // NewService constructs the PayTR application service.

@@ -1,0 +1,39 @@
+    AdminAdvertPaymentListResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - payments
+      properties:
+        payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminAdvertPaymentResponse"
+    AdminAdvertPaymentResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - packageCode
+      - status
+      - paymentMethod
+      - amountMinor
+      - currencyCode
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        packageCode:
+          type: string
+        status:
+          type: string
+        paymentMethod:
+          type: string
+        amountMinor:
+          type: integer
+          format: int64
+        currencyCode:
+          type: string
+        createdAt:
+          type: string
+          format: date-time

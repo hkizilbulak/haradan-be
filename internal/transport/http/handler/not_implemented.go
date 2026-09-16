@@ -455,3 +455,7 @@ func (NotImplementedServer) RunAdminJob(c *gin.Context, jobId generated.JobIdPat
 func (NotImplementedServer) ListAdminJobHistory(c *gin.Context, jobId generated.JobIdPath, params generated.ListAdminJobHistoryParams) {
 	respondNotImplemented(c)
 }
+
+func (NotImplementedServer) ListAdminAdvertPayments(c *gin.Context, advertId generated.AdvertIdPath) {
+	respondNotImplemented(c)
+}
