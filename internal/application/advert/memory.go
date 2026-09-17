@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -270,6 +271,23 @@ func (r MemoryRepository) ListStatusHistory(_ context.Context, advertID int64) (
 		}
 		return out[i].ID.String() < out[j].ID.String()
 	})
+	return out, nil
+}
+
+// ListLatestStatusHistoryReasons returns the latest non-empty moderation reason for each advert ID.
+func (r MemoryRepository) ListLatestStatusHistoryReasons(_ context.Context, advertIDs []int64) (map[int64]string, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	out := make(map[int64]string, len(advertIDs))
+	idSet := make(map[int64]struct{}, len(advertIDs))
+	for _, id := range advertIDs {
+		idSet[id] = struct{}{}
+	}
+	for _, h := range r.store.history {
+		if _, ok := idSet[h.AdvertID]; ok && h.Reason != nil && strings.TrimSpace(*h.Reason) != "" {
+			out[h.AdvertID] = *h.Reason
+		}
+	}
 	return out, nil
 }
 

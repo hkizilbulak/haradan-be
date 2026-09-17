@@ -16,6 +16,7 @@ import (
 const (
 	dailyExpiryScanDedupPrefix       = "PACKAGE_EXPIRY_SCAN"
 	packageExpiredUrgentReason       = "PACKAGE_EXPIRED"
+	packageExpiredAdvertReason       = "Paket süresi bitmiştir"
 	defaultExpiryScanHour            = 9
 	maxExpireDueAssignmentBatchLoops = 1000
 )
@@ -179,6 +180,9 @@ func (s *ExpiryScanService) expireDueAssignmentsBatch(ctx context.Context, now t
 			return 0, err
 		}
 		if _, err := repo.DeactivateActiveUrgentForAdvert(ctx, asg.AdvertID, packageExpiredUrgentReason, now, now); err != nil {
+			return 0, err
+		}
+		if err := repo.SuspendPublishedAdvertForPackageExpiry(ctx, asg.AdvertID, packageExpiredAdvertReason, now); err != nil {
 			return 0, err
 		}
 	}

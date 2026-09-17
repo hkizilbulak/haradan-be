@@ -58,6 +58,9 @@ type Repository interface {
 	// ListStatusHistory returns history for one advert, oldest first.
 	ListStatusHistory(ctx context.Context, advertID int64) ([]domainadvert.StatusHistory, error)
 
+	// ListLatestStatusHistoryReasons returns the latest non-empty moderation reason for each advert ID.
+	ListLatestStatusHistoryReasons(ctx context.Context, advertIDs []int64) (map[int64]string, error)
+
 	// UpdateDetails applies core content fields when owner+id+version still match
 	// and the status is owner-editable.
 	UpdateDetails(

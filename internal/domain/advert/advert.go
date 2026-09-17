@@ -110,6 +110,7 @@ type OwnerView struct {
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
 	CategoryClearedWarning *bool
+	RejectionReason        *string
 }
 
 // DetailsPatch carries owner-editable core fields. The *Set flags separate an

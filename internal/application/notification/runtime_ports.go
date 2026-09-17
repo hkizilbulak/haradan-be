@@ -127,6 +127,15 @@ type RuntimeRepository interface {
 		reason string,
 		deactivatedAt, updatedAt time.Time,
 	) (bool, error)
+
+	// SuspendPublishedAdvertForPackageExpiry transitions a PUBLISHED advert to
+	// SUSPENDED and records system status history with reason when package duration expires.
+	SuspendPublishedAdvertForPackageExpiry(
+		ctx context.Context,
+		advertID int64,
+		reason string,
+		at time.Time,
+	) error
 }
 
 // VerifiedUserReader loads users for email delivery.

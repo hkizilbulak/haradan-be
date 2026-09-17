@@ -232,6 +232,35 @@ ORDER BY created_at ASC, id ASC`
 	return out, nil
 }
 
+// ListLatestStatusHistoryReasons returns the latest non-empty moderation reason for each advert ID.
+func (r *Repository) ListLatestStatusHistoryReasons(ctx context.Context, advertIDs []int64) (map[int64]string, error) {
+	out := make(map[int64]string, len(advertIDs))
+	if len(advertIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.db.Query(ctx, `
+SELECT DISTINCT ON (advert_id) advert_id, reason
+FROM hrd_advert_status_history
+WHERE advert_id = ANY($1) AND reason IS NOT NULL AND TRIM(reason) != ''
+ORDER BY advert_id, created_at DESC, id DESC`, advertIDs)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list latest status history reasons: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var advertID int64
+		var reason string
+		if err := rows.Scan(&advertID, &reason); err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan latest status history reason: %w", pg.SanitizeErr(err)))
+		}
+		out[advertID] = reason
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("iterate latest status history reasons: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
+}
+
 // ListMediaRelations returns advert/media links with asset lifecycle for owner views.
 func (r *Repository) ListMediaRelations(ctx context.Context, advertIDs []int64) (map[int64][]domainadvert.MediaRelation, error) {
 	out := make(map[int64][]domainadvert.MediaRelation, len(advertIDs))

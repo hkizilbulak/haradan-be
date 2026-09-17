@@ -479,6 +479,19 @@ func (m memoryRuntimeRepo) DeactivateActiveUrgentForAdvert(_ context.Context, ad
 	return true, nil
 }
 
+func (m memoryRuntimeRepo) SuspendPublishedAdvertForPackageExpiry(_ context.Context, advertID int64, reason string, at time.Time) error {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	a, ok := m.store.adverts[advertID]
+	if !ok || a.Status != "PUBLISHED" {
+		return nil
+	}
+	a.Status = "SUSPENDED"
+	m.store.adverts[advertID] = a
+	return nil
+}
+
+
 type memoryJobEnqueuer struct{ store *MemoryRuntimeStore }
 
 // WithTx is a no-op for the in-memory adapter: the memory store has no real

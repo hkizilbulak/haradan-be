@@ -483,6 +483,41 @@ WHERE advert_id = $1 AND feature_code IN ('URGENT', 'FEATURED') AND status = 'AC
 	return tag.RowsAffected() > 0, nil
 }
 
+// SuspendPublishedAdvertForPackageExpiry transitions a PUBLISHED advert to SUSPENDED
+// and inserts a system status history row with reason.
+func (r *Repository) SuspendPublishedAdvertForPackageExpiry(
+	ctx context.Context,
+	advertID int64,
+	reason string,
+	at time.Time,
+) error {
+	const updateAdvert = `
+UPDATE hrd_adverts
+SET status = 'SUSPENDED', version = version + 1, updated_at = $2
+WHERE id = $1 AND status = 'PUBLISHED'`
+	tag, err := r.db.Exec(ctx, updateAdvert, advertID, at)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("suspend published advert for package expiry: %w", pg.SanitizeErr(err)))
+	}
+	if tag.RowsAffected() == 0 {
+		return nil
+	}
+
+	const insertHistory = `
+INSERT INTO hrd_advert_status_history (
+  id, advert_id, from_status, to_status, actor_user_id, is_system, reason, created_at
+) VALUES (
+  $1, $2, 'PUBLISHED', 'SUSPENDED', NULL, true, $3, $4
+)`
+	historyID := uuid.New()
+	_, err = r.db.Exec(ctx, insertHistory, historyID, advertID, reason, at)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("insert status history for package expiry: %w", pg.SanitizeErr(err)))
+	}
+	return nil
+}
+
+
 func payloadOrEmpty(raw []byte) []byte {
 	if len(raw) == 0 {
 		return []byte(`{}`)

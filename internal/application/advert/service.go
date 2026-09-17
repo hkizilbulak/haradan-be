@@ -948,11 +948,16 @@ func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Adv
 	if err != nil {
 		return nil, err
 	}
+	reasonsByAdvert, _ := s.repo.ListLatestStatusHistoryReasons(ctx, ids)
 	items := make([]domainadvert.OwnerView, 0, len(rows))
 	for _, row := range rows {
 		view := row.ToOwnerView()
 		if media := mediaByAdvert[row.ID]; len(media) > 0 {
 			view.Media = media
+		}
+		if reason, ok := reasonsByAdvert[row.ID]; ok && strings.TrimSpace(reason) != "" {
+			r := reason
+			view.RejectionReason = &r
 		}
 
 		props := map[string]interface{}{}
@@ -963,6 +968,12 @@ func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Adv
 			props = map[string]interface{}{}
 		}
 		propsModified := false
+		if view.RejectionReason != nil {
+			if _, exists := props["rejectionReason"]; !exists {
+				props["rejectionReason"] = *view.RejectionReason
+				propsModified = true
+			}
+		}
 
 		if s.users != nil && row.OwnerUserID != uuid.Nil {
 			if u, uErr := s.users.FindByID(ctx, row.OwnerUserID); uErr == nil {

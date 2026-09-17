@@ -101,6 +101,15 @@ func TestProcessExpiryScanUsesReferenceDateForTargetDayOnly(t *testing.T) {
 		t.Fatalf("expected past assignment expired by real clock, still due=%d", len(stillDue))
 	}
 
+	pastAdv, err := store.AdvertReader().GetAdvertSnapshot(context.Background(), advertPast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pastAdv.Status != "SUSPENDED" {
+		t.Fatalf("expected past advert status SUSPENDED, got %s", pastAdv.Status)
+	}
+
+
 	notifs := store.Notifications()
 	if len(notifs) != 1 {
 		t.Fatalf("expected one 5D reminder for referenceDate target, got %d", len(notifs))
