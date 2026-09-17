@@ -28,6 +28,7 @@ type MediaJobHandler interface {
 // media/email providers are unavailable.
 type NotificationJobHandler interface {
 	ProcessAdvertFanout(ctx context.Context, jobType domainmedia.JobType, payload []byte) error
+	ProcessAdvertPriceDropFanout(ctx context.Context, jobType domainmedia.JobType, payload json.RawMessage) error
 	ProcessAdvertEmailChunk(ctx context.Context, payload []byte) error
 	ProcessExpiryScan(ctx context.Context, payload []byte) error
 	ProcessPackageExpiryEmail(ctx context.Context, payload []byte) error
@@ -360,6 +361,11 @@ func (r *Runner) dispatch(ctx context.Context, job domainmedia.BackgroundJob) er
 			return apperr.Validation(safeUnsupportedJobMessage)
 		}
 		return r.cfg.NotificationHandler.ProcessAdvertFanout(ctx, job.JobType, []byte(job.Payload))
+	case domainmedia.JobNotificationFanoutAdvertPriceDrop:
+		if r.cfg.NotificationHandler == nil {
+			return apperr.Validation(safeUnsupportedJobMessage)
+		}
+		return r.cfg.NotificationHandler.ProcessAdvertPriceDropFanout(ctx, job.JobType, json.RawMessage(job.Payload))
 	case domainmedia.JobEmailSendAdvertNotificationChunk:
 		if r.cfg.NotificationHandler == nil {
 			return apperr.Validation(safeUnsupportedJobMessage)

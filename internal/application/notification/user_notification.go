@@ -106,6 +106,16 @@ func (s *UserNotificationService) MarkAllRead(ctx context.Context, userID uuid.U
 	return s.repo.MarkAllRead(ctx, userID, now)
 }
 
+// DeleteNotification permanently removes a notification from the user's inbox.
+func (s *UserNotificationService) DeleteNotification(ctx context.Context, userID, notificationID uuid.UUID) error {
+	return s.repo.DeleteNotification(ctx, userID, notificationID)
+}
+
+// DeleteAllNotifications permanently removes all notifications from the user's inbox.
+func (s *UserNotificationService) DeleteAllNotifications(ctx context.Context, userID uuid.UUID) error {
+	return s.repo.DeleteAllNotifications(ctx, userID)
+}
+
 func normalizeInboxLimit(limit int) int {
 	if limit < 1 {
 		return 20

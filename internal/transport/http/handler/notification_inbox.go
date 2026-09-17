@@ -37,3 +37,19 @@ func (s *Server) MarkAllMyNotificationsRead(c *gin.Context) {
 	}
 	s.inbox.MarkAllMyNotificationsRead(c)
 }
+
+func (s *Server) DeleteMyNotification(c *gin.Context, notificationID generated.NotificationIdPath) {
+	if s.inbox == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.inbox.DeleteMyNotification(c, notificationID)
+}
+
+func (s *Server) DeleteAllMyNotifications(c *gin.Context) {
+	if s.inbox == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.inbox.DeleteAllMyNotifications(c)
+}

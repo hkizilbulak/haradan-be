@@ -170,4 +170,3 @@ func TestHorseTJKRedirectRouteMatch(t *testing.T) {
 		t.Fatalf("unexpected location: %s", location)
 	}
 }
-

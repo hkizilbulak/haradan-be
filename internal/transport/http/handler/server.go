@@ -12,8 +12,8 @@ import (
 
 	appadminuser "github.com/hkizilbulak/haradan-be/internal/application/adminuser"
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
-	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	appai "github.com/hkizilbulak/haradan-be/internal/application/ai"
+	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
 	appbanner "github.com/hkizilbulak/haradan-be/internal/application/banner"
 	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"

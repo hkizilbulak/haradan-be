@@ -223,6 +223,27 @@ func (m memoryRuntimeRepo) CountUnread(_ context.Context, userID uuid.UUID) (int
 	return count, nil
 }
 
+func (m memoryRuntimeRepo) DeleteNotification(_ context.Context, userID, notificationID uuid.UUID) error {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	key := stateKey(userID, notificationID)
+	delete(m.store.states, key)
+	return nil
+}
+
+func (m memoryRuntimeRepo) DeleteAllNotifications(_ context.Context, userID uuid.UUID) error {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	
+	prefix := userID.String() + ":"
+	for k := range m.store.states {
+		if len(k) > len(prefix) && k[:len(prefix)] == prefix {
+			delete(m.store.states, k)
+		}
+	}
+	return nil
+}
+
 func (m memoryRuntimeRepo) MarkRead(_ context.Context, userID, notificationID uuid.UUID, readAt time.Time) error {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()
@@ -279,6 +300,37 @@ func (m memoryRuntimeRepo) ListEligibleUsersAfterCursor(_ context.Context, after
 			ID:            id,
 			Email:         u.Email,
 			EmailVerified: u.EmailVerifiedAt != nil,
+			AllowEmail:    true,
+		})
+	}
+	return out, nil
+}
+
+func (m memoryRuntimeRepo) ListFavoritedEligibleUsers(_ context.Context, advertID int64, afterUserID *uuid.UUID, limit int) ([]domainnotification.EligibleUser, error) {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	ids := make([]uuid.UUID, 0, len(m.store.users))
+	for id, u := range m.store.users {
+		if !u.IsActive() {
+			continue
+		}
+		if afterUserID != nil && id.String() <= afterUserID.String() {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i].String() < ids[j].String() })
+	if len(ids) > limit {
+		ids = ids[:limit]
+	}
+	out := make([]domainnotification.EligibleUser, 0, len(ids))
+	for _, id := range ids {
+		u := m.store.users[id]
+		out = append(out, domainnotification.EligibleUser{
+			ID:            id,
+			Email:         u.Email,
+			EmailVerified: u.EmailVerifiedAt != nil,
+			AllowEmail:    true,
 		})
 	}
 	return out, nil
@@ -490,7 +542,6 @@ func (m memoryRuntimeRepo) SuspendPublishedAdvertForPackageExpiry(_ context.Cont
 	m.store.adverts[advertID] = a
 	return nil
 }
-
 
 type memoryJobEnqueuer struct{ store *MemoryRuntimeStore }
 

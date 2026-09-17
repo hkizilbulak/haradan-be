@@ -14,6 +14,7 @@ import (
 // AdvertNotificationEmitter is the narrow port advert moderation uses.
 type AdvertNotificationEmitter interface {
 	OnAdvertPublished(ctx context.Context, tx pgx.Tx, advertID int64) error
+	OnAdvertPriceDropped(ctx context.Context, tx pgx.Tx, advertID int64, oldPrice int64, newPrice int64) error
 }
 
 // PackagingNotificationEmitter is the narrow port packaging uses.
@@ -81,6 +82,15 @@ func (e *Emitter) OnAdvertPublished(ctx context.Context, tx pgx.Tx, advertID int
 		AdvertID:          advertID,
 		AssignmentID:      urgent.PackageAssignmentID,
 		ActivationVersion: urgent.ActivationVersion,
+	})
+}
+
+// OnAdvertPriceDropped emits an event when an advert's price drops.
+func (e *Emitter) OnAdvertPriceDropped(ctx context.Context, tx pgx.Tx, advertID int64, oldPrice int64, newPrice int64) error {
+	return e.writer.WriteAdvertPriceDropped(ctx, tx, WriteAdvertPriceDroppedInput{
+		AdvertID: advertID,
+		OldPrice: oldPrice,
+		NewPrice: newPrice,
 	})
 }
 

@@ -43,12 +43,12 @@ func (h *CommentHandler) List(c *gin.Context) {
 
 	limitStr := c.Query("limit")
 	offsetStr := c.Query("offset")
-	
+
 	// Read filter fields
 	advertTitle := c.Query("advertTitle")
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
-	
+
 	// Support both `?statuses=PENDING,PUBLISHED` or `?status=PENDING&status=PUBLISHED`
 	// Actually, since we updated the frontend to send an array, it might be sent as `status=PENDING&status=PUBLISHED`
 	// Or maybe a comma-separated string `statuses=PENDING,PUBLISHED`. Let's support both just in case.

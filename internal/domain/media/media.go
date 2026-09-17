@@ -265,12 +265,13 @@ const (
 	JobDeleteObjects        JobType = "MEDIA_DELETE_OBJECTS"
 	JobReconcile            JobType = "MEDIA_RECONCILE"
 
-	JobNotificationFanoutPackageAdvert  JobType = "NOTIFICATION_FANOUT_PACKAGE_ADVERT"
-	JobNotificationFanoutAdvancedAdvert JobType = "NOTIFICATION_FANOUT_ADVANCED_ADVERT" // historical
-	JobNotificationFanoutUrgentAdvert   JobType = "NOTIFICATION_FANOUT_URGENT_ADVERT"
-	JobEmailSendAdvertNotificationChunk JobType = "EMAIL_SEND_ADVERT_NOTIFICATION_CHUNK"
-	JobPackageExpiryReminderScan        JobType = "PACKAGE_EXPIRY_REMINDER_SCAN"
-	JobEmailSendPackageExpiryReminder   JobType = "EMAIL_SEND_PACKAGE_EXPIRY_REMINDER"
+	JobNotificationFanoutPackageAdvert   JobType = "NOTIFICATION_FANOUT_PACKAGE_ADVERT"
+	JobNotificationFanoutAdvancedAdvert  JobType = "NOTIFICATION_FANOUT_ADVANCED_ADVERT" // historical
+	JobNotificationFanoutUrgentAdvert    JobType = "NOTIFICATION_FANOUT_URGENT_ADVERT"
+	JobNotificationFanoutAdvertPriceDrop JobType = "NOTIFICATION_FANOUT_ADVERT_PRICE_DROP"
+	JobEmailSendAdvertNotificationChunk  JobType = "EMAIL_SEND_ADVERT_NOTIFICATION_CHUNK"
+	JobPackageExpiryReminderScan         JobType = "PACKAGE_EXPIRY_REMINDER_SCAN"
+	JobEmailSendPackageExpiryReminder    JobType = "EMAIL_SEND_PACKAGE_EXPIRY_REMINDER"
 )
 
 // Valid reports whether t is a known background job type owned by the media package.
@@ -278,7 +279,7 @@ func (t JobType) Valid() bool {
 	switch t {
 	case JobValidateAndNormalize, JobGenerateVariant, JobDeleteObjects, JobReconcile,
 		JobNotificationFanoutPackageAdvert, JobNotificationFanoutAdvancedAdvert,
-		JobNotificationFanoutUrgentAdvert,
+		JobNotificationFanoutUrgentAdvert, JobNotificationFanoutAdvertPriceDrop,
 		JobEmailSendAdvertNotificationChunk, JobPackageExpiryReminderScan,
 		JobEmailSendPackageExpiryReminder:
 		return true
@@ -290,7 +291,7 @@ func (t JobType) Valid() bool {
 func (t JobType) IsNotificationJob() bool {
 	switch t {
 	case JobNotificationFanoutPackageAdvert, JobNotificationFanoutAdvancedAdvert,
-		JobNotificationFanoutUrgentAdvert,
+		JobNotificationFanoutUrgentAdvert, JobNotificationFanoutAdvertPriceDrop,
 		JobEmailSendAdvertNotificationChunk, JobPackageExpiryReminderScan,
 		JobEmailSendPackageExpiryReminder:
 		return true

@@ -135,7 +135,7 @@ WHERE u.id = $1`
 		channel = string(domainuser.ChannelEmail)
 	}
 	user.Channel = domainuser.Channel(channel)
-	
+
 	detail := appadminuser.Detail{User: user, ActiveSessionCount: count}
 	return detail, nil
 }
@@ -421,7 +421,5 @@ ORDER BY created_at DESC`
 	}
 	return logs, nil
 }
-
-
 
 var _ appadminuser.Repository = (*Repository)(nil)

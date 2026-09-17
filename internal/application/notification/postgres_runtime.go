@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -186,6 +187,10 @@ func NewPostgresRuntimeWorker(pool *pgxpool.Pool, email NotificationEmailSender,
 
 func (w *RuntimeWorker) ProcessAdvertFanout(ctx context.Context, jobType domainmedia.JobType, payload []byte) error {
 	return w.fanout.ProcessAdvertFanout(ctx, jobType, payload)
+}
+
+func (w *RuntimeWorker) ProcessAdvertPriceDropFanout(ctx context.Context, jobType domainmedia.JobType, payload json.RawMessage) error {
+	return w.fanout.ProcessAdvertPriceDropFanout(ctx, jobType, payload)
 }
 
 func (w *RuntimeWorker) ProcessAdvertEmailChunk(ctx context.Context, payload []byte) error {

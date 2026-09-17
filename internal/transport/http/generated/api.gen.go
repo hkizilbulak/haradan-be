@@ -3215,6 +3215,9 @@ type ServerInterface interface {
 	// AddFavorite AddFavorite
 	// (PUT /v1/me/favorites/{advertId})
 	AddFavorite(c *gin.Context, advertId AdvertIdPath)
+	// DeleteAllMyNotifications DeleteAllMyNotifications
+	// (DELETE /v1/me/notifications)
+	DeleteAllMyNotifications(c *gin.Context)
 	// ListMyNotifications ListMyNotifications
 	// (GET /v1/me/notifications)
 	ListMyNotifications(c *gin.Context, params ListMyNotificationsParams)
@@ -3224,6 +3227,9 @@ type ServerInterface interface {
 	// GetMyNotificationUnreadCount GetMyNotificationUnreadCount
 	// (GET /v1/me/notifications/unread-count)
 	GetMyNotificationUnreadCount(c *gin.Context)
+	// DeleteMyNotification DeleteMyNotification
+	// (DELETE /v1/me/notifications/{notificationId})
+	DeleteMyNotification(c *gin.Context, notificationId openapi_types.UUID)
 	// MarkMyNotificationRead MarkMyNotificationRead
 	// (PUT /v1/me/notifications/{notificationId}/read)
 	MarkMyNotificationRead(c *gin.Context, notificationId NotificationIdPath)
@@ -6384,6 +6390,19 @@ func (siw *ServerInterfaceWrapper) AddFavorite(c *gin.Context) {
 	siw.Handler.AddFavorite(c, advertId)
 }
 
+// DeleteAllMyNotifications operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAllMyNotifications(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAllMyNotifications(c)
+}
+
 // ListMyNotifications operation middleware
 func (siw *ServerInterfaceWrapper) ListMyNotifications(c *gin.Context) {
 
@@ -6443,6 +6462,31 @@ func (siw *ServerInterfaceWrapper) GetMyNotificationUnreadCount(c *gin.Context) 
 	}
 
 	siw.Handler.GetMyNotificationUnreadCount(c)
+}
+
+// DeleteMyNotification operation middleware
+func (siw *ServerInterfaceWrapper) DeleteMyNotification(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "notificationId" -------------
+	var notificationId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "notificationId", c.Param("notificationId"), &notificationId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter notificationId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteMyNotification(c, notificationId)
 }
 
 // MarkMyNotificationRead operation middleware
@@ -7098,9 +7142,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/me/favorites", wrapper.ListMyFavorites)
 	router.DELETE(options.BaseURL+"/v1/me/favorites/:advertId", wrapper.RemoveFavorite)
 	router.PUT(options.BaseURL+"/v1/me/favorites/:advertId", wrapper.AddFavorite)
+	router.DELETE(options.BaseURL+"/v1/me/notifications", wrapper.DeleteAllMyNotifications)
 	router.GET(options.BaseURL+"/v1/me/notifications", wrapper.ListMyNotifications)
 	router.GET(options.BaseURL+"/v1/me/notifications/unread-count", wrapper.GetMyNotificationUnreadCount)
 	router.PUT(options.BaseURL+"/v1/me/notifications/read-all", wrapper.MarkAllMyNotificationsRead)
+	router.DELETE(options.BaseURL+"/v1/me/notifications/:notificationId", wrapper.DeleteMyNotification)
 	router.PUT(options.BaseURL+"/v1/me/notifications/:notificationId/read", wrapper.MarkMyNotificationRead)
 	router.POST(options.BaseURL+"/v1/me/password", wrapper.ChangePassword)
 	router.GET(options.BaseURL+"/v1/me/sessions", wrapper.ListMySessions)

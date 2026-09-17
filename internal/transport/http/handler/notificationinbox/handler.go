@@ -100,6 +100,34 @@ func (h *Handler) MarkAllMyNotificationsRead(c *gin.Context) {
 	c.JSON(http.StatusOK, generated.MarkAllNotificationsReadResponse{UpdatedCount: int(updated)})
 }
 
+// DeleteMyNotification DeleteMyNotification
+// (DELETE /v1/me/notifications/{notificationId})
+func (h *Handler) DeleteMyNotification(c *gin.Context, notificationID generated.NotificationIdPath) {
+	userID, ok := h.principal(c)
+	if !ok {
+		return
+	}
+	if err := h.svc.DeleteNotification(c.Request.Context(), userID, uuid.UUID(notificationID)); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// DeleteAllMyNotifications DeleteAllMyNotifications
+// (DELETE /v1/me/notifications)
+func (h *Handler) DeleteAllMyNotifications(c *gin.Context) {
+	userID, ok := h.principal(c)
+	if !ok {
+		return
+	}
+	if err := h.svc.DeleteAllNotifications(c.Request.Context(), userID); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func (h *Handler) principal(c *gin.Context) (uuid.UUID, bool) {
 	p, ok := authctx.PrincipalFromContext(c.Request.Context())
 	if !ok {

@@ -381,4 +381,3 @@ func (h *Handler) PublicListActive(c *gin.Context) {
 
 	c.JSON(http.StatusOK, PublicActiveCouponsResponse{Items: items})
 }
-

@@ -8,7 +8,7 @@ import (
 
 func TestLiveTJKResolution(t *testing.T) {
 	h := &Handler{}
-	
+
 	testCases := []string{"HAZARFEN", "AĞA KARACA", "TURBO"}
 	for _, name := range testCases {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

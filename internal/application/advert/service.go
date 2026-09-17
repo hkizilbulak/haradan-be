@@ -394,7 +394,10 @@ func (s *Service) UpdateAdvertDraftDetails(
 	}
 
 	var updated domainadvert.Advert
-	err = s.withTx(ctx, func(ctx context.Context, repo Repository, _ pgx.Tx) error {
+	var priceDropped bool
+	var oldPrice, newPrice int64
+
+	err = s.withTx(ctx, func(ctx context.Context, repo Repository, tx pgx.Tx) error {
 		current, err := repo.FindByIDForOwnerForUpdate(ctx, ownerID, advertID)
 		if err != nil {
 			return err
@@ -425,7 +428,26 @@ func (s *Service) UpdateAdvertDraftDetails(
 		}
 		now := s.clock.Now()
 		updated, err = repo.UpdateDetails(ctx, ownerID, advertID, patch, in.ExpectedVersion, now)
-		return err
+		if err != nil {
+			return err
+		}
+
+		if current.Status == domainadvert.StatusPublished && patch.PriceSet && patch.Price != nil && current.Price != nil {
+			if patch.Price.AmountMinor < current.Price.AmountMinor {
+				priceDropped = true
+				oldPrice = current.Price.AmountMinor
+				newPrice = patch.Price.AmountMinor
+			}
+		}
+
+		fmt.Printf("PRICE DROPPED EVALUATION: currentStatus=%s, patchPriceSet=%v, patchPrice=%v, currentPrice=%v, priceDropped=%v\n", current.Status, patch.PriceSet, patch.Price, current.Price, priceDropped)
+		if priceDropped {
+			if emitErr := s.notifications.OnAdvertPriceDropped(ctx, tx, advertID, oldPrice, newPrice); emitErr != nil {
+				return emitErr
+			}
+		}
+
+		return nil
 	})
 	if err != nil {
 		return domainadvert.OwnerView{}, err

@@ -69,6 +69,15 @@ func (m *memCharges) Update(_ context.Context, c domainpaytr.Charge) error {
 	m.byOID[c.MerchantOID] = c
 	return nil
 }
+func (m *memCharges) FindByAdvertID(_ context.Context, advertID int64) ([]domainpaytr.Charge, error) {
+	var charges []domainpaytr.Charge
+	for _, c := range m.byOID {
+		if c.AdvertID == advertID {
+			charges = append(charges, c)
+		}
+	}
+	return charges, nil
+}
 
 type stubPackages struct {
 	pkg domainpackaging.Package

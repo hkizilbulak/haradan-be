@@ -137,7 +137,7 @@ func (m *memoryRepo) AdminListComments(ctx context.Context, filter AdminCommentF
 		if c.DeletedAt != nil {
 			continue
 		}
-		
+
 		if len(filter.Statuses) > 0 {
 			found := false
 			for _, s := range filter.Statuses {

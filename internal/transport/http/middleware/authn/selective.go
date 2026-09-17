@@ -72,6 +72,8 @@ var NotificationInboxProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/me/notifications/unread-count"},
 	{Method: "PUT", Path: "/api/v1/me/notifications/read-all"},
 	{Method: "PUT", Path: "/api/v1/me/notifications/:notificationId/read"},
+	{Method: "DELETE", Path: "/api/v1/me/notifications"},
+	{Method: "DELETE", Path: "/api/v1/me/notifications/:notificationId"},
 }
 
 // AdvertModerationProtectedRoutes are ADVERT-ADMIN-01..06 BO_AUTH routes.

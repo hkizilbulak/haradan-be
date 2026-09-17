@@ -114,6 +114,101 @@ func (w *EventWriter) WriteUrgentAdvertActivated(ctx context.Context, tx pgx.Tx,
 		in.AdvertID, in.AssignmentID, &version, domainmedia.JobNotificationFanoutUrgentAdvert)
 }
 
+// WriteAdvertPriceDroppedInput carries advert price drop event data.
+type WriteAdvertPriceDroppedInput struct {
+	AdvertID int64
+	OldPrice int64
+	NewPrice int64
+}
+
+// WriteAdvertPriceDropped creates a price drop notification in tx.
+func (w *EventWriter) WriteAdvertPriceDropped(ctx context.Context, tx pgx.Tx, in WriteAdvertPriceDroppedInput) error {
+	repo := w.repo.WithTx(tx)
+	eventType := domainnotification.TemplateEventTypeAdvertPriceDrop
+	tmpl, ok, err := repo.FindActiveTemplateByEventType(ctx, eventType)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+
+	advert, err := w.adverts.GetAdvertSnapshot(ctx, in.AdvertID)
+	if err != nil {
+		return err
+	}
+
+	vars := domainnotification.TemplateVars{
+		"advertId":    fmt.Sprintf("%d", in.AdvertID),
+		"advertTitle": advert.Title,
+		"oldPrice":    fmt.Sprintf("%d", in.OldPrice),
+		"newPrice":    fmt.Sprintf("%d", in.NewPrice),
+		"frontendUrl": w.frontendURL,
+	}
+
+	title, err := domainnotification.RenderTitle(eventType, tmpl.InAppTitleTemplate, vars)
+	if err != nil {
+		return err
+	}
+	body, err := domainnotification.RenderBody(eventType, tmpl.InAppBodyTemplate, vars)
+	if err != nil {
+		return err
+	}
+
+	// event key is based on the timestamp so multiple price drops can generate multiple notifications
+	now := w.clock.Now().UTC()
+	eventKey := string(eventType) + ":" + fmt.Sprintf("%d", in.AdvertID) + ":" + fmt.Sprintf("%d", now.UnixMilli())
+
+	payload, err := json.Marshal(map[string]any{
+		"advertId": fmt.Sprintf("%d", in.AdvertID),
+		"oldPrice": in.OldPrice,
+		"newPrice": in.NewPrice,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal notification payload: %w", err)
+	}
+
+	n := domainnotification.Notification{
+		ID:         uuid.New(),
+		EventType:  eventType,
+		EventKey:   eventKey,
+		AdvertID:   &in.AdvertID,
+		TemplateID: &tmpl.ID,
+		Title:      title,
+		Body:       body,
+		Payload:    payload,
+		CreatedAt:  now,
+	}
+	created, err := repo.CreateNotificationEventIdempotent(ctx, n)
+	if err != nil {
+		return err
+	}
+	if !created {
+		return nil
+	}
+
+	jobType := domainmedia.JobNotificationFanoutAdvertPriceDrop
+	dedup := fanoutPageDedupKey(jobType, n.ID, nil)
+	payloadJob, err := json.Marshal(fanoutJobPayload{NotificationID: n.ID.String()})
+	if err != nil {
+		return fmt.Errorf("marshal fanout job payload: %w", err)
+	}
+
+	return enqueueJobIgnoringDuplicate(ctx, w.jobs.WithTx(tx), domainmedia.BackgroundJob{
+		ID:               uuid.New(),
+		JobType:          jobType,
+		Status:           domainmedia.JobQueued,
+		Payload:          payloadJob,
+		DeduplicationKey: &dedup,
+		AttemptCount:     0,
+		MaxAttempts:      defaultJobMaxAttempts,
+		AvailableAt:      now,
+		Version:          1,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+}
+
 func (w *EventWriter) writeAdvertEvent(
 	ctx context.Context,
 	tx pgx.Tx,

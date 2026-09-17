@@ -71,6 +71,8 @@ type RuntimeRepository interface {
 		afterNotificationID *uuid.UUID,
 		limit int,
 	) ([]domainnotification.InboxItem, error)
+	DeleteNotification(ctx context.Context, userID, notificationID uuid.UUID) error
+	DeleteAllNotifications(ctx context.Context, userID uuid.UUID) error
 	CountUnread(ctx context.Context, userID uuid.UUID) (int, error)
 	MarkRead(ctx context.Context, userID, notificationID uuid.UUID, readAt time.Time) error
 	MarkAllRead(ctx context.Context, userID uuid.UUID, readAt time.Time) (int64, error)
@@ -80,6 +82,15 @@ type RuntimeRepository interface {
 	// delivery-state insert and the QUEUED/NOT_REQUESTED email decision.
 	ListEligibleUsersAfterCursor(
 		ctx context.Context,
+		afterUserID *uuid.UUID,
+		limit int,
+	) ([]domainnotification.EligibleUser, error)
+
+	// ListFavoritedEligibleUsers lists ACTIVE users who have favorited the advert and
+	// have explicitly allowed email communications (s.allow_email = true).
+	ListFavoritedEligibleUsers(
+		ctx context.Context,
+		advertID int64,
 		afterUserID *uuid.UUID,
 		limit int,
 	) ([]domainnotification.EligibleUser, error)

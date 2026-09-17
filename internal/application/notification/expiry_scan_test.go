@@ -109,7 +109,6 @@ func TestProcessExpiryScanUsesReferenceDateForTargetDayOnly(t *testing.T) {
 		t.Fatalf("expected past advert status SUSPENDED, got %s", pastAdv.Status)
 	}
 
-
 	notifs := store.Notifications()
 	if len(notifs) != 1 {
 		t.Fatalf("expected one 5D reminder for referenceDate target, got %d", len(notifs))

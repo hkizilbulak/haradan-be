@@ -307,4 +307,3 @@ func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 	return tx.Commit(ctx)
 }
-

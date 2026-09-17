@@ -17,6 +17,7 @@ func TestSupportedJobTypesFollowCapabilities(t *testing.T) {
 	base := supportedJobTypes(false, false)
 	for _, jobType := range []domainmedia.JobType{
 		domainmedia.JobNotificationFanoutPackageAdvert,
+		domainmedia.JobNotificationFanoutAdvertPriceDrop,
 		domainmedia.JobPackageExpiryReminderScan,
 	} {
 		if !hasJobType(base, jobType) {

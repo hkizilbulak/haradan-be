@@ -265,4 +265,3 @@ func mapPublicDetail(out domainhorse.PublicDetail) generated.HorsePublicDetailRe
 		Detail:       detail,
 	}
 }
-

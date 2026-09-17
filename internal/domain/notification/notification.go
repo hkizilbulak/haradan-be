@@ -23,6 +23,7 @@ const (
 	TemplateEventTypeUrgentAdvertActivated  TemplateEventType = "URGENT_ADVERT_ACTIVATED"
 	TemplateEventTypePackageExpiry5Days     TemplateEventType = "PACKAGE_EXPIRY_5_DAYS"
 	TemplateEventTypePackageExpiry1Day      TemplateEventType = "PACKAGE_EXPIRY_1_DAY"
+	TemplateEventTypeAdvertPriceDrop        TemplateEventType = "ADVERT_PRICE_DROP"
 )
 
 // EventType is the notification event_type CHECK set (same values as TemplateEventType).
@@ -34,7 +35,8 @@ func (t TemplateEventType) Valid() bool {
 	case TemplateEventTypePackageAdvertPublished,
 		TemplateEventTypeUrgentAdvertActivated,
 		TemplateEventTypePackageExpiry5Days,
-		TemplateEventTypePackageExpiry1Day:
+		TemplateEventTypePackageExpiry1Day,
+		TemplateEventTypeAdvertPriceDrop:
 		return true
 	}
 	return false
@@ -144,6 +146,7 @@ type EligibleUser struct {
 	ID            uuid.UUID
 	Email         string
 	EmailVerified bool
+	AllowEmail    bool
 }
 
 // HasVerifiedEmail reports whether u has a verified, non-blank email address.
@@ -231,6 +234,10 @@ func AllowlistedTemplateVars(eventType EventType) map[string]struct{} {
 			"endsAt": {}, "daysRemaining": {},
 			"campaignTitle": {}, "campaignDescription": {}, "campaignCtaLabel": {}, "campaignCtaUrl": {},
 			"frontendUrl": {},
+		}
+	case TemplateEventTypeAdvertPriceDrop:
+		return map[string]struct{}{
+			"advertId": {}, "advertTitle": {}, "oldPrice": {}, "newPrice": {}, "frontendUrl": {},
 		}
 	default:
 		return map[string]struct{}{}

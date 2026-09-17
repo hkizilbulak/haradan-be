@@ -4853,6 +4853,35 @@ paths:
         - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
+    delete:
+      operationId: DeleteAllMyNotifications
+      summary: DeleteAllMyNotifications
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user. Deletes all own notifications.'
+      tags:
+      - NotificationsMe
+      x-function-id: NOTIFICATION-ME-05
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      security:
+      - BearerAuth: []
+      responses:
+        '204':
+          description: No Content
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '500':
+        - INTERNAL_ERROR
   "/v1/me/notifications/unread-count":
     get:
       operationId: GetMyNotificationUnreadCount
@@ -4909,6 +4938,47 @@ paths:
           "$ref": "#/components/responses/Unauthorized"
         '403':
           "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - ACCOUNT_INACTIVE
+        - FORBIDDEN
+        '500':
+        - INTERNAL_ERROR
+  "/v1/me/notifications/{notificationId}":
+    delete:
+      operationId: DeleteMyNotification
+      summary: DeleteMyNotification
+      description: 'Exposure FE_AUTH. Actor: ACTIVE user. Own notification only.'
+      tags:
+      - NotificationsMe
+      x-function-id: NOTIFICATION-ME-04
+      x-exposure: FE_AUTH
+      x-actor: ACTIVE user
+      parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Success
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
         '500':
           "$ref": "#/components/responses/InternalError"
       security:

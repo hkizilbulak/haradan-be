@@ -1,0 +1,38 @@
+-- +goose Up
+ALTER TABLE hrd_background_jobs
+    DROP CONSTRAINT hrd_background_jobs_job_type_check;
+
+ALTER TABLE hrd_background_jobs
+    ADD CONSTRAINT hrd_background_jobs_job_type_check CHECK (job_type IN (
+        'TJK_SYNC_BATCH',
+        'MEDIA_VALIDATE_AND_NORMALIZE',
+        'MEDIA_GENERATE_VARIANT',
+        'MEDIA_DELETE_OBJECTS',
+        'MEDIA_RECONCILE',
+        'NOTIFICATION_FANOUT_ADVANCED_ADVERT',
+        'NOTIFICATION_FANOUT_PACKAGE_ADVERT',
+        'NOTIFICATION_FANOUT_URGENT_ADVERT',
+        'NOTIFICATION_FANOUT_ADVERT_PRICE_DROP',
+        'EMAIL_SEND_ADVERT_NOTIFICATION_CHUNK',
+        'PACKAGE_EXPIRY_REMINDER_SCAN',
+        'EMAIL_SEND_PACKAGE_EXPIRY_REMINDER'
+    ));
+
+-- +goose Down
+ALTER TABLE hrd_background_jobs
+    DROP CONSTRAINT hrd_background_jobs_job_type_check;
+
+ALTER TABLE hrd_background_jobs
+    ADD CONSTRAINT hrd_background_jobs_job_type_check CHECK (job_type IN (
+        'TJK_SYNC_BATCH',
+        'MEDIA_VALIDATE_AND_NORMALIZE',
+        'MEDIA_GENERATE_VARIANT',
+        'MEDIA_DELETE_OBJECTS',
+        'MEDIA_RECONCILE',
+        'NOTIFICATION_FANOUT_ADVANCED_ADVERT',
+        'NOTIFICATION_FANOUT_PACKAGE_ADVERT',
+        'NOTIFICATION_FANOUT_URGENT_ADVERT',
+        'EMAIL_SEND_ADVERT_NOTIFICATION_CHUNK',
+        'PACKAGE_EXPIRY_REMINDER_SCAN',
+        'EMAIL_SEND_PACKAGE_EXPIRY_REMINDER'
+    ));

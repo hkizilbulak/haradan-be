@@ -99,7 +99,7 @@ func (h *Handler) ListAdminAdvertPayments(c *gin.Context, advertID int64) {
 			"createdAt":     ch.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		})
 	}
-	
+
 	if payments == nil {
 		payments = []map[string]interface{}{}
 	}

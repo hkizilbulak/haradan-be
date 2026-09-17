@@ -100,7 +100,8 @@ func (r *Repository) ListUserNotifications(
 		args = append(args, *afterCreatedAt, *afterNotificationID)
 	}
 	q := `
-SELECT ` + notificationColumns + `, s.user_id, s.delivered_at, s.read_at, s.email_status, s.email_idempotency_key,
+SELECT n.id, n.event_type, n.event_key, n.advert_id, n.package_assignment_id, n.campaign_id,
+n.template_id, n.title, n.body, n.payload, n.created_at, s.user_id, s.delivered_at, s.read_at, s.email_status, s.email_idempotency_key,
 s.email_attempt_count, s.email_last_attempt_at, s.email_sent_at, s.email_last_error, s.created_at, s.updated_at
 FROM hrd_user_notification_states s
 JOIN hrd_notifications n ON n.id = s.notification_id
@@ -154,6 +155,27 @@ WHERE user_id = $1 AND notification_id = $2`
 	return nil
 }
 
+// DeleteNotification deletes a notification state for a user.
+func (r *Repository) DeleteNotification(ctx context.Context, userID, notificationID uuid.UUID) error {
+	const q = `DELETE FROM hrd_user_notification_states WHERE user_id = $1 AND notification_id = $2`
+	_, err := r.db.Exec(ctx, q, userID, notificationID)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("deleting notification: %w", pg.SanitizeErr(err)))
+	}
+	return nil
+}
+
+// DeleteAllNotifications deletes all notification states for a user.
+func (r *Repository) DeleteAllNotifications(ctx context.Context, userID uuid.UUID) error {
+	const q = `DELETE FROM hrd_user_notification_states WHERE user_id = $1`
+	_, err := r.db.Exec(ctx, q, userID)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("deleting all notifications: %w", pg.SanitizeErr(err)))
+	}
+	return nil
+}
+
+
 // MarkAllRead sets read_at for all unread rows of a user.
 func (r *Repository) MarkAllRead(ctx context.Context, userID uuid.UUID, readAt time.Time) (int64, error) {
 	const q = `
@@ -178,13 +200,15 @@ func (r *Repository) ListEligibleUsersAfterCursor(
 	cursorSQL := ``
 	args := []any{limit}
 	if afterUserID != nil {
-		cursorSQL = ` AND id > $2`
-		args = []any{limit, *afterUserID}
+		cursorSQL = ` AND u.id > $2`
+		args = append(args, *afterUserID)
 	}
 	q := fmt.Sprintf(`
-SELECT id, email, email_verified_at FROM hrd_users
-WHERE status = 'ACTIVE'%s
-ORDER BY id ASC
+SELECT u.id, u.email, u.email_verified_at, COALESCE(s.allow_email, false)
+FROM hrd_users u
+LEFT JOIN hrd_user_settings s ON s.user_id = u.id
+WHERE u.status = 'ACTIVE'%s
+ORDER BY u.id ASC
 LIMIT $1`, cursorSQL)
 	rows, err := r.db.Query(ctx, q, args...)
 	if err != nil {
@@ -197,7 +221,7 @@ LIMIT $1`, cursorSQL)
 			u               domainnotification.EligibleUser
 			emailVerifiedAt *time.Time
 		)
-		if err := rows.Scan(&u.ID, &u.Email, &emailVerifiedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &emailVerifiedAt, &u.AllowEmail); err != nil {
 			return nil, apperr.Internal(fmt.Errorf("scan eligible user: %w", pg.SanitizeErr(err)))
 		}
 		u.EmailVerified = emailVerifiedAt != nil
@@ -205,6 +229,52 @@ LIMIT $1`, cursorSQL)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, apperr.Internal(fmt.Errorf("iterate eligible users: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
+}
+
+// ListFavoritedEligibleUsers lists ACTIVE users who have favorited the advert and
+// have explicitly allowed email communications (s.allow_email = true).
+func (r *Repository) ListFavoritedEligibleUsers(
+	ctx context.Context,
+	advertID int64,
+	afterUserID *uuid.UUID,
+	limit int,
+) ([]domainnotification.EligibleUser, error) {
+	cursorSQL := ``
+	args := []any{advertID, limit}
+	if afterUserID != nil {
+		cursorSQL = ` AND u.id > $3`
+		args = append(args, *afterUserID)
+	}
+	q := fmt.Sprintf(`
+SELECT u.id, u.email, u.email_verified_at, COALESCE(s.allow_email, false)
+FROM hrd_users u 
+LEFT JOIN hrd_user_settings s ON s.user_id = u.id
+JOIN hrd_favorites f ON f.user_id = u.id
+WHERE u.status = 'ACTIVE' 
+  AND f.advert_id = $1%s
+ORDER BY u.id ASC
+LIMIT $2`, cursorSQL)
+	rows, err := r.db.Query(ctx, q, args...)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list favorited eligible users: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+	out := make([]domainnotification.EligibleUser, 0)
+	for rows.Next() {
+		var (
+			u               domainnotification.EligibleUser
+			emailVerifiedAt *time.Time
+		)
+		if err := rows.Scan(&u.ID, &u.Email, &emailVerifiedAt, &u.AllowEmail); err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan favorited eligible user: %w", pg.SanitizeErr(err)))
+		}
+		u.EmailVerified = emailVerifiedAt != nil
+		out = append(out, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("iterate favorited eligible users: %w", pg.SanitizeErr(err)))
 	}
 	return out, nil
 }
@@ -516,7 +586,6 @@ INSERT INTO hrd_advert_status_history (
 	}
 	return nil
 }
-
 
 func payloadOrEmpty(raw []byte) []byte {
 	if len(raw) == 0 {

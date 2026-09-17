@@ -338,4 +338,3 @@ func (h *Handler) ListPublicCampaigns(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, PublicCampaignListResponse{Items: items})
 }
-

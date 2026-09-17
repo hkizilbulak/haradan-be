@@ -241,6 +241,7 @@ func supportedJobTypes(mediaEnabled, emailEnabled bool) []domainmedia.JobType {
 		domainmedia.JobNotificationFanoutPackageAdvert,
 		domainmedia.JobNotificationFanoutAdvancedAdvert, // historical rows
 		domainmedia.JobNotificationFanoutUrgentAdvert,
+		domainmedia.JobNotificationFanoutAdvertPriceDrop,
 		domainmedia.JobPackageExpiryReminderScan,
 	}
 	if mediaEnabled {

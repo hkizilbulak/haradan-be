@@ -193,7 +193,6 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.repo.DeleteCoupon(ctx, id)
 }
 
-
 type ValidationResult struct {
 	Valid               bool           `json:"valid"`
 	Message             string         `json:"message,omitempty"`
@@ -244,4 +243,3 @@ func (s *Service) ValidateCoupon(ctx context.Context, userID uuid.UUID, code str
 func (s *Service) RecordUsage(ctx context.Context, usage domain.CouponUsage) error {
 	return s.repo.RecordUsage(ctx, usage, s.now())
 }
-

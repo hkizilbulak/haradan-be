@@ -137,7 +137,127 @@ func (s *FanoutService) ProcessAdvertFanout(ctx context.Context, jobType domainm
 			CreatedAt:      now,
 			UpdatedAt:      now,
 		}
-		if u.HasVerifiedEmail() {
+		if u.HasVerifiedEmail() && u.AllowEmail {
+			key := domainnotification.AdvertNotificationEmailIdempotencyKey(notificationID, u.ID)
+			state.EmailStatus = domainnotification.EmailStatusQueued
+			state.EmailIdempotencyKey = &key
+			queuedUserIDs = append(queuedUserIDs, u.ID)
+		}
+		states = append(states, state)
+	}
+	if _, err := s.repo.InsertUserNotificationStates(ctx, states); err != nil {
+		return err
+	}
+
+	for _, chunk := range chunkUserIDs(queuedUserIDs, s.chunkSize) {
+		userIDStrings := make([]string, len(chunk))
+		for i, id := range chunk {
+			userIDStrings[i] = id.String()
+		}
+		chunkPayload, err := json.Marshal(emailChunkPayload{
+			NotificationID: notificationID.String(),
+			UserIDs:        userIDStrings,
+		})
+		if err != nil {
+			return err
+		}
+		dedup := emailChunkDedupKey(notificationID, chunk)
+		if err := enqueueJobIgnoringDuplicate(ctx, s.jobs, domainmedia.BackgroundJob{
+			ID:               uuid.New(),
+			JobType:          domainmedia.JobEmailSendAdvertNotificationChunk,
+			Status:           domainmedia.JobQueued,
+			Payload:          chunkPayload,
+			DeduplicationKey: &dedup,
+			MaxAttempts:      defaultJobMaxAttempts,
+			AvailableAt:      now,
+			Version:          1,
+			CreatedAt:        now,
+			UpdatedAt:        now,
+		}); err != nil {
+			return err
+		}
+	}
+
+	if hasMore {
+		last := users[len(users)-1]
+		contPayload, err := json.Marshal(fanoutJobPayload{
+			NotificationID: notificationID.String(),
+			AfterUserID:    last.ID.String(),
+		})
+		if err != nil {
+			return err
+		}
+		dedup := fanoutPageDedupKey(jobType, notificationID, &last.ID)
+		return enqueueJobIgnoringDuplicate(ctx, s.jobs, domainmedia.BackgroundJob{
+			ID:               uuid.New(),
+			JobType:          jobType,
+			Status:           domainmedia.JobQueued,
+			Payload:          contPayload,
+			DeduplicationKey: &dedup,
+			MaxAttempts:      defaultJobMaxAttempts,
+			AvailableAt:      now,
+			Version:          1,
+			CreatedAt:        now,
+			UpdatedAt:        now,
+		})
+	}
+	return nil
+}
+
+// ProcessAdvertPriceDropFanout handles NOTIFICATION_FANOUT_ADVERT_PRICE_DROP jobs.
+// It is similar to ProcessAdvertFanout, but only targets users who have favorited the
+// advert AND have explicitly allowed email communications.
+func (s *FanoutService) ProcessAdvertPriceDropFanout(ctx context.Context, jobType domainmedia.JobType, payload json.RawMessage) error {
+	var in fanoutJobPayload
+	if err := json.Unmarshal(payload, &in); err != nil {
+		return fmt.Errorf("invalid fanout payload")
+	}
+	notificationID, err := uuid.Parse(strings.TrimSpace(in.NotificationID))
+	if err != nil {
+		return fmt.Errorf("invalid notification id")
+	}
+	var afterUserID *uuid.UUID
+	if strings.TrimSpace(in.AfterUserID) != "" {
+		id, err := uuid.Parse(in.AfterUserID)
+		if err != nil {
+			return fmt.Errorf("invalid after user id")
+		}
+		afterUserID = &id
+	}
+
+	notification, err := s.repo.GetNotificationByID(ctx, notificationID)
+	if err != nil {
+		return err
+	}
+	if notification.AdvertID == nil {
+		return fmt.Errorf("advert price drop notification missing advert id")
+	}
+
+	users, err := s.repo.ListFavoritedEligibleUsers(ctx, *notification.AdvertID, afterUserID, s.fanoutSize+1)
+	if err != nil {
+		return err
+	}
+	hasMore := len(users) > s.fanoutSize
+	if hasMore {
+		users = users[:s.fanoutSize]
+	}
+	if len(users) == 0 {
+		return nil
+	}
+
+	now := s.clock.Now().UTC()
+	states := make([]domainnotification.UserNotificationState, 0, len(users))
+	queuedUserIDs := make([]uuid.UUID, 0, len(users))
+	for _, u := range users {
+		state := domainnotification.UserNotificationState{
+			UserID:         u.ID,
+			NotificationID: notificationID,
+			DeliveredAt:    now,
+			EmailStatus:    domainnotification.EmailStatusNotRequested,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}
+		if u.HasVerifiedEmail() && u.AllowEmail {
 			key := domainnotification.AdvertNotificationEmailIdempotencyKey(notificationID, u.ID)
 			state.EmailStatus = domainnotification.EmailStatusQueued
 			state.EmailIdempotencyKey = &key
