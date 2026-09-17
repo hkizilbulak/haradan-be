@@ -1132,7 +1132,7 @@ func assertAdvertAssignable(a domainadvert.Advert) error {
 		return apperr.InvalidState(advertTerminalMessage)
 	}
 	switch a.Status {
-	case domainadvert.StatusSold, domainadvert.StatusArchived, domainadvert.StatusSuspended:
+	case domainadvert.StatusSold:
 		return apperr.InvalidState(advertTerminalMessage)
 	default:
 		return nil

@@ -56,6 +56,15 @@ func (m *memCharges) FindByIDForOwner(_ context.Context, ownerID, chargeID uuid.
 	}
 	return domainpaytr.Charge{}, fmt.Errorf("not found")
 }
+func (m *memCharges) FindByAdvertID(_ context.Context, advertID int64) ([]domainpaytr.Charge, error) {
+	var list []domainpaytr.Charge
+	for _, c := range m.byOID {
+		if c.AdvertID == advertID {
+			list = append(list, c)
+		}
+	}
+	return list, nil
+}
 func (m *memCharges) Update(_ context.Context, c domainpaytr.Charge) error {
 	m.byOID[c.MerchantOID] = c
 	return nil
