@@ -427,7 +427,7 @@ RETURNING ` + advertColumns
 		advertID, ownerID, expectedVersion, propertiesOrEmpty(properties), now)
 }
 
-// SoftDeleteDraft stamps deleted_at on a DRAFT advert.
+// SoftDeleteDraft stamps deleted_at on a DRAFT or CHANGES_REQUESTED advert.
 func (r *Repository) SoftDeleteDraft(
 	ctx context.Context,
 	ownerID uuid.UUID, advertID int64,
@@ -443,7 +443,7 @@ WHERE id = $1
   AND owner_user_id = $2
   AND version = $3
   AND deleted_at IS NULL
-  AND status = 'DRAFT'
+  AND status IN ('DRAFT', 'CHANGES_REQUESTED')
 RETURNING ` + advertColumns
 
 	return r.updateOne(ctx, "soft delete advert draft", q, advertID, ownerID, expectedVersion, now)
