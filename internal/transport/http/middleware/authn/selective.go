@@ -81,6 +81,7 @@ var NotificationInboxProtectedRoutes = []ProtectedRoute{
 var AdvertModerationProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/adverts/moderation"},
 	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId"},
+	{Method: "DELETE", Path: "/api/v1/admin/adverts/:advertId"},
 	{Method: "POST", Path: "/api/v1/admin/adverts/:advertId/approve"},
 	{Method: "POST", Path: "/api/v1/admin/adverts/:advertId/request-changes"},
 	{Method: "POST", Path: "/api/v1/admin/adverts/:advertId/reject"},

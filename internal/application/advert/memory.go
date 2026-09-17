@@ -547,6 +547,22 @@ func (r MemoryRepository) SystemTransitionStatus(
 	return a, nil
 }
 
+// HardDelete permanently deletes the advert and associated data in memory store.
+func (r MemoryRepository) HardDelete(_ context.Context, advertID int64) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	delete(r.store.adverts, advertID)
+	delete(r.store.mediaRelations, advertID)
+	var newHistory []domainadvert.StatusHistory
+	for _, h := range r.store.history {
+		if h.AdvertID != advertID {
+			newHistory = append(newHistory, h)
+		}
+	}
+	r.store.history = newHistory
+	return nil
+}
+
 func (r MemoryRepository) lookupLocked(ownerID uuid.UUID, advertID int64) (domainadvert.Advert, error) {
 	a, ok := r.store.adverts[advertID]
 	if !ok || a.OwnerUserID != ownerID {

@@ -260,6 +260,10 @@ func (NotImplementedServer) SoftDeleteAdvertDraft(c *gin.Context, advertId gener
 	respondNotImplemented(c)
 }
 
+func (NotImplementedServer) DeleteAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
+	respondNotImplemented(c)
+}
+
 func (NotImplementedServer) GetMyAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
 	respondNotImplemented(c)
 }

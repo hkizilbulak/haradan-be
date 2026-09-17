@@ -46,6 +46,19 @@ func (h *Handler) ListAdvertModerationQueue(c *gin.Context, params generated.Lis
 	})
 }
 
+// DeleteAdvert handles DELETE /v1/admin/adverts/{advertId}.
+func (h *Handler) DeleteAdvert(c *gin.Context, advertID generated.AdvertIdPath) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	if err := h.svc.DeleteAdvert(c.Request.Context(), actorID, int64(advertID)); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "DELETED", "advertId": advertID})
+}
+
 // GetAdvertModerationDetail handles GET /v1/admin/adverts/{advertId}.
 func (h *Handler) GetAdvertModerationDetail(c *gin.Context, advertID generated.AdvertIdPath) {
 	if _, ok := h.requireAdminBO(c); !ok {

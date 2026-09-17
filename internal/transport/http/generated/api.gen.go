@@ -2864,6 +2864,9 @@ type ServerInterface interface {
 	// ListAdvertModerationQueue ListAdvertModerationQueue
 	// (GET /v1/admin/adverts/moderation)
 	ListAdvertModerationQueue(c *gin.Context, params ListAdvertModerationQueueParams)
+	// DeleteAdvert DeleteAdvert
+	// (DELETE /v1/admin/adverts/{advertId})
+	DeleteAdvert(c *gin.Context, advertId AdvertIdPath)
 	// GetAdvertModerationDetail GetAdvertModerationDetail
 	// (GET /v1/admin/adverts/{advertId})
 	GetAdvertModerationDetail(c *gin.Context, advertId AdvertIdPath)
@@ -3358,6 +3361,31 @@ func (siw *ServerInterfaceWrapper) ListAdvertModerationQueue(c *gin.Context) {
 	}
 
 	siw.Handler.ListAdvertModerationQueue(c, params)
+}
+
+// DeleteAdvert operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdvert(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "advertId" -------------
+	var advertId AdvertIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAdvert(c, advertId)
 }
 
 // GetAdvertModerationDetail operation middleware
@@ -7050,6 +7078,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/health", wrapper.GetHealth)
 	router.DELETE(options.BaseURL+"/v1/adverts/:advertId/comments/:commentId", wrapper.DeleteAdvertComment)
 	router.GET(options.BaseURL+"/v1/admin/adverts/moderation", wrapper.ListAdvertModerationQueue)
+	router.DELETE(options.BaseURL+"/v1/admin/adverts/:advertId", wrapper.DeleteAdvert)
 	router.GET(options.BaseURL+"/v1/admin/adverts/:advertId", wrapper.GetAdvertModerationDetail)
 	router.POST(options.BaseURL+"/v1/admin/adverts/:advertId/approve", wrapper.ApproveAdvert)
 	router.POST(options.BaseURL+"/v1/admin/adverts/:advertId/reject", wrapper.RejectAdvert)

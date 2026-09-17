@@ -42,6 +42,15 @@ func (s *Server) ListAdvertModerationQueue(c *gin.Context, params generated.List
 	s.advert.ListAdvertModerationQueue(c, params)
 }
 
+// DeleteAdvert implements ADVERT-ADMIN-07.
+func (s *Server) DeleteAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
+	if s.advert == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.advert.DeleteAdvert(c, advertId)
+}
+
 // GetAdvertModerationDetail implements ADVERT-ADMIN-02.
 func (s *Server) GetAdvertModerationDetail(c *gin.Context, advertId generated.AdvertIdPath) {
 	if s.advert == nil {

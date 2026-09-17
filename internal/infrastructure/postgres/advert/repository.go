@@ -605,3 +605,27 @@ func propertiesOrEmpty(raw []byte) json.RawMessage {
 	}
 	return json.RawMessage(raw)
 }
+
+// HardDelete permanently deletes the advert and all dependent child records.
+func (r *Repository) HardDelete(ctx context.Context, advertID int64) error {
+	queries := []string{
+		"DELETE FROM hrd_advert_status_history WHERE advert_id = $1",
+		"DELETE FROM hrd_favorites WHERE advert_id = $1",
+		"DELETE FROM hrd_advert_media WHERE advert_id = $1",
+		"DELETE FROM hrd_advert_feature_activations WHERE advert_id = $1",
+		"DELETE FROM hrd_advert_package_assignments WHERE advert_id = $1",
+		"DELETE FROM hrd_notifications WHERE advert_id = $1",
+		"DELETE FROM hrd_coupon_usages WHERE advert_id = $1",
+		"DELETE FROM hrd_advert_comments WHERE advert_id = $1",
+		"DELETE FROM hrd_advert_views WHERE advert_id = $1",
+		"DELETE FROM hrd_paytr_charges WHERE advert_id = $1",
+		"DELETE FROM hrd_adverts WHERE id = $1",
+	}
+
+	for _, q := range queries {
+		if _, err := r.db.Exec(ctx, q, advertID); err != nil {
+			return apperr.Internal(fmt.Errorf("hard delete advert exec (%s): %w", q, pg.SanitizeErr(err)))
+		}
+	}
+	return nil
+}

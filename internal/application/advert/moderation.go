@@ -90,6 +90,21 @@ func (s *Service) GetAdvertModerationDetail(ctx context.Context, advertID int64)
 	return s.moderationDetail(ctx, found)
 }
 
+// DeleteAdvert implements ADVERT-ADMIN-07: Permanently deletes an advert from DB.
+// Allowed only if advert status is SUSPENDED, ARCHIVED, or REJECTED.
+func (s *Service) DeleteAdvert(ctx context.Context, actorUserID uuid.UUID, advertID int64) error {
+	return s.withTx(ctx, func(ctx context.Context, repo Repository, tx pgx.Tx) error {
+		current, err := repo.FindByIDForUpdate(ctx, advertID)
+		if err != nil {
+			return err
+		}
+		if current.Status != domainadvert.StatusSuspended && current.Status != domainadvert.StatusArchived && current.Status != domainadvert.StatusRejected {
+			return apperr.InvalidState("Sadece yayından kaldırılan veya reddedilen ilanlar silinebilir.")
+		}
+		return repo.HardDelete(ctx, advertID)
+	})
+}
+
 // ApproveAdvert implements ADVERT-ADMIN-03: PENDING_REVIEW / SUSPENDED → PUBLISHED.
 func (s *Service) ApproveAdvert(
 	ctx context.Context,

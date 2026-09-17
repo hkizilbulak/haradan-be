@@ -117,6 +117,9 @@ type Repository interface {
 		expectedVersion int,
 		now time.Time,
 	) (domainadvert.Advert, error)
+
+	// HardDelete permanently deletes the advert and all related records from DB.
+	HardDelete(ctx context.Context, advertID int64) error
 }
 
 // PublicRepository returns denormalized buyer-facing projections. It is kept

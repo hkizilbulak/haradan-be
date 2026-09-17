@@ -246,6 +246,59 @@ paths:
         - NOT_FOUND
         '500':
         - INTERNAL_ERROR
+    delete:
+      operationId: DeleteAdvert
+      summary: DeleteAdvert
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Completely deletes an advert and all related records from the database. Allowed only for SUSPENDED, ARCHIVED, or REJECTED adverts.'
+      tags:
+      - AdminModeration
+      x-function-id: ADVERT-ADMIN-07
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  advertId:
+                    type: integer
+                    format: int64
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - INVALID_STATE
+        '500':
+        - INTERNAL_ERROR
   "/v1/admin/adverts/{advertId}/approve":
     post:
       operationId: ApproveAdvert
@@ -4984,6 +5037,8 @@ paths:
       security:
       - BearerAuth: []
       x-error-codes:
+        '400':
+        - VALIDATION_ERROR
         '401':
         - UNAUTHENTICATED
         - SESSION_REVOKED
