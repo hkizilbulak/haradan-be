@@ -110,7 +110,7 @@ func (s *Service) ApproveAdvert(
 		if current.Version != expectedVersion {
 			return apperr.StaleVersion(staleVersionMessage)
 		}
-		if current.Status != domainadvert.StatusPendingReview && current.Status != domainadvert.StatusSuspended {
+		if current.Status != domainadvert.StatusPendingReview && current.Status != domainadvert.StatusSuspended && current.Status != domainadvert.StatusArchived {
 			return apperr.InvalidState(adminInvalidStateMessage)
 		}
 		if !domainadvert.AdminTransitionAllowed(current.Status, domainadvert.StatusPublished) {

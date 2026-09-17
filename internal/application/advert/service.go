@@ -724,6 +724,11 @@ func (s *Service) ownerTransition(
 			return err
 		}
 		fromStatus := from
+		var reason *string
+		if to == domainadvert.StatusArchived {
+			r := "Kullanıcı kendi kaldırmıştır"
+			reason = &r
+		}
 		return repo.InsertHistory(ctx, domainadvert.StatusHistory{
 			ID:          uuid.New(),
 			AdvertID:    advertID,
@@ -731,6 +736,7 @@ func (s *Service) ownerTransition(
 			ToStatus:    to,
 			ActorUserID: &ownerID,
 			IsSystem:    false,
+			Reason:      reason,
 			CreatedAt:   now,
 		})
 	})

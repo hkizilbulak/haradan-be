@@ -149,7 +149,9 @@ func (f *fixture) seed(t *testing.T, ownerID uuid.UUID, status domainadvert.Stat
 	if status == domainadvert.StatusDraft ||
 		status == domainadvert.StatusChangesRequested ||
 		status == domainadvert.StatusPendingReview ||
-		status == domainadvert.StatusRejected {
+		status == domainadvert.StatusRejected ||
+		status == domainadvert.StatusSuspended ||
+		status == domainadvert.StatusArchived {
 		assetID := uuid.New()
 		f.store.PutMediaRelations(a.ID, []domainadvert.MediaRelation{{
 			AssetID:         assetID,
@@ -1126,6 +1128,9 @@ func TestMarkAdvertSoldAndArchive(t *testing.T) {
 	}
 	if history[0].ToStatus != domainadvert.StatusSold || history[1].ToStatus != domainadvert.StatusArchived {
 		t.Fatalf("history=%+v", history)
+	}
+	if history[1].Reason == nil || *history[1].Reason != "Kullanıcı kendi kaldırmıştır" {
+		t.Fatalf("expected archive reason 'Kullanıcı kendi kaldırmıştır', got %+v", history[1].Reason)
 	}
 
 	// Only PUBLISHED adverts may be sold or archived.

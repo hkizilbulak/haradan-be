@@ -164,6 +164,16 @@ func TestApproveAdvertSuccessAndIdempotency(t *testing.T) {
 
 	_, err = f.svc.ApproveAdvert(context.Background(), admin, pending.ID, 2)
 	requireCode(t, err, apperr.CodeInvalidState)
+
+	// Admin can also re-publish an ARCHIVED advert
+	archived := f.seed(t, f.owner, domainadvert.StatusArchived, nil)
+	archivedDetail, err := f.svc.ApproveAdvert(context.Background(), admin, archived.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if archivedDetail.Status != domainadvert.StatusPublished {
+		t.Fatalf("expected PUBLISHED, got %s", archivedDetail.Status)
+	}
 }
 
 func TestApproveAdvertValidationAndConflicts(t *testing.T) {

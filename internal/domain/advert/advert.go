@@ -208,7 +208,7 @@ func AdminTransitionAllowed(from, to Status) bool {
 		return to == StatusPublished || to == StatusChangesRequested || to == StatusRejected
 	case StatusPublished:
 		return to == StatusSuspended
-	case StatusSuspended:
+	case StatusSuspended, StatusArchived:
 		return to == StatusPublished
 	}
 	return false
