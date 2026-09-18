@@ -2523,6 +2523,7 @@ type ListUsersParams struct {
 	// Cursor Opaque cursor
 	Cursor *Cursor     `form:"cursor,omitempty" json:"cursor,omitempty"`
 	Limit  *Limit      `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int        `form:"offset,omitempty" json:"offset,omitempty"`
 	Status *UserStatus `form:"status,omitempty" json:"status,omitempty"`
 	Role   *UserRole   `form:"role,omitempty" json:"role,omitempty"`
 	Q      *string     `form:"q,omitempty" json:"q,omitempty"`
@@ -4903,6 +4904,14 @@ func (siw *ServerInterfaceWrapper) ListUsers(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", c.Request.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
 		return
 	}
 

@@ -46,16 +46,16 @@ func (r *Repository) WithTx(tx pgx.Tx) appadminuser.Repository {
 const userColumns = `id, email, email_normalized, password_hash, role, status, email_verified_at,
 first_name, last_name, phone, security_stamp, failed_login_count, locked_until, created_at, updated_at, channel`
 
-func (r *Repository) ListUsers(ctx context.Context, status *domainuser.Status, role *domainuser.Role, query string, afterCreated *time.Time, afterID *uuid.UUID, limit int) ([]domainuser.User, int, error) {
+func (r *Repository) ListUsers(ctx context.Context, status *domainuser.Status, role *domainuser.Role, query string, afterCreated *time.Time, afterID *uuid.UUID, limit int, offset int) ([]domainuser.User, int, error) {
 	const q = `
 SELECT ` + userColumns + `
 FROM hrd_users
 WHERE ($1::varchar IS NULL OR status = $1)
   AND ($2::varchar IS NULL OR role = $2)
-  AND ($3::text = '' OR email ILIKE '%' || $3 || '%' OR first_name ILIKE '%' || $3 || '%' OR last_name ILIKE '%' || $3 || '%')
+  AND ($3::text = '' OR email ILIKE '%' || $3 || '%' OR first_name ILIKE '%' || $3 || '%' OR last_name ILIKE '%' || $3 || '%' OR (phone IS NOT NULL AND phone ILIKE '%' || $3 || '%'))
   AND ($4::timestamptz IS NULL OR (created_at, id) < ($4::timestamptz, $5::uuid))
 ORDER BY created_at DESC, id DESC
-LIMIT $6`
+LIMIT $6 OFFSET $7`
 	var dbStatus, dbRole *string
 	if status != nil {
 		v := string(*status)
@@ -71,12 +71,12 @@ SELECT count(*)
 FROM hrd_users
 WHERE ($1::varchar IS NULL OR status = $1)
   AND ($2::varchar IS NULL OR role = $2)
-  AND ($3::text = '' OR email ILIKE '%' || $3 || '%' OR first_name ILIKE '%' || $3 || '%' OR last_name ILIKE '%' || $3 || '%')`
+  AND ($3::text = '' OR email ILIKE '%' || $3 || '%' OR first_name ILIKE '%' || $3 || '%' OR last_name ILIKE '%' || $3 || '%' OR (phone IS NOT NULL AND phone ILIKE '%' || $3 || '%'))`
 	if err := r.db.QueryRow(ctx, countQ, dbStatus, dbRole, query).Scan(&totalCount); err != nil {
 		return nil, 0, apperr.Internal(fmt.Errorf("count admin users: %w", pg.SanitizeErr(err)))
 	}
 
-	rows, err := r.db.Query(ctx, q, dbStatus, dbRole, query, afterCreated, afterID, limit)
+	rows, err := r.db.Query(ctx, q, dbStatus, dbRole, query, afterCreated, afterID, limit, offset)
 	if err != nil {
 		return nil, 0, apperr.Internal(fmt.Errorf("list admin users: %w", pg.SanitizeErr(err)))
 	}

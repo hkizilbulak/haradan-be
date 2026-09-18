@@ -99,7 +99,7 @@ func (r *fakeRepo) BeginTx(context.Context) (pgx.Tx, error) {
 	}}, nil
 }
 func (r *fakeRepo) WithTx(pgx.Tx) Repository { return r }
-func (r *fakeRepo) ListUsers(_ context.Context, _ *domainuser.Status, _ *domainuser.Role, _ string, _ *time.Time, _ *uuid.UUID, limit int) ([]domainuser.User, int, error) {
+func (r *fakeRepo) ListUsers(_ context.Context, _ *domainuser.Status, _ *domainuser.Role, _ string, _ *time.Time, _ *uuid.UUID, limit int, _ int) ([]domainuser.User, int, error) {
 	return r.users[:min(limit, len(r.users))], len(r.users), nil
 }
 func (r *fakeRepo) FindUser(_ context.Context, id uuid.UUID) (domainuser.User, error) {

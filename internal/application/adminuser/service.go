@@ -84,6 +84,7 @@ func (noopEmail) SendRegistrationVerification(context.Context, string, string, s
 type ListInput struct {
 	Cursor *string
 	Limit  *int
+	Offset *int
 	Status *string
 	Role   *string
 	Query  *string
@@ -132,6 +133,10 @@ func (s *Service) ListUsers(ctx context.Context, in ListInput) (ListResult, erro
 	if err != nil {
 		return ListResult{}, err
 	}
+	offset := 0
+	if in.Offset != nil && *in.Offset >= 0 {
+		offset = *in.Offset
+	}
 	status, err := parseStatus(in.Status)
 	if err != nil {
 		return ListResult{}, err
@@ -144,7 +149,7 @@ func (s *Service) ListUsers(ctx context.Context, in ListInput) (ListResult, erro
 	if err != nil {
 		return ListResult{}, err
 	}
-	rows, totalCount, err := s.repo.ListUsers(ctx, status, role, strings.TrimSpace(deref(in.Query)), created, id, limit+1)
+	rows, totalCount, err := s.repo.ListUsers(ctx, status, role, strings.TrimSpace(deref(in.Query)), created, id, limit+1, offset)
 	if err != nil {
 		return ListResult{}, err
 	}

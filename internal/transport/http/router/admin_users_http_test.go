@@ -34,7 +34,7 @@ func (r *adminUserHTTPRepo) BeginTx(context.Context) (pgx.Tx, error) {
 	return adminHTTPStubTx{}, nil
 }
 func (r *adminUserHTTPRepo) WithTx(pgx.Tx) appadminuser.Repository { return r }
-func (m *adminUserHTTPRepo) ListUsers(_ context.Context, status *domainuser.Status, role *domainuser.Role, _ string, _ *time.Time, _ *uuid.UUID, _ int) ([]domainuser.User, int, error) {
+func (m *adminUserHTTPRepo) ListUsers(_ context.Context, status *domainuser.Status, role *domainuser.Role, _ string, _ *time.Time, _ *uuid.UUID, _ int, _ int) ([]domainuser.User, int, error) {
 	if m.listErr != nil {
 		return nil, 0, m.listErr
 	}

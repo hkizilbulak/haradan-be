@@ -59,7 +59,7 @@ func (h *Handler) ListUsers(c *gin.Context, params generated.ListUsersParams) {
 		role = &v
 	}
 	out, err := h.svc.ListUsers(c.Request.Context(), appadminuser.ListInput{
-		Cursor: params.Cursor, Limit: params.Limit, Status: status, Role: role, Query: params.Q,
+		Cursor: params.Cursor, Limit: params.Limit, Offset: params.Offset, Status: status, Role: role, Query: params.Q,
 	})
 	if err != nil {
 		h.respond(c, h.logger, err)

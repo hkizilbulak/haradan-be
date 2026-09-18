@@ -2095,6 +2095,12 @@ paths:
       parameters:
       - "$ref": "#/components/parameters/Cursor"
       - "$ref": "#/components/parameters/Limit"
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
       - name: status
         in: query
         required: false
