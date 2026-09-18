@@ -51,6 +51,10 @@ func (r pgPackageRepo) UpdateOptimistic(
 	return r.UpdatePackageOptimistic(ctx, p, expectedVersion)
 }
 
+func (r pgPackageRepo) DeleteByCode(ctx context.Context, code domainpackaging.PackageCode) error {
+	return r.DeletePackageByCode(ctx, code)
+}
+
 type pgAssignmentRepo struct{ *pgpackaging.Repository }
 
 func (r pgAssignmentRepo) WithTx(tx pgx.Tx) AssignmentRepository {

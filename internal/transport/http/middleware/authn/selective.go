@@ -119,6 +119,7 @@ var PackagingAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "PUT", Path: "/api/v1/admin/packages/reorder"},
 	{Method: "GET", Path: "/api/v1/admin/packages/:packageCode"},
 	{Method: "PATCH", Path: "/api/v1/admin/packages/:packageCode"},
+	{Method: "DELETE", Path: "/api/v1/admin/packages/:packageCode"},
 	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId/package"},
 	{Method: "PUT", Path: "/api/v1/admin/adverts/:advertId/package"},
 	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId/package-history"},
@@ -148,6 +149,7 @@ var BannerAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "PUT", Path: "/api/v1/admin/banners/reorder"},
 	{Method: "GET", Path: "/api/v1/admin/banners/:bannerId"},
 	{Method: "PATCH", Path: "/api/v1/admin/banners/:bannerId"},
+	{Method: "DELETE", Path: "/api/v1/admin/banners/:bannerId"},
 	{Method: "POST", Path: "/api/v1/admin/banners/:bannerId/status"},
 }
 

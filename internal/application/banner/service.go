@@ -165,6 +165,12 @@ func (s *Service) UpdateBanner(ctx context.Context, in UpdateInput) (domainbanne
 	})
 	return out, err
 }
+func (s *Service) DeleteBanner(ctx context.Context, actor, id uuid.UUID) error {
+	if err := s.requireAdmin(ctx, actor); err != nil {
+		return err
+	}
+	return s.repo.Delete(ctx, id)
+}
 func (s *Service) SetBannerStatus(ctx context.Context, in SetStatusInput) (domainbanner.Banner, error) {
 	if err := s.requireAdmin(ctx, in.ActorUserID); err != nil {
 		return domainbanner.Banner{}, err

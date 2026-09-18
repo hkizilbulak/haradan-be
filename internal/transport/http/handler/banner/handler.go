@@ -108,6 +108,17 @@ func (h *Handler) UpdateBanner(c *gin.Context, id generated.BannerIdPath) {
 	out, e := h.svc.UpdateBanner(c, appbanner.UpdateInput{ActorUserID: actor, BannerID: id, ExpectedVersion: r.ExpectedVersion, AssetID: r.AssetId, Title: r.Title, AltText: r.AltText, TargetURL: r.TargetUrl, SortOrder: r.SortOrder})
 	h.adminResult(c, http.StatusOK, out, e)
 }
+func (h *Handler) DeleteBanner(c *gin.Context, id generated.BannerIdPath) {
+	actor, ok := h.admin(c)
+	if !ok {
+		return
+	}
+	if err := h.svc.DeleteBanner(c, actor, id); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
 func (h *Handler) SetBannerStatus(c *gin.Context, id generated.BannerIdPath) {
 	actor, ok := h.admin(c)
 	if !ok {

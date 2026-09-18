@@ -406,6 +406,21 @@ func (s *Service) UpdatePackage(ctx context.Context, in UpdatePackageInput) (dom
 	return out, err
 }
 
+// DeletePackage deletes a package by code for an ACTIVE ADMIN.
+func (s *Service) DeletePackage(
+	ctx context.Context,
+	actorUserID uuid.UUID,
+	code domainpackaging.PackageCode,
+) error {
+	if err := s.requireAdmin(ctx, actorUserID); err != nil {
+		return err
+	}
+	if !code.Valid() {
+		return apperr.Validation("Geçersiz paket kodu.")
+	}
+	return s.packages.DeleteByCode(ctx, code)
+}
+
 // AssignAdvertPackage assigns an active package to an advert (ADMIN only).
 func (s *Service) AssignAdvertPackage(ctx context.Context, in AssignAdvertPackageInput) (AssignmentView, error) {
 	source := in.Source

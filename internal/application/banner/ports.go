@@ -39,4 +39,5 @@ type Repository interface {
 	List(context.Context, ListFilter) ([]domainbanner.Banner, error)
 	ListActive(context.Context, domainbanner.Placement) ([]domainbanner.Banner, error)
 	UpdateOptimistic(context.Context, domainbanner.Banner, int) (domainbanner.Banner, error)
+	Delete(context.Context, uuid.UUID) error
 }

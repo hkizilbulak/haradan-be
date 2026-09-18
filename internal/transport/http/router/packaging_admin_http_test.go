@@ -279,6 +279,34 @@ func TestUpdateAdminPackageNullableHTTP(t *testing.T) {
 	}
 }
 
+func TestPackagingAdminHTTP_DeletePackage(t *testing.T) {
+	env := newPackagingEngine(t)
+	adminAuth, _ := env.registerAdminBO(t, "pkgadmin_del@test.com")
+
+	// Create a test package
+	createBody := `{"displayName":"To Delete","searchPriority":10,"isActive":true}`
+	rec := env.do(http.MethodPost, "/api/v1/admin/packages", createBody, adminAuth)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create=%d %s", rec.Code, rec.Body.String())
+	}
+	var created generated.PackageAdminView
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+
+	// Delete package
+	rec = env.do(http.MethodDelete, "/api/v1/admin/packages/"+string(created.Code), "", adminAuth)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete=%d %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify it's gone
+	rec = env.do(http.MethodGet, "/api/v1/admin/packages/"+string(created.Code), "", adminAuth)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 after delete, got %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func itoa(v int) string {
 	return strings.TrimSpace(strings.ReplaceAll(jsonNumber(v), " ", ""))
 }

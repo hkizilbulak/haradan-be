@@ -121,6 +121,17 @@ func (r *Repository) UpdateOptimistic(ctx context.Context, b domainbanner.Banner
 	return out, nil
 }
 
+func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.db.Exec(ctx, `DELETE FROM hrd_banners WHERE id=$1`, id)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("delete banner: %w", pg.SanitizeErr(err)))
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound("Banner bulunamadı.")
+	}
+	return nil
+}
+
 type scanner interface{ Scan(...any) error }
 
 func scan(row scanner) (domainbanner.Banner, error) {

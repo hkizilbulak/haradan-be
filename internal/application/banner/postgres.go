@@ -33,6 +33,9 @@ func (r pgRepo) ListActive(ctx context.Context, p domainbanner.Placement) ([]dom
 func (r pgRepo) UpdateOptimistic(ctx context.Context, b domainbanner.Banner, v int) (domainbanner.Banner, error) {
 	return r.Repository.UpdateOptimistic(ctx, b, v)
 }
+func (r pgRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	return r.Repository.Delete(ctx, id)
+}
 func NewPostgresService(pool *pgxpool.Pool, media MediaReader, users UserReader, clock Clock) (*Service, error) {
 	if pool == nil {
 		return nil, fmt.Errorf("postgres pool is required")

@@ -190,6 +190,22 @@ RETURNING ` + packageColumns
 	return out, nil
 }
 
+// DeletePackageByCode deletes a package catalog row by code.
+func (r *Repository) DeletePackageByCode(ctx context.Context, code domainpackaging.PackageCode) error {
+	const q = `DELETE FROM hrd_packages WHERE code = $1`
+	tag, err := r.db.Exec(ctx, q, string(code))
+	if err != nil {
+		if isForeignKeyViolation(err) {
+			return apperr.Conflict("Bu pakete bağlı ilan ataması veya kampanya bulunduğu için silinemez. Paketi pasife alabilirsiniz.")
+		}
+		return apperr.Internal(fmt.Errorf("delete package: %w", pg.SanitizeErr(err)))
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound(packageNotFoundMessage)
+	}
+	return nil
+}
+
 const stalePackageVersionMessage = "Paket başka bir işlem tarafından güncellendi."
 
 // MarkAssignmentCancelled marks an assignment CANCELLED.

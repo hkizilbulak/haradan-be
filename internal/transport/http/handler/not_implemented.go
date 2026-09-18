@@ -48,6 +48,10 @@ func (NotImplementedServer) UpdateBanner(c *gin.Context, bannerId generated.Bann
 	respondNotImplemented(c)
 }
 
+func (NotImplementedServer) DeleteBanner(c *gin.Context, bannerId generated.BannerIdPath) {
+	respondNotImplemented(c)
+}
+
 func (NotImplementedServer) SetBannerStatus(c *gin.Context, bannerId generated.BannerIdPath) {
 	respondNotImplemented(c)
 }
@@ -361,6 +365,10 @@ func (NotImplementedServer) GetAdminPackage(c *gin.Context, packageCode generate
 }
 
 func (NotImplementedServer) UpdateAdminPackage(c *gin.Context, packageCode generated.PackageCodePath) {
+	respondNotImplemented(c)
+}
+
+func (NotImplementedServer) DeleteAdminPackage(c *gin.Context, packageCode generated.PackageCodePath) {
 	respondNotImplemented(c)
 }
 

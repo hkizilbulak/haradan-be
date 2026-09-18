@@ -2903,6 +2903,9 @@ type ServerInterface interface {
 	// ReorderBanners ReorderBanners
 	// (PUT /v1/admin/banners/reorder)
 	ReorderBanners(c *gin.Context)
+	// DeleteBanner DeleteBanner
+	// (DELETE /v1/admin/banners/{bannerId})
+	DeleteBanner(c *gin.Context, bannerId BannerIdPath)
 	// GetBannerAdminDetail GetBannerAdminDetail
 	// (GET /v1/admin/banners/{bannerId})
 	GetBannerAdminDetail(c *gin.Context, bannerId BannerIdPath)
@@ -3008,6 +3011,9 @@ type ServerInterface interface {
 	// ReorderPackages ReorderPackages
 	// (PUT /v1/admin/packages/reorder)
 	ReorderPackages(c *gin.Context)
+	// DeleteAdminPackage DeleteAdminPackage
+	// (DELETE /v1/admin/packages/{packageCode})
+	DeleteAdminPackage(c *gin.Context, packageCode PackageCodePath)
 	// GetAdminPackage GetAdminPackage
 	// (GET /v1/admin/packages/{packageCode})
 	GetAdminPackage(c *gin.Context, packageCode PackageCodePath)
@@ -3707,6 +3713,31 @@ func (siw *ServerInterfaceWrapper) ReorderBanners(c *gin.Context) {
 	}
 
 	siw.Handler.ReorderBanners(c)
+}
+
+// DeleteBanner operation middleware
+func (siw *ServerInterfaceWrapper) DeleteBanner(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bannerId" -------------
+	var bannerId BannerIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bannerId", c.Param("bannerId"), &bannerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter bannerId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteBanner(c, bannerId)
 }
 
 // GetBannerAdminDetail operation middleware
@@ -4559,6 +4590,31 @@ func (siw *ServerInterfaceWrapper) ReorderPackages(c *gin.Context) {
 	}
 
 	siw.Handler.ReorderPackages(c)
+}
+
+// DeleteAdminPackage operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminPackage(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "packageCode" -------------
+	var packageCode PackageCodePath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "packageCode", c.Param("packageCode"), &packageCode, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter packageCode: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAdminPackage(c, packageCode)
 }
 
 // GetAdminPackage operation middleware
@@ -7087,6 +7143,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/admin/banners", wrapper.ListBannersAdmin)
 	router.POST(options.BaseURL+"/v1/admin/banners", wrapper.CreateBanner)
 	router.PUT(options.BaseURL+"/v1/admin/banners/reorder", wrapper.ReorderBanners)
+	router.DELETE(options.BaseURL+"/v1/admin/banners/:bannerId", wrapper.DeleteBanner)
 	router.GET(options.BaseURL+"/v1/admin/banners/:bannerId", wrapper.GetBannerAdminDetail)
 	router.PATCH(options.BaseURL+"/v1/admin/banners/:bannerId", wrapper.UpdateBanner)
 	router.POST(options.BaseURL+"/v1/admin/banners/:bannerId/status", wrapper.SetBannerStatus)
@@ -7191,6 +7248,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/v1/admin/packages/reorder", wrapper.ReorderPackages)
 	router.GET(options.BaseURL+"/v1/admin/packages", wrapper.ListAdminPackages)
 	router.POST(options.BaseURL+"/v1/admin/packages", wrapper.CreateAdminPackage)
+	router.DELETE(options.BaseURL+"/v1/admin/packages/:packageCode", wrapper.DeleteAdminPackage)
 	router.GET(options.BaseURL+"/v1/admin/packages/:packageCode", wrapper.GetAdminPackage)
 	router.PATCH(options.BaseURL+"/v1/admin/packages/:packageCode", wrapper.UpdateAdminPackage)
 	router.GET(options.BaseURL+"/v1/admin/adverts/:advertId/package", wrapper.GetAdminAdvertPackage)

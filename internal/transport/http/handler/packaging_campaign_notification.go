@@ -59,6 +59,15 @@ func (s *Server) UpdateAdminPackage(c *gin.Context, packageCode generated.Packag
 	s.packaging.UpdateAdminPackage(c, packageCode)
 }
 
+// DeleteAdminPackage implements packaging admin delete.
+func (s *Server) DeleteAdminPackage(c *gin.Context, packageCode generated.PackageCodePath) {
+	if s.packaging == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.packaging.DeleteAdminPackage(c, packageCode)
+}
+
 // GetAdminAdvertPackage implements admin advert package get.
 func (s *Server) GetAdminAdvertPackage(c *gin.Context, advertId generated.AdvertIdPath) {
 	if s.packaging == nil {

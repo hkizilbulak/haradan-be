@@ -183,6 +183,19 @@ func (h *Handler) UpdateAdminPackage(c *gin.Context, packageCode generated.Packa
 	c.JSON(http.StatusOK, mapPackageAdminView(out))
 }
 
+// DeleteAdminPackage handles DELETE /v1/admin/packages/{packageCode}.
+func (h *Handler) DeleteAdminPackage(c *gin.Context, packageCode generated.PackageCodePath) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	if err := h.svc.DeletePackage(c.Request.Context(), actorID, domainpackaging.PackageCode(packageCode)); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // GetAdminAdvertPackage handles GET /v1/admin/adverts/{advertId}/package.
 func (h *Handler) GetAdminAdvertPackage(c *gin.Context, advertID generated.AdvertIdPath) {
 	actorID, ok := h.requireAdminBO(c)

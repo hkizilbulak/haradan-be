@@ -183,6 +183,23 @@ func (m memoryPackages) UpdateOptimistic(
 	return p, nil
 }
 
+func (m memoryPackages) DeleteByCode(_ context.Context, code domainpackaging.PackageCode) error {
+	m.store.mu.Lock()
+	defer m.store.mu.Unlock()
+	for id, p := range m.store.packages {
+		if p.Code == code {
+			for _, a := range m.store.assignments {
+				if a.PackageID == id {
+					return apperr.Conflict("Bu pakete bağlı ilan ataması veya kampanya bulunduğu için silinemez. Paketi pasife alabilirsiniz.")
+				}
+			}
+			delete(m.store.packages, id)
+			return nil
+		}
+	}
+	return apperr.NotFound(packageNotFoundMessage)
+}
+
 type memoryAssignments struct{ store *MemoryStore }
 
 func (m memoryAssignments) BeginTx(context.Context) (pgx.Tx, error) {

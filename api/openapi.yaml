@@ -804,6 +804,49 @@ paths:
         - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
+    delete:
+      operationId: DeleteBanner
+      summary: DeleteBanner
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Deletes a banner. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminBanners
+      x-function-id: BANNER-ADMIN-07
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '204':
+          description: Deleted
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/BannerIdPath"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
   "/v1/admin/banners/{bannerId}/status":
     post:
       operationId: SetBannerStatus
@@ -5855,6 +5898,53 @@ paths:
         '409':
         - STALE_VERSION
         - INVALID_STATE
+        '422':
+        - VALIDATION_ERROR
+        '500':
+        - INTERNAL_ERROR
+    delete:
+      operationId: DeleteAdminPackage
+      summary: DeleteAdminPackage
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Deletes a package catalog row. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminPackages
+      x-function-id: PACKAGE-ADMIN-14
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '204':
+          description: Deleted
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '422':
+          "$ref": "#/components/responses/ValidationError"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/PackageCodePath"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - CONFLICT
         '422':
         - VALIDATION_ERROR
         '500':

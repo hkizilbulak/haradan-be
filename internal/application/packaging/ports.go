@@ -28,6 +28,7 @@ type PackageRepository interface {
 	List(ctx context.Context, includeInactive bool) ([]domainpackaging.Package, error)
 	Create(ctx context.Context, p domainpackaging.Package) error
 	UpdateOptimistic(ctx context.Context, p domainpackaging.Package, expectedVersion int) (domainpackaging.Package, error)
+	DeleteByCode(ctx context.Context, code domainpackaging.PackageCode) error
 }
 
 // AssignmentRepository persists advert package assignment history.

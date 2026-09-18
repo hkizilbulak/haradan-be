@@ -40,6 +40,13 @@ func (s *Server) UpdateBanner(c *gin.Context, id generated.BannerIdPath) {
 	}
 	s.banner.UpdateBanner(c, id)
 }
+func (s *Server) DeleteBanner(c *gin.Context, id generated.BannerIdPath) {
+	if s.banner == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.banner.DeleteBanner(c, id)
+}
 func (s *Server) SetBannerStatus(c *gin.Context, id generated.BannerIdPath) {
 	if s.banner == nil {
 		respondNotImplemented(c)
