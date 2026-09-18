@@ -590,7 +590,7 @@ func (s *Service) ResendVerification(ctx context.Context, in ResendVerificationI
 	return ResendVerificationResult{Message: resendSuccessMessage}, nil
 }
 
-// RequestPasswordReset implements AUTH-10 without revealing account existence.
+// RequestPasswordReset implements AUTH-10.
 func (s *Service) RequestPasswordReset(ctx context.Context, in RequestPasswordResetInput) (ResendVerificationResult, error) {
 	email := strings.TrimSpace(in.Email)
 	if !emailnorm.ValidFormat(email) {
@@ -599,12 +599,12 @@ func (s *Service) RequestPasswordReset(ctx context.Context, in RequestPasswordRe
 	user, err := s.users.FindByNormalizedEmail(ctx, emailnorm.Normalize(email))
 	if err != nil {
 		if ae, ok := apperr.As(err); ok && ae.Kind == apperr.KindNotFound {
-			return ResendVerificationResult{Message: resendSuccessMessage}, nil
+			return ResendVerificationResult{}, apperr.NotFound("Bu e-posta adresi ile kayıtlı bir hesap bulunamadı.")
 		}
 		return ResendVerificationResult{}, err
 	}
 	if !user.IsActive() {
-		return ResendVerificationResult{Message: resendSuccessMessage}, nil
+		return ResendVerificationResult{}, apperr.Forbidden(apperr.CodeForbidden, "Bu hesap aktif değildir.")
 	}
 	plain, hash, err := token.NewOpaqueToken()
 	if err != nil {
