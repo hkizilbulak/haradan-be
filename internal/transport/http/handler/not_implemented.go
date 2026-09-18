@@ -156,6 +156,10 @@ func (NotImplementedServer) ResendAdminUserInvitation(c *gin.Context, userId gen
 	respondNotImplemented(c)
 }
 
+func (NotImplementedServer) DeleteAdminUser(c *gin.Context, userId generated.UserIdPath) {
+	respondNotImplemented(c)
+}
+
 func (NotImplementedServer) UpdateAdminUser(c *gin.Context, userId generated.UserIdPath) {
 	respondNotImplemented(c)
 }

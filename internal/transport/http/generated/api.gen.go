@@ -1048,14 +1048,14 @@ type AttachMediaToAdvertRequest struct {
 
 // AuthTokenResponse defines model for AuthTokenResponse.
 type AuthTokenResponse struct {
-	AccessToken           string                     `json:"accessToken,omitempty"`
+	AccessToken           string                     `json:"accessToken"`
 	ClientContext         *ClientContext             `json:"clientContext,omitempty"`
-	Email                 string                     `json:"email,omitempty"`
-	ExpiresIn             int                        `json:"expiresIn,omitempty"`
-	RefreshToken          string                     `json:"refreshToken,omitempty"`
-	RequirePasswordChange bool                       `json:"requirePasswordChange,omitempty"`
-	Token                 string                     `json:"token,omitempty"`
-	TokenType             AuthTokenResponseTokenType `json:"tokenType,omitempty"`
+	Email                 string                     `json:"email"`
+	ExpiresIn             int                        `json:"expiresIn"`
+	RefreshToken          string                     `json:"refreshToken"`
+	RequirePasswordChange bool                       `json:"requirePasswordChange"`
+	Token                 string                     `json:"token"`
+	TokenType             AuthTokenResponseTokenType `json:"tokenType"`
 }
 
 // AuthTokenResponseTokenType defines model for AuthTokenResponse.TokenType.
@@ -3050,6 +3050,9 @@ type ServerInterface interface {
 	// CreateAdminUser CreateAdminUser
 	// (POST /v1/admin/users)
 	CreateAdminUser(c *gin.Context)
+	// DeleteAdminUser DeleteAdminUser
+	// (DELETE /v1/admin/users/{userId})
+	DeleteAdminUser(c *gin.Context, userId UserIdPath)
 	// GetUserAdminDetail GetUserAdminDetail
 	// (GET /v1/admin/users/{userId})
 	GetUserAdminDetail(c *gin.Context, userId UserIdPath)
@@ -4948,6 +4951,31 @@ func (siw *ServerInterfaceWrapper) CreateAdminUser(c *gin.Context) {
 	}
 
 	siw.Handler.CreateAdminUser(c)
+}
+
+// DeleteAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminUser(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAdminUser(c, userId)
 }
 
 // GetUserAdminDetail operation middleware
@@ -7175,6 +7203,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/admin/users", wrapper.ListUsers)
 	router.POST(options.BaseURL+"/v1/admin/users", wrapper.CreateAdminUser)
 	router.POST(options.BaseURL+"/v1/admin/users/:userId/invitation/resend", wrapper.ResendAdminUserInvitation)
+	router.DELETE(options.BaseURL+"/v1/admin/users/:userId", wrapper.DeleteAdminUser)
 	router.GET(options.BaseURL+"/v1/admin/users/:userId", wrapper.GetUserAdminDetail)
 	router.PATCH(options.BaseURL+"/v1/admin/users/:userId", wrapper.UpdateAdminUser)
 	router.GET(options.BaseURL+"/v1/admin/users/:userId/consent-logs", wrapper.GetAdminUserConsentLogs)

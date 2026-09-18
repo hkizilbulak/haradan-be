@@ -113,6 +113,19 @@ func (h *Handler) ResendAdminUserInvitation(c *gin.Context, userID generated.Use
 	c.JSON(http.StatusOK, mapCreate(out))
 }
 
+func (h *Handler) DeleteAdminUser(c *gin.Context, userID generated.UserIdPath) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	targetID := uuid.UUID(userID)
+	if err := h.svc.DeleteUser(c.Request.Context(), actorID, targetID); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func (h *Handler) UpdateAdminUser(c *gin.Context, userID generated.UserIdPath) {
 	actorID, ok := h.requireAdminBO(c)
 	if !ok {

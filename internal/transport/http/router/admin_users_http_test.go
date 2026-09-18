@@ -137,6 +137,15 @@ func (r *adminUserHTTPRepo) InvalidateActiveOneTimeCredentials(context.Context, 
 func (r *adminUserHTTPRepo) CreateOneTimeCredential(context.Context, domainauth.OneTimeCredential) error {
 	return nil
 }
+func (r *adminUserHTTPRepo) DeleteUser(_ context.Context, userID uuid.UUID, _ uuid.UUID) error {
+	for i, u := range r.users {
+		if u.ID == userID {
+			r.users = append(r.users[:i], r.users[i+1:]...)
+			return nil
+		}
+	}
+	return apperr.NotFound("user not found")
+}
 
 type adminHTTPStubTx struct{}
 
@@ -387,6 +396,38 @@ func TestResendAdminUserInvitationHTTP(t *testing.T) {
 	engine2.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusServiceUnavailable {
 		t.Fatalf("unconfigured resend=%d %s", rec2.Code, rec2.Body.String())
+	}
+}
+
+func TestDeleteAdminUserHTTP(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	authSvc, store, _ := appauth.NewMemoryServiceForTest(t)
+	targetID := uuid.New()
+	repo := &adminUserHTTPRepo{users: []domainuser.User{{
+		ID:        targetID,
+		Email:     "to-delete@example.com",
+		FirstName: "To",
+		LastName:  "Delete",
+		Role:      domainuser.RoleUser,
+		Status:    domainuser.StatusActive,
+		CreatedAt: time.Now().UTC(),
+	}}}
+	adminSvc, err := appadminuser.NewService(appadminuser.Config{Repository: repo})
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine := router.New(handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, authSvc).WithAdminUserService(adminSvc), log, router.Options{AuthService: authSvc})
+	token := adminUserHTTPLogin(t, authSvc, store)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/users/"+targetID.String(), nil)
+	req.Header.Set("Authorization", token)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete status=%d %s", rec.Code, rec.Body.String())
+	}
+	if len(repo.users) != 0 {
+		t.Fatalf("expected user to be deleted from repo, remaining=%d", len(repo.users))
 	}
 }
 

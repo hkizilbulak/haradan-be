@@ -39,6 +39,7 @@ type Repository interface {
 	LockActiveAdminGuard(ctx context.Context) error
 	InvalidateActiveOneTimeCredentials(ctx context.Context, userID uuid.UUID, purpose domainauth.OneTimePurpose, now time.Time) error
 	CreateOneTimeCredential(ctx context.Context, cred domainauth.OneTimeCredential) error
+	DeleteUser(ctx context.Context, userID uuid.UUID, reassignAdminID uuid.UUID) error
 }
 
 // PasswordHasher hashes passwords for admin-created accounts (random secret).

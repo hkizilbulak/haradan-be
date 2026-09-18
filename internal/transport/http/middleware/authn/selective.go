@@ -93,6 +93,7 @@ var AdminUserProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/users"},
 	{Method: "POST", Path: "/api/v1/admin/users"},
 	{Method: "GET", Path: "/api/v1/admin/users/:userId"},
+	{Method: "DELETE", Path: "/api/v1/admin/users/:userId"},
 	{Method: "PATCH", Path: "/api/v1/admin/users/:userId"},
 	{Method: "POST", Path: "/api/v1/admin/users/:userId/role"},
 	{Method: "POST", Path: "/api/v1/admin/users/:userId/status"},

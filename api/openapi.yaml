@@ -2335,6 +2335,49 @@ paths:
         - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
+    delete:
+      operationId: DeleteAdminUser
+      summary: DeleteAdminUser
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Permanently deletes a user and cascades related records. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminUsers
+      x-function-id: ADMIN-USER-09
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      parameters:
+      - "$ref": "#/components/parameters/UserIdPath"
+      responses:
+        '204':
+          description: User permanently deleted
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '409':
+        - CONFLICT
+        '500':
+        - INTERNAL_ERROR
   "/v1/admin/users/{userId}/consent-logs":
     get:
       operationId: GetAdminUserConsentLogs
@@ -8180,10 +8223,20 @@ components:
     AuthTokenResponse:
       type: object
       additionalProperties: false
+      required:
+      - accessToken
+      - refreshToken
+      - tokenType
+      - expiresIn
+      - requirePasswordChange
+      - email
+      - token
       properties:
         requirePasswordChange:
           type: boolean
         email:
+          type: string
+        token:
           type: string
         accessToken:
           type: string

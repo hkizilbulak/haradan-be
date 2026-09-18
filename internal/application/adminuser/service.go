@@ -410,6 +410,28 @@ func (s *Service) ChangeStatus(ctx context.Context, actorID, userID uuid.UUID, e
 	return out, err
 }
 
+func (s *Service) DeleteUser(ctx context.Context, actorID, userID uuid.UUID) error {
+	return s.withTx(ctx, func(repo Repository) error {
+		user, err := repo.FindUserForUpdate(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if user.Role == domainuser.RoleAdmin && user.Status == domainuser.StatusActive {
+			if err := repo.LockActiveAdminGuard(ctx); err != nil {
+				return err
+			}
+			count, err := repo.CountActiveAdmins(ctx)
+			if err != nil {
+				return err
+			}
+			if count <= 1 {
+				return apperr.Conflict("Sistemde en az bir aktif admin kalmalıdır.")
+			}
+		}
+		return repo.DeleteUser(ctx, userID, actorID)
+	})
+}
+
 func (s *Service) ListSecurityEvents(ctx context.Context, userID uuid.UUID, in EventListInput) (EventListResult, error) {
 	limit, err := resolveLimit(in.Limit)
 	if err != nil {

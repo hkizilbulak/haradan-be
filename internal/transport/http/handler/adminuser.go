@@ -30,6 +30,14 @@ func (s *Server) ResendAdminUserInvitation(c *gin.Context, userID generated.User
 	s.adminuser.ResendAdminUserInvitation(c, userID)
 }
 
+func (s *Server) DeleteAdminUser(c *gin.Context, userID generated.UserIdPath) {
+	if s.adminuser == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.adminuser.DeleteAdminUser(c, userID)
+}
+
 func (s *Server) UpdateAdminUser(c *gin.Context, userID generated.UserIdPath) {
 	if s.adminuser == nil {
 		respondNotImplemented(c)
