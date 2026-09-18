@@ -247,6 +247,16 @@ func (r *fakeRepo) CreateOneTimeCredential(_ context.Context, cred domainauth.On
 	r.otc = append(r.otc, cred)
 	return nil
 }
+func (r *fakeRepo) DeleteUser(_ context.Context, userID uuid.UUID, _ uuid.UUID) error {
+	for i, u := range r.users {
+		if u.ID == userID {
+			r.users = append(r.users[:i], r.users[i+1:]...)
+			return nil
+		}
+	}
+	return apperr.NotFound("user not found")
+}
+
 
 func TestListUsersPaginatesWithOpaqueCursor(t *testing.T) {
 	now := time.Now().UTC()

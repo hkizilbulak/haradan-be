@@ -423,105 +423,117 @@ ORDER BY created_at DESC`
 }
 
 func (r *Repository) DeleteUser(ctx context.Context, userID uuid.UUID, reassignAdminID uuid.UUID) error {
-	// 1. Reassign system resources created by this user if any
-	_, err := r.db.Exec(ctx, `UPDATE hrd_coupons SET created_by_user_id = $2 WHERE created_by_user_id = $1`, userID, reassignAdminID)
-	if err != nil {
+	// 1. Reassign system/admin actions done by this user to another admin
+	if _, err := r.db.Exec(ctx, `UPDATE hrd_coupons SET created_by_user_id = $2 WHERE created_by_user_id = $1`, userID, reassignAdminID); err != nil {
 		return apperr.Internal(fmt.Errorf("reassign coupons: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `UPDATE hrd_notification_campaigns SET created_by_user_id = $2 WHERE created_by_user_id = $1`, userID, reassignAdminID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("reassign notification campaigns: %w", pg.SanitizeErr(err)))
+	if _, err := r.db.Exec(ctx, `UPDATE hrd_campaigns SET created_by_user_id = $2 WHERE created_by_user_id = $1`, userID, reassignAdminID); err != nil {
+		return apperr.Internal(fmt.Errorf("reassign campaigns: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `UPDATE hrd_tjk_sync_runs SET created_by_user_id = $2 WHERE created_by_user_id = $1`, userID, reassignAdminID)
-	if err != nil {
+	if _, err := r.db.Exec(ctx, `UPDATE hrd_notification_templates SET updated_by_user_id = $2 WHERE updated_by_user_id = $1`, userID, reassignAdminID); err != nil {
+		return apperr.Internal(fmt.Errorf("reassign notification templates: %w", pg.SanitizeErr(err)))
+	}
+	if _, err := r.db.Exec(ctx, `UPDATE hrd_tjk_sync_runs SET created_by_user_id = $2 WHERE created_by_user_id = $1`, userID, reassignAdminID); err != nil {
 		return apperr.Internal(fmt.Errorf("reassign tjk sync runs: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `UPDATE hrd_job_runs SET triggered_by_user_id = $2 WHERE triggered_by_user_id = $1`, userID, reassignAdminID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("reassign job runs: %w", pg.SanitizeErr(err)))
+	if _, err := r.db.Exec(ctx, `UPDATE hrd_background_jobs SET triggered_by_user_id = $2 WHERE triggered_by_user_id = $1`, userID, reassignAdminID); err != nil {
+		return apperr.Internal(fmt.Errorf("reassign background jobs: %w", pg.SanitizeErr(err)))
+	}
+	if _, err := r.db.Exec(ctx, `UPDATE hrd_advert_status_history SET actor_user_id = $2 WHERE actor_user_id = $1`, userID, reassignAdminID); err != nil {
+		return apperr.Internal(fmt.Errorf("reassign advert status history: %w", pg.SanitizeErr(err)))
+	}
+	if _, err := r.db.Exec(ctx, `UPDATE hrd_advert_package_assignments SET assigned_by_user_id = $2 WHERE assigned_by_user_id = $1`, userID, reassignAdminID); err != nil {
+		return apperr.Internal(fmt.Errorf("reassign advert package assignments: %w", pg.SanitizeErr(err)))
+	}
+	if _, err := r.db.Exec(ctx, `UPDATE hrd_advert_feature_activations SET activated_by_user_id = $2 WHERE activated_by_user_id = $1`, userID, reassignAdminID); err != nil {
+		return apperr.Internal(fmt.Errorf("reassign advert feature activations: %w", pg.SanitizeErr(err)))
 	}
 
-	// 2. Delete user's adverts and all advert child records
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_advert_media WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE seller_user_id = $1)`, userID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("delete seller advert media: %w", pg.SanitizeErr(err)))
+	// 2. Cascade delete adverts owned by this user and their child entities
+	if _, err := r.db.Exec(ctx, `UPDATE hrd_notifications SET advert_id = NULL, package_assignment_id = NULL WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("unlink notifications from user adverts: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_advert_properties WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE seller_user_id = $1)`, userID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("delete seller advert properties: %w", pg.SanitizeErr(err)))
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_advert_feature_activations WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete advert feature activations: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_advert_status_history WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE seller_user_id = $1)`, userID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("delete seller advert status history: %w", pg.SanitizeErr(err)))
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_advert_package_assignments WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete advert package assignments: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_advert_comments WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE seller_user_id = $1)`, userID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("delete seller advert comments: %w", pg.SanitizeErr(err)))
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_advert_status_history WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete advert status history: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_favorites WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE seller_user_id = $1)`, userID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("delete seller advert favorites: %w", pg.SanitizeErr(err)))
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_advert_media WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete advert media: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_adverts WHERE seller_user_id = $1`, userID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("delete seller adverts: %w", pg.SanitizeErr(err)))
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_favorites WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete advert favorites: %w", pg.SanitizeErr(err)))
 	}
-
-	// 3. Delete user's favorites & comments & media
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_favorites WHERE user_id = $1`, userID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("delete user favorites: %w", pg.SanitizeErr(err)))
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_advert_comments WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete advert comments: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_advert_comments WHERE user_id = $1`, userID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("delete user comments: %w", pg.SanitizeErr(err)))
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_advert_views WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete advert views: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_media_assets WHERE uploaded_by_user_id = $1`, userID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("delete user media assets: %w", pg.SanitizeErr(err)))
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_coupon_usages WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete advert coupon usages: %w", pg.SanitizeErr(err)))
+	}
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_paytr_charges WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete advert paytr charges: %w", pg.SanitizeErr(err)))
+	}
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_adverts WHERE owner_user_id = $1`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete user adverts: %w", pg.SanitizeErr(err)))
 	}
 
-	// 4. Delete user's notification states, package balances, package orders, coupon usages, paytr charges
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_user_notification_states WHERE user_id = $1`, userID)
-	if err != nil {
+	// 3. Delete user's own interactions and media
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_user_notification_states WHERE user_id = $1`, userID); err != nil {
 		return apperr.Internal(fmt.Errorf("delete user notification states: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_user_package_balances WHERE user_id = $1`, userID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("delete user package balances: %w", pg.SanitizeErr(err)))
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_favorites WHERE user_id = $1`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete user favorites: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_user_package_orders WHERE user_id = $1`, userID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("delete user package orders: %w", pg.SanitizeErr(err)))
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_advert_comments WHERE user_id = $1`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete user comments: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_coupon_usages WHERE user_id = $1`, userID)
-	if err != nil {
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_coupon_usages WHERE user_id = $1`, userID); err != nil {
 		return apperr.Internal(fmt.Errorf("delete user coupon usages: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_paytr_charges WHERE user_id = $1`, userID)
-	if err != nil {
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_paytr_charges WHERE user_id = $1`, userID); err != nil {
 		return apperr.Internal(fmt.Errorf("delete user paytr charges: %w", pg.SanitizeErr(err)))
 	}
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_advert_media WHERE asset_id IN (SELECT id FROM hrd_media_assets WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete user media in advert media: %w", pg.SanitizeErr(err)))
+	}
+	if _, err := r.db.Exec(ctx, `UPDATE hrd_campaigns SET image_asset_id = NULL WHERE image_asset_id IN (SELECT id FROM hrd_media_assets WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("unlink campaigns from user media: %w", pg.SanitizeErr(err)))
+	}
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_banners WHERE asset_id IN (SELECT id FROM hrd_media_assets WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete banners with user media: %w", pg.SanitizeErr(err)))
+	}
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_media_variants WHERE asset_id IN (SELECT id FROM hrd_media_assets WHERE owner_user_id = $1)`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete media variants: %w", pg.SanitizeErr(err)))
+	}
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_media_assets WHERE owner_user_id = $1`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete media assets: %w", pg.SanitizeErr(err)))
+	}
 
-	// 5. Delete auth sessions, one-time credentials, user settings, user consent logs
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_auth_sessions WHERE user_id = $1`, userID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("delete user sessions: %w", pg.SanitizeErr(err)))
+	// 4. Delete user auth & security records
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_auth_sessions WHERE user_id = $1`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete auth sessions: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_one_time_credentials WHERE user_id = $1`, userID)
-	if err != nil {
-		return apperr.Internal(fmt.Errorf("delete user one-time credentials: %w", pg.SanitizeErr(err)))
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_one_time_credentials WHERE user_id = $1`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete one-time credentials: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_user_settings WHERE user_id = $1`, userID)
-	if err != nil {
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_user_settings WHERE user_id = $1`, userID); err != nil {
 		return apperr.Internal(fmt.Errorf("delete user settings: %w", pg.SanitizeErr(err)))
 	}
-	_, err = r.db.Exec(ctx, `DELETE FROM hrd_user_consent_logs WHERE user_id = $1`, userID)
-	if err != nil {
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_user_consent_logs WHERE user_id = $1`, userID); err != nil {
 		return apperr.Internal(fmt.Errorf("delete user consent logs: %w", pg.SanitizeErr(err)))
 	}
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_security_events WHERE subject_user_id = $1 OR actor_user_id = $1`, userID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete security events: %w", pg.SanitizeErr(err)))
+	}
 
-	// 6. Delete user record
+	// 5. Delete user record
 	tag, err := r.db.Exec(ctx, `DELETE FROM hrd_users WHERE id = $1`, userID)
 	if err != nil {
 		return apperr.Internal(fmt.Errorf("delete user: %w", pg.SanitizeErr(err)))
