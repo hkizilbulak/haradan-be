@@ -200,11 +200,14 @@ type LoginInput struct {
 
 // TokenResult is AUTH-04/05 output.
 type TokenResult struct {
-	AccessToken   string
-	RefreshToken  string
-	TokenType     string
-	ExpiresIn     int
-	ClientContext domainauth.ClientContext
+	AccessToken           string
+	RefreshToken          string
+	TokenType             string
+	ExpiresIn             int
+	ClientContext         domainauth.ClientContext
+	RequirePasswordChange bool
+	Email                 string
+	Token                 string
 }
 
 // RefreshInput is AUTH-05 input.
@@ -314,7 +317,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (RegisterResul
 		ID:              uuid.New(),
 		Email:           email,
 		EmailNormalized: normalized,
-		PasswordHash:    hash,
+		PasswordHash:    &hash,
 		Role:            domainuser.RoleUser,
 		Status:          domainuser.StatusActive,
 		FirstName:       first,
@@ -788,7 +791,10 @@ func (s *Service) ChangePassword(ctx context.Context, in ChangePasswordInput) (L
 		if !user.IsActive() {
 			return apperr.Forbidden(apperr.CodeAccountInactive, "Hesap aktif değil.")
 		}
-		ok, err := s.hasher.Verify(user.PasswordHash, in.CurrentPassword)
+		if !user.HasPassword() {
+			return apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "currentPassword", Message: "Mevcut şifre bulunamadı."})
+		}
+		ok, err := s.hasher.Verify(*user.PasswordHash, in.CurrentPassword)
 		if err != nil || !ok {
 			return apperr.Unauthenticated(apperr.CodeUnauthenticated, genericAuthFailure)
 		}
@@ -837,7 +843,36 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (TokenResult, error)
 		return TokenResult{}, err
 	}
 
-	ok, verifyErr := s.hasher.Verify(user.PasswordHash, in.Password)
+	if !user.HasPassword() {
+		plain, tokenHash, err := token.NewOpaqueToken()
+		if err != nil {
+			return TokenResult{}, apperr.Internal(err)
+		}
+		cred := domainauth.OneTimeCredential{
+			ID:            uuid.New(),
+			UserID:        user.ID,
+			Purpose:       domainauth.PurposePasswordReset,
+			TokenHash:     tokenHash,
+			ExpiresAt:     now.Add(s.emailVerifyTTL),
+			CreatedAt:     now,
+			RequestIPHash: hashIP(in.ClientIP),
+		}
+		if err := s.withTx(ctx, func(ctx context.Context, _ UserRepository, sessions SessionRepository) error {
+			if err := sessions.InvalidateActiveOneTimeCredentials(ctx, user.ID, cred.Purpose, now); err != nil {
+				return err
+			}
+			return sessions.CreateOneTimeCredential(ctx, cred)
+		}); err != nil {
+			return TokenResult{}, err
+		}
+		return TokenResult{
+			RequirePasswordChange: true,
+			Email:                 user.Email,
+			Token:                 plain,
+		}, nil
+	}
+
+	ok, verifyErr := s.hasher.Verify(*user.PasswordHash, in.Password)
 	if verifyErr != nil || !ok {
 		_ = s.withTx(ctx, func(ctx context.Context, users UserRepository, _ SessionRepository) error {
 			return users.RecordFailedLogin(ctx, user.ID, now)

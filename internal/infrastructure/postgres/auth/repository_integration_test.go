@@ -22,9 +22,10 @@ func TestUserSessionSecurityIntegration(t *testing.T) {
 	users := pguser.NewRepository(tx)
 	sessions := pgauth.NewRepository(nil).WithTx(tx)
 
+	pwd := "hash"
 	u := domainuser.User{
 		ID: uuid.New(), Email: "it@example.com", EmailNormalized: "it@example.com",
-		PasswordHash: "hash", Role: domainuser.RoleUser, Status: domainuser.StatusActive,
+		PasswordHash: &pwd, Role: domainuser.RoleUser, Status: domainuser.StatusActive,
 		FirstName: "A", LastName: "B", SecurityStamp: uuid.New(), CreatedAt: now, UpdatedAt: now,
 	}
 	if err := users.Create(ctx, u); err != nil {

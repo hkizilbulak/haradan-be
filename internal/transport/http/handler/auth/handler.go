@@ -236,6 +236,13 @@ func (h *Handler) ConfirmEmailChange(c *gin.Context) {
 }
 
 func mapToken(out appauth.TokenResult) generated.AuthTokenResponse {
+	if out.RequirePasswordChange {
+		return generated.AuthTokenResponse{
+			RequirePasswordChange: true,
+			Email:                 out.Email,
+			Token:                 out.Token,
+		}
+	}
 	ctx := generated.ClientContext(out.ClientContext)
 	return generated.AuthTokenResponse{
 		AccessToken:   out.AccessToken,

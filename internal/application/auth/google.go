@@ -191,7 +191,7 @@ func (s *Service) GoogleLogin(ctx context.Context, in GoogleLoginInput) (TokenRe
 			ID:              uuid.New(),
 			Email:           email,
 			EmailNormalized: normalized,
-			PasswordHash:    pwdHash,
+			PasswordHash:    &pwdHash,
 			Role:            domainuser.RoleUser,
 			Status:          domainuser.StatusActive,
 			Channel:         domainuser.ChannelGoogle,

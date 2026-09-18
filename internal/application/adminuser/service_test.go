@@ -307,8 +307,8 @@ func TestCreateUserIssuesInvitationWithoutPassword(t *testing.T) {
 	if !out.InvitationEmailSent || email.calls != 1 {
 		t.Fatalf("expected invitation email sent: %#v calls=%d", out, email.calls)
 	}
-	if len(repo.created) != 1 || repo.created[0].PasswordHash == "" || len(repo.otc) != 1 {
-		t.Fatalf("expected created user + otc: created=%d otc=%d", len(repo.created), len(repo.otc))
+	if len(repo.created) != 1 || repo.created[0].HasPassword() || len(repo.otc) != 1 {
+		t.Fatalf("expected created user without password + otc: created=%d otc=%d", len(repo.created), len(repo.otc))
 	}
 	if repo.otc[0].Purpose != domainauth.PurposePasswordReset {
 		t.Fatalf("expected PASSWORD_RESET purpose, got %s", repo.otc[0].Purpose)

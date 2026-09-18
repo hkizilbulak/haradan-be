@@ -83,9 +83,10 @@ func newItestFixture(t *testing.T, pool *pgxpool.Pool) *itestFixture {
 
 	mkUser := func(role domainuser.Role, emailPrefix string) uuid.UUID {
 		email := emailPrefix + uuid.NewString() + "@example.com"
+		pwd := "hash"
 		u := domainuser.User{
 			ID: uuid.New(), Email: email, EmailNormalized: strings.ToLower(email),
-			PasswordHash: "hash", Role: role, Status: domainuser.StatusActive,
+			PasswordHash: &pwd, Role: role, Status: domainuser.StatusActive,
 			FirstName: "T", LastName: "U", SecurityStamp: uuid.New(),
 			CreatedAt: now, UpdatedAt: now,
 		}

@@ -53,9 +53,10 @@ func TestCampaignCRUDOptimisticIntegration(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	users := pguser.NewRepository(pool)
 	email := "camp-" + uuid.NewString() + "@example.com"
+	pwd := "hash"
 	admin := domainuser.User{
 		ID: uuid.New(), Email: email, EmailNormalized: strings.ToLower(email),
-		PasswordHash: "hash", Role: domainuser.RoleAdmin, Status: domainuser.StatusActive,
+		PasswordHash: &pwd, Role: domainuser.RoleAdmin, Status: domainuser.StatusActive,
 		FirstName: "A", LastName: "D", SecurityStamp: uuid.New(),
 		CreatedAt: now, UpdatedAt: now,
 	}

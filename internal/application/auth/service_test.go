@@ -33,7 +33,7 @@ func TestRegisterSuccess(t *testing.T) {
 		t.Fatalf("out=%+v users=%d otc=%d", out, len(store.users), len(store.otc))
 	}
 	for _, u := range store.users {
-		if u.EmailNormalized != "user@example.com" || strings.Contains(u.PasswordHash, "Password1") || u.EmailVerifiedAt == nil {
+		if u.EmailNormalized != "user@example.com" || u.PasswordHash == nil || strings.Contains(*u.PasswordHash, "Password1") || u.EmailVerifiedAt == nil {
 			t.Fatalf("user=%+v", u)
 		}
 	}
@@ -752,5 +752,69 @@ func TestRequestEmailChangeDirectUpdate(t *testing.T) {
 	u := store.users[uid]
 	if u.Email != "new-address@example.com" || u.EmailVerifiedAt == nil {
 		t.Fatalf("user email not directly updated or not verified: %+v", u)
+	}
+}
+
+func TestLoginRequiresPasswordChangeWhenPasswordHashNil(t *testing.T) {
+	svc, store, _ := newTestSvc(t)
+	now := time.Now().UTC()
+	uid := uuid.New()
+	store.PutUser(domainuser.User{
+		ID:              uid,
+		Email:           "nopass@example.com",
+		EmailNormalized: "nopass@example.com",
+		PasswordHash:    nil, // NULL password_hash
+		Role:            domainuser.RoleUser,
+		Status:          domainuser.StatusActive,
+		EmailVerifiedAt: &now,
+		FirstName:       "No",
+		LastName:        "Pass",
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	})
+
+	out, err := svc.Login(context.Background(), LoginInput{
+		Email:         "nopass@example.com",
+		Password:      "AnyRandomPassword123!",
+		ClientContext: domainauth.ClientContextPublicWeb,
+		ClientIP:      "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("expected no error for null password user, got: %v", err)
+	}
+	if !out.RequirePasswordChange {
+		t.Fatalf("expected RequirePasswordChange=true, got false")
+	}
+	if out.Email != "nopass@example.com" {
+		t.Fatalf("expected email nopass@example.com, got %s", out.Email)
+	}
+	if out.AccessToken != "" || out.RefreshToken != "" {
+		t.Fatalf("expected no tokens generated for password change required user")
+	}
+	if out.Token == "" {
+		t.Fatalf("expected non-empty Token for password setup")
+	}
+
+	// Verify the token can be used to set password immediately
+	_, err = svc.ResetPassword(context.Background(), ResetPasswordInput{
+		Token:       out.Token,
+		NewPassword: "NewSecurePassword123!",
+	})
+	if err != nil {
+		t.Fatalf("expected successful ResetPassword using token, got: %v", err)
+	}
+
+	// Now user should be able to log in with the newly set password
+	loginResult, err := svc.Login(context.Background(), LoginInput{
+		Email:         "nopass@example.com",
+		Password:      "NewSecurePassword123!",
+		ClientContext: domainauth.ClientContextPublicWeb,
+		ClientIP:      "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("expected login success after password set, got: %v", err)
+	}
+	if loginResult.AccessToken == "" {
+		t.Fatalf("expected valid AccessToken after login, got empty")
 	}
 }

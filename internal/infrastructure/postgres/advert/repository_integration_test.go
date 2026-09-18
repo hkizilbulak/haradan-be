@@ -30,9 +30,10 @@ func seedRefs(t *testing.T, ctx context.Context, tx pgx.Tx, now time.Time) refs 
 	users := pguser.NewRepository(tx)
 
 	newUser := func(email string) uuid.UUID {
+		pwd := "hash"
 		u := domainuser.User{
 			ID: uuid.New(), Email: email, EmailNormalized: email,
-			PasswordHash: "hash", Role: domainuser.RoleUser, Status: domainuser.StatusActive,
+			PasswordHash: &pwd, Role: domainuser.RoleUser, Status: domainuser.StatusActive,
 			FirstName: "A", LastName: "B", SecurityStamp: uuid.New(), CreatedAt: now, UpdatedAt: now,
 		}
 		if err := users.Create(ctx, u); err != nil {
@@ -311,10 +312,11 @@ func TestRepositoryAdvertModerationIntegration(t *testing.T) {
 
 	adminID := uuid.New()
 	users := pguser.NewRepository(tx)
+	adminPwd := "hash"
 	if err := users.Create(ctx, domainuser.User{
 		ID: adminID, Email: "admin-" + adminID.String()[:8] + "@example.com",
 		EmailNormalized: "admin-" + adminID.String()[:8] + "@example.com",
-		PasswordHash:    "hash", Role: domainuser.RoleAdmin, Status: domainuser.StatusActive,
+		PasswordHash:    &adminPwd, Role: domainuser.RoleAdmin, Status: domainuser.StatusActive,
 		FirstName: "A", LastName: "B", SecurityStamp: uuid.New(), CreatedAt: now, UpdatedAt: now,
 	}); err != nil {
 		t.Fatalf("create admin: %v", err)

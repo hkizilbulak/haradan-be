@@ -37,7 +37,7 @@ type User struct {
 	ID               uuid.UUID
 	Email            string
 	EmailNormalized  string
-	PasswordHash     string
+	PasswordHash     *string
 	Role             Role
 	Status           Status
 	Channel          Channel
@@ -50,6 +50,11 @@ type User struct {
 	LockedUntil      *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+}
+
+// HasPassword reports whether the user has a configured password.
+func (u User) HasPassword() bool {
+	return u.PasswordHash != nil && *u.PasswordHash != ""
 }
 
 // IsActive reports whether the account may open or continue sessions.

@@ -1048,11 +1048,14 @@ type AttachMediaToAdvertRequest struct {
 
 // AuthTokenResponse defines model for AuthTokenResponse.
 type AuthTokenResponse struct {
-	AccessToken   string                     `json:"accessToken"`
-	ClientContext *ClientContext             `json:"clientContext,omitempty"`
-	ExpiresIn     int                        `json:"expiresIn"`
-	RefreshToken  string                     `json:"refreshToken"`
-	TokenType     AuthTokenResponseTokenType `json:"tokenType"`
+	AccessToken           string                     `json:"accessToken,omitempty"`
+	ClientContext         *ClientContext             `json:"clientContext,omitempty"`
+	Email                 string                     `json:"email,omitempty"`
+	ExpiresIn             int                        `json:"expiresIn,omitempty"`
+	RefreshToken          string                     `json:"refreshToken,omitempty"`
+	RequirePasswordChange bool                       `json:"requirePasswordChange,omitempty"`
+	Token                 string                     `json:"token,omitempty"`
+	TokenType             AuthTokenResponseTokenType `json:"tokenType,omitempty"`
 }
 
 // AuthTokenResponseTokenType defines model for AuthTokenResponse.TokenType.

@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/password"
 	"github.com/hkizilbulak/haradan-be/internal/platform/security/token"
 )
@@ -61,3 +62,11 @@ func newMemoryServiceForTest(t testing.TB, email EmailSender) (*Service, *Memory
 
 // MemoryStore exposes in-memory auth state for assertions in tests.
 type MemoryStore = memStore
+
+// PutUser seeds a user into the in-memory store for testing.
+func (m *memStore) PutUser(u domainuser.User) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.users[u.ID] = u
+	m.byEmail[u.EmailNormalized] = u.ID
+}

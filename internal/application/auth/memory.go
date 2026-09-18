@@ -152,7 +152,8 @@ func (m memUsers) UpdatePasswordHash(_ context.Context, userID uuid.UUID, passwo
 	if !ok {
 		return apperr.NotFound("user not found")
 	}
-	u.PasswordHash, u.SecurityStamp, u.FailedLoginCount, u.LockedUntil, u.UpdatedAt = passwordHash, securityStamp, 0, nil, now
+	hashCopy := passwordHash
+	u.PasswordHash, u.SecurityStamp, u.FailedLoginCount, u.LockedUntil, u.UpdatedAt = &hashCopy, securityStamp, 0, nil, now
 	m.store.users[userID] = u
 	return nil
 }

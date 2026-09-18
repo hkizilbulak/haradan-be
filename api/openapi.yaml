@@ -8180,12 +8180,11 @@ components:
     AuthTokenResponse:
       type: object
       additionalProperties: false
-      required:
-      - accessToken
-      - refreshToken
-      - tokenType
-      - expiresIn
       properties:
+        requirePasswordChange:
+          type: boolean
+        email:
+          type: string
         accessToken:
           type: string
         refreshToken:

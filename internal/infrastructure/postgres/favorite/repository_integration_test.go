@@ -24,9 +24,10 @@ func seedFavoriteFixture(t *testing.T, ctx context.Context, tx pgx.Tx, now time.
 	users := pguser.NewRepository(tx)
 	newUser := func(prefix string) uuid.UUID {
 		email := prefix + "-" + uuid.NewString() + "@example.com"
+		pwd := "hash"
 		u := domainuser.User{
 			ID: uuid.New(), Email: email, EmailNormalized: email,
-			PasswordHash: "hash", Role: domainuser.RoleUser, Status: domainuser.StatusActive,
+			PasswordHash: &pwd, Role: domainuser.RoleUser, Status: domainuser.StatusActive,
 			FirstName: "A", LastName: "B", SecurityStamp: uuid.New(), CreatedAt: now, UpdatedAt: now,
 		}
 		if err := users.Create(ctx, u); err != nil {

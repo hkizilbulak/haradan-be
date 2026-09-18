@@ -11,17 +11,25 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
+	domainuser "github.com/hkizilbulak/haradan-be/internal/domain/user"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/handler"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/router"
 )
 
 func newAuthEngine(t *testing.T) (*httptest.ResponseRecorder, func(method, path, body, auth string) *httptest.ResponseRecorder) {
+	_, do := newAuthEngineWithStore(t)
+	return nil, do
+}
+
+func newAuthEngineWithStore(t *testing.T) (*appauth.MemoryStore, func(method, path, body, auth string) *httptest.ResponseRecorder) {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc, _, _ := appauth.NewMemoryServiceForTest(t)
+	svc, store, _ := appauth.NewMemoryServiceForTest(t)
 	engine := router.New(handler.NewServer(log, fakeDeps{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, svc), log)
 	do := func(method, path, body, auth string) *httptest.ResponseRecorder {
 		var rdr io.Reader
@@ -38,7 +46,7 @@ func newAuthEngine(t *testing.T) (*httptest.ResponseRecorder, func(method, path,
 		engine.ServeHTTP(rec, req)
 		return rec
 	}
-	return nil, do
+	return store, do
 }
 
 func TestAuthRegisterLoginRefreshLogoutHTTP(t *testing.T) {
@@ -262,5 +270,45 @@ func TestAuthVerifyAndResendHTTP(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &errBody)
 	if errBody.Code != generated.DomainErrorCodeTOKENINVALID || errBody.TraceId != "auth-http-1" {
 		t.Fatalf("%+v", errBody)
+	}
+}
+
+func TestAuthLoginPasswordHashNil(t *testing.T) {
+	store, do := newAuthEngineWithStore(t)
+	now := time.Now().UTC()
+	uid := uuid.New()
+	store.PutUser(domainuser.User{
+		ID:              uid,
+		Email:           "nullpass@example.com",
+		EmailNormalized: "nullpass@example.com",
+		PasswordHash:    nil,
+		Role:            domainuser.RoleUser,
+		Status:          domainuser.StatusActive,
+		EmailVerifiedAt: &now,
+		FirstName:       "Null",
+		LastName:        "Pass",
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	})
+
+	rec := do(http.MethodPost, "/api/v1/auth/login", `{"email":"nullpass@example.com","password":"SomePassword123!","clientContext":"PUBLIC_WEB"}`, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp generated.AuthTokenResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v, body: %s", err, rec.Body.String())
+	}
+	if !resp.RequirePasswordChange {
+		t.Fatalf("expected RequirePasswordChange=true, got %+v", resp)
+	}
+	if resp.Email != "nullpass@example.com" {
+		t.Fatalf("expected email nullpass@example.com, got %s", resp.Email)
+	}
+	if resp.AccessToken != "" || resp.RefreshToken != "" {
+		t.Fatalf("expected empty access/refresh tokens, got %+v", resp)
+	}
+	if resp.Token == "" {
+		t.Fatalf("expected non-empty token in AuthTokenResponse, got %+v", resp)
 	}
 }

@@ -168,9 +168,6 @@ func (s *Service) GetDetail(ctx context.Context, userID uuid.UUID) (Detail, erro
 // invitation. The random password is never returned. Email delivery failure does
 // not roll back the account; invitationEmailSent=false. Admin can ResendInvitation later.
 func (s *Service) CreateUser(ctx context.Context, in CreateInput) (CreateResult, error) {
-	if s.hasher == nil {
-		return CreateResult{}, apperr.Internal(errors.New("password hasher is required for admin user create"))
-	}
 	email := strings.TrimSpace(in.Email)
 	if !emailnorm.ValidFormat(email) {
 		return CreateResult{}, apperr.Validation("Geçersiz istek.", apperr.FieldError{Field: "email", Message: "Geçerli bir e-posta girin."})
@@ -188,21 +185,12 @@ func (s *Service) CreateUser(ctx context.Context, in CreateInput) (CreateResult,
 		return CreateResult{}, err
 	}
 
-	rawSecret, err := randomPassword()
-	if err != nil {
-		return CreateResult{}, apperr.Internal(err)
-	}
-	passwordHash, err := s.hasher.Hash(rawSecret)
-	if err != nil {
-		return CreateResult{}, apperr.Internal(err)
-	}
-
 	now := s.clock.Now()
 	user := domainuser.User{
 		ID:              uuid.New(),
 		Email:           email,
 		EmailNormalized: emailnorm.Normalize(email),
-		PasswordHash:    passwordHash,
+		PasswordHash:    nil,
 		Role:            in.Role,
 		Status:          domainuser.StatusActive,
 		// Invitation/password-setup completion proves mailbox possession.
