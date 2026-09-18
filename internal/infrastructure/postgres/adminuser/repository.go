@@ -430,6 +430,9 @@ func (r *Repository) DeleteUser(ctx context.Context, userID uuid.UUID, reassignA
 	if _, err := r.db.Exec(ctx, `UPDATE hrd_campaigns SET created_by_user_id = $2 WHERE created_by_user_id = $1`, userID, reassignAdminID); err != nil {
 		return apperr.Internal(fmt.Errorf("reassign campaigns: %w", pg.SanitizeErr(err)))
 	}
+	if _, err := r.db.Exec(ctx, `UPDATE hrd_banners SET created_by_user_id = $2 WHERE created_by_user_id = $1`, userID, reassignAdminID); err != nil {
+		return apperr.Internal(fmt.Errorf("reassign banners: %w", pg.SanitizeErr(err)))
+	}
 	if _, err := r.db.Exec(ctx, `UPDATE hrd_notification_templates SET updated_by_user_id = $2 WHERE updated_by_user_id = $1`, userID, reassignAdminID); err != nil {
 		return apperr.Internal(fmt.Errorf("reassign notification templates: %w", pg.SanitizeErr(err)))
 	}
@@ -450,7 +453,7 @@ func (r *Repository) DeleteUser(ctx context.Context, userID uuid.UUID, reassignA
 	}
 
 	// 2. Cascade delete adverts owned by this user and their child entities
-	if _, err := r.db.Exec(ctx, `UPDATE hrd_notifications SET advert_id = NULL, package_assignment_id = NULL WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1)`, userID); err != nil {
+	if _, err := r.db.Exec(ctx, `UPDATE hrd_notifications SET advert_id = NULL, package_assignment_id = NULL WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1) OR package_assignment_id IN (SELECT id FROM hrd_advert_package_assignments WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1))`, userID); err != nil {
 		return apperr.Internal(fmt.Errorf("unlink notifications from user adverts: %w", pg.SanitizeErr(err)))
 	}
 	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_advert_feature_activations WHERE advert_id IN (SELECT id FROM hrd_adverts WHERE owner_user_id = $1)`, userID); err != nil {
@@ -497,7 +500,7 @@ func (r *Repository) DeleteUser(ctx context.Context, userID uuid.UUID, reassignA
 	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_coupon_usages WHERE user_id = $1`, userID); err != nil {
 		return apperr.Internal(fmt.Errorf("delete user coupon usages: %w", pg.SanitizeErr(err)))
 	}
-	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_paytr_charges WHERE user_id = $1`, userID); err != nil {
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_paytr_charges WHERE owner_user_id = $1`, userID); err != nil {
 		return apperr.Internal(fmt.Errorf("delete user paytr charges: %w", pg.SanitizeErr(err)))
 	}
 	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_advert_media WHERE asset_id IN (SELECT id FROM hrd_media_assets WHERE owner_user_id = $1)`, userID); err != nil {

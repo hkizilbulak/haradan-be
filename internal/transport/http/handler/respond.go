@@ -116,5 +116,5 @@ func logInternal(logger *slog.Logger, err error, traceID, msg string) {
 		logger.Info(msg, "request_id", traceID, "reason", "context_done")
 		return
 	}
-	logger.Error(msg, "request_id", traceID)
+	logger.Error(msg, "request_id", traceID, "error", err)
 }
