@@ -137,10 +137,10 @@ var PackagingAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/email-templates/provider"},
 	{Method: "GET", Path: "/api/v1/admin/email-templates/provider/:templateId/variables"},
 	{Method: "GET", Path: "/api/v1/admin/jobs"},
-	{Method: "POST", Path: "/api/v1/admin/jobs/:name/run"},
-	{Method: "GET", Path: "/api/v1/admin/jobs/runs"},
-	{Method: "GET", Path: "/api/v1/admin/jobs/runs/:runId"},
-	{Method: "POST", Path: "/api/v1/admin/jobs/runs/:runId/cancel"},
+	{Method: "GET", Path: "/api/v1/admin/jobs/:jobId"},
+	{Method: "PATCH", Path: "/api/v1/admin/jobs/:jobId"},
+	{Method: "POST", Path: "/api/v1/admin/jobs/:jobId/run"},
+	{Method: "GET", Path: "/api/v1/admin/jobs/:jobId/history"},
 }
 
 // BannerAdminProtectedRoutes are banner management BO_AUTH routes.
