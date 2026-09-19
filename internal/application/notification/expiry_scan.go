@@ -220,6 +220,9 @@ func (s *ExpiryScanService) scanOffset(
 		}
 		advert, err := s.adverts.GetAdvertSnapshot(ctx, asg.AdvertID)
 		if err != nil {
+			if isNotFoundErr(err) {
+				continue
+			}
 			return err
 		}
 		ownerVerified := false
