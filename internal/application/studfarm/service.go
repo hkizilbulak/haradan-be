@@ -22,7 +22,7 @@ func NewService(repo domainstudfarm.Repository) domainstudfarm.Service {
 }
 
 // List returns a paginated list of stud farms.
-func (s *service) List(ctx context.Context, cursor *string, limit int) (domainstudfarm.ListResult, error) {
+func (s *service) List(ctx context.Context, cursor *string, limit int, search *string) (domainstudfarm.ListResult, error) {
 	// Defaults
 	if limit <= 0 {
 		limit = 20
@@ -31,7 +31,7 @@ func (s *service) List(ctx context.Context, cursor *string, limit int) (domainst
 		limit = 100
 	}
 
-	return s.repo.List(ctx, cursor, limit)
+	return s.repo.List(ctx, cursor, limit, search)
 }
 
 // Create handles the business logic of creating a new stud farm.

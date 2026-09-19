@@ -49,7 +49,14 @@ func (h *Handler) ListStudFarms(c *gin.Context, params generated.ListStudFarmsPa
 		limit = *params.Limit
 	}
 
-	result, err := h.svc.List(c.Request.Context(), cursor, limit)
+	var search *string
+	if s := strings.TrimSpace(c.Query("q")); s != "" {
+		search = &s
+	} else if s := strings.TrimSpace(c.Query("search")); s != "" {
+		search = &s
+	}
+
+	result, err := h.svc.List(c.Request.Context(), cursor, limit, search)
 	if err != nil {
 		h.respondError(c, h.logger, err)
 		return

@@ -33,17 +33,50 @@ func NewRepository(db Querier) *Repository {
 }
 
 // List returns a paginated list of stud farms with their latest notes.
-func (r *Repository) List(ctx context.Context, cursor *string, limit int) (domainstudfarm.ListResult, error) {
+func (r *Repository) List(ctx context.Context, cursor *string, limit int, search *string) (domainstudfarm.ListResult, error) {
 	args := []any{limit + 1}
-	whereClause := ""
+	var conditions []string
+	var countArgs []any
+	var countConditions []string
+
+	argIdx := 2
+	countArgIdx := 1
 
 	if cursor != nil && *cursor != "" {
 		cursorTime, err := time.Parse(time.RFC3339Nano, *cursor)
 		if err != nil {
 			return domainstudfarm.ListResult{}, apperr.Validation("invalid cursor format")
 		}
-		whereClause = "WHERE f.created_at < $2"
+		conditions = append(conditions, fmt.Sprintf("f.created_at < $%d", argIdx))
 		args = append(args, cursorTime)
+		argIdx++
+	}
+
+	if search != nil && strings.TrimSpace(*search) != "" {
+		words := strings.Fields(strings.TrimSpace(*search))
+		for _, word := range words {
+			searchPattern := "%" + word + "%"
+
+			cond := fmt.Sprintf("(f.first_name || ' ' || COALESCE(f.last_name, '') ILIKE $%d OR f.email ILIKE $%d OR (f.phone IS NOT NULL AND f.phone ILIKE $%d) OR (f.location IS NOT NULL AND f.location ILIKE $%d))", argIdx, argIdx, argIdx, argIdx)
+			conditions = append(conditions, cond)
+			args = append(args, searchPattern)
+			argIdx++
+
+			countCond := fmt.Sprintf("(f.first_name || ' ' || COALESCE(f.last_name, '') ILIKE $%d OR f.email ILIKE $%d OR (f.phone IS NOT NULL AND f.phone ILIKE $%d) OR (f.location IS NOT NULL AND f.location ILIKE $%d))", countArgIdx, countArgIdx, countArgIdx, countArgIdx)
+			countConditions = append(countConditions, countCond)
+			countArgs = append(countArgs, searchPattern)
+			countArgIdx++
+		}
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	countWhereClause := ""
+	if len(countConditions) > 0 {
+		countWhereClause = "WHERE " + strings.Join(countConditions, " AND ")
 	}
 
 	q := fmt.Sprintf(`
@@ -70,7 +103,8 @@ func (r *Repository) List(ctx context.Context, cursor *string, limit int) (domai
 	`, whereClause)
 
 	var totalCount int
-	if err := r.db.QueryRow(ctx, "SELECT count(*) FROM hrd_stud_farms").Scan(&totalCount); err != nil {
+	countQ := fmt.Sprintf("SELECT count(*) FROM hrd_stud_farms f %s", countWhereClause)
+	if err := r.db.QueryRow(ctx, countQ, countArgs...).Scan(&totalCount); err != nil {
 		return domainstudfarm.ListResult{}, apperr.Internal(fmt.Errorf("count stud farms: %w", pg.SanitizeErr(err)))
 	}
 
