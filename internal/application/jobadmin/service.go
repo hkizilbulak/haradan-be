@@ -96,14 +96,102 @@ func (s *Service) GetJob(ctx context.Context, actorUserID, id uuid.UUID) (domain
 	return out[0], nil
 }
 
+// CreateJobInput holds parameters for registering a new job definition.
+type CreateJobInput struct {
+	ActorUserID           uuid.UUID
+	JobKey                string
+	Name                  string
+	Description           *string
+	JobType               domainjobdef.JobType
+	CronExpression        string
+	IsActive              bool
+	TimeoutSeconds        int
+	SupportsReferenceDate bool
+	SupportsPageNumber    *bool
+}
+
+// CreateJob creates a new job definition (ACTIVE ADMIN).
+func (s *Service) CreateJob(ctx context.Context, in CreateJobInput) (domainjobdef.JobDefinition, error) {
+	if err := s.requireAdmin(ctx, in.ActorUserID); err != nil {
+		return domainjobdef.JobDefinition{}, err
+	}
+	key := strings.TrimSpace(in.JobKey)
+	if key == "" {
+		return domainjobdef.JobDefinition{}, apperr.Validation("İş anahtarı (key) zorunludur.", apperr.FieldError{
+			Field: "key", Message: "İş anahtarı (key) zorunludur.",
+		})
+	}
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		return domainjobdef.JobDefinition{}, apperr.Validation("Görev adı (name) zorunludur.", apperr.FieldError{
+			Field: "name", Message: "Görev adı (name) zorunludur.",
+		})
+	}
+	if !in.JobType.Valid() {
+		return domainjobdef.JobDefinition{}, apperr.Validation("Geçersiz görev tipi (jobType).", apperr.FieldError{
+			Field: "jobType", Message: "Geçerli bir görev tipi seçiniz (TJK_SYNC, PACKAGE_EXPIRY_SCAN, MEDIA_RECONCILE).",
+		})
+	}
+	cronExpr := strings.TrimSpace(in.CronExpression)
+	if err := domainjobdef.ValidateCronExpression(cronExpr); err != nil {
+		return domainjobdef.JobDefinition{}, apperr.Validation("Cron ifadesi geçersiz.", apperr.FieldError{
+			Field: "cronExpression", Message: "Geçerli 6 alanlı (saniye dahil) cron ifadesi girin. Örn: 0 0 9 * * *",
+		})
+	}
+	timeout := in.TimeoutSeconds
+	if timeout <= 0 {
+		timeout = 3600
+	}
+	if timeout < minTimeoutSeconds || timeout > maxTimeoutSeconds {
+		return domainjobdef.JobDefinition{}, apperr.Validation("Zaman aşımı geçersiz.", apperr.FieldError{
+			Field: "timeoutSeconds", Message: "timeoutSeconds 1 ile 86400 arasında olmalıdır.",
+		})
+	}
+
+	payload := json.RawMessage(`{}`)
+	if in.SupportsPageNumber != nil {
+		b, _ := json.Marshal(map[string]any{"supports_page_number": *in.SupportsPageNumber})
+		payload = b
+	}
+
+	now := s.clock.Now().UTC()
+	def := domainjobdef.JobDefinition{
+		ID:                    uuid.New(),
+		JobKey:                key,
+		Name:                  name,
+		Description:           in.Description,
+		JobType:               in.JobType,
+		CronExpression:        cronExpr,
+		IsActive:              in.IsActive,
+		TimeoutSeconds:        timeout,
+		DefaultPayload:        payload,
+		SupportsReferenceDate: in.SupportsReferenceDate,
+		Version:               1,
+		CreatedAt:             now,
+		UpdatedAt:             now,
+	}
+
+	created, err := s.repo.CreateDefinition(ctx, def)
+	if err != nil {
+		return domainjobdef.JobDefinition{}, err
+	}
+	out, err := s.enrichDefinitions(ctx, []domainjobdef.JobDefinition{created})
+	if err != nil {
+		return created, nil
+	}
+	return out[0], nil
+}
+
 // UpdateJobInput is the optimistic patch for a job definition.
 type UpdateJobInput struct {
-	ActorUserID     uuid.UUID
-	JobID           uuid.UUID
-	ExpectedVersion int
-	CronExpression  *string
-	IsActive        *bool
-	TimeoutSeconds  *int
+	ActorUserID           uuid.UUID
+	JobID                 uuid.UUID
+	ExpectedVersion       int
+	CronExpression        *string
+	IsActive              *bool
+	TimeoutSeconds        *int
+	SupportsReferenceDate *bool
+	SupportsPageNumber    *bool
 }
 
 // UpdateJob updates cron/active/timeout with optimistic concurrency.
@@ -141,6 +229,21 @@ func (s *Service) UpdateJob(ctx context.Context, in UpdateJobInput) (domainjobde
 		}
 		current.TimeoutSeconds = *in.TimeoutSeconds
 	}
+	if in.SupportsReferenceDate != nil {
+		current.SupportsReferenceDate = *in.SupportsReferenceDate
+	}
+	if in.SupportsPageNumber != nil {
+		var pl map[string]any
+		if len(current.DefaultPayload) > 0 {
+			_ = json.Unmarshal(current.DefaultPayload, &pl)
+		}
+		if pl == nil {
+			pl = make(map[string]any)
+		}
+		pl["supports_page_number"] = *in.SupportsPageNumber
+		b, _ := json.Marshal(pl)
+		current.DefaultPayload = b
+	}
 	current.UpdatedAt = s.clock.Now().UTC()
 	updated, err := s.repo.UpdateDefinitionOptimistic(ctx, current, in.ExpectedVersion)
 	if err != nil {
@@ -158,6 +261,7 @@ type RunJobInput struct {
 	ActorUserID   uuid.UUID
 	JobID         uuid.UUID
 	ReferenceDate *string // YYYY-MM-DD, optional
+	PageNumber    *int    // >= 0, optional starting page
 }
 
 // RunJobResult identifies the enqueued work.
@@ -178,6 +282,11 @@ func (s *Service) RunJob(ctx context.Context, in RunJobInput) (RunJobResult, err
 	}
 	if !s.caps.Allows(def.JobType) {
 		return RunJobResult{}, apperr.InvalidState(providerDisabledMessage)
+	}
+	if in.PageNumber != nil && *in.PageNumber < 0 {
+		return RunJobResult{}, apperr.Validation("Sayfa numarası 0 veya daha büyük olmalıdır.", apperr.FieldError{
+			Field: "pageNumber", Message: "Sayfa numarası 0 veya daha büyük olmalıdır.",
+		})
 	}
 	var refDate *time.Time
 	if in.ReferenceDate != nil && strings.TrimSpace(*in.ReferenceDate) != "" {
@@ -203,7 +312,7 @@ func (s *Service) RunJob(ctx context.Context, in RunJobInput) (RunJobResult, err
 	now := s.clock.Now().UTC()
 	runID := uuid.New()
 	dedup := domainjobdef.ManualRunDedupKey(def.JobKey, refDate, runID)
-	payload, err := buildRunPayload(def, refDate)
+	payload, err := buildRunPayload(def, refDate, in.PageNumber)
 	if err != nil {
 		return RunJobResult{}, apperr.Internal(err)
 	}
@@ -343,7 +452,7 @@ func isFutureDate(d, nowUTC time.Time, loc *time.Location) bool {
 	return day.After(today)
 }
 
-func buildRunPayload(def domainjobdef.JobDefinition, refDate *time.Time) (json.RawMessage, error) {
+func buildRunPayload(def domainjobdef.JobDefinition, refDate *time.Time, pageNumber *int) (json.RawMessage, error) {
 	base := map[string]any{}
 	raw := def.DefaultPayload
 	if len(raw) == 0 {
@@ -355,6 +464,10 @@ func buildRunPayload(def domainjobdef.JobDefinition, refDate *time.Time) (json.R
 	base["timeoutSeconds"] = def.TimeoutSeconds
 	if refDate != nil {
 		base["referenceDate"] = refDate.In(domainjobdef.Istanbul()).Format("2006-01-02")
+	}
+	if pageNumber != nil && *pageNumber >= 0 {
+		base["page"] = *pageNumber
+		base["pageNumber"] = *pageNumber
 	}
 	return json.Marshal(base)
 }

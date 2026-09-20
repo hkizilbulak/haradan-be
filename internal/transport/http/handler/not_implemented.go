@@ -456,6 +456,10 @@ func (NotImplementedServer) ListAdminJobs(c *gin.Context) {
 	respondNotImplemented(c)
 }
 
+func (NotImplementedServer) CreateAdminJob(c *gin.Context) {
+	respondNotImplemented(c)
+}
+
 func (NotImplementedServer) GetAdminJob(c *gin.Context, jobId generated.JobIdPath) {
 	respondNotImplemented(c)
 }

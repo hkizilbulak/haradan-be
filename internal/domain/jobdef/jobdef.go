@@ -68,6 +68,19 @@ type JobDefinition struct {
 	NextRunAt      *time.Time
 }
 
+// SupportsPageNumber reports whether the definition allows page-based starting execution.
+func (d JobDefinition) SupportsPageNumber() bool {
+	if len(d.DefaultPayload) > 0 {
+		var payload struct {
+			SupportsPageNumber *bool `json:"supports_page_number"`
+		}
+		if err := json.Unmarshal(d.DefaultPayload, &payload); err == nil && payload.SupportsPageNumber != nil {
+			return *payload.SupportsPageNumber
+		}
+	}
+	return d.JobType == JobTypeTJKSync
+}
+
 // LastRunSummary is the latest linked background job for a definition.
 type LastRunSummary struct {
 	DefinitionID   uuid.UUID

@@ -88,6 +88,36 @@ func (r *Repository) GetDefinition(ctx context.Context, id uuid.UUID) (domainjob
 	return def, nil
 }
 
+// CreateDefinition persists a new job definition.
+func (r *Repository) CreateDefinition(ctx context.Context, def domainjobdef.JobDefinition) (domainjobdef.JobDefinition, error) {
+	const q = `
+INSERT INTO hrd_job_definitions (
+	id, job_key, name, description, job_type, cron_expression, is_active,
+	timeout_seconds, default_payload, supports_reference_date, version, created_at, updated_at
+) VALUES (
+	$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+)
+RETURNING ` + definitionColumns
+
+	payload := def.DefaultPayload
+	if len(payload) == 0 {
+		payload = []byte(`{}`)
+	}
+	row := r.db.QueryRow(ctx, q,
+		def.ID, def.JobKey, def.Name, def.Description, string(def.JobType), def.CronExpression,
+		def.IsActive, def.TimeoutSeconds, payload, def.SupportsReferenceDate,
+		def.Version, def.CreatedAt, def.UpdatedAt,
+	)
+	created, err := scanDefinition(row)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domainjobdef.JobDefinition{}, apperr.Conflict("Bu iş anahtarı (Job Key) ile tanımlı bir görev zaten mevcut.")
+		}
+		return domainjobdef.JobDefinition{}, apperr.Internal(fmt.Errorf("create job definition: %w", pg.SanitizeErr(err)))
+	}
+	return created, nil
+}
+
 // UpdateDefinitionOptimistic updates mutable fields with version check.
 func (r *Repository) UpdateDefinitionOptimistic(
 	ctx context.Context,
@@ -99,11 +129,17 @@ UPDATE hrd_job_definitions
 SET cron_expression = $3,
     is_active = $4,
     timeout_seconds = $5,
+    supports_reference_date = $6,
+    default_payload = $7,
     version = version + 1,
-    updated_at = $6
+    updated_at = $8
 WHERE id = $1 AND version = $2
 RETURNING ` + definitionColumns
-	row := r.db.QueryRow(ctx, q, def.ID, expectedVersion, def.CronExpression, def.IsActive, def.TimeoutSeconds, def.UpdatedAt)
+	payload := def.DefaultPayload
+	if len(payload) == 0 {
+		payload = []byte(`{}`)
+	}
+	row := r.db.QueryRow(ctx, q, def.ID, expectedVersion, def.CronExpression, def.IsActive, def.TimeoutSeconds, def.SupportsReferenceDate, payload, def.UpdatedAt)
 	updated, err := scanDefinition(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domainjobdef.JobDefinition{}, apperr.Conflict(staleVersionMessage)
@@ -252,8 +288,22 @@ func (r *Repository) enqueueTx(ctx context.Context, req appjobadmin.EnqueueReque
 		if req.ExecutionType == domainjobdef.ExecutionTypeManual {
 			triggerKind = "MANUAL"
 		}
-		checkpoint := []byte(`{"page":0}`)
-		payload = json.RawMessage(`{"page":0}`)
+		startPage := 0
+		if len(req.Payload) > 0 {
+			var p struct {
+				Page       *int `json:"page"`
+				PageNumber *int `json:"pageNumber"`
+			}
+			if err := json.Unmarshal(req.Payload, &p); err == nil {
+				if p.Page != nil && *p.Page >= 0 {
+					startPage = *p.Page
+				} else if p.PageNumber != nil && *p.PageNumber >= 0 {
+					startPage = *p.PageNumber
+				}
+			}
+		}
+		checkpoint, _ := json.Marshal(map[string]int{"page": startPage})
+		payload = json.RawMessage(checkpoint)
 		_, err := r.db.Exec(ctx, `
 INSERT INTO hrd_tjk_sync_runs (
   id, mode, status, source_adapter, scope_key, checkpoint, trigger_kind, created_by_user_id,

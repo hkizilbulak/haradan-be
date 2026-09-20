@@ -137,6 +137,7 @@ var PackagingAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/email-templates/provider"},
 	{Method: "GET", Path: "/api/v1/admin/email-templates/provider/:templateId/variables"},
 	{Method: "GET", Path: "/api/v1/admin/jobs"},
+	{Method: "POST", Path: "/api/v1/admin/jobs"},
 	{Method: "GET", Path: "/api/v1/admin/jobs/:jobId"},
 	{Method: "PATCH", Path: "/api/v1/admin/jobs/:jobId"},
 	{Method: "POST", Path: "/api/v1/admin/jobs/:jobId/run"},

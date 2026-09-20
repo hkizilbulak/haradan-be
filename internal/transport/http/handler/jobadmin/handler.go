@@ -52,6 +52,47 @@ func (h *Handler) ListAdminJobs(c *gin.Context) {
 	c.JSON(http.StatusOK, generated.JobAdminListResponse{Items: out})
 }
 
+// CreateAdminJob handles POST /v1/admin/jobs.
+func (h *Handler) CreateAdminJob(c *gin.Context) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	var req generated.CreateJobDefinitionRequest
+	if !bind.JSONBody(c, &req) {
+		return
+	}
+	isActive := true
+	if req.IsActive != nil {
+		isActive = *req.IsActive
+	}
+	timeout := 3600
+	if req.TimeoutSeconds != nil {
+		timeout = *req.TimeoutSeconds
+	}
+	supportsRefDate := false
+	if req.SupportsReferenceDate != nil {
+		supportsRefDate = *req.SupportsReferenceDate
+	}
+	out, err := h.svc.CreateJob(c.Request.Context(), appjobadmin.CreateJobInput{
+		ActorUserID:           actorID,
+		JobKey:                req.Key,
+		Name:                  req.Name,
+		Description:           req.Description,
+		JobType:               domainjobdef.JobType(req.JobType),
+		CronExpression:        req.CronExpression,
+		IsActive:              isActive,
+		TimeoutSeconds:        timeout,
+		SupportsReferenceDate: supportsRefDate,
+		SupportsPageNumber:    req.SupportsPageNumber,
+	})
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusCreated, mapJobView(out))
+}
+
 // GetAdminJob handles GET /v1/admin/jobs/{jobId}.
 func (h *Handler) GetAdminJob(c *gin.Context, jobID generated.JobIdPath) {
 	actorID, ok := h.requireAdminBO(c)
@@ -77,12 +118,14 @@ func (h *Handler) UpdateAdminJob(c *gin.Context, jobID generated.JobIdPath) {
 		return
 	}
 	out, err := h.svc.UpdateJob(c.Request.Context(), appjobadmin.UpdateJobInput{
-		ActorUserID:     actorID,
-		JobID:           jobID,
-		ExpectedVersion: req.ExpectedVersion,
-		CronExpression:  req.CronExpression,
-		IsActive:        req.IsActive,
-		TimeoutSeconds:  req.TimeoutSeconds,
+		ActorUserID:           actorID,
+		JobID:                 jobID,
+		ExpectedVersion:       req.ExpectedVersion,
+		CronExpression:        req.CronExpression,
+		IsActive:              req.IsActive,
+		TimeoutSeconds:        req.TimeoutSeconds,
+		SupportsReferenceDate: req.SupportsReferenceDate,
+		SupportsPageNumber:    req.SupportsPageNumber,
 	})
 	if err != nil {
 		h.respond(c, h.logger, err)
@@ -98,6 +141,7 @@ func (h *Handler) RunAdminJob(c *gin.Context, jobID generated.JobIdPath) {
 		return
 	}
 	var refDate *string
+	var pageNumber *int
 	if c.Request.ContentLength != 0 {
 		var req generated.RunJobRequest
 		if !bind.JSONBody(c, &req) {
@@ -107,11 +151,15 @@ func (h *Handler) RunAdminJob(c *gin.Context, jobID generated.JobIdPath) {
 			s := req.ReferenceDate.Time.Format("2006-01-02")
 			refDate = &s
 		}
+		if req.PageNumber != nil {
+			pageNumber = req.PageNumber
+		}
 	}
 	out, err := h.svc.RunJob(c.Request.Context(), appjobadmin.RunJobInput{
 		ActorUserID:   actorID,
 		JobID:         jobID,
 		ReferenceDate: refDate,
+		PageNumber:    pageNumber,
 	})
 	if err != nil {
 		h.respond(c, h.logger, err)
@@ -180,6 +228,7 @@ func (h *Handler) requireAdminBO(c *gin.Context) (uuid.UUID, bool) {
 }
 
 func mapJobView(v domainjobdef.JobDefinition) generated.JobAdminView {
+	supportsPageNumber := v.SupportsPageNumber()
 	out := generated.JobAdminView{
 		Id:                    v.ID,
 		Key:                   v.JobKey,
@@ -190,6 +239,7 @@ func mapJobView(v domainjobdef.JobDefinition) generated.JobAdminView {
 		IsActive:              v.IsActive,
 		TimeoutSeconds:        v.TimeoutSeconds,
 		SupportsReferenceDate: v.SupportsReferenceDate,
+		SupportsPageNumber:    &supportsPageNumber,
 		Version:               v.Version,
 		CreatedAt:             v.CreatedAt,
 		UpdatedAt:             v.UpdatedAt,

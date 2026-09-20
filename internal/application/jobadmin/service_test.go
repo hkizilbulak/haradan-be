@@ -313,6 +313,9 @@ type historySecretRepo struct {
 func (r *historySecretRepo) ListDefinitions(ctx context.Context) ([]domainjobdef.JobDefinition, error) {
 	return r.inner.ListDefinitions(ctx)
 }
+func (r *historySecretRepo) CreateDefinition(ctx context.Context, def domainjobdef.JobDefinition) (domainjobdef.JobDefinition, error) {
+	return r.inner.CreateDefinition(ctx, def)
+}
 func (r *historySecretRepo) GetDefinition(ctx context.Context, id uuid.UUID) (domainjobdef.JobDefinition, error) {
 	return r.inner.GetDefinition(ctx, id)
 }
@@ -340,4 +343,44 @@ func (r *historySecretRepo) CancelActiveJob(ctx context.Context, jobID uuid.UUID
 	return r.inner.CancelActiveJob(ctx, jobID, now)
 }
 
+func TestCreateJob(t *testing.T) {
+	store := appjobadmin.NewMemoryStore()
+	admin := seedAdmin(store)
+	svc := newSvc(t, store, appjobadmin.ProviderCapabilities{TJKEnabled: true})
+
+	t.Run("success", func(t *testing.T) {
+		desc := "Yeni test görevi"
+		created, err := svc.CreateJob(context.Background(), appjobadmin.CreateJobInput{
+			ActorUserID:    admin,
+			JobKey:         "CUSTOM_JOB",
+			Name:           "Özel Görev",
+			Description:    &desc,
+			JobType:        domainjobdef.JobTypeTJKSync,
+			CronExpression: "0 0 12 * * *",
+			IsActive:       true,
+			TimeoutSeconds: 1800,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if created.JobKey != "CUSTOM_JOB" || created.Version != 1 {
+			t.Fatalf("unexpected job: %+v", created)
+		}
+	})
+
+	t.Run("invalid cron", func(t *testing.T) {
+		_, err := svc.CreateJob(context.Background(), appjobadmin.CreateJobInput{
+			ActorUserID:    admin,
+			JobKey:         "BAD_CRON",
+			Name:           "Hatalı Cron",
+			JobType:        domainjobdef.JobTypeTJKSync,
+			CronExpression: "invalid-cron",
+		})
+		if err == nil {
+			t.Fatal("expected error for invalid cron")
+		}
+	})
+}
+
 func intPtr(v int) *int { return &v }
+

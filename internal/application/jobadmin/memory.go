@@ -3,6 +3,7 @@ package jobadmin
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"time"
 
@@ -79,6 +80,24 @@ func (m *MemoryStore) ListDefinitions(_ context.Context) ([]domainjobdef.JobDefi
 		out = append(out, d)
 	}
 	return out, nil
+}
+
+// CreateDefinition implements Repository.
+func (m *MemoryStore) CreateDefinition(_ context.Context, def domainjobdef.JobDefinition) (domainjobdef.JobDefinition, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, existing := range m.defs {
+		if strings.EqualFold(existing.JobKey, def.JobKey) {
+			return domainjobdef.JobDefinition{}, apperr.Conflict("Bu anahtarla kayıtlı bir görev zaten mevcut.")
+		}
+	}
+	if def.ID == uuid.Nil {
+		def.ID = uuid.New()
+	}
+	def.Version = 1
+	m.defs[def.ID] = def
+	m.byKey[def.JobKey] = def.ID
+	return def, nil
 }
 
 // GetDefinition implements Repository.

@@ -243,6 +243,15 @@ func (s *Server) ListAdminJobs(c *gin.Context) {
 	s.jobadmin.ListAdminJobs(c)
 }
 
+// CreateAdminJob implements job admin create.
+func (s *Server) CreateAdminJob(c *gin.Context) {
+	if s.jobadmin == nil {
+		s.respondDependencyUnavailable(c, "İş tanımı servisi henüz hazır değil.")
+		return
+	}
+	s.jobadmin.CreateAdminJob(c)
+}
+
 // GetAdminJob implements job admin get.
 func (s *Server) GetAdminJob(c *gin.Context, jobId generated.JobIdPath) {
 	if s.jobadmin == nil {

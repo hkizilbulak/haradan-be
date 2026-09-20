@@ -1272,6 +1272,19 @@ type CreateCategoryRequest struct {
 	SortOrder   *int                `json:"sortOrder,omitempty"`
 }
 
+// CreateJobDefinitionRequest defines model for CreateJobDefinitionRequest.
+type CreateJobDefinitionRequest struct {
+	CronExpression        string  `json:"cronExpression"`
+	Description           *string `json:"description,omitempty"`
+	IsActive              *bool   `json:"isActive,omitempty"`
+	JobType               JobType `json:"jobType"`
+	Key                   string  `json:"key"`
+	Name                  string  `json:"name"`
+	SupportsPageNumber    *bool   `json:"supportsPageNumber,omitempty"`
+	SupportsReferenceDate *bool   `json:"supportsReferenceDate,omitempty"`
+	TimeoutSeconds        *int    `json:"timeoutSeconds,omitempty"`
+}
+
 // CreatePackageRequest defines model for CreatePackageRequest.
 type CreatePackageRequest struct {
 	AllowsUrgent        bool         `json:"allowsUrgent"`
@@ -1468,6 +1481,7 @@ type JobAdminView struct {
 	LastStatus            *JobRunStatus      `json:"lastStatus,omitempty"`
 	Name                  string             `json:"name"`
 	NextRunAt             *time.Time         `json:"nextRunAt,omitempty"`
+	SupportsPageNumber    *bool              `json:"supportsPageNumber,omitempty"`
 	SupportsReferenceDate bool               `json:"supportsReferenceDate"`
 	TimeoutSeconds        int                `json:"timeoutSeconds"`
 	UpdatedAt             time.Time          `json:"updatedAt"`
@@ -1993,6 +2007,7 @@ type ResetPasswordRequest struct {
 
 // RunJobRequest defines model for RunJobRequest.
 type RunJobRequest struct {
+	PageNumber    *int                `json:"pageNumber,omitempty"`
 	ReferenceDate *openapi_types.Date `json:"referenceDate,omitempty"`
 }
 
@@ -2283,10 +2298,12 @@ type UpdateCategoryRequest struct {
 
 // UpdateJobRequest defines model for UpdateJobRequest.
 type UpdateJobRequest struct {
-	CronExpression  *string `json:"cronExpression,omitempty"`
-	ExpectedVersion int     `json:"expectedVersion"`
-	IsActive        *bool   `json:"isActive,omitempty"`
-	TimeoutSeconds  *int    `json:"timeoutSeconds,omitempty"`
+	CronExpression        *string `json:"cronExpression,omitempty"`
+	ExpectedVersion       int     `json:"expectedVersion"`
+	IsActive              *bool   `json:"isActive,omitempty"`
+	SupportsPageNumber    *bool   `json:"supportsPageNumber,omitempty"`
+	SupportsReferenceDate *bool   `json:"supportsReferenceDate,omitempty"`
+	TimeoutSeconds        *int    `json:"timeoutSeconds,omitempty"`
 }
 
 // UpdateMyProfileRequest defines model for UpdateMyProfileRequest.
@@ -2730,6 +2747,9 @@ type SetCategoryPropertyActiveJSONRequestBody = SetActiveRequest
 // ReparentCategoryJSONRequestBody defines body for ReparentCategory for application/json ContentType.
 type ReparentCategoryJSONRequestBody = ReparentCategoryRequest
 
+// CreateAdminJobJSONRequestBody defines body for CreateAdminJob for application/json ContentType.
+type CreateAdminJobJSONRequestBody = CreateJobDefinitionRequest
+
 // UpdateAdminJobJSONRequestBody defines body for UpdateAdminJob for application/json ContentType.
 type UpdateAdminJobJSONRequestBody = UpdateJobRequest
 
@@ -2978,6 +2998,9 @@ type ServerInterface interface {
 	// ListAdminJobs ListAdminJobs
 	// (GET /v1/admin/jobs)
 	ListAdminJobs(c *gin.Context)
+	// CreateAdminJob CreateAdminJob
+	// (POST /v1/admin/jobs)
+	CreateAdminJob(c *gin.Context)
 	// GetAdminJob GetAdminJob
 	// (GET /v1/admin/jobs/{jobId})
 	GetAdminJob(c *gin.Context, jobId JobIdPath)
@@ -4318,6 +4341,19 @@ func (siw *ServerInterfaceWrapper) ListAdminJobs(c *gin.Context) {
 	}
 
 	siw.Handler.ListAdminJobs(c)
+}
+
+// CreateAdminJob operation middleware
+func (siw *ServerInterfaceWrapper) CreateAdminJob(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateAdminJob(c)
 }
 
 // GetAdminJob operation middleware
@@ -7336,6 +7372,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/admin/email-templates/provider", wrapper.ListAdminProviderEmailTemplates)
 	router.GET(options.BaseURL+"/v1/admin/email-templates/provider/:templateId/variables", wrapper.GetAdminProviderEmailTemplateVariables)
 	router.GET(options.BaseURL+"/v1/admin/jobs", wrapper.ListAdminJobs)
+	router.POST(options.BaseURL+"/v1/admin/jobs", wrapper.CreateAdminJob)
 	router.GET(options.BaseURL+"/v1/admin/jobs/:jobId", wrapper.GetAdminJob)
 	router.PATCH(options.BaseURL+"/v1/admin/jobs/:jobId", wrapper.UpdateAdminJob)
 	router.POST(options.BaseURL+"/v1/admin/jobs/:jobId/run", wrapper.RunAdminJob)
