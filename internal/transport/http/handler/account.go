@@ -66,3 +66,12 @@ func (s *Server) ChangePassword(c *gin.Context) {
 	}
 	s.account.ChangePassword(c)
 }
+
+// UpdateConsent handles Account UpdateConsent
+func (s *Server) UpdateConsent(c *gin.Context) {
+	if s.account == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.account.UpdateConsent(c)
+}

@@ -176,15 +176,16 @@ func mapProfile(out appauth.ProfileView) generated.MyProfileResponse {
 		ch = string(domainuser.ChannelEmail)
 	}
 	return generated.MyProfileResponse{
-		Id:            out.ID,
-		Email:         out.Email,
-		EmailVerified: out.EmailVerified,
-		FirstName:     out.FirstName,
-		LastName:      out.LastName,
-		Phone:         out.Phone,
-		Role:          generated.UserRole(out.Role),
-		Status:        generated.UserStatus(out.Status),
-		Channel:       &ch,
+		Id:                 out.ID,
+		Email:              out.Email,
+		EmailVerified:      out.EmailVerified,
+		FirstName:          out.FirstName,
+		LastName:           out.LastName,
+		Phone:              out.Phone,
+		Role:               generated.UserRole(out.Role),
+		Status:             generated.UserStatus(out.Status),
+		Channel:            &ch,
+		HasPendingConsents: &out.HasPendingConsents,
 	}
 }
 
@@ -231,4 +232,31 @@ func decodeProfilePatch(c *gin.Context) (appauth.ProfilePatch, error) {
 		}
 	}
 	return patch, nil
+}
+
+// UpdateConsent handles POST /v1/me/consent.
+func (h *Handler) UpdateConsent(c *gin.Context) {
+	principal, ok := authctx.PrincipalFromContext(c.Request.Context())
+	if !ok {
+		h.respond(c, h.logger, apperr.Unauthenticated(apperr.CodeUnauthenticated, "Kimlik doğrulama gerekli."))
+		return
+	}
+	var body generated.UpdateConsentRequest
+	if !bind.JSONBody(c, &body) {
+		return
+	}
+	err := h.svc.UpdateConsent(
+		c.Request.Context(),
+		principal.UserID,
+		body.TermsAccepted,
+		body.KvkkAccepted,
+		body.MarketingConsent,
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }

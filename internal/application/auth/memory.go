@@ -204,6 +204,12 @@ func (m memUsers) UpdateProfile(_ context.Context, userID uuid.UUID, patch Profi
 	m.store.users[userID] = u
 	return u, nil
 }
+func (m memUsers) HasPendingConsents(_ context.Context, userID uuid.UUID) (bool, error) {
+	return false, nil
+}
+func (m memUsers) UpdateConsents(_ context.Context, setting domainuser.UserSetting, logs []domainuser.UserConsentLog) error {
+	return nil
+}
 
 type memSessions struct{ store *memStore }
 

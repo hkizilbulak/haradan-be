@@ -18,6 +18,7 @@ type ProtectedRoute struct {
 var AccountSessionProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/me"},
 	{Method: "PATCH", Path: "/api/v1/me"},
+	{Method: "POST", Path: "/api/v1/me/consent"},
 	{Method: "POST", Path: "/api/v1/auth/logout-all"},
 	{Method: "GET", Path: "/api/v1/me/sessions"},
 	{Method: "DELETE", Path: "/api/v1/me/sessions/:sessionId"},
