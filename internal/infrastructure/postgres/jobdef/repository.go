@@ -126,20 +126,22 @@ func (r *Repository) UpdateDefinitionOptimistic(
 ) (domainjobdef.JobDefinition, error) {
 	const q = `
 UPDATE hrd_job_definitions
-SET cron_expression = $3,
-    is_active = $4,
-    timeout_seconds = $5,
-    supports_reference_date = $6,
-    default_payload = $7,
+SET name = $3,
+    description = $4,
+    cron_expression = $5,
+    is_active = $6,
+    timeout_seconds = $7,
+    supports_reference_date = $8,
+    default_payload = $9,
     version = version + 1,
-    updated_at = $8
+    updated_at = $10
 WHERE id = $1 AND version = $2
 RETURNING ` + definitionColumns
 	payload := def.DefaultPayload
 	if len(payload) == 0 {
 		payload = []byte(`{}`)
 	}
-	row := r.db.QueryRow(ctx, q, def.ID, expectedVersion, def.CronExpression, def.IsActive, def.TimeoutSeconds, def.SupportsReferenceDate, payload, def.UpdatedAt)
+	row := r.db.QueryRow(ctx, q, def.ID, expectedVersion, def.Name, def.Description, def.CronExpression, def.IsActive, def.TimeoutSeconds, def.SupportsReferenceDate, payload, def.UpdatedAt)
 	updated, err := scanDefinition(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domainjobdef.JobDefinition{}, apperr.Conflict(staleVersionMessage)

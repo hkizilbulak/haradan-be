@@ -187,6 +187,8 @@ type UpdateJobInput struct {
 	ActorUserID           uuid.UUID
 	JobID                 uuid.UUID
 	ExpectedVersion       int
+	Name                  *string
+	Description           *string
 	CronExpression        *string
 	IsActive              *bool
 	TimeoutSeconds        *int
@@ -208,6 +210,18 @@ func (s *Service) UpdateJob(ctx context.Context, in UpdateJobInput) (domainjobde
 	current, err := s.repo.GetDefinition(ctx, in.JobID)
 	if err != nil {
 		return domainjobdef.JobDefinition{}, err
+	}
+	if in.Name != nil {
+		name := strings.TrimSpace(*in.Name)
+		if name == "" {
+			return domainjobdef.JobDefinition{}, apperr.Validation("Görev adı (name) zorunludur.", apperr.FieldError{
+				Field: "name", Message: "Görev adı (name) zorunludur.",
+			})
+		}
+		current.Name = name
+	}
+	if in.Description != nil {
+		current.Description = in.Description
 	}
 	if in.CronExpression != nil {
 		expr := strings.TrimSpace(*in.CronExpression)

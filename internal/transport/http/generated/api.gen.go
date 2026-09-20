@@ -2310,8 +2310,10 @@ type UpdateConsentRequest struct {
 // UpdateJobRequest defines model for UpdateJobRequest.
 type UpdateJobRequest struct {
 	CronExpression        *string `json:"cronExpression,omitempty"`
+	Description           *string `json:"description,omitempty"`
 	ExpectedVersion       int     `json:"expectedVersion"`
 	IsActive              *bool   `json:"isActive,omitempty"`
+	Name                  *string `json:"name,omitempty"`
 	SupportsPageNumber    *bool   `json:"supportsPageNumber,omitempty"`
 	SupportsReferenceDate *bool   `json:"supportsReferenceDate,omitempty"`
 	TimeoutSeconds        *int    `json:"timeoutSeconds,omitempty"`

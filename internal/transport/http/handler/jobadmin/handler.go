@@ -121,6 +121,8 @@ func (h *Handler) UpdateAdminJob(c *gin.Context, jobID generated.JobIdPath) {
 		ActorUserID:           actorID,
 		JobID:                 jobID,
 		ExpectedVersion:       req.ExpectedVersion,
+		Name:                  req.Name,
+		Description:           req.Description,
 		CronExpression:        req.CronExpression,
 		IsActive:              req.IsActive,
 		TimeoutSeconds:        req.TimeoutSeconds,
