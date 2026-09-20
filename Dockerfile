@@ -12,6 +12,8 @@ FROM alpine:3.22 AS runner
 WORKDIR /app
 RUN apk add --no-cache ca-certificates tzdata
 COPY --from=builder /out/api /out/worker ./
+COPY scripts/entrypoint.sh ./scripts/entrypoint.sh
+RUN chmod +x ./scripts/entrypoint.sh
 
 EXPOSE 8080
 ENV HTTP_ADDR=:8080
@@ -21,6 +23,6 @@ ENV HTTP_ADDR=:8080
 HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=6 \
   CMD wget -qO- http://localhost:8080/api/health || exit 1
 
-# Railway's API service uses this default. Its worker service uses the same
-# image with the start command overridden to `./worker`.
-CMD ["./api"]
+# Starts both API and background worker in the container by default.
+# Custom commands (e.g. `./worker` or `./api`) can still be passed if desired.
+CMD ["./scripts/entrypoint.sh"]
