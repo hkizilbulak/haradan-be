@@ -1476,17 +1476,19 @@ type JobAdminView struct {
 
 // JobHistoryItem defines model for JobHistoryItem.
 type JobHistoryItem struct {
-	CompletedAt   *time.Time                  `json:"completedAt,omitempty"`
-	CreatedAt     time.Time                   `json:"createdAt"`
-	DurationMs    *int                        `json:"durationMs,omitempty"`
-	ExecutionType JobHistoryItemExecutionType `json:"executionType"`
-	Id            openapi_types.UUID          `json:"id"`
-	JobId         openapi_types.UUID          `json:"jobId"`
-	LastError     *string                     `json:"lastError,omitempty"`
-	ReferenceDate *openapi_types.Date         `json:"referenceDate,omitempty"`
-	StartedAt     *time.Time                  `json:"startedAt,omitempty"`
-	Status        JobRunStatus                `json:"status"`
-	UpdatedAt     time.Time                   `json:"updatedAt"`
+	CompletedAt    *time.Time                  `json:"completedAt,omitempty"`
+	CreatedAt      time.Time                   `json:"createdAt"`
+	DurationMs     *int                        `json:"durationMs,omitempty"`
+	ExecutionType  JobHistoryItemExecutionType `json:"executionType"`
+	Id             openapi_types.UUID          `json:"id"`
+	JobId          openapi_types.UUID          `json:"jobId"`
+	LastError      *string                     `json:"lastError,omitempty"`
+	ProcessedCount *int                        `json:"processedCount,omitempty"`
+	ReferenceDate  *openapi_types.Date         `json:"referenceDate,omitempty"`
+	StartedAt      *time.Time                  `json:"startedAt,omitempty"`
+	Status         JobRunStatus                `json:"status"`
+	TjkSyncRunId   *openapi_types.UUID         `json:"tjkSyncRunId,omitempty"`
+	UpdatedAt      time.Time                   `json:"updatedAt"`
 }
 
 // JobHistoryItemExecutionType defines model for JobHistoryItem.ExecutionType.
@@ -2982,6 +2984,9 @@ type ServerInterface interface {
 	// UpdateAdminJob UpdateAdminJob
 	// (PATCH /v1/admin/jobs/{jobId})
 	UpdateAdminJob(c *gin.Context, jobId JobIdPath)
+	// CancelAdminJob CancelAdminJob
+	// (POST /v1/admin/jobs/{jobId}/cancel)
+	CancelAdminJob(c *gin.Context, jobId JobIdPath)
 	// ListAdminJobHistory ListAdminJobHistory
 	// (GET /v1/admin/jobs/{jobId}/history)
 	ListAdminJobHistory(c *gin.Context, jobId JobIdPath, params ListAdminJobHistoryParams)
@@ -4363,6 +4368,31 @@ func (siw *ServerInterfaceWrapper) UpdateAdminJob(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateAdminJob(c, jobId)
+}
+
+// CancelAdminJob operation middleware
+func (siw *ServerInterfaceWrapper) CancelAdminJob(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "jobId" -------------
+	var jobId JobIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "jobId", c.Param("jobId"), &jobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter jobId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CancelAdminJob(c, jobId)
 }
 
 // ListAdminJobHistory operation middleware
@@ -7309,6 +7339,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/v1/admin/jobs/:jobId", wrapper.GetAdminJob)
 	router.PATCH(options.BaseURL+"/v1/admin/jobs/:jobId", wrapper.UpdateAdminJob)
 	router.POST(options.BaseURL+"/v1/admin/jobs/:jobId/run", wrapper.RunAdminJob)
+	router.POST(options.BaseURL+"/v1/admin/jobs/:jobId/cancel", wrapper.CancelAdminJob)
 	router.GET(options.BaseURL+"/v1/admin/jobs/:jobId/history", wrapper.ListAdminJobHistory)
 	router.DELETE(options.BaseURL+"/v1/adverts/:advertId/urgent", wrapper.DeactivateAdvertUrgent)
 	router.PUT(options.BaseURL+"/v1/adverts/:advertId/urgent", wrapper.ActivateAdvertUrgent)

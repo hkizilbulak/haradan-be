@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -25,9 +26,9 @@ const (
 const definitionColumns = `id, job_key, name, description, job_type, cron_expression, is_active,
 timeout_seconds, default_payload, supports_reference_date, version, created_at, updated_at`
 
-const historyColumns = `id, job_definition_id, job_type, status, execution_type, triggered_by_user_id,
-reference_date, attempt_count, max_attempts, available_at, started_at, completed_at, last_error,
-created_at, updated_at`
+const historyColumns = `j.id, j.job_definition_id, j.job_type, COALESCE(r.status, j.status) AS status, j.execution_type, j.triggered_by_user_id,
+j.reference_date, j.attempt_count, j.max_attempts, j.available_at, COALESCE(r.started_at, j.started_at) AS started_at, COALESCE(r.completed_at, j.completed_at) AS completed_at, COALESCE(r.last_error_summary, j.last_error) AS last_error,
+j.created_at, j.updated_at, COALESCE(r.total_count, j.processed_count, 0) AS processed_count, j.tjk_sync_run_id`
 
 // Querier is implemented by *pgxpool.Pool and pgx.Tx.
 type Querier interface {
@@ -102,23 +103,18 @@ SET cron_expression = $3,
     updated_at = $6
 WHERE id = $1 AND version = $2
 RETURNING ` + definitionColumns
-	out, err := scanDefinition(r.db.QueryRow(ctx, q,
-		def.ID, expectedVersion, def.CronExpression, def.IsActive, def.TimeoutSeconds, def.UpdatedAt,
-	))
+	row := r.db.QueryRow(ctx, q, def.ID, expectedVersion, def.CronExpression, def.IsActive, def.TimeoutSeconds, def.UpdatedAt)
+	updated, err := scanDefinition(row)
 	if errors.Is(err, pgx.ErrNoRows) {
-		_, getErr := r.GetDefinition(ctx, def.ID)
-		if getErr != nil {
-			return domainjobdef.JobDefinition{}, getErr
-		}
-		return domainjobdef.JobDefinition{}, apperr.StaleVersion(staleVersionMessage)
+		return domainjobdef.JobDefinition{}, apperr.Conflict(staleVersionMessage)
 	}
 	if err != nil {
 		return domainjobdef.JobDefinition{}, apperr.Internal(fmt.Errorf("update job definition: %w", pg.SanitizeErr(err)))
 	}
-	return out, nil
+	return updated, nil
 }
 
-// ListHistory returns execution history for a definition (newest first).
+// ListHistory returns durable execution history for one definition with cursor pagination.
 func (r *Repository) ListHistory(
 	ctx context.Context,
 	definitionID uuid.UUID,
@@ -126,14 +122,15 @@ func (r *Repository) ListHistory(
 ) ([]domainjobdef.JobExecution, error) {
 	q := `
 SELECT ` + historyColumns + `
-FROM hrd_background_jobs
-WHERE job_definition_id = $1
+FROM hrd_background_jobs j
+LEFT JOIN hrd_tjk_sync_runs r ON j.tjk_sync_run_id = r.id
+WHERE j.job_definition_id = $1
   AND (
     $2::timestamptz IS NULL
-    OR created_at < $2
-    OR (created_at = $2 AND id < $3)
+    OR j.created_at < $2
+    OR (j.created_at = $2 AND j.id < $3)
   )
-ORDER BY created_at DESC, id DESC
+ORDER BY j.created_at DESC, j.id DESC
 LIMIT $4`
 	var afterAt any
 	var afterID any
@@ -174,18 +171,20 @@ func (r *Repository) ListLastRuns(
 		return out, nil
 	}
 	const q = `
-SELECT DISTINCT ON (job_definition_id)
-       job_definition_id,
-       COALESCE(started_at, created_at) AS last_run_at,
-       status,
+SELECT DISTINCT ON (j.job_definition_id)
+       j.job_definition_id,
+       COALESCE(r.started_at, j.started_at, r.created_at, j.created_at) AS last_run_at,
+       COALESCE(r.status, j.status) AS status,
        CASE
-         WHEN started_at IS NOT NULL AND completed_at IS NOT NULL
-         THEN GREATEST(0, (EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000)::bigint)
+         WHEN COALESCE(r.status, j.status) IN ('QUEUED', 'RUNNING', 'LEASED') THEN NULL
+         WHEN COALESCE(r.completed_at, j.completed_at) IS NOT NULL AND COALESCE(r.started_at, j.started_at) IS NOT NULL
+         THEN GREATEST(0, (EXTRACT(EPOCH FROM (COALESCE(r.completed_at, j.completed_at) - COALESCE(r.started_at, j.started_at))) * 1000)::bigint)
          ELSE NULL
        END AS last_duration_ms
-FROM hrd_background_jobs
-WHERE job_definition_id = ANY($1)
-ORDER BY job_definition_id, created_at DESC, id DESC`
+FROM hrd_background_jobs j
+LEFT JOIN hrd_tjk_sync_runs r ON j.tjk_sync_run_id = r.id
+WHERE j.job_definition_id = ANY($1)
+ORDER BY j.job_definition_id, (CASE WHEN r.status IN ('QUEUED', 'RUNNING') OR j.status IN ('QUEUED', 'LEASED') THEN 0 ELSE 1 END), j.created_at DESC, j.id DESC`
 	rows, err := r.db.Query(ctx, q, definitionIDs)
 	if err != nil {
 		return nil, apperr.Internal(fmt.Errorf("list job last runs: %w", pg.SanitizeErr(err)))
@@ -349,7 +348,7 @@ func scanHistory(row rowScanner) (domainjobdef.JobExecution, error) {
 		&exec.ID, &exec.JobDefinitionID, &exec.BackgroundJobType, &exec.Status, &executionType,
 		&exec.TriggeredByUserID, &exec.ReferenceDate, &exec.AttemptCount, &exec.MaxAttempts,
 		&exec.AvailableAt, &exec.StartedAt, &exec.CompletedAt, &exec.LastError,
-		&exec.CreatedAt, &exec.UpdatedAt,
+		&exec.CreatedAt, &exec.UpdatedAt, &exec.ProcessedCount, &exec.TJKSyncRunID,
 	)
 	if err != nil {
 		return domainjobdef.JobExecution{}, err
@@ -359,6 +358,49 @@ func scanHistory(row rowScanner) (domainjobdef.JobExecution, error) {
 		exec.ExecutionType = &t
 	}
 	return exec, nil
+}
+
+// CancelActiveJob cancels any QUEUED or LEASED background jobs (and linked TJK sync runs) for definition.
+func (r *Repository) CancelActiveJob(ctx context.Context, jobID uuid.UUID, now time.Time) error {
+	// 1. Cancel linked TJK sync runs if any
+	_, err := r.db.Exec(ctx, `
+UPDATE hrd_tjk_sync_runs SET
+  status = 'CANCELLED',
+  cancel_requested_at = COALESCE(cancel_requested_at, $2),
+  cancelled_at = $2,
+  completed_at = COALESCE(completed_at, $2),
+  version = version + 1,
+  updated_at = $2
+WHERE (
+  id IN (
+    SELECT tjk_sync_run_id FROM hrd_background_jobs
+    WHERE job_definition_id = $1 AND tjk_sync_run_id IS NOT NULL
+  )
+  OR id IN (
+    SELECT id FROM hrd_tjk_sync_runs WHERE status IN ('QUEUED', 'RUNNING')
+  )
+) AND status IN ('QUEUED', 'RUNNING')`, jobID, now)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("cancel linked tjk runs: %w", pg.SanitizeErr(err)))
+	}
+
+	// 2. Cancel active background jobs (including batches)
+	_, err = r.db.Exec(ctx, `
+UPDATE hrd_background_jobs SET
+  status = 'CANCELLED',
+  cancel_requested_at = COALESCE(cancel_requested_at, $2),
+  completed_at = COALESCE(completed_at, $2),
+  lease_owner = NULL,
+  leased_until = NULL,
+  version = version + 1,
+  updated_at = $2
+WHERE (job_definition_id = $1 OR tjk_sync_run_id IN (
+  SELECT tjk_sync_run_id FROM hrd_background_jobs WHERE job_definition_id = $1 AND tjk_sync_run_id IS NOT NULL
+)) AND status IN ('QUEUED', 'LEASED')`, jobID, now)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("cancel background jobs: %w", pg.SanitizeErr(err)))
+	}
+	return nil
 }
 
 func isUniqueViolation(err error) bool {

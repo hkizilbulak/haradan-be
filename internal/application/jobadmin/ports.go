@@ -55,6 +55,7 @@ type Repository interface {
 	ListHistory(ctx context.Context, definitionID uuid.UUID, f HistoryFilter) ([]domainjobdef.JobExecution, error)
 	ListLastRuns(ctx context.Context, definitionIDs []uuid.UUID) (map[uuid.UUID]domainjobdef.LastRunSummary, error)
 	Enqueue(ctx context.Context, req EnqueueRequest) (EnqueueResult, error)
+	CancelActiveJob(ctx context.Context, jobID uuid.UUID, now time.Time) error
 }
 
 // ProviderCapabilities gates schedule/manual enqueue by infra readiness.

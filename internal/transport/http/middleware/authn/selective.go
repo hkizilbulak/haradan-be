@@ -140,6 +140,7 @@ var PackagingAdminProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/jobs/:jobId"},
 	{Method: "PATCH", Path: "/api/v1/admin/jobs/:jobId"},
 	{Method: "POST", Path: "/api/v1/admin/jobs/:jobId/run"},
+	{Method: "POST", Path: "/api/v1/admin/jobs/:jobId/cancel"},
 	{Method: "GET", Path: "/api/v1/admin/jobs/:jobId/history"},
 }
 

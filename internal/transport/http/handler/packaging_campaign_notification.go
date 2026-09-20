@@ -270,6 +270,15 @@ func (s *Server) RunAdminJob(c *gin.Context, jobId generated.JobIdPath) {
 	s.jobadmin.RunAdminJob(c, jobId)
 }
 
+// CancelAdminJob implements job admin cancel.
+func (s *Server) CancelAdminJob(c *gin.Context, jobId generated.JobIdPath) {
+	if s.jobadmin == nil {
+		s.respondDependencyUnavailable(c, "İş tanımı servisi henüz hazır değil.")
+		return
+	}
+	s.jobadmin.CancelAdminJob(c, jobId)
+}
+
 // ListAdminJobHistory implements job admin history.
 func (s *Server) ListAdminJobHistory(c *gin.Context, jobId generated.JobIdPath, params generated.ListAdminJobHistoryParams) {
 	if s.jobadmin == nil {

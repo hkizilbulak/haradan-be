@@ -123,6 +123,23 @@ func (h *Handler) RunAdminJob(c *gin.Context, jobID generated.JobIdPath) {
 	})
 }
 
+// CancelAdminJob handles POST /v1/admin/jobs/{jobId}/cancel.
+func (h *Handler) CancelAdminJob(c *gin.Context, jobID generated.JobIdPath) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	if err := h.svc.CancelJob(c.Request.Context(), actorID, jobID); err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	msg := "Görev durdurma isteği alındı."
+	c.JSON(http.StatusOK, gin.H{
+		"jobId":   jobID,
+		"message": msg,
+	})
+}
+
 // ListAdminJobHistory handles GET /v1/admin/jobs/{jobId}/history.
 func (h *Handler) ListAdminJobHistory(
 	c *gin.Context,
@@ -197,11 +214,16 @@ func mapHistoryItem(jobID uuid.UUID, v domainjobdef.JobExecution) generated.JobH
 		JobId:         jobID,
 		Status:        generated.JobRunStatus(v.Status),
 		ExecutionType: execType,
-		StartedAt:     v.StartedAt,
-		CompletedAt:   v.CompletedAt,
-		LastError:     v.LastError,
-		CreatedAt:     v.CreatedAt,
-		UpdatedAt:     v.UpdatedAt,
+		StartedAt:      v.StartedAt,
+		CompletedAt:    v.CompletedAt,
+		LastError:      v.LastError,
+		ProcessedCount: &v.ProcessedCount,
+		CreatedAt:      v.CreatedAt,
+		UpdatedAt:      v.UpdatedAt,
+	}
+	if v.TJKSyncRunID != nil {
+		tjkID := openapi_types.UUID(*v.TJKSyncRunID)
+		out.TjkSyncRunId = &tjkID
 	}
 	if v.StartedAt != nil && v.CompletedAt != nil {
 		ms := int(v.CompletedAt.Sub(*v.StartedAt).Milliseconds())

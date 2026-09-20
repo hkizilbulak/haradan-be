@@ -17,8 +17,8 @@ import (
 func TestValidateEmbeddedMigrationsPass(t *testing.T) {
 	files, _ := migrations.FS.ReadDir(".")
 	count := len(files)
-	if count != 46 {
-		t.Fatalf("expected 46 SQL migration files, got %d", count)
+	if count != 47 {
+		t.Fatalf("expected 47 SQL migration files, got %d", count)
 	}
 	if err := migration.ValidateEmbeddedMigrations(migrations.FS); err != nil {
 		t.Fatalf("expected embedded migrations to pass: %v", err)

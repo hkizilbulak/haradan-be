@@ -228,6 +228,17 @@ func (s *Service) RunJob(ctx context.Context, in RunJobInput) (RunJobResult, err
 	}, nil
 }
 
+// CancelJob cancels active background jobs for a job definition.
+func (s *Service) CancelJob(ctx context.Context, actorUserID, jobID uuid.UUID) error {
+	if err := s.requireAdmin(ctx, actorUserID); err != nil {
+		return err
+	}
+	if _, err := s.repo.GetDefinition(ctx, jobID); err != nil {
+		return err
+	}
+	return s.repo.CancelActiveJob(ctx, jobID, s.clock.Now().UTC())
+}
+
 // ListHistoryResult is cursor-paginated sanitized history.
 type ListHistoryResult struct {
 	Items      []domainjobdef.JobExecution

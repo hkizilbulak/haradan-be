@@ -336,5 +336,8 @@ func (r *historySecretRepo) ListHistory(ctx context.Context, definitionID uuid.U
 func (r *historySecretRepo) ListLastRuns(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]domainjobdef.LastRunSummary, error) {
 	return r.inner.ListLastRuns(ctx, ids)
 }
+func (r *historySecretRepo) CancelActiveJob(ctx context.Context, jobID uuid.UUID, now time.Time) error {
+	return r.inner.CancelActiveJob(ctx, jobID, now)
+}
 
 func intPtr(v int) *int { return &v }

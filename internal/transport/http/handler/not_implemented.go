@@ -468,6 +468,10 @@ func (NotImplementedServer) RunAdminJob(c *gin.Context, jobId generated.JobIdPat
 	respondNotImplemented(c)
 }
 
+func (NotImplementedServer) CancelAdminJob(c *gin.Context, jobId generated.JobIdPath) {
+	respondNotImplemented(c)
+}
+
 func (NotImplementedServer) ListAdminJobHistory(c *gin.Context, jobId generated.JobIdPath, params generated.ListAdminJobHistoryParams) {
 	respondNotImplemented(c)
 }

@@ -92,6 +92,8 @@ type JobExecution struct {
 	StartedAt         *time.Time
 	CompletedAt       *time.Time
 	LastError         *string
+	ProcessedCount    int
+	TJKSyncRunID      *uuid.UUID
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }

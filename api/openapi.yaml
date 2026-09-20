@@ -6878,6 +6878,56 @@ paths:
         - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
+  "/v1/admin/jobs/{jobId}/cancel":
+    post:
+      operationId: CancelAdminJob
+      summary: CancelAdminJob
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Cancels active/running execution of a job definition. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminJobs
+      x-function-id: JOB-ADMIN-06
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/JobIdPath"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
   "/v1/admin/jobs/{jobId}/history":
     get:
       operationId: ListAdminJobHistory
@@ -11374,6 +11424,13 @@ components:
           nullable: true
         lastError:
           type: string
+          nullable: true
+        processedCount:
+          type: integer
+          minimum: 0
+        tjkSyncRunId:
+          type: string
+          format: uuid
           nullable: true
         createdAt:
           type: string

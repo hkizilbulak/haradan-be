@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -226,6 +227,22 @@ func (m *MemoryStore) History() []domainjobdef.JobExecution {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]domainjobdef.JobExecution(nil), m.history...)
+}
+
+// CancelActiveJob cancels any active jobs for the definition.
+func (m *MemoryStore) CancelActiveJob(_ context.Context, jobID uuid.UUID, now time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.history {
+		if m.history[i].JobDefinitionID != nil && *m.history[i].JobDefinitionID == jobID {
+			if m.history[i].Status == "QUEUED" || m.history[i].Status == "LEASED" {
+				m.history[i].Status = "CANCELLED"
+				m.history[i].CompletedAt = &now
+				m.history[i].UpdatedAt = now
+			}
+		}
+	}
+	return nil
 }
 
 // DedupKeys returns known dedup keys (test helper).
