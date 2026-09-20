@@ -17,7 +17,7 @@ import (
 
 const (
 	defaultMaxBodyBytes int64 = 2 << 20
-	defaultUserAgent          = "HaradanTJKClient/1.0"
+	defaultUserAgent          = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
 	pathBulkSummary = "/TR/YarisSever/Query/DataRows/Atlar"
 	pathDetail      = "/TR/YarisSever/Query/ConnectedPage/AtKosuBilgileri"
@@ -298,7 +298,12 @@ func (c *Client) get(ctx context.Context, path string, query url.Values) ([]byte
 		return nil, permanentErr("create TJK request failed", 0)
 	}
 	req.Header.Set("User-Agent", c.userAgent)
-	req.Header.Set("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7")
+	req.Header.Set("Referer", c.baseURL.String()+"/TR/YarisSever/Query/Page/Atlar")
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
 
 	resp, err := c.http.Do(req)
 	if err != nil {
