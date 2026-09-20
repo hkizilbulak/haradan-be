@@ -311,3 +311,56 @@ func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
+
+// HasPendingConsents returns true if the user is missing required legal consents.
+func (r *Repository) HasPendingConsents(ctx context.Context, userID uuid.UUID) (bool, error) {
+	const q = `
+SELECT COUNT(DISTINCT agreement_type)
+FROM hrd_user_consent_logs
+WHERE user_id = $1 AND is_granted = true AND agreement_type IN ('MEMBERSHIP_AGREEMENT', 'KVKK_EXPLICIT_CONSENT')
+`
+	var count int
+	err := r.db.QueryRow(ctx, q, userID).Scan(&count)
+	if err != nil {
+		return false, apperr.Internal(err)
+	}
+	return count < 2, nil
+}
+
+// UpdateConsents inserts or updates settings and appends consent logs.
+func (r *Repository) UpdateConsents(ctx context.Context, setting domainuser.UserSetting, logs []domainuser.UserConsentLog) error {
+	batch := &pgx.Batch{}
+
+	// 1. Upsert User Setting
+	const qSetting = `
+INSERT INTO hrd_user_settings (user_id, allow_email, allow_sms, allow_whatsapp)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (user_id) DO UPDATE SET
+  allow_email = EXCLUDED.allow_email,
+  allow_sms = EXCLUDED.allow_sms,
+  allow_whatsapp = EXCLUDED.allow_whatsapp
+`
+	batch.Queue(qSetting, setting.UserID, setting.AllowEmail, setting.AllowSMS, setting.AllowWhatsapp)
+
+	// 2. Insert Consent Logs
+	const qLog = `
+INSERT INTO hrd_user_consent_logs (id, user_id, agreement_type, version, is_granted, ip_address, user_agent, channel, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	for _, l := range logs {
+		batch.Queue(qLog, l.ID, l.UserID, l.AgreementType, l.Version, l.IsGranted, l.IPAddress, l.UserAgent, l.Channel, l.CreatedAt)
+	}
+
+	tx, ok := r.db.(pgx.Tx)
+	if !ok {
+		return apperr.Internal(errors.New("UpdateConsents requires a transaction"))
+	}
+
+	bRes := tx.SendBatch(ctx, batch)
+	defer bRes.Close()
+	for i := 0; i < batch.Len(); i++ {
+		if _, err := bRes.Exec(); err != nil {
+			return apperr.Internal(err)
+		}
+	}
+	return nil
+}

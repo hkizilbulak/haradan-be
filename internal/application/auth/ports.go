@@ -25,6 +25,8 @@ type UserRepository interface {
 	UpdateEmail(ctx context.Context, userID uuid.UUID, email, emailNormalized string, securityStamp uuid.UUID, now time.Time) error
 	UpdateChannel(ctx context.Context, userID uuid.UUID, channel domainuser.Channel, now time.Time) error
 	UpdateProfile(ctx context.Context, userID uuid.UUID, patch ProfilePatch, now time.Time) (domainuser.User, error)
+	HasPendingConsents(ctx context.Context, userID uuid.UUID) (bool, error)
+	UpdateConsents(ctx context.Context, setting domainuser.UserSetting, logs []domainuser.UserConsentLog) error
 }
 
 // ProfilePatch is the set of user-editable profile fields for ACCOUNT-02.

@@ -5180,6 +5180,46 @@ paths:
         - NOT_FOUND
         '500':
         - INTERNAL_ERROR
+  "/v1/me/consent":
+    post:
+      operationId: UpdateConsent
+      summary: UpdateConsent
+      description: 'Exposure USER_AUTH. Actor: User. Update user legal consents'
+      tags:
+      - Account
+      x-function-id: ACCT-10
+      x-exposure: USER_AUTH
+      x-actor: User
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/UpdateConsentRequest"
+      responses:
+        '204':
+          description: Success
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '500':
+        - INTERNAL_ERROR
   "/v1/me/password":
     post:
       operationId: ChangePassword
@@ -8276,6 +8316,12 @@ components:
           type: string
         clientContext:
           "$ref": "#/components/schemas/ClientContext"
+        termsAccepted:
+          type: boolean
+        kvkkAccepted:
+          type: boolean
+        marketingConsent:
+          type: boolean
     AuthTokenResponse:
       type: object
       additionalProperties: false
@@ -8338,6 +8384,22 @@ components:
           "$ref": "#/components/schemas/UserStatus"
         channel:
           type: string
+        hasPendingConsents:
+          type: boolean
+    UpdateConsentRequest:
+      type: object
+      required:
+      - termsAccepted
+      - kvkkAccepted
+      - marketingConsent
+      properties:
+        termsAccepted:
+          type: boolean
+        kvkkAccepted:
+          type: boolean
+        marketingConsent:
+          type: boolean
+      additionalProperties: false
     UpdateMyProfileRequest:
       type: object
       properties:

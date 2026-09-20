@@ -1125,6 +1125,7 @@ type ProfileView struct {
 	Role          domainuser.Role
 	Status        domainuser.Status
 	Channel       domainuser.Channel
+	HasPendingConsents bool
 }
 
 // SessionView is AUTH-08 list item without hashes/tokens.
@@ -1144,13 +1145,26 @@ type SessionListResult struct {
 	HasMore    bool
 }
 
-// GetMyProfile implements ACCOUNT-01.
 func (s *Service) GetMyProfile(ctx context.Context, userID uuid.UUID) (ProfileView, error) {
 	user, err := s.requireActiveUser(ctx, userID)
 	if err != nil {
 		return ProfileView{}, err
 	}
-	return mapProfile(user), nil
+	view := mapProfile(user)
+	
+	err = s.withTx(ctx, func(ctx context.Context, users UserRepository, _ SessionRepository) error {
+		hasPending, err := users.HasPendingConsents(ctx, userID)
+		if err != nil {
+			return err
+		}
+		view.HasPendingConsents = hasPending
+		return nil
+	})
+	if err != nil {
+		return ProfileView{}, err
+	}
+
+	return view, nil
 }
 
 // UpdateMyProfile implements ACCOUNT-02.
@@ -1184,6 +1198,81 @@ func (s *Service) UpdateMyProfile(ctx context.Context, userID uuid.UUID, patch P
 	}
 	return mapProfile(updated), nil
 }
+
+// UpdateConsent implements consent update
+func (s *Service) UpdateConsent(ctx context.Context, userID uuid.UUID, termsAccepted, kvkkAccepted, marketing bool, clientIP, userAgent string) error {
+	if !termsAccepted || !kvkkAccepted {
+		return apperr.Validation("Sözleşme onayları eksik.", apperr.FieldError{Field: "termsAccepted", Message: "Üyelik Sözleşmesi ve KVKK onayı zorunludur."})
+	}
+	
+	now := s.clock.Now()
+	
+	setting := domainuser.UserSetting{
+		UserID:        userID,
+		AllowEmail:    marketing,
+		AllowSMS:      marketing,
+		AllowWhatsapp: marketing,
+	}
+
+	logs := []domainuser.UserConsentLog{
+		{
+			ID:            uuid.New(),
+			UserID:        userID,
+			AgreementType: "MEMBERSHIP_AGREEMENT",
+			Version:       "1.0",
+			IsGranted:     true,
+			IPAddress:     &clientIP,
+			UserAgent:     &userAgent,
+			Channel:       "WEB",
+			CreatedAt:     now,
+		},
+		{
+			ID:            uuid.New(),
+			UserID:        userID,
+			AgreementType: "KVKK_EXPLICIT_CONSENT",
+			Version:       "1.0",
+			IsGranted:     true,
+			IPAddress:     &clientIP,
+			UserAgent:     &userAgent,
+			Channel:       "WEB",
+			CreatedAt:     now,
+		},
+	}
+
+	if marketing {
+		logs = append(logs, domainuser.UserConsentLog{
+			ID:            uuid.New(),
+			UserID:        userID,
+			AgreementType: "COMMUNICATION_EMAIL",
+			Version:       "1.0",
+			IsGranted:     true,
+			IPAddress:     &clientIP,
+			UserAgent:     &userAgent,
+			Channel:       "WEB",
+			CreatedAt:     now,
+		})
+		logs = append(logs, domainuser.UserConsentLog{
+			ID:            uuid.New(),
+			UserID:        userID,
+			AgreementType: "COMMUNICATION_SMS",
+			Version:       "1.0",
+			IsGranted:     true,
+			IPAddress:     &clientIP,
+			UserAgent:     &userAgent,
+			Channel:       "WEB",
+			CreatedAt:     now,
+		})
+	}
+
+	return s.withTx(ctx, func(ctx context.Context, users UserRepository, _ SessionRepository) error {
+		_, err := users.FindByIDForUpdate(ctx, userID)
+		if err != nil {
+			return err
+		}
+		return users.UpdateConsents(ctx, setting, logs)
+	})
+}
+
 
 // LogoutAllSessions implements AUTH-07 (idempotent).
 func (s *Service) LogoutAllSessions(ctx context.Context, principal domainauth.Principal) (LogoutResult, error) {

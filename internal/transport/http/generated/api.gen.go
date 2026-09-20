@@ -1368,11 +1368,14 @@ type GenericAuthMessageResponse struct {
 
 // GoogleLoginRequest defines model for GoogleLoginRequest.
 type GoogleLoginRequest struct {
-	ClientContext ClientContext `json:"clientContext"`
-	Code          *string       `json:"code,omitempty"`
-	Credential    *string       `json:"credential,omitempty"`
-	IdToken       *string       `json:"idToken,omitempty"`
-	RedirectUri   *string       `json:"redirectUri,omitempty"`
+	ClientContext    ClientContext `json:"clientContext"`
+	Code             *string       `json:"code,omitempty"`
+	Credential       *string       `json:"credential,omitempty"`
+	IdToken          *string       `json:"idToken,omitempty"`
+	KvkkAccepted     *bool         `json:"kvkkAccepted,omitempty"`
+	MarketingConsent *bool         `json:"marketingConsent,omitempty"`
+	RedirectUri      *string       `json:"redirectUri,omitempty"`
+	TermsAccepted    *bool         `json:"termsAccepted,omitempty"`
 }
 
 // HealthResponse defines model for HealthResponse.
@@ -1620,15 +1623,16 @@ type MyNotificationView struct {
 
 // MyProfileResponse defines model for MyProfileResponse.
 type MyProfileResponse struct {
-	Channel       *string            `json:"channel,omitempty"`
-	Email         string             `json:"email"`
-	EmailVerified bool               `json:"emailVerified"`
-	FirstName     string             `json:"firstName"`
-	Id            openapi_types.UUID `json:"id"`
-	LastName      string             `json:"lastName"`
-	Phone         *string            `json:"phone,omitempty"`
-	Role          UserRole           `json:"role"`
-	Status        UserStatus         `json:"status"`
+	Channel            *string            `json:"channel,omitempty"`
+	Email              string             `json:"email"`
+	EmailVerified      bool               `json:"emailVerified"`
+	FirstName          string             `json:"firstName"`
+	HasPendingConsents *bool              `json:"hasPendingConsents,omitempty"`
+	Id                 openapi_types.UUID `json:"id"`
+	LastName           string             `json:"lastName"`
+	Phone              *string            `json:"phone,omitempty"`
+	Role               UserRole           `json:"role"`
+	Status             UserStatus         `json:"status"`
 }
 
 // NotificationEventType defines model for NotificationEventType.
@@ -2281,6 +2285,13 @@ type UpdateCategoryRequest struct {
 	SortOrder       *int    `json:"sortOrder,omitempty"`
 }
 
+// UpdateConsentRequest defines model for UpdateConsentRequest.
+type UpdateConsentRequest struct {
+	KvkkAccepted     bool `json:"kvkkAccepted"`
+	MarketingConsent bool `json:"marketingConsent"`
+	TermsAccepted    bool `json:"termsAccepted"`
+}
+
 // UpdateJobRequest defines model for UpdateJobRequest.
 type UpdateJobRequest struct {
 	CronExpression  *string `json:"cronExpression,omitempty"`
@@ -2841,6 +2852,9 @@ type MarkAdvertSoldJSONRequestBody = ExpectedVersionRequest
 // SubmitAdvertForReviewJSONRequestBody defines body for SubmitAdvertForReview for application/json ContentType.
 type SubmitAdvertForReviewJSONRequestBody = ExpectedVersionRequest
 
+// UpdateConsentJSONRequestBody defines body for UpdateConsent for application/json ContentType.
+type UpdateConsentJSONRequestBody = UpdateConsentRequest
+
 // RequestEmailChangeJSONRequestBody defines body for RequestEmailChange for application/json ContentType.
 type RequestEmailChangeJSONRequestBody = RequestEmailChangeRequest
 
@@ -3224,6 +3238,9 @@ type ServerInterface interface {
 	// SubmitAdvertForReview SubmitAdvertForReview
 	// (POST /v1/me/adverts/{advertId}/submit)
 	SubmitAdvertForReview(c *gin.Context, advertId AdvertIdPath)
+	// UpdateConsent UpdateConsent
+	// (POST /v1/me/consent)
+	UpdateConsent(c *gin.Context)
 	// RequestEmailChange RequestEmailChange
 	// (POST /v1/me/email/change-request)
 	RequestEmailChange(c *gin.Context)
@@ -6446,6 +6463,19 @@ func (siw *ServerInterfaceWrapper) SubmitAdvertForReview(c *gin.Context) {
 	siw.Handler.SubmitAdvertForReview(c, advertId)
 }
 
+// UpdateConsent operation middleware
+func (siw *ServerInterfaceWrapper) UpdateConsent(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateConsent(c)
+}
+
 // RequestEmailChange operation middleware
 func (siw *ServerInterfaceWrapper) RequestEmailChange(c *gin.Context) {
 
@@ -7305,6 +7335,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/v1/me/notifications/read-all", wrapper.MarkAllMyNotificationsRead)
 	router.DELETE(options.BaseURL+"/v1/me/notifications/:notificationId", wrapper.DeleteMyNotification)
 	router.PUT(options.BaseURL+"/v1/me/notifications/:notificationId/read", wrapper.MarkMyNotificationRead)
+	router.POST(options.BaseURL+"/v1/me/consent", wrapper.UpdateConsent)
 	router.POST(options.BaseURL+"/v1/me/password", wrapper.ChangePassword)
 	router.GET(options.BaseURL+"/v1/me/sessions", wrapper.ListMySessions)
 	router.DELETE(options.BaseURL+"/v1/me/sessions/:sessionId", wrapper.RevokeMySession)

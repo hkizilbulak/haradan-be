@@ -123,6 +123,9 @@ func (h *Handler) GoogleLogin(c *gin.Context) {
 		ClientContext: domainauth.ClientContext(body.ClientContext),
 		UserAgent:     c.Request.UserAgent(),
 		ClientIP:      c.ClientIP(),
+		TermsAccepted: body.TermsAccepted != nil && *body.TermsAccepted,
+		KvkkAccepted:  body.KvkkAccepted != nil && *body.KvkkAccepted,
+		Marketing:     body.MarketingConsent != nil && *body.MarketingConsent,
 	})
 	if err != nil {
 		h.respond(c, h.logger, err)

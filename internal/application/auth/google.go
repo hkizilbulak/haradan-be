@@ -29,6 +29,9 @@ type GoogleLoginInput struct {
 	ClientContext domainauth.ClientContext
 	UserAgent     string
 	ClientIP      string
+	TermsAccepted bool
+	KvkkAccepted  bool
+	Marketing     bool
 }
 
 type googleTokenClaims struct {
@@ -186,6 +189,10 @@ func (s *Service) GoogleLogin(ctx context.Context, in GoogleLoginInput) (TokenRe
 			return TokenResult{}, apperr.Internal(fmt.Errorf("hash password: %w", err))
 		}
 
+		if !in.TermsAccepted || !in.KvkkAccepted {
+			return TokenResult{}, apperr.Validation("Sözleşme onayları eksik.", apperr.FieldError{Field: "termsAccepted", Message: "Üyelik Sözleşmesi ve KVKK onayı zorunludur."})
+		}
+
 		verifiedAt := now
 		newUser := domainuser.User{
 			ID:              uuid.New(),
@@ -204,8 +211,65 @@ func (s *Service) GoogleLogin(ctx context.Context, in GoogleLoginInput) (TokenRe
 			UpdatedAt:       now,
 		}
 
+		setting := domainuser.UserSetting{
+			UserID:        newUser.ID,
+			AllowEmail:    in.Marketing,
+			AllowSMS:      in.Marketing,
+			AllowWhatsapp: in.Marketing,
+		}
+
+		logs := []domainuser.UserConsentLog{
+			{
+				ID:            uuid.New(),
+				UserID:        newUser.ID,
+				AgreementType: "MEMBERSHIP_AGREEMENT",
+				Version:       "1.0",
+				IsGranted:     true,
+				IPAddress:     &in.ClientIP,
+				UserAgent:     &in.UserAgent,
+				Channel:       "WEB",
+				CreatedAt:     now,
+			},
+			{
+				ID:            uuid.New(),
+				UserID:        newUser.ID,
+				AgreementType: "KVKK_EXPLICIT_CONSENT",
+				Version:       "1.0",
+				IsGranted:     true,
+				IPAddress:     &in.ClientIP,
+				UserAgent:     &in.UserAgent,
+				Channel:       "WEB",
+				CreatedAt:     now,
+			},
+		}
+
+		if in.Marketing {
+			logs = append(logs, domainuser.UserConsentLog{
+				ID:            uuid.New(),
+				UserID:        newUser.ID,
+				AgreementType: "COMMUNICATION_EMAIL",
+				Version:       "1.0",
+				IsGranted:     true,
+				IPAddress:     &in.ClientIP,
+				UserAgent:     &in.UserAgent,
+				Channel:       "WEB",
+				CreatedAt:     now,
+			})
+			logs = append(logs, domainuser.UserConsentLog{
+				ID:            uuid.New(),
+				UserID:        newUser.ID,
+				AgreementType: "COMMUNICATION_SMS",
+				Version:       "1.0",
+				IsGranted:     true,
+				IPAddress:     &in.ClientIP,
+				UserAgent:     &in.UserAgent,
+				Channel:       "WEB",
+				CreatedAt:     now,
+			})
+		}
+
 		if err := s.withTx(ctx, func(ctx context.Context, users UserRepository, _ SessionRepository) error {
-			return users.Create(ctx, newUser)
+			return users.CreateWithConsents(ctx, newUser, setting, logs)
 		}); err != nil {
 			return TokenResult{}, err
 		}
