@@ -176,7 +176,7 @@ func (r *Runner) Run(ctx context.Context) error {
 func (r *Runner) recoverOnce(ctx context.Context) {
 	n, err := r.cfg.Queue.RecoverExpiredJobLeases(ctx, r.cfg.Clock(), r.cfg.RecoveryBatchSize)
 	if err != nil {
-		r.cfg.Logger.Error("lease recovery failed", "workerId", r.cfg.WorkerID, "err", "dependency unavailable")
+		r.cfg.Logger.Error("lease recovery failed", "workerId", r.cfg.WorkerID, "err", err.Error())
 		return
 	}
 	if n > 0 {
@@ -214,7 +214,7 @@ func (r *Runner) workerLoop(claimCtx, jobRoot context.Context) {
 			if claimCtx.Err() != nil {
 				return
 			}
-			r.cfg.Logger.Error("claim failed", "workerId", r.cfg.WorkerID, "err", "dependency unavailable")
+			r.cfg.Logger.Error("claim failed", "workerId", r.cfg.WorkerID, "err", err.Error())
 			r.sleep(claimCtx, r.cfg.PollInterval)
 			continue
 		}
@@ -236,6 +236,15 @@ func (r *Runner) processClaimed(jobRoot, claimCtx context.Context, job domainmed
 		Version:    job.Version,
 	}
 
+	r.cfg.Logger.Info("job claimed, starting processing",
+		"workerId", r.cfg.WorkerID,
+		"jobId", job.ID.String(),
+		"jobType", string(job.JobType),
+		"attempt", job.AttemptCount,
+		"maxAttempts", job.MaxAttempts,
+		"dedupKey", job.DeduplicationKey,
+	)
+
 	finalized := false
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -244,13 +253,14 @@ func (r *Runner) processClaimed(jobRoot, claimCtx context.Context, job domainmed
 				"jobId", job.ID.String(),
 				"jobType", string(job.JobType),
 				"attempt", job.AttemptCount,
+				"panic", fmt.Sprintf("%v", rec),
 			)
 			if finalized {
 				return
 			}
 			if err := r.retryOrDead(context.Background(), guard, job, safeInternalErrorMessage); err != nil {
 				r.cfg.Logger.Error("panic retry failed",
-					"workerId", r.cfg.WorkerID, "jobId", job.ID.String(), "err", "dependency unavailable")
+					"workerId", r.cfg.WorkerID, "jobId", job.ID.String(), "err", err.Error())
 			}
 		}
 	}()
@@ -268,7 +278,7 @@ func (r *Runner) processClaimed(jobRoot, claimCtx context.Context, job domainmed
 	case outcomeSuccess:
 		if markErr := r.cfg.Queue.MarkJobSucceeded(context.Background(), guard, r.cfg.Clock()); markErr != nil {
 			r.cfg.Logger.Error("mark succeeded failed",
-				"workerId", r.cfg.WorkerID, "jobId", job.ID.String(), "err", "dependency unavailable")
+				"workerId", r.cfg.WorkerID, "jobId", job.ID.String(), "err", markErr.Error())
 			return
 		}
 		finalized = true
@@ -283,26 +293,28 @@ func (r *Runner) processClaimed(jobRoot, claimCtx context.Context, job domainmed
 	case outcomePermanentFail:
 		if markErr := r.cfg.Queue.MarkJobFailed(context.Background(), guard, r.cfg.Clock(), outcome.LastError); markErr != nil {
 			r.cfg.Logger.Error("mark failed failed",
-				"workerId", r.cfg.WorkerID, "jobId", job.ID.String(), "err", "dependency unavailable")
+				"workerId", r.cfg.WorkerID, "jobId", job.ID.String(), "err", markErr.Error())
 			return
 		}
 		finalized = true
-		r.cfg.Logger.Info("job failed permanently",
+		r.cfg.Logger.Error("job failed permanently",
 			"workerId", r.cfg.WorkerID,
 			"jobId", job.ID.String(),
 			"jobType", string(job.JobType),
 			"attempt", job.AttemptCount,
 			"outcome", "failed",
+			"lastError", outcome.LastError,
+			"rawErr", fmt.Sprintf("%v", err),
 			"duration", duration.String(),
 		)
 	case outcomeShutdownRequeue:
 		if markErr := r.retryOrDead(context.Background(), guard, job, outcome.LastError); markErr != nil {
 			r.cfg.Logger.Error("shutdown requeue failed",
-				"workerId", r.cfg.WorkerID, "jobId", job.ID.String(), "err", "dependency unavailable")
+				"workerId", r.cfg.WorkerID, "jobId", job.ID.String(), "err", markErr.Error())
 			return
 		}
 		finalized = true
-		r.cfg.Logger.Info("job requeued on shutdown",
+		r.cfg.Logger.Warn("job requeued on shutdown",
 			"workerId", r.cfg.WorkerID,
 			"jobId", job.ID.String(),
 			"jobType", string(job.JobType),
@@ -314,7 +326,7 @@ func (r *Runner) processClaimed(jobRoot, claimCtx context.Context, job domainmed
 		dead := job.AttemptCount >= job.MaxAttempts
 		if markErr := r.retryOrDead(context.Background(), guard, job, outcome.LastError); markErr != nil {
 			r.cfg.Logger.Error("retry failed",
-				"workerId", r.cfg.WorkerID, "jobId", job.ID.String(), "err", "dependency unavailable")
+				"workerId", r.cfg.WorkerID, "jobId", job.ID.String(), "err", markErr.Error())
 			return
 		}
 		finalized = true
@@ -322,12 +334,14 @@ func (r *Runner) processClaimed(jobRoot, claimCtx context.Context, job domainmed
 		if dead {
 			outcomeLabel = "dead"
 		}
-		r.cfg.Logger.Info("job transient outcome",
+		r.cfg.Logger.Warn("job transient outcome",
 			"workerId", r.cfg.WorkerID,
 			"jobId", job.ID.String(),
 			"jobType", string(job.JobType),
 			"attempt", job.AttemptCount,
 			"outcome", outcomeLabel,
+			"lastError", outcome.LastError,
+			"rawErr", fmt.Sprintf("%v", err),
 			"duration", duration.String(),
 		)
 	}

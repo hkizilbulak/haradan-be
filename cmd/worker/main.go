@@ -56,14 +56,9 @@ func run() error {
 		}
 		workerID = host + "-" + uuid.NewString()
 	}
-	log.Info("worker starting", "workerId", workerID, "env", cfg.AppEnv)
+	log.Info("worker process initializing", "workerId", workerID, "env", cfg.AppEnv)
 	mediaEnabled := cfg.StorageProvider == config.StorageProviderB2 &&
 		cfg.ImageProcessorProvider == config.ImageProcessorProviderTinify
-	log.Info("worker capabilities",
-		"media", mediaEnabled,
-		"email", cfg.EmailProvider == config.EmailProviderResend,
-		"tjk", cfg.TJKEnabled,
-	)
 
 	db, err := database.Open(context.Background(), database.Config{
 		DatabaseURL:     cfg.DatabaseURL,
@@ -188,10 +183,25 @@ func run() error {
 		return fmt.Errorf("runner: %w", err)
 	}
 
+	log.Info("worker starting",
+		"workerId", workerID,
+		"env", cfg.AppEnv,
+		"concurrency", cfg.WorkerConcurrency,
+		"pollInterval", cfg.WorkerPollInterval.String(),
+		"leaseDuration", cfg.WorkerLeaseDuration.String(),
+		"supportedJobTypes", supported,
+	)
+	log.Info("worker capabilities",
+		"media", mediaEnabled,
+		"email", cfg.EmailProvider == config.EmailProviderResend,
+		"tjk", cfg.TJKEnabled,
+	)
+
 	runCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	go defScheduler.Run(runCtx)
 	if cfg.TJKEnabled {
+		log.Info("initializing TJK worker", "baseURL", cfg.TJKBaseURL)
 		client, err := tjkclient.NewClient(tjkclient.Config{BaseURL: cfg.TJKBaseURL, HTTPTimeout: cfg.TJKHTTPTimeout, MaxBodyBytes: cfg.TJKMaxBodyBytes})
 		if err != nil {
 			return fmt.Errorf("TJK client: %w", err)
@@ -200,12 +210,16 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("TJK worker: %w", err)
 		}
+		log.Info("starting TJK worker loop", "workerId", workerID)
 		go runTJKWorker(runCtx, tjkWorker, cfg.WorkerLeaseDuration, cfg.WorkerPollInterval, cfg.TJKPageTimeout, log)
+	} else {
+		log.Warn("TJK worker is disabled (TJK_ENABLED is false)", "workerId", workerID)
 	}
 
 	// Auto-archive: sold adverts older than 24 h are moved to ARCHIVED.
 	advertSvc, advertSvcErr := appadvert.NewPostgresAutoArchiveService(db.Pool())
 	if advertSvcErr == nil {
+		log.Info("starting auto-archive worker loop", "workerId", workerID)
 		go runAutoArchive(runCtx, advertSvc, cfg.WorkerPollInterval, log)
 	} else {
 		log.Warn("auto-archive worker skipped", "err", advertSvcErr)
@@ -259,12 +273,13 @@ func supportedJobTypes(mediaEnabled, emailEnabled bool) []domainmedia.JobType {
 }
 
 func runTJKWorker(ctx context.Context, worker *apptjk.Worker, lease, poll, jobTimeout time.Duration, log *slog.Logger) {
+	log.Info("TJK worker loop started", "pollInterval", poll.String(), "jobTimeout", jobTimeout.String(), "leaseDuration", lease.String())
 	for ctx.Err() == nil {
 		jobCtx, cancel := context.WithTimeout(ctx, jobTimeout)
 		claimed, err := worker.ProcessOnce(jobCtx, lease)
 		cancel()
 		if err != nil {
-			log.Error("TJK job failed", "err", "dependency unavailable")
+			log.Error("TJK job execution failed", "err", err.Error())
 		}
 		if claimed {
 			continue
@@ -274,4 +289,5 @@ func runTJKWorker(ctx context.Context, worker *apptjk.Worker, lease, poll, jobTi
 		case <-time.After(poll):
 		}
 	}
+	log.Info("TJK worker loop exited")
 }
