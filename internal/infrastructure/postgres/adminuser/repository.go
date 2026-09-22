@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,12 +48,17 @@ const userColumns = `id, email, email_normalized, password_hash, role, status, e
 first_name, last_name, phone, security_stamp, failed_login_count, locked_until, created_at, updated_at, channel`
 
 func (r *Repository) ListUsers(ctx context.Context, status *domainuser.Status, role *domainuser.Role, query string, afterCreated *time.Time, afterID *uuid.UUID, limit int, offset int) ([]domainuser.User, int, error) {
+	log.Printf("ListUsers called with query: %q", query)
 	const q = `
 SELECT ` + userColumns + `
 FROM hrd_users
 WHERE ($1::varchar IS NULL OR status = $1)
   AND ($2::varchar IS NULL OR role = $2)
-  AND ($3::text = '' OR email ILIKE '%' || $3 || '%' OR first_name ILIKE '%' || $3 || '%' OR last_name ILIKE '%' || $3 || '%' OR (phone IS NOT NULL AND phone ILIKE '%' || $3 || '%'))
+  AND ($3::text = '' OR (
+    SELECT bool_and(CONCAT(hrd_users.first_name, ' ', hrd_users.last_name, ' ', hrd_users.email, ' ', COALESCE(hrd_users.phone, '')) ILIKE '%' || word || '%')
+    FROM unnest(string_to_array($3, ' ')) AS word
+    WHERE word <> ''
+  ))
   AND ($4::timestamptz IS NULL OR (created_at, id) < ($4::timestamptz, $5::uuid))
 ORDER BY created_at DESC, id DESC
 LIMIT $6 OFFSET $7`
@@ -71,7 +77,11 @@ SELECT count(*)
 FROM hrd_users
 WHERE ($1::varchar IS NULL OR status = $1)
   AND ($2::varchar IS NULL OR role = $2)
-  AND ($3::text = '' OR email ILIKE '%' || $3 || '%' OR first_name ILIKE '%' || $3 || '%' OR last_name ILIKE '%' || $3 || '%' OR (phone IS NOT NULL AND phone ILIKE '%' || $3 || '%'))`
+  AND ($3::text = '' OR (
+    SELECT bool_and(CONCAT(hrd_users.first_name, ' ', hrd_users.last_name, ' ', hrd_users.email, ' ', COALESCE(hrd_users.phone, '')) ILIKE '%' || word || '%')
+    FROM unnest(string_to_array($3, ' ')) AS word
+    WHERE word <> ''
+  ))`
 	if err := r.db.QueryRow(ctx, countQ, dbStatus, dbRole, query).Scan(&totalCount); err != nil {
 		return nil, 0, apperr.Internal(fmt.Errorf("count admin users: %w", pg.SanitizeErr(err)))
 	}
