@@ -40,11 +40,13 @@ type PackageAssignmentSnapshot struct {
 
 // AdvertSnapshotReader loads advert projection data.
 type AdvertSnapshotReader interface {
+	WithTx(tx pgx.Tx) AdvertSnapshotReader
 	GetAdvertSnapshot(ctx context.Context, advertID int64) (AdvertSnapshot, error)
 }
 
 // PackageSnapshotReader loads package and assignment snapshots.
 type PackageSnapshotReader interface {
+	WithTx(tx pgx.Tx) PackageSnapshotReader
 	GetPackageByID(ctx context.Context, packageID uuid.UUID) (domainpackaging.Package, error)
 	GetEffectiveAssignment(ctx context.Context, advertID int64, at time.Time) (PackageAssignmentSnapshot, error)
 	GetAssignmentByID(ctx context.Context, assignmentID uuid.UUID) (PackageAssignmentSnapshot, error)

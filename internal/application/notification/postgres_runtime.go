@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
@@ -20,11 +21,34 @@ import (
 	pguser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/user"
 )
 
-type postgresSnapshots struct{ pool *pgxpool.Pool }
+type querier interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
 
-func (s postgresSnapshots) GetAdvertSnapshot(ctx context.Context, id int64) (AdvertSnapshot, error) {
+type postgresAdvertSnapshots struct {
+	pool *pgxpool.Pool
+	db   querier
+}
+
+func (s postgresAdvertSnapshots) q() querier {
+	if s.db != nil {
+		return s.db
+	}
+	return s.pool
+}
+
+func (s postgresAdvertSnapshots) WithTx(tx pgx.Tx) AdvertSnapshotReader {
+	if tx == nil {
+		return s
+	}
+	return postgresAdvertSnapshots{pool: s.pool, db: tx}
+}
+
+func (s postgresAdvertSnapshots) GetAdvertSnapshot(ctx context.Context, id int64) (AdvertSnapshot, error) {
 	var out AdvertSnapshot
-	err := s.pool.QueryRow(ctx, `SELECT id, owner_user_id, COALESCE(title, ''), status FROM hrd_adverts WHERE id = $1 AND deleted_at IS NULL`, id).
+	err := s.q().QueryRow(ctx, `SELECT id, owner_user_id, COALESCE(title, ''), status FROM hrd_adverts WHERE id = $1 AND deleted_at IS NULL`, id).
 		Scan(&out.ID, &out.OwnerUserID, &out.Title, &out.Status)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AdvertSnapshot{}, apperr.NotFound("İlan bulunamadı.")
@@ -35,12 +59,31 @@ func (s postgresSnapshots) GetAdvertSnapshot(ctx context.Context, id int64) (Adv
 	return out, nil
 }
 
-func (s postgresSnapshots) GetPackageByID(ctx context.Context, id uuid.UUID) (domainpackaging.Package, error) {
+type postgresPackageSnapshots struct {
+	pool *pgxpool.Pool
+	db   querier
+}
+
+func (s postgresPackageSnapshots) q() querier {
+	if s.db != nil {
+		return s.db
+	}
+	return s.pool
+}
+
+func (s postgresPackageSnapshots) WithTx(tx pgx.Tx) PackageSnapshotReader {
+	if tx == nil {
+		return s
+	}
+	return postgresPackageSnapshots{pool: s.pool, db: tx}
+}
+
+func (s postgresPackageSnapshots) GetPackageByID(ctx context.Context, id uuid.UUID) (domainpackaging.Package, error) {
 	var (
 		out  domainpackaging.Package
 		code string
 	)
-	err := s.pool.QueryRow(ctx, `SELECT id, code, display_name, description, badge_text, benefits, display_price_amount_minor, currency_code, default_duration_days, allows_urgent, showcase_eligible, search_priority, is_active, sort_order, version, created_at, updated_at FROM hrd_packages WHERE id = $1`, id).Scan(
+	err := s.q().QueryRow(ctx, `SELECT id, code, display_name, description, badge_text, benefits, display_price_amount_minor, currency_code, default_duration_days, allows_urgent, showcase_eligible, search_priority, is_active, sort_order, version, created_at, updated_at FROM hrd_packages WHERE id = $1`, id).Scan(
 		&out.ID, &code, &out.DisplayName, &out.Description, &out.BadgeText, &out.BenefitsJSON,
 		&out.DisplayPriceAmountMinor, &out.CurrencyCode, &out.DefaultDurationDays, &out.AllowsUrgent,
 		&out.ShowcaseEligible, &out.SearchPriority, &out.IsActive, &out.SortOrder, &out.Version, &out.CreatedAt, &out.UpdatedAt)
@@ -54,15 +97,17 @@ func (s postgresSnapshots) GetPackageByID(ctx context.Context, id uuid.UUID) (do
 	return out, nil
 }
 
-func (s postgresSnapshots) GetEffectiveAssignment(ctx context.Context, advertID int64, at time.Time) (PackageAssignmentSnapshot, error) {
+func (s postgresPackageSnapshots) GetEffectiveAssignment(ctx context.Context, advertID int64, at time.Time) (PackageAssignmentSnapshot, error) {
 	return s.assignment(ctx, `SELECT id, advert_id, package_id, ends_at FROM hrd_advert_package_assignments WHERE advert_id = $1 AND status = 'ACTIVE' AND starts_at <= $2 AND (ends_at IS NULL OR ends_at > $2)`, advertID, at)
 }
-func (s postgresSnapshots) GetAssignmentByID(ctx context.Context, id uuid.UUID) (PackageAssignmentSnapshot, error) {
+
+func (s postgresPackageSnapshots) GetAssignmentByID(ctx context.Context, id uuid.UUID) (PackageAssignmentSnapshot, error) {
 	return s.assignment(ctx, `SELECT id, advert_id, package_id, ends_at FROM hrd_advert_package_assignments WHERE id = $1`, id)
 }
-func (s postgresSnapshots) assignment(ctx context.Context, q string, args ...any) (PackageAssignmentSnapshot, error) {
+
+func (s postgresPackageSnapshots) assignment(ctx context.Context, q string, args ...any) (PackageAssignmentSnapshot, error) {
 	var out PackageAssignmentSnapshot
-	err := s.pool.QueryRow(ctx, q, args...).Scan(&out.ID, &out.AdvertID, &out.PackageID, &out.EndsAt)
+	err := s.q().QueryRow(ctx, q, args...).Scan(&out.ID, &out.AdvertID, &out.PackageID, &out.EndsAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PackageAssignmentSnapshot{}, apperr.NotFound("Paket ataması bulunamadı.")
 	}
@@ -71,12 +116,13 @@ func (s postgresSnapshots) assignment(ctx context.Context, q string, args ...any
 	}
 	return out, nil
 }
-func (s postgresSnapshots) FindActiveUrgent(ctx context.Context, advertID int64) (domainpackaging.AdvertFeatureActivation, error) {
+
+func (s postgresPackageSnapshots) FindActiveUrgent(ctx context.Context, advertID int64) (domainpackaging.AdvertFeatureActivation, error) {
 	var (
 		out                 domainpackaging.AdvertFeatureActivation
 		featureCode, status string
 	)
-	err := s.pool.QueryRow(ctx, `SELECT id, advert_id, package_assignment_id, feature_code, status, activated_by_user_id, activated_at, deactivated_at, reason, activation_version, created_at, updated_at FROM hrd_advert_feature_activations WHERE advert_id = $1 AND feature_code = 'URGENT' AND status = 'ACTIVE'`, advertID).Scan(
+	err := s.q().QueryRow(ctx, `SELECT id, advert_id, package_assignment_id, feature_code, status, activated_by_user_id, activated_at, deactivated_at, reason, activation_version, created_at, updated_at FROM hrd_advert_feature_activations WHERE advert_id = $1 AND feature_code = 'URGENT' AND status = 'ACTIVE'`, advertID).Scan(
 		&out.ID, &out.AdvertID, &out.PackageAssignmentID, &featureCode, &status, &out.ActivatedByUserID, &out.ActivatedAt, &out.DeactivatedAt, &out.Reason, &out.ActivationVersion, &out.CreatedAt, &out.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domainpackaging.AdvertFeatureActivation{}, apperr.NotFound("URGENT aktivasyonu bulunamadı.")
@@ -140,15 +186,16 @@ func NewPostgresEmitter(pool *pgxpool.Pool, frontendURL string, clock Clock) (*E
 	}
 	raw := pgnotification.NewRepository(pool)
 	repo := pgRuntimeRepo{raw}
-	snapshots := postgresSnapshots{pool: pool}
+	adverts := postgresAdvertSnapshots{pool: pool}
+	packages := postgresPackageSnapshots{pool: pool}
 	writer, err := NewEventWriter(EventWriterConfig{
-		Repo: repo, Jobs: NewPostgresJobEnqueuer(pool), Adverts: snapshots, Packages: snapshots,
+		Repo: repo, Jobs: NewPostgresJobEnqueuer(pool), Adverts: adverts, Packages: packages,
 		Clock: clock, FrontendURL: frontendURL,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return NewEmitter(EmitterConfig{Writer: writer, Adverts: snapshots, Packages: snapshots, Clock: clock})
+	return NewEmitter(EmitterConfig{Writer: writer, Adverts: adverts, Packages: packages, Clock: clock})
 }
 
 // RuntimeWorker binds notification queue handlers to a shared database pool.
@@ -163,10 +210,11 @@ func NewPostgresRuntimeWorker(pool *pgxpool.Pool, email NotificationEmailSender,
 	}
 	raw := pgnotification.NewRepository(pool)
 	repo := pgRuntimeRepo{raw}
-	snapshots := postgresSnapshots{pool: pool}
+	adverts := postgresAdvertSnapshots{pool: pool}
+	packages := postgresPackageSnapshots{pool: pool}
 	jobs := NewPostgresJobEnqueuer(pool)
 	writer, err := NewEventWriter(EventWriterConfig{
-		Repo: repo, Jobs: jobs, Adverts: snapshots, Packages: snapshots, Clock: clock, FrontendURL: frontendURL,
+		Repo: repo, Jobs: jobs, Adverts: adverts, Packages: packages, Clock: clock, FrontendURL: frontendURL,
 	})
 	if err != nil {
 		return nil, err
@@ -177,7 +225,7 @@ func NewPostgresRuntimeWorker(pool *pgxpool.Pool, email NotificationEmailSender,
 		return nil, err
 	}
 	expiry, err := NewExpiryScanService(ExpiryScanConfig{
-		Writer: writer, Repo: repo, Jobs: jobs, Adverts: snapshots, Users: users, Clock: clock,
+		Writer: writer, Repo: repo, Jobs: jobs, Adverts: adverts, Users: users, Clock: clock,
 	})
 	if err != nil {
 		return nil, err

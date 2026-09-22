@@ -133,7 +133,11 @@ func (w *EventWriter) WriteAdvertPriceDropped(ctx context.Context, tx pgx.Tx, in
 		return nil
 	}
 
-	advert, err := w.adverts.GetAdvertSnapshot(ctx, in.AdvertID)
+	adverts := w.adverts
+	if tx != nil {
+		adverts = adverts.WithTx(tx)
+	}
+	advert, err := adverts.GetAdvertSnapshot(ctx, in.AdvertID)
 	if err != nil {
 		return err
 	}
@@ -187,18 +191,20 @@ func (w *EventWriter) WriteAdvertPriceDropped(ctx context.Context, tx pgx.Tx, in
 		return nil
 	}
 
-	jobType := domainmedia.JobNotificationFanoutAdvertPriceDrop
-	dedup := fanoutPageDedupKey(jobType, n.ID, nil)
-	payloadJob, err := json.Marshal(fanoutJobPayload{NotificationID: n.ID.String()})
+	jobPayload, err := json.Marshal(map[string]any{
+		"notificationId": n.ID.String(),
+		"advertId":       in.AdvertID,
+	})
 	if err != nil {
-		return fmt.Errorf("marshal fanout job payload: %w", err)
+		return fmt.Errorf("marshal price drop fanout job payload: %w", err)
 	}
 
+	dedup := string(domainmedia.JobNotificationFanoutAdvertPriceDrop) + ":" + n.ID.String()
 	return enqueueJobIgnoringDuplicate(ctx, w.jobs.WithTx(tx), domainmedia.BackgroundJob{
 		ID:               uuid.New(),
-		JobType:          jobType,
+		JobType:          domainmedia.JobNotificationFanoutAdvertPriceDrop,
 		Status:           domainmedia.JobQueued,
-		Payload:          payloadJob,
+		Payload:          jobPayload,
 		DeduplicationKey: &dedup,
 		AttemptCount:     0,
 		MaxAttempts:      defaultJobMaxAttempts,
@@ -227,28 +233,32 @@ func (w *EventWriter) writeAdvertEvent(
 		return nil
 	}
 
-	advert, err := w.adverts.GetAdvertSnapshot(ctx, advertID)
-	if err != nil {
-		return err
+	adverts := w.adverts
+	if tx != nil {
+		adverts = adverts.WithTx(tx)
 	}
-	asg, err := w.packages.GetAssignmentByID(ctx, assignmentID)
-	if err != nil {
-		return err
-	}
-	pkg, err := w.packages.GetPackageByID(ctx, asg.PackageID)
+	advert, err := adverts.GetAdvertSnapshot(ctx, advertID)
 	if err != nil {
 		return err
 	}
 
-	// URGENT_ADVERT_ACTIVATED is itself the urgent event; the row it refers to
-	// is created earlier in this same (uncommitted) transaction, so it must not
-	// be re-read through the non-tx packages snapshot reader (it would not be
-	// visible yet). PACKAGE_ADVERT_PUBLISHED may safely check whether URGENT
-	// is already active, since that activation (if any) was committed in a
-	// prior transaction.
+	packages := w.packages
+	if tx != nil {
+		packages = packages.WithTx(tx)
+	}
+	asg, err := packages.GetAssignmentByID(ctx, assignmentID)
+	if err != nil {
+		return err
+	}
+	pkg, err := packages.GetPackageByID(ctx, asg.PackageID)
+	if err != nil {
+		return err
+	}
+
+	// URGENT_ADVERT_ACTIVATED is itself the urgent event.
 	isUrgent := eventType == domainnotification.TemplateEventTypeUrgentAdvertActivated
 	if !isUrgent {
-		if _, err := w.packages.FindActiveUrgent(ctx, advertID); err == nil {
+		if _, err := packages.FindActiveUrgent(ctx, advertID); err == nil {
 			isUrgent = true
 		} else if !isNotFoundErr(err) {
 			return err
@@ -351,15 +361,23 @@ func (w *EventWriter) WritePackageExpiryReminder(ctx context.Context, tx pgx.Tx,
 		return nil
 	}
 
-	asg, err := w.packages.GetAssignmentByID(ctx, in.AssignmentID)
+	packages := w.packages
+	if tx != nil {
+		packages = packages.WithTx(tx)
+	}
+	asg, err := packages.GetAssignmentByID(ctx, in.AssignmentID)
 	if err != nil {
 		return err
 	}
-	pkg, err := w.packages.GetPackageByID(ctx, asg.PackageID)
+	pkg, err := packages.GetPackageByID(ctx, asg.PackageID)
 	if err != nil {
 		return err
 	}
-	advert, err := w.adverts.GetAdvertSnapshot(ctx, asg.AdvertID)
+	adverts := w.adverts
+	if tx != nil {
+		adverts = adverts.WithTx(tx)
+	}
+	advert, err := adverts.GetAdvertSnapshot(ctx, asg.AdvertID)
 	if err != nil {
 		return err
 	}

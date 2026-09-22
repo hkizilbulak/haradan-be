@@ -569,6 +569,8 @@ func (m memoryJobEnqueuer) EnqueueJob(_ context.Context, job domainmedia.Backgro
 
 type memoryAdvertReader struct{ store *MemoryRuntimeStore }
 
+func (m memoryAdvertReader) WithTx(_ pgx.Tx) AdvertSnapshotReader { return m }
+
 func (m memoryAdvertReader) GetAdvertSnapshot(_ context.Context, advertID int64) (AdvertSnapshot, error) {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()
@@ -580,6 +582,8 @@ func (m memoryAdvertReader) GetAdvertSnapshot(_ context.Context, advertID int64)
 }
 
 type memoryPackageReader struct{ store *MemoryRuntimeStore }
+
+func (m memoryPackageReader) WithTx(_ pgx.Tx) PackageSnapshotReader { return m }
 
 func (m memoryPackageReader) GetPackageByID(_ context.Context, packageID uuid.UUID) (domainpackaging.Package, error) {
 	m.store.mu.Lock()

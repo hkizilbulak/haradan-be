@@ -1,6 +1,8 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestMergeEnvironmentProcessValuesWin(t *testing.T) {
 	merged := mergeEnvironment(
@@ -50,9 +52,13 @@ func TestSetLocalAPIAddress(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			setLocalAPIAddress(test.initial, test.processEnv, false)
-			if got := test.initial["HTTP_ADDR"].value; got != test.expected {
-				t.Fatalf("HTTP_ADDR = %q, want %q", got, test.expected)
+			target := make(map[string]environmentValue, len(test.initial))
+			for k, v := range test.initial {
+				target[k] = v
+			}
+			setLocalAPIAddress(target, test.processEnv, true)
+			if got := target["HTTP_ADDR"].value; got != test.expected {
+				t.Fatalf("setLocalAPIAddress() HTTP_ADDR = %q, want %q", got, test.expected)
 			}
 		})
 	}

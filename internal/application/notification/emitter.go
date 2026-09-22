@@ -52,17 +52,14 @@ func NewEmitter(cfg EmitterConfig) (*Emitter, error) {
 }
 
 // OnAdvertPublished emits package-broadcast and urgent events when an advert is
-// published. The caller already transitioned the advert to PUBLISHED inside
-// tx (not yet committed), so this must NOT re-read advert status through the
-// non-tx AdvertSnapshotReader to decide whether to emit: that read would go
-// through a different connection and would still see the pre-publish status,
-// silently dropping the notification. The caller's own transition guard is
-// the only gate; this method trusts it. Packaging assignment/urgent reads
-// below stay non-tx because those rows were committed in an earlier,
-// unrelated transaction (they pre-exist relative to this publish).
+// published.
 func (e *Emitter) OnAdvertPublished(ctx context.Context, tx pgx.Tx, advertID int64) error {
+	packages := e.packages
+	if tx != nil {
+		packages = packages.WithTx(tx)
+	}
 	now := e.clock.Now().UTC()
-	if asg, _, ok, err := EffectiveBroadcastAssignment(ctx, e.packages, advertID, now); err != nil {
+	if asg, _, ok, err := EffectiveBroadcastAssignment(ctx, packages, advertID, now); err != nil {
 		return err
 	} else if ok {
 		if err := e.writer.WritePackageAdvertPublished(ctx, tx, WritePackageAdvertPublishedInput{
@@ -71,7 +68,7 @@ func (e *Emitter) OnAdvertPublished(ctx context.Context, tx pgx.Tx, advertID int
 			return err
 		}
 	}
-	urgent, err := e.packages.FindActiveUrgent(ctx, advertID)
+	urgent, err := packages.FindActiveUrgent(ctx, advertID)
 	if err != nil {
 		if isNotFoundErr(err) {
 			return nil
@@ -97,18 +94,26 @@ func (e *Emitter) OnAdvertPriceDropped(ctx context.Context, tx pgx.Tx, advertID 
 // OnPackageAssignedWhilePublished emits when a broadcast-capable package is
 // assigned to a published advert.
 func (e *Emitter) OnPackageAssignedWhilePublished(ctx context.Context, tx pgx.Tx, advertID int64, assignmentID uuid.UUID) error {
-	advert, err := e.adverts.GetAdvertSnapshot(ctx, advertID)
+	adverts := e.adverts
+	if tx != nil {
+		adverts = adverts.WithTx(tx)
+	}
+	advert, err := adverts.GetAdvertSnapshot(ctx, advertID)
 	if err != nil {
 		return err
 	}
 	if advert.Status != string(domainadvert.StatusPublished) {
 		return nil
 	}
-	asg, err := e.packages.GetAssignmentByID(ctx, assignmentID)
+	packages := e.packages
+	if tx != nil {
+		packages = packages.WithTx(tx)
+	}
+	asg, err := packages.GetAssignmentByID(ctx, assignmentID)
 	if err != nil {
 		return err
 	}
-	pkg, err := e.packages.GetPackageByID(ctx, asg.PackageID)
+	pkg, err := packages.GetPackageByID(ctx, asg.PackageID)
 	if err != nil {
 		return err
 	}
@@ -122,7 +127,11 @@ func (e *Emitter) OnPackageAssignedWhilePublished(ctx context.Context, tx pgx.Tx
 
 // OnUrgentActivated emits when URGENT is activated on a published advert.
 func (e *Emitter) OnUrgentActivated(ctx context.Context, tx pgx.Tx, advertID int64, assignmentID uuid.UUID, activationVersion int) error {
-	advert, err := e.adverts.GetAdvertSnapshot(ctx, advertID)
+	adverts := e.adverts
+	if tx != nil {
+		adverts = adverts.WithTx(tx)
+	}
+	advert, err := adverts.GetAdvertSnapshot(ctx, advertID)
 	if err != nil {
 		return err
 	}
