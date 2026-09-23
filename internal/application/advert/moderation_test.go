@@ -310,3 +310,52 @@ func TestAdminTransitionAtomicityAndConcurrency(t *testing.T) {
 		t.Fatalf("%+v", a)
 	}
 }
+
+func TestUpdateAdvertAdmin(t *testing.T) {
+	f := newFixture(t)
+	admin := uuid.New()
+	pending := f.seed(t, f.owner, domainadvert.StatusPendingReview, nil)
+
+	newTitle := "Yeni At Başlığı"
+	newDesc := "Yeni Açıklama Detayı"
+	newPriceMinor := int64(15000000)
+	curr := "TRY"
+	asset1 := uuid.New()
+	asset2 := uuid.New()
+
+	updated, err := f.svc.UpdateAdvertAdmin(context.Background(), admin, pending.ID, appadvert.AdminUpdateAdvertInput{
+		ExpectedVersion: &pending.Version,
+		Title:           &newTitle,
+		Description:     &newDesc,
+		Price: &appadvert.MoneyInput{
+			AmountMinor: &newPriceMinor,
+			Currency:    &curr,
+		},
+		Properties: map[string]interface{}{
+			"horseName": "Şampiyon",
+			"breed":     "Arap",
+		},
+		Media: []appadvert.AdminMediaInput{
+			{AssetID: asset1, DisplayOrder: 0, IsCover: true},
+			{AssetID: asset2, DisplayOrder: 1, IsCover: false},
+		},
+	})
+	if err != nil {
+		t.Fatalf("update advert admin failed: %v", err)
+	}
+	if updated.Title == nil || *updated.Title != newTitle {
+		t.Fatalf("expected title %s, got %v", newTitle, updated.Title)
+	}
+	if updated.Description == nil || *updated.Description != newDesc {
+		t.Fatalf("expected description %s, got %v", newDesc, updated.Description)
+	}
+	if updated.Price == nil || updated.Price.AmountMinor != newPriceMinor {
+		t.Fatalf("expected price %d, got %v", newPriceMinor, updated.Price)
+	}
+	if len(updated.Media) != 2 {
+		t.Fatalf("expected 2 media items, got %d", len(updated.Media))
+	}
+	if updated.Media[0].AssetID != asset1 || !updated.Media[0].IsCover {
+		t.Fatalf("expected asset1 as cover, got %+v", updated.Media[0])
+	}
+}

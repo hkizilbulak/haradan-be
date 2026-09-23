@@ -629,3 +629,88 @@ func (r *Repository) HardDelete(ctx context.Context, advertID int64) error {
 	}
 	return nil
 }
+
+// UpdateDetailsAdmin updates core advert content fields under admin context.
+func (r *Repository) UpdateDetailsAdmin(
+	ctx context.Context,
+	advertID int64,
+	patch domainadvert.DetailsPatch,
+	expectedVersion int,
+	now time.Time,
+) (domainadvert.Advert, error) {
+	const q = `
+UPDATE hrd_adverts
+SET district_id = CASE WHEN $3 THEN $4::uuid ELSE district_id END,
+    horse_id = CASE WHEN $5 THEN $6::uuid ELSE horse_id END,
+    properties = CASE WHEN $7 THEN $8::jsonb ELSE properties END,
+    title = CASE WHEN $9 THEN $10::varchar ELSE title END,
+    description = CASE WHEN $11 THEN $12::text ELSE description END,
+    address = CASE WHEN $13 THEN $14::text ELSE address END,
+    price_amount_minor = CASE WHEN $15 THEN $16::bigint ELSE price_amount_minor END,
+    price_currency = CASE WHEN $15 THEN $17::varchar ELSE price_currency END,
+    version = version + 1,
+    updated_at = $18
+WHERE id = $1
+  AND version = $2
+  AND deleted_at IS NULL
+RETURNING ` + advertColumns
+
+	amount, currency := splitMoney(patch.Price)
+	return r.updateOne(ctx, "update advert details admin", q,
+		advertID, expectedVersion,
+		patch.DistrictIDSet, patch.DistrictID,
+		patch.HorseIDSet, patch.HorseID,
+		patch.PropertiesSet, patch.Properties,
+		patch.TitleSet, patch.Title,
+		patch.DescriptionSet, patch.Description,
+		patch.AddressSet, patch.Address,
+		patch.PriceSet, amount, currency,
+		now,
+	)
+}
+
+// ReplaceAdvertMediaAdmin replaces all media relations for an advert and increments media_version.
+func (r *Repository) ReplaceAdvertMediaAdmin(
+	ctx context.Context,
+	advertID int64,
+	media []domainadvert.MediaRelation,
+	now time.Time,
+) error {
+	// 1. Delete all existing relations for this advert
+	if _, err := r.db.Exec(ctx, `DELETE FROM hrd_advert_media WHERE advert_id = $1`, advertID); err != nil {
+		return apperr.Internal(fmt.Errorf("delete advert media admin: %w", pg.SanitizeErr(err)))
+	}
+
+	// 2. Insert new relations
+	hasCover := false
+	for _, m := range media {
+		if m.IsCover {
+			hasCover = true
+			break
+		}
+	}
+
+	for i, m := range media {
+		isCover := m.IsCover
+		if !hasCover && i == 0 {
+			isCover = true
+		}
+		const q = `
+INSERT INTO hrd_advert_media (
+  id, advert_id, asset_id, display_order, is_cover, created_at, updated_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7
+)`
+		if _, err := r.db.Exec(ctx, q, uuid.New(), advertID, m.AssetID, i, isCover, now, now); err != nil {
+			return apperr.Internal(fmt.Errorf("insert advert media admin: %w", pg.SanitizeErr(err)))
+		}
+	}
+
+	// 3. Increment media_version on hrd_adverts
+	if _, err := r.db.Exec(ctx, `UPDATE hrd_adverts SET media_version = media_version + 1, updated_at = $2 WHERE id = $1`, advertID, now); err != nil {
+		return apperr.Internal(fmt.Errorf("bump advert media_version admin: %w", pg.SanitizeErr(err)))
+	}
+
+	return nil
+}
+

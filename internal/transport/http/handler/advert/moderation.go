@@ -59,6 +59,73 @@ func (h *Handler) DeleteAdvert(c *gin.Context, advertID generated.AdvertIdPath) 
 	c.JSON(http.StatusOK, gin.H{"status": "DELETED", "advertId": advertID})
 }
 
+type AdminUpdateAdvertJSONRequest struct {
+	ExpectedVersion *int `json:"expectedVersion,omitempty"`
+	Title           *string `json:"title,omitempty"`
+	Description     *string `json:"description,omitempty"`
+	Price           *struct {
+		AmountMinor *int64  `json:"amountMinor,omitempty"`
+		Currency    *string `json:"currency,omitempty"`
+	} `json:"price,omitempty"`
+	DistrictID *uuid.UUID             `json:"districtId,omitempty"`
+	HorseID    *uuid.UUID             `json:"horseId,omitempty"`
+	Properties map[string]interface{} `json:"properties,omitempty"`
+	Media      []struct {
+		AssetID      uuid.UUID `json:"assetId"`
+		DisplayOrder int       `json:"displayOrder"`
+		IsCover      bool      `json:"isCover"`
+	} `json:"media,omitempty"`
+}
+
+// UpdateAdvertAdmin handles PATCH /v1/admin/adverts/{advertId}.
+func (h *Handler) UpdateAdvertAdmin(c *gin.Context, advertID generated.AdvertIdPath) {
+	actorID, ok := h.requireAdminBO(c)
+	if !ok {
+		return
+	}
+	var req AdminUpdateAdvertJSONRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz istek gövdesi"})
+		return
+	}
+
+	var priceInput *appadvert.MoneyInput
+	if req.Price != nil {
+		priceInput = &appadvert.MoneyInput{
+			AmountMinor: req.Price.AmountMinor,
+			Currency:    req.Price.Currency,
+		}
+	}
+
+	var mediaItems []appadvert.AdminMediaInput
+	if req.Media != nil {
+		mediaItems = make([]appadvert.AdminMediaInput, 0, len(req.Media))
+		for _, m := range req.Media {
+			mediaItems = append(mediaItems, appadvert.AdminMediaInput{
+				AssetID:      m.AssetID,
+				DisplayOrder: m.DisplayOrder,
+				IsCover:      m.IsCover,
+			})
+		}
+	}
+
+	out, err := h.svc.UpdateAdvertAdmin(c.Request.Context(), actorID, int64(advertID), appadvert.AdminUpdateAdvertInput{
+		ExpectedVersion: req.ExpectedVersion,
+		Title:           req.Title,
+		Description:     req.Description,
+		Price:           priceInput,
+		DistrictID:      req.DistrictID,
+		HorseID:         req.HorseID,
+		Properties:      req.Properties,
+		Media:           mediaItems,
+	})
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	c.JSON(http.StatusOK, mapModerationDetail(out))
+}
+
 // GetAdvertModerationDetail handles GET /v1/admin/adverts/{advertId}.
 func (h *Handler) GetAdvertModerationDetail(c *gin.Context, advertID generated.AdvertIdPath) {
 	if _, ok := h.requireAdminBO(c); !ok {

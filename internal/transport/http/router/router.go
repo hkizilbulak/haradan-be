@@ -103,6 +103,19 @@ func New(server generated.ServerInterface, logger *slog.Logger, opts ...Options)
 			hs.GetAdvertUrgent(c, generated.AdvertIdPath(val))
 		})
 	}
+	if hs, ok := server.(interface {
+		UpdateAdvertAdmin(*gin.Context, generated.AdvertIdPath)
+	}); ok {
+		r.PATCH(APIBasePath+"/v1/admin/adverts/:advertId", func(c *gin.Context) {
+			rawID := c.Param("advertId")
+			val, err := strconv.ParseInt(rawID, 10, 64)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid advert id"})
+				return
+			}
+			hs.UpdateAdvertAdmin(c, generated.AdvertIdPath(val))
+		})
+	}
 	if rs, ok := server.(interface{ RegisterCouponRoutes(gin.IRouter) }); ok {
 		rs.RegisterCouponRoutes(r.Group(APIBasePath))
 	}
@@ -154,7 +167,15 @@ func requestLogger(logger *slog.Logger) gin.HandlerFunc {
 func CountOpenAPIRoutes(engine *gin.Engine) int {
 	count := 0
 	for _, route := range engine.Routes() {
-		if route.Path == "" || strings.HasPrefix(route.Path, APIBasePath+"/v1/catalog/dynamic") || strings.HasPrefix(route.Path, APIBasePath+"/v1/coupons") || strings.HasPrefix(route.Path, APIBasePath+"/v1/paytr") || route.Path == APIBasePath+"/payments/paymentNotify" || route.Path == APIBasePath+"/payment/paymentNotify" || strings.HasPrefix(route.Path, APIBasePath+"/v1/tjk") {
+		if route.Path == "" ||
+			strings.HasPrefix(route.Path, APIBasePath+"/v1/catalog/dynamic") ||
+			strings.HasPrefix(route.Path, APIBasePath+"/v1/coupons") ||
+			strings.HasPrefix(route.Path, APIBasePath+"/v1/paytr") ||
+			route.Path == APIBasePath+"/payments/paymentNotify" ||
+			route.Path == APIBasePath+"/payment/paymentNotify" ||
+			strings.HasPrefix(route.Path, APIBasePath+"/v1/tjk") ||
+			(route.Method == http.MethodPost && route.Path == APIBasePath+"/v1/me/adverts/:advertId/publish") ||
+			(route.Method == http.MethodPatch && route.Path == APIBasePath+"/v1/admin/adverts/:advertId") {
 			continue
 		}
 		count++

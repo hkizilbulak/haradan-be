@@ -370,6 +370,33 @@ func TestAdminModerationOpsNoLonger501HTTP(t *testing.T) {
 	}
 }
 
+func TestUpdateAdvertAdminHTTP(t *testing.T) {
+	env := newModerationEngine(t)
+	adminAuth, _ := env.registerAdminBO(t, "admin-edit@example.com")
+	userAuth, ownerID, _ := env.registerLogin(t, "owner-edit@example.com", "PUBLIC_WEB")
+	pending := env.seedPending(ownerID)
+
+	// User cannot call admin patch
+	rec := env.do(http.MethodPatch, "/api/v1/admin/adverts/"+strconv.FormatInt(pending.ID, 10), `{"title":"Hacker"}`, userAuth)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden for non-admin, got %d", rec.Code)
+	}
+
+	// Admin updates advert successfully
+	updateBody := `{"title":"Düzeltilmiş İlan Başlığı","price":{"amountMinor":25000000,"currency":"TRY"},"properties":{"horseName":"Yeni İsim"}}`
+	rec = env.do(http.MethodPatch, "/api/v1/admin/adverts/"+strconv.FormatInt(pending.ID, 10), updateBody, adminAuth)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var res generated.ModerationAdvertDetailResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatal(err)
+	}
+	if res.Title == nil || *res.Title != "Düzeltilmiş İlan Başlığı" {
+		t.Fatalf("expected updated title, got %v", res.Title)
+	}
+}
+
 func assertError(t *testing.T, rec *httptest.ResponseRecorder, status int, code generated.DomainErrorCode) {
 	t.Helper()
 	if rec.Code != status {

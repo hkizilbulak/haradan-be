@@ -113,6 +113,19 @@ var propertyAliases = map[string][]string{
 	"age":            {"studage", "stallionage", "horseage"},
 	"studcoatcolor":  {"coatcolor"},
 	"coatcolor":      {"studcoatcolor"},
+	"veterinarian":   {"vet", "veteriner", "facilityveterinarian"},
+	"vet":            {"veterinarian", "veteriner", "facilityveterinarian"},
+	"veteriner":      {"veterinarian", "vet", "facilityveterinarian"},
+	"facilityveterinarian": {"veterinarian", "vet", "veteriner"},
+	"maternity":      {"foalingbarn", "dogumhane", "facilityfoalingbarn"},
+	"foalingbarn":    {"maternity", "dogumhane", "facilityfoalingbarn"},
+	"dogumhane":      {"maternity", "foalingbarn", "facilityfoalingbarn"},
+	"facilityfoalingbarn": {"maternity", "foalingbarn", "dogumhane"},
+	"grasspaddock":   {"facilitygrasspaddock", "cimpadok"},
+	"sandpaddock":    {"facilitysandpaddock", "kumpadok"},
+	"stallionpaddock": {"facilitystallionpaddock", "aygirpadogu"},
+	"farrier":        {"facilityfarrier", "nalbant"},
+	"trainingtrack":  {"facilitytrainingtrack", "idmanpisti"},
 }
 
 func findPropertyDef(byCode, byNormCode map[string]domaincatalog.Property, code string) (domaincatalog.Property, bool) {
@@ -392,7 +405,11 @@ func normalizePropertyValue(def domaincatalog.Property, value json.RawMessage) (
 			return nil, nil
 		}
 		if (s == "true" || s == "1" || strings.EqualFold(s, "evet") || strings.EqualFold(s, "var")) && !optionAllowed(def.Options, s) {
-			return nil, nil
+			if firstOpt := getFirstOption(def.Options); firstOpt != "" {
+				s = firstOpt
+			} else {
+				return nil, nil
+			}
 		}
 		if !optionAllowed(def.Options, s) {
 			return nil, &apperr.FieldError{Field: field, Message: "Geçersiz seçenek."}
@@ -405,6 +422,32 @@ func normalizePropertyValue(def domaincatalog.Property, value json.RawMessage) (
 	}
 
 	return nil, &apperr.FieldError{Field: field, Message: "Desteklenmeyen özellik tipi."}
+}
+
+func getFirstOption(options json.RawMessage) string {
+	if len(bytes.TrimSpace(options)) == 0 {
+		return ""
+	}
+	var entries []json.RawMessage
+	if err := json.Unmarshal(options, &entries); err != nil || len(entries) == 0 {
+		return ""
+	}
+	for _, entry := range entries {
+		if s, ok := decodeString(entry); ok && strings.TrimSpace(s) != "" {
+			return strings.TrimSpace(s)
+		}
+		var obj map[string]json.RawMessage
+		if err := json.Unmarshal(entry, &obj); err == nil {
+			for _, key := range []string{"value", "label", "title", "code", "name"} {
+				if raw, ok := obj[key]; ok {
+					if s, ok := decodeString(raw); ok && strings.TrimSpace(s) != "" {
+						return strings.TrimSpace(s)
+					}
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // optionAllowed matches a SINGLE_SELECT value against the option list, which is

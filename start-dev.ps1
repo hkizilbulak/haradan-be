@@ -11,7 +11,7 @@ Get-Content .env | ForEach-Object {
 }
 
 if ($args.Count -eq 0) {
-    go run ./cmd/api
+    .\api.exe
 } else {
     $cmd = $args -join ' '
     cmd.exe /c $cmd

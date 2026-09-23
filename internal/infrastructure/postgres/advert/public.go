@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -475,7 +476,7 @@ ORDER BY ct.depth ASC, cp.sort_order ASC, cp.code ASC, cp.id ASC`
 
 	out := make([]domainadvert.PublicProperty, 0, len(defs))
 	for _, d := range defs {
-		val, ok := values[d.code]
+		val, ok := findValueWithAliases(values, d.code)
 		if !ok || val == nil {
 			continue
 		}
@@ -520,3 +521,182 @@ ORDER BY ct.depth ASC, cp.sort_order ASC, cp.code ASC, cp.id ASC`
 	}
 	return out, nil
 }
+
+func toBool(v any) bool {
+	if b, ok := v.(bool); ok {
+		return b
+	}
+	if s, ok := v.(string); ok {
+		lower := strings.ToLower(strings.TrimSpace(s))
+		return lower == "true" || lower == "evet" || lower == "1"
+	}
+	return false
+}
+
+func findValueWithAliases(values map[string]any, code string) (any, bool) {
+	if val, ok := values[code]; ok && val != nil {
+		return val, true
+	}
+	for k, v := range values {
+		if v == nil {
+			continue
+		}
+		if strings.EqualFold(k, code) {
+			return v, true
+		}
+	}
+	switch code {
+	case "IS_FOR_RENT":
+		for _, alias := range []string{"isForRent", "kiralikMi", "kiralik", "is_for_rent"} {
+			if v, ok := values[alias]; ok && v != nil {
+				return toBool(v), true
+			}
+		}
+	case "IN_TRAINING":
+		for _, alias := range []string{"inTraining", "idmandaMi", "idmanda", "in_training"} {
+			if v, ok := values[alias]; ok && v != nil {
+				return toBool(v), true
+			}
+		}
+	case "IS_RACE_READY":
+		for _, alias := range []string{"isRaceReady", "kosarDurumdaMi", "kosar", "is_race_ready"} {
+			if v, ok := values[alias]; ok && v != nil {
+				return toBool(v), true
+			}
+		}
+	case "HORSE_BREED":
+		for _, alias := range []string{"breed", "atIrki", "STALLION_BREED", "studBreed", "horseBreed"} {
+			if v, ok := values[alias]; ok && v != nil && v != "" {
+				return v, true
+			}
+		}
+	case "HORSE_AGE":
+		for _, alias := range []string{"age", "yas", "STALLION_AGE", "studAge", "horseAge"} {
+			if v, ok := values[alias]; ok && v != nil && v != "" {
+				return v, true
+			}
+		}
+	case "HORSE_GENDER":
+		for _, alias := range []string{"gender", "cinsiyet", "horseGender"} {
+			if v, ok := values[alias]; ok && v != nil && v != "" {
+				return v, true
+			}
+		}
+	case "COAT_COLOR":
+		for _, alias := range []string{"coatColor", "donu", "don", "studCoatColor", "coat_color"} {
+			if v, ok := values[alias]; ok && v != nil && v != "" {
+				return v, true
+			}
+		}
+	case "REGISTERED_NAME":
+		for _, alias := range []string{"atAdi", "horseName", "studHorseName", "registered_name"} {
+			if v, ok := values[alias]; ok && v != nil && v != "" {
+				return v, true
+			}
+		}
+	case "SIRE":
+		for _, alias := range []string{"baba", "sire", "studSire"} {
+			if v, ok := values[alias]; ok && v != nil && v != "" {
+				return v, true
+			}
+		}
+	case "DAM":
+		for _, alias := range []string{"anne", "dam", "studDam"} {
+			if v, ok := values[alias]; ok && v != nil && v != "" {
+				return v, true
+			}
+		}
+	case "DAMSIRE":
+		for _, alias := range []string{"anneBabasi", "damsire", "studDamsire", "kisrakBabasi"} {
+			if v, ok := values[alias]; ok && v != nil && v != "" {
+				return v, true
+			}
+		}
+	case "TJK_NUMBER":
+		for _, alias := range []string{"tjkNumber", "tjkNo", "tjk_number"} {
+			if v, ok := values[alias]; ok && v != nil && v != "" {
+				return v, true
+			}
+		}
+	case "HEIGHT_CM":
+		for _, alias := range []string{"heightCm", "cidago", "height_cm"} {
+			if v, ok := values[alias]; ok && v != nil && v != "" {
+				return v, true
+			}
+		}
+	case "IS_PREGNANT":
+		for _, alias := range []string{"isPregnant", "gebeMi", "gebe", "is_pregnant"} {
+			if v, ok := values[alias]; ok && v != nil {
+				return toBool(v), true
+			}
+		}
+	case "COVERING_STALLION":
+		for _, alias := range []string{"coveringStallion", "gebeOlduguAygir", "covering_stallion"} {
+			if v, ok := values[alias]; ok && v != nil && v != "" {
+				return v, true
+			}
+		}
+	case "PREGNANCY_STAGE":
+		for _, alias := range []string{"pregnancyStage", "gebelikDurumu", "pregnancy_stage"} {
+			if v, ok := values[alias]; ok && v != nil && v != "" {
+				return v, true
+			}
+		}
+	case "LAST_COVERING_DATE":
+		for _, alias := range []string{"lastCoveringDate", "sonAsimTarihi", "last_covering_date"} {
+			if v, ok := values[alias]; ok && v != nil && v != "" {
+				return v, true
+			}
+		}
+	case "SICAK_UYGULAMA":
+		for _, alias := range []string{"sicakUygulama", "sicak_uygulama", "sicak"} {
+			if v, ok := values[alias]; ok && v != nil {
+				return toBool(v), true
+			}
+		}
+	case "maternity":
+		for _, alias := range []string{"foalingBarn", "dogumhane", "facilityFoalingBarn"} {
+			if v, ok := values[alias]; ok && v != nil {
+				return toBool(v), true
+			}
+		}
+	case "veterinarian":
+		for _, alias := range []string{"vet", "veteriner", "facilityVeterinarian"} {
+			if v, ok := values[alias]; ok && v != nil {
+				return toBool(v), true
+			}
+		}
+	case "farrier":
+		for _, alias := range []string{"nalbant", "facilityFarrier"} {
+			if v, ok := values[alias]; ok && v != nil {
+				return toBool(v), true
+			}
+		}
+	case "grassPaddock":
+		for _, alias := range []string{"cimPadok", "facilityGrassPaddock"} {
+			if v, ok := values[alias]; ok && v != nil {
+				return toBool(v), true
+			}
+		}
+	case "sandPaddock":
+		for _, alias := range []string{"kumPadok", "facilitySandPaddock"} {
+			if v, ok := values[alias]; ok && v != nil {
+				return toBool(v), true
+			}
+		}
+	case "stallionPaddock":
+		for _, alias := range []string{"aygirPadogu", "facilityStallionPaddock"} {
+			if v, ok := values[alias]; ok && v != nil {
+				return toBool(v), true
+			}
+		}
+	case "trainingTrack":
+		for _, alias := range []string{"idmanPisti", "facilityTrainingTrack"} {
+			if v, ok := values[alias]; ok && v != nil {
+				return v, true
+			}
+		}
+	}
+	return nil, false
+}
+

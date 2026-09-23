@@ -563,6 +563,67 @@ func (r MemoryRepository) HardDelete(_ context.Context, advertID int64) error {
 	return nil
 }
 
+// UpdateDetailsAdmin updates core advert content fields in memory.
+func (r MemoryRepository) UpdateDetailsAdmin(
+	_ context.Context,
+	advertID int64,
+	patch domainadvert.DetailsPatch,
+	expectedVersion int,
+	now time.Time,
+) (domainadvert.Advert, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	current, ok := r.store.adverts[advertID]
+	if !ok || current.IsDeleted() {
+		return domainadvert.Advert{}, apperr.NotFound(memoryAdvertNotFound)
+	}
+	if expectedVersion > 0 && current.Version != expectedVersion {
+		return domainadvert.Advert{}, apperr.StaleVersion(staleVersionMessage)
+	}
+	if patch.DistrictIDSet {
+		current.DistrictID = patch.DistrictID
+	}
+	if patch.HorseIDSet {
+		current.HorseID = patch.HorseID
+	}
+	if patch.PropertiesSet {
+		current.Properties = patch.Properties
+	}
+	if patch.TitleSet {
+		current.Title = patch.Title
+	}
+	if patch.DescriptionSet {
+		current.Description = patch.Description
+	}
+	if patch.PriceSet {
+		current.Price = patch.Price
+	}
+	current.Version++
+	current.UpdatedAt = now
+	r.store.adverts[advertID] = current
+	return current, nil
+}
+
+// ReplaceAdvertMediaAdmin replaces all media relations for an advert in memory.
+func (r MemoryRepository) ReplaceAdvertMediaAdmin(
+	_ context.Context,
+	advertID int64,
+	media []domainadvert.MediaRelation,
+	now time.Time,
+) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	a, ok := r.store.adverts[advertID]
+	if !ok || a.IsDeleted() {
+		return apperr.NotFound(memoryAdvertNotFound)
+	}
+	r.store.mediaRelations[advertID] = media
+	a.MediaVersion++
+	a.UpdatedAt = now
+	r.store.adverts[advertID] = a
+	return nil
+}
+
 func (r MemoryRepository) lookupLocked(ownerID uuid.UUID, advertID int64) (domainadvert.Advert, error) {
 	a, ok := r.store.adverts[advertID]
 	if !ok || a.OwnerUserID != ownerID {

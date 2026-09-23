@@ -51,6 +51,15 @@ func (s *Server) DeleteAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
 	s.advert.DeleteAdvert(c, advertId)
 }
 
+// UpdateAdvertAdmin implements PATCH /v1/admin/adverts/{advertId}.
+func (s *Server) UpdateAdvertAdmin(c *gin.Context, advertId generated.AdvertIdPath) {
+	if s.advert == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.advert.UpdateAdvertAdmin(c, advertId)
+}
+
 // GetAdvertModerationDetail implements ADVERT-ADMIN-02.
 func (s *Server) GetAdvertModerationDetail(c *gin.Context, advertId generated.AdvertIdPath) {
 	if s.advert == nil {

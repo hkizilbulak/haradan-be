@@ -120,6 +120,24 @@ type Repository interface {
 
 	// HardDelete permanently deletes the advert and all related records from DB.
 	HardDelete(ctx context.Context, advertID int64) error
+
+	// UpdateDetailsAdmin updates core advert content fields (title, description, price, district, horse, properties)
+	// under an admin context without owner filter.
+	UpdateDetailsAdmin(
+		ctx context.Context,
+		advertID int64,
+		patch domainadvert.DetailsPatch,
+		expectedVersion int,
+		now time.Time,
+	) (domainadvert.Advert, error)
+
+	// ReplaceAdvertMediaAdmin replaces all media relations for an advert under an admin context.
+	ReplaceAdvertMediaAdmin(
+		ctx context.Context,
+		advertID int64,
+		media []domainadvert.MediaRelation,
+		now time.Time,
+	) error
 }
 
 // PublicRepository returns denormalized buyer-facing projections. It is kept
