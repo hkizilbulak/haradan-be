@@ -542,9 +542,9 @@ func (s *Service) ReplaceAdvertDynamicProperties(
 	return updated.ToOwnerView(), nil
 }
 
-// SubmitAdvertForReview implements ADVERT-OWNER-07 (DRAFT or REJECTED -> PENDING_REVIEW).
+// SubmitAdvertForReview implements ADVERT-OWNER-07 (DRAFT, REJECTED or PUBLISHED -> PENDING_REVIEW).
 func (s *Service) SubmitAdvertForReview(ctx context.Context, ownerID uuid.UUID, advertID int64, expectedVersion int) (domainadvert.OwnerView, error) {
-	return s.submitForReview(ctx, ownerID, advertID, expectedVersion, domainadvert.StatusDraft, domainadvert.StatusRejected)
+	return s.submitForReview(ctx, ownerID, advertID, expectedVersion, domainadvert.StatusDraft, domainadvert.StatusRejected, domainadvert.StatusPublished)
 }
 
 // ResubmitAdvertForReview implements ADVERT-OWNER-08 (CHANGES_REQUESTED or REJECTED -> PENDING_REVIEW).

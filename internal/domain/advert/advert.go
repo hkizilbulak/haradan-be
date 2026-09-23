@@ -195,7 +195,7 @@ func OwnerTransitionAllowed(from, to Status) bool {
 	case StatusDraft, StatusChangesRequested, StatusRejected:
 		return to == StatusPendingReview
 	case StatusPublished:
-		return to == StatusSold || to == StatusArchived
+		return to == StatusPendingReview || to == StatusSold || to == StatusArchived
 	case StatusArchived:
 		return to == StatusPublished
 	}
