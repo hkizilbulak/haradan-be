@@ -30,6 +30,11 @@ func (h *Handler) HeadPublicMedia(c *gin.Context, assetID generated.AssetIdPath,
 }
 
 func (h *Handler) deliverPublicMedia(c *gin.Context, assetID uuid.UUID, profile string) {
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+	c.Header("Access-Control-Allow-Headers", "*")
+	c.Header("Cross-Origin-Resource-Policy", "cross-origin")
+
 	if !domainmedia.IsKnownDeliveryProfile(profile) {
 		h.respond(c, h.logger, apperr.NotFound(assetNotFoundPublic))
 		return

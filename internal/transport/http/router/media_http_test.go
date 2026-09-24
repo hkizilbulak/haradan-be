@@ -544,9 +544,22 @@ func TestPublicMediaHEADAndAttachmentHTTP(t *testing.T) {
 		t.Fatalf("Content-Disposition=%q", head.Header().Get("Content-Disposition"))
 	}
 
+	if head.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatalf("HEAD Access-Control-Allow-Origin=%q", head.Header().Get("Access-Control-Allow-Origin"))
+	}
+	if head.Header().Get("Cross-Origin-Resource-Policy") != "cross-origin" {
+		t.Fatalf("HEAD Cross-Origin-Resource-Policy=%q", head.Header().Get("Cross-Origin-Resource-Policy"))
+	}
+
 	get := env.do(http.MethodGet, path, "", "")
 	if get.Code != http.StatusOK || get.Body.String() != "public-bytes" {
 		t.Fatalf("GET status=%d body=%q", get.Code, get.Body.String())
+	}
+	if get.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatalf("GET Access-Control-Allow-Origin=%q", get.Header().Get("Access-Control-Allow-Origin"))
+	}
+	if get.Header().Get("Cross-Origin-Resource-Policy") != "cross-origin" {
+		t.Fatalf("GET Cross-Origin-Resource-Policy=%q", get.Header().Get("Cross-Origin-Resource-Policy"))
 	}
 
 	orphan := env.seedReadyAsset(t, ownerID, domainmedia.ProfileDetail, "orphan")
