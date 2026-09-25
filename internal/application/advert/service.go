@@ -452,7 +452,11 @@ func (s *Service) UpdateAdvertDraftDetails(
 	if err != nil {
 		return domainadvert.OwnerView{}, err
 	}
-	return updated.ToOwnerView(), nil
+	items, pErr := s.projectOwnerViews(ctx, []domainadvert.Advert{updated})
+	if pErr != nil || len(items) == 0 {
+		return updated.ToOwnerView(), nil
+	}
+	return items[0], nil
 }
 
 // ChangeAdvertDraftCategory implements ADVERT-OWNER-05. Only DRAFT adverts may

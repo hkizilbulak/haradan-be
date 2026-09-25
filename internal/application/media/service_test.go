@@ -623,7 +623,7 @@ func TestAttachCrossUserAssetOrAdvertNotFound(t *testing.T) {
 }
 
 func TestMediaMutationsRejectedOutsideEditableStatuses(t *testing.T) {
-	closedStatuses := []string{"PENDING_REVIEW", "PUBLISHED", "SUSPENDED", "SOLD", "ARCHIVED"}
+	closedStatuses := []string{"PENDING_REVIEW", "SUSPENDED", "SOLD", "ARCHIVED"}
 	for _, status := range closedStatuses {
 		t.Run(status, func(t *testing.T) {
 			f := newFixture(t)
@@ -654,6 +654,20 @@ func TestAttachToChangesRequestedAdvertAllowed(t *testing.T) {
 	view, err := f.svc.AttachMediaToAdvert(context.Background(), f.owner, advertID, assetID, nil, 1)
 	if err != nil {
 		t.Fatalf("attach: %v", err)
+	}
+	if view.MediaVersion != 2 || len(view.Items) != 1 {
+		t.Fatalf("view=%+v", view)
+	}
+}
+
+func TestAttachToPublishedAdvertAllowed(t *testing.T) {
+	f := newFixture(t)
+	advertID := f.seedAdvert(f.owner, "PUBLISHED", 1)
+	assetID := f.seedAsset(f.owner, domainmedia.AssetMasterReady)
+
+	view, err := f.svc.AttachMediaToAdvert(context.Background(), f.owner, advertID, assetID, nil, 1)
+	if err != nil {
+		t.Fatalf("attach to published: %v", err)
 	}
 	if view.MediaVersion != 2 || len(view.Items) != 1 {
 		t.Fatalf("view=%+v", view)

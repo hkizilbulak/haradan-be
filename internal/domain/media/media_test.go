@@ -11,9 +11,9 @@ import (
 )
 
 func TestAdvertEditableForMedia(t *testing.T) {
-	editable := []string{"DRAFT", "CHANGES_REQUESTED", "REJECTED"}
+	editable := []string{"DRAFT", "CHANGES_REQUESTED", "REJECTED", "PUBLISHED", "draft", "published"}
 	closed := []string{
-		"PENDING_REVIEW", "PUBLISHED", "SUSPENDED", "SOLD", "ARCHIVED", "", "draft",
+		"PENDING_REVIEW", "SUSPENDED", "SOLD", "ARCHIVED", "",
 	}
 	for _, status := range editable {
 		if !domainmedia.AdvertEditableForMedia(status) {
