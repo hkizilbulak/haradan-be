@@ -823,30 +823,38 @@ func loadTinifyAPIKeys() []string {
 		}
 	}
 
-	// 1. Check indexed keys: TINYPNG_API_KEY_1, TINYPNG_API_KEY_2, etc., and TINIFY_API_KEY_1, TINIFY_API_KEY_2, etc.
-	for i := 1; i <= 10; i++ {
-		key1 := os.Getenv(fmt.Sprintf("TINYPNG_API_KEY_%d", i))
-		key2 := os.Getenv(fmt.Sprintf("TINIFY_API_KEY_%d", i))
-		if key1 != "" {
-			add(key1)
-		} else if key2 != "" {
-			add(key2)
+	// Key 1: Check TINYPNG_API_KEY_1 or TINIFY_API_KEY_1, otherwise fallback to TINIFY_API_KEY or TINYPNG_API_KEY
+	key1 := os.Getenv("TINYPNG_API_KEY_1")
+	if key1 == "" {
+		key1 = os.Getenv("TINIFY_API_KEY_1")
+	}
+	if key1 == "" {
+		key1 = os.Getenv("TINIFY_API_KEY")
+	}
+	if key1 == "" {
+		key1 = os.Getenv("TINYPNG_API_KEY")
+	}
+	if key1 != "" {
+		add(key1)
+	}
+
+	// Subsequent keys: _2, _3, ... up to 10
+	for i := 2; i <= 10; i++ {
+		k := os.Getenv(fmt.Sprintf("TINYPNG_API_KEY_%d", i))
+		if k == "" {
+			k = os.Getenv(fmt.Sprintf("TINIFY_API_KEY_%d", i))
+		}
+		if k != "" {
+			add(k)
 		}
 	}
 
-	// 2. Check comma-separated list: TINYPNG_API_KEYS or TINIFY_API_KEYS
+	// Comma-separated list if defined: TINYPNG_API_KEYS or TINIFY_API_KEYS
 	for _, envName := range []string{"TINYPNG_API_KEYS", "TINIFY_API_KEYS"} {
 		if raw := os.Getenv(envName); raw != "" {
 			for _, part := range strings.Split(raw, ",") {
 				add(part)
 			}
-		}
-	}
-
-	// 3. Check legacy single key: TINYPNG_API_KEY or TINIFY_API_KEY
-	for _, envName := range []string{"TINYPNG_API_KEY", "TINIFY_API_KEY"} {
-		if raw := os.Getenv(envName); raw != "" {
-			add(raw)
 		}
 	}
 

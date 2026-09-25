@@ -872,6 +872,38 @@ func TestLoadEmailProviderResendValidation(t *testing.T) {
 	}
 }
 
+func TestLoadTinifyMultiKeysRailwayFormat(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/haradan?sslmode=disable")
+	t.Setenv("IMAGE_PROCESSOR_PROVIDER", "tinify")
+	t.Setenv("TINIFY_API_KEY", "first-key-from-railway")
+	t.Setenv("TINIFY_API_KEY_2", "second-key-from-railway")
+	t.Setenv("MEDIA_PROFILE_DETAIL_WIDTH", "1600")
+	t.Setenv("MEDIA_PROFILE_DETAIL_HEIGHT", "1200")
+	t.Setenv("MEDIA_PROFILE_HOMEPAGE_WIDTH", "800")
+	t.Setenv("MEDIA_PROFILE_HOMEPAGE_HEIGHT", "600")
+	t.Setenv("MEDIA_PROFILE_SEARCH_WIDTH", "400")
+	t.Setenv("MEDIA_PROFILE_SEARCH_HEIGHT", "300")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() unexpected error: %v", err)
+	}
+
+	if len(cfg.TinifyAPIKeys) != 2 {
+		t.Fatalf("expected 2 keys, got %d: %+v", len(cfg.TinifyAPIKeys), cfg.TinifyAPIKeys)
+	}
+	if cfg.TinifyAPIKeys[0] != "first-key-from-railway" {
+		t.Errorf("expected Key 1 to be 'first-key-from-railway', got %q", cfg.TinifyAPIKeys[0])
+	}
+	if cfg.TinifyAPIKeys[1] != "second-key-from-railway" {
+		t.Errorf("expected Key 2 to be 'second-key-from-railway', got %q", cfg.TinifyAPIKeys[1])
+	}
+	if cfg.TinifyAPIKey != "first-key-from-railway" {
+		t.Errorf("expected TinifyAPIKey to be 'first-key-from-railway', got %q", cfg.TinifyAPIKey)
+	}
+}
+
 func clearConfigEnv(t *testing.T) {
 	t.Helper()
 	keys := []string{
@@ -881,7 +913,7 @@ func clearConfigEnv(t *testing.T) {
 		"AUTH_EMAIL_VERIFICATION_TTL", "AUTH_ARGON2_TIME", "AUTH_ARGON2_MEMORY_KIB", "AUTH_ARGON2_THREADS", "AUTH_ARGON2_KEY_LEN",
 		"MEDIA_ALLOWED_CONTENT_TYPES", "MEDIA_MAX_BYTE_SIZE", "MEDIA_UPLOAD_URL_TTL",
 		"STORAGE_PROVIDER", "S3_ENDPOINT", "S3_REGION", "S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BASE_PATH",
-		"IMAGE_PROCESSOR_PROVIDER", "TINIFY_API_KEY", "TINIFY_BASE_URL", "TINIFY_HTTP_TIMEOUT",
+		"IMAGE_PROCESSOR_PROVIDER", "TINIFY_API_KEY", "TINIFY_API_KEY_1", "TINIFY_API_KEY_2", "TINYPNG_API_KEY", "TINYPNG_API_KEY_1", "TINYPNG_API_KEY_2", "TINIFY_BASE_URL", "TINIFY_HTTP_TIMEOUT",
 		"MEDIA_PROFILE_DETAIL_WIDTH", "MEDIA_PROFILE_DETAIL_HEIGHT",
 		"MEDIA_PROFILE_HOMEPAGE_WIDTH", "MEDIA_PROFILE_HOMEPAGE_HEIGHT",
 		"MEDIA_PROFILE_SEARCH_WIDTH", "MEDIA_PROFILE_SEARCH_HEIGHT",
