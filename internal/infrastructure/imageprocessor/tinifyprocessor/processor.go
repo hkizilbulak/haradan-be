@@ -139,8 +139,9 @@ func (p *Processor) ValidateAndNormalize(
 	}, nil
 }
 
-// GenerateVariant locally fit-resizes the master (advert profiles), then
-// compresses once via Tinify. BANNER is compress-only (no resize).
+// GenerateVariant locally fit-resizes the master (advert profiles).
+// The master is already validated and compressed with TinyPNG in ValidateAndNormalize.
+// BANNER is compress-only and uses the compressed master directly.
 func (p *Processor) GenerateVariant(
 	ctx context.Context,
 	master []byte,
@@ -157,7 +158,17 @@ func (p *Processor) GenerateVariant(
 	}
 
 	if profile == domainmedia.ProfileBanner {
-		return p.compressOnly(ctx, master)
+		src, err := validateRawImage(master, "")
+		if err != nil {
+			return appmedia.ProcessedImage{}, err
+		}
+		return appmedia.ProcessedImage{
+			ContentType:  src.ContentType,
+			Bytes:        master,
+			Width:        src.Width,
+			Height:       src.Height,
+			IsCompressed: true,
+		}, nil
 	}
 
 	bounds, ok := p.profiles[profile]
@@ -179,75 +190,11 @@ func (p *Processor) GenerateVariant(
 		expectedType = "image/png"
 	}
 
-	out, err := p.client.shrink(ctx, resized)
-	if err != nil {
-		if p.fallbackLocal {
-			return appmedia.ProcessedImage{
-				ContentType:  expectedType,
-				Bytes:        resized,
-				Width:        w,
-				Height:       h,
-				IsCompressed: false,
-			}, nil
-		}
-		return appmedia.ProcessedImage{}, sanitizeErr(err)
-	}
-	if out.ContentType != expectedType || out.Width != w || out.Height != h || len(out.Bytes) == 0 {
-		if p.fallbackLocal {
-			return appmedia.ProcessedImage{
-				ContentType:  expectedType,
-				Bytes:        resized,
-				Width:        w,
-				Height:       h,
-				IsCompressed: false,
-			}, nil
-		}
-		return appmedia.ProcessedImage{}, dependencyError()
-	}
 	return appmedia.ProcessedImage{
-		ContentType:  out.ContentType,
-		Bytes:        out.Bytes,
-		Width:        out.Width,
-		Height:       out.Height,
-		IsCompressed: true,
-	}, nil
-}
-
-func (p *Processor) compressOnly(ctx context.Context, master []byte) (appmedia.ProcessedImage, error) {
-	src, err := validateRawImage(master, "")
-	if err != nil {
-		return appmedia.ProcessedImage{}, err
-	}
-	out, err := p.client.shrink(ctx, master)
-	if err != nil {
-		if p.fallbackLocal {
-			return appmedia.ProcessedImage{
-				ContentType:  src.ContentType,
-				Bytes:        master,
-				Width:        src.Width,
-				Height:       src.Height,
-				IsCompressed: false,
-			}, nil
-		}
-		return appmedia.ProcessedImage{}, sanitizeErr(err)
-	}
-	if out.ContentType != src.ContentType || out.Width <= 0 || out.Height <= 0 || len(out.Bytes) == 0 {
-		if p.fallbackLocal {
-			return appmedia.ProcessedImage{
-				ContentType:  src.ContentType,
-				Bytes:        master,
-				Width:        src.Width,
-				Height:       src.Height,
-				IsCompressed: false,
-			}, nil
-		}
-		return appmedia.ProcessedImage{}, dependencyError()
-	}
-	return appmedia.ProcessedImage{
-		ContentType:  out.ContentType,
-		Bytes:        out.Bytes,
-		Width:        out.Width,
-		Height:       out.Height,
+		ContentType:  expectedType,
+		Bytes:        resized,
+		Width:        w,
+		Height:       h,
 		IsCompressed: true,
 	}, nil
 }

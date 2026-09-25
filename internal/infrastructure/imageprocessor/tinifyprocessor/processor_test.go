@@ -341,40 +341,15 @@ func TestValidateAndNormalizeContextCanceled(t *testing.T) {
 	}
 }
 
-func TestGenerateVariantProfilesAndSingleShrink(t *testing.T) {
+func TestGenerateVariantProfilesLocalResize(t *testing.T) {
 	t.Parallel()
 
 	master := mustEncodeJPEG(t, 200, 100)
 	var shrinkCalls atomic.Int32
-	var lastBodyLen atomic.Int32
 
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, pass, ok := r.BasicAuth()
-		if !ok || user != "api" || pass != testAPIKey {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/shrink":
-			shrinkCalls.Add(1)
-			body, _ := io.ReadAll(r.Body)
-			lastBodyLen.Store(int32(len(body)))
-			// Tinify server-side resize endpoint must not be used.
-			if strings.Contains(r.URL.RawQuery, "resize") {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			w.Header().Set("Location", "https://"+r.Host+"/out")
-			w.WriteHeader(http.StatusCreated)
-		case r.Method == http.MethodGet && r.URL.Path == "/out":
-			// DETAIL fit of 200x100 into 100x100 => 100x50
-			w.Header().Set("Content-Type", "image/jpeg")
-			w.Header().Set("Image-Width", "100")
-			w.Header().Set("Image-Height", "50")
-			_, _ = w.Write([]byte("variant-bytes"))
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
+		shrinkCalls.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer srv.Close()
 
@@ -394,17 +369,14 @@ func TestGenerateVariantProfilesAndSingleShrink(t *testing.T) {
 	if out.Width != 100 || out.Height != 50 || out.ContentType != "image/jpeg" {
 		t.Fatalf("out=%+v", out)
 	}
-	if string(out.Bytes) != "variant-bytes" {
-		t.Fatalf("bytes=%q", out.Bytes)
+	if !out.IsCompressed {
+		t.Fatal("expected IsCompressed to be true")
 	}
-	if shrinkCalls.Load() != 1 {
-		t.Fatalf("expected one shrink, got %d", shrinkCalls.Load())
+	if len(out.Bytes) == 0 {
+		t.Fatal("empty variant bytes")
 	}
-	if lastBodyLen.Load() == int32(len(master)) {
-		t.Fatal("expected locally resized body, got original master size")
-	}
-	if lastBodyLen.Load() == 0 {
-		t.Fatal("empty shrink body")
+	if shrinkCalls.Load() != 0 {
+		t.Fatalf("expected 0 shrink calls for variant generation, got %d", shrinkCalls.Load())
 	}
 }
 
@@ -414,16 +386,7 @@ func TestGenerateVariantHomepageAndSearchDims(t *testing.T) {
 	master := mustEncodePNG(t, 160, 120)
 
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
-			w.Header().Set("Location", "https://"+r.Host+"/out")
-			w.WriteHeader(http.StatusCreated)
-			return
-		}
-		// HOMEPAGE 80x60 fit of 160x120 => 80x60
-		w.Header().Set("Content-Type", "image/png")
-		w.Header().Set("Image-Width", "80")
-		w.Header().Set("Image-Height", "60")
-		_, _ = w.Write([]byte("hp"))
+		t.Fatal("network should not be called")
 	}))
 	defer srv.Close()
 	p, err := newWithHTTPClient(testConfig(srv.URL), srv.Client())
@@ -438,24 +401,7 @@ func TestGenerateVariantHomepageAndSearchDims(t *testing.T) {
 		t.Fatalf("homepage out=%+v", out)
 	}
 
-	srv2 := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
-			w.Header().Set("Location", "https://"+r.Host+"/out")
-			w.WriteHeader(http.StatusCreated)
-			return
-		}
-		// SEARCH 40x40 fit of 160x120 => 40x30
-		w.Header().Set("Content-Type", "image/png")
-		w.Header().Set("Image-Width", "40")
-		w.Header().Set("Image-Height", "30")
-		_, _ = w.Write([]byte("search"))
-	}))
-	defer srv2.Close()
-	p2, err := newWithHTTPClient(testConfig(srv2.URL), srv2.Client())
-	if err != nil {
-		t.Fatal(err)
-	}
-	out2, err := p2.GenerateVariant(context.Background(), master, domainmedia.ProfileSearch)
+	out2, err := p.GenerateVariant(context.Background(), master, domainmedia.ProfileSearch)
 	if err != nil {
 		t.Fatal(err)
 	}

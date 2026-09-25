@@ -10,7 +10,7 @@ import (
 	"golang.org/x/image/draw"
 )
 
-const localJPEGQuality = 95
+const localJPEGQuality = 85
 
 type decodedImage struct {
 	Img         image.Image
