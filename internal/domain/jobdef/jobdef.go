@@ -17,12 +17,13 @@ const (
 	JobTypeTJKSync           JobType = "TJK_SYNC"
 	JobTypePackageExpiryScan JobType = "PACKAGE_EXPIRY_SCAN"
 	JobTypeMediaReconcile    JobType = "MEDIA_RECONCILE"
+	JobTypeMediaBatchCompress JobType = "MEDIA_BATCH_COMPRESS"
 )
 
 // Valid reports whether t is a known job definition type.
 func (t JobType) Valid() bool {
 	switch t {
-	case JobTypeTJKSync, JobTypePackageExpiryScan, JobTypeMediaReconcile:
+	case JobTypeTJKSync, JobTypePackageExpiryScan, JobTypeMediaReconcile, JobTypeMediaBatchCompress:
 		return true
 	}
 	return false

@@ -21,6 +21,7 @@ type MediaJobHandler interface {
 	ProcessGenerateVariant(ctx context.Context, assetID uuid.UUID, profile string) error
 	ProcessDeleteObjects(ctx context.Context, payload []byte) error
 	ProcessReconcile(ctx context.Context, payload []byte) error
+	ProcessBatchCompress(ctx context.Context, payload []byte) error
 }
 
 // NotificationJobHandler owns notification runtime job dispatch. It remains
@@ -399,6 +400,8 @@ func (r *Runner) dispatch(ctx context.Context, job domainmedia.BackgroundJob) er
 		return r.cfg.Handler.ProcessDeleteObjects(ctx, []byte(job.Payload))
 	case domainmedia.JobReconcile:
 		return r.cfg.Handler.ProcessReconcile(ctx, []byte(job.Payload))
+	case domainmedia.JobBatchCompress:
+		return r.cfg.Handler.ProcessBatchCompress(ctx, []byte(job.Payload))
 	}
 	parsed, err := parseMediaJob(job.JobType, job.Payload)
 	if err != nil {

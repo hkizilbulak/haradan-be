@@ -17,6 +17,7 @@ type ProfileConfig struct {
 
 // Config holds Tinify adapter settings. Values come from process configuration.
 type Config struct {
+	APIKeys       []string
 	APIKey        string
 	BaseURL       string
 	HTTPTimeout   time.Duration
@@ -24,8 +25,29 @@ type Config struct {
 	Profiles      map[string]ProfileConfig
 }
 
+func (c Config) keys() []string {
+	var keys []string
+	seen := make(map[string]struct{})
+	add := func(k string) {
+		k = strings.TrimSpace(k)
+		if k != "" {
+			if _, ok := seen[k]; !ok {
+				seen[k] = struct{}{}
+				keys = append(keys, k)
+			}
+		}
+	}
+	for _, k := range c.APIKeys {
+		add(k)
+	}
+	if c.APIKey != "" {
+		add(c.APIKey)
+	}
+	return keys
+}
+
 func (c Config) validate() error {
-	if strings.TrimSpace(c.APIKey) == "" {
+	if len(c.keys()) == 0 {
 		return fmt.Errorf("tinify API key must not be empty")
 	}
 	if c.HTTPTimeout <= 0 {

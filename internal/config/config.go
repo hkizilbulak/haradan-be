@@ -67,6 +67,7 @@ type Config struct {
 	// Provider "tinify" requires API key and all profile width/height values.
 	ImageProcessorProvider string
 	TinifyAPIKey           string
+	TinifyAPIKeys          []string
 	TinifyBaseURL          string
 	TinifyHTTPTimeout      time.Duration
 	TinifyFallbackLocal    bool
@@ -325,7 +326,10 @@ func Load() (Config, error) {
 	if cfg.ImageProcessorProvider, err = normalizeImageProcessorProvider(os.Getenv("IMAGE_PROCESSOR_PROVIDER")); err != nil {
 		return Config{}, err
 	}
-	cfg.TinifyAPIKey = strings.TrimSpace(os.Getenv("TINIFY_API_KEY"))
+	cfg.TinifyAPIKeys = loadTinifyAPIKeys()
+	if len(cfg.TinifyAPIKeys) > 0 {
+		cfg.TinifyAPIKey = cfg.TinifyAPIKeys[0]
+	}
 	if cfg.TinifyBaseURL, err = normalizeTinifyBaseURL(
 		getenvDefault("TINIFY_BASE_URL", defaultTinifyBaseURL),
 		cfg.AppEnv,
@@ -767,8 +771,8 @@ func validateImageProcessorConfig(cfg Config) error {
 	case ImageProcessorProviderUnconfigured:
 		return nil
 	case ImageProcessorProviderTinify:
-		if cfg.TinifyAPIKey == "" {
-			return fmt.Errorf("TINIFY_API_KEY must not be empty when IMAGE_PROCESSOR_PROVIDER=tinify")
+		if len(cfg.TinifyAPIKeys) == 0 && cfg.TinifyAPIKey == "" {
+			return fmt.Errorf("TINIFY_API_KEY or TINYPNG_API_KEY_1 must not be empty when IMAGE_PROCESSOR_PROVIDER=tinify")
 		}
 		if cfg.TinifyBaseURL == "" {
 			return fmt.Errorf("TINIFY_BASE_URL must not be empty when IMAGE_PROCESSOR_PROVIDER=tinify")
@@ -804,6 +808,49 @@ func validateImageProcessorConfig(cfg Config) error {
 	default:
 		return fmt.Errorf("IMAGE_PROCESSOR_PROVIDER is not supported")
 	}
+}
+
+func loadTinifyAPIKeys() []string {
+	var keys []string
+	seen := make(map[string]struct{})
+	add := func(k string) {
+		k = strings.TrimSpace(k)
+		if k != "" {
+			if _, ok := seen[k]; !ok {
+				seen[k] = struct{}{}
+				keys = append(keys, k)
+			}
+		}
+	}
+
+	// 1. Check indexed keys: TINYPNG_API_KEY_1, TINYPNG_API_KEY_2, etc., and TINIFY_API_KEY_1, TINIFY_API_KEY_2, etc.
+	for i := 1; i <= 10; i++ {
+		key1 := os.Getenv(fmt.Sprintf("TINYPNG_API_KEY_%d", i))
+		key2 := os.Getenv(fmt.Sprintf("TINIFY_API_KEY_%d", i))
+		if key1 != "" {
+			add(key1)
+		} else if key2 != "" {
+			add(key2)
+		}
+	}
+
+	// 2. Check comma-separated list: TINYPNG_API_KEYS or TINIFY_API_KEYS
+	for _, envName := range []string{"TINYPNG_API_KEYS", "TINIFY_API_KEYS"} {
+		if raw := os.Getenv(envName); raw != "" {
+			for _, part := range strings.Split(raw, ",") {
+				add(part)
+			}
+		}
+	}
+
+	// 3. Check legacy single key: TINYPNG_API_KEY or TINIFY_API_KEY
+	for _, envName := range []string{"TINYPNG_API_KEY", "TINIFY_API_KEY"} {
+		if raw := os.Getenv(envName); raw != "" {
+			add(raw)
+		}
+	}
+
+	return keys
 }
 
 func normalizeEmailProvider(raw string) (string, error) {

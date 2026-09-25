@@ -31,10 +31,10 @@ const (
 
 const assetColumns = `id, owner_user_id, provider, raw_object_key, master_object_key, content_type,
 byte_size, checksum_sha256, width_px, height_px, lifecycle_status, technical_metadata, failure_reason,
-created_at, updated_at`
+is_compressed, created_at, updated_at`
 
 const variantColumns = `id, asset_id, transform_profile, object_key, lifecycle_status, width_px,
-height_px, byte_size, content_type, failure_reason, technical_metadata, created_at, updated_at`
+height_px, byte_size, content_type, failure_reason, technical_metadata, is_compressed, created_at, updated_at`
 
 // Querier is implemented by *pgxpool.Pool and pgx.Tx.
 type Querier interface {
@@ -77,15 +77,15 @@ func (r *Repository) CreateAsset(ctx context.Context, a domainmedia.Asset) error
 INSERT INTO hrd_media_assets (
   id, owner_user_id, provider, raw_object_key, master_object_key, content_type,
   byte_size, checksum_sha256, width_px, height_px, lifecycle_status, technical_metadata,
-  failure_reason, created_at, updated_at
+  failure_reason, is_compressed, created_at, updated_at
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16
 )`
 	_, err := r.db.Exec(ctx, q,
 		a.ID, a.OwnerUserID, providerOrDefault(a.Provider), a.RawObjectKey, a.MasterObjectKey,
 		a.ContentType, a.ByteSize, a.ChecksumSHA256, a.WidthPx, a.HeightPx,
 		string(a.LifecycleStatus), metadataOrEmpty(a.TechnicalMetadata), a.FailureReason,
-		a.CreatedAt, a.UpdatedAt,
+		a.IsCompressed, a.CreatedAt, a.UpdatedAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -175,6 +175,7 @@ func (r *Repository) SetAssetMasterReady(
 	contentType string,
 	byteSize int64,
 	width, height int,
+	isCompressed bool,
 	now time.Time,
 ) (domainmedia.Asset, error) {
 	const q = `
@@ -184,15 +185,16 @@ SET master_object_key = $2,
     byte_size = $4,
     width_px = $5,
     height_px = $6,
+    is_compressed = $7,
     lifecycle_status = 'MASTER_READY',
     failure_reason = NULL,
-    updated_at = $7
+    updated_at = $8
 WHERE id = $1
   AND lifecycle_status IN ('UPLOADED', 'VALIDATING')
 RETURNING ` + assetColumns
 
 	return r.updateAsset(ctx, "set media asset master ready", q,
-		assetID, masterObjectKey, contentType, byteSize, width, height, now)
+		assetID, masterObjectKey, contentType, byteSize, width, height, isCompressed, now)
 }
 
 // SetAssetValidationFailed records a terminal source-side failure. The reason is
@@ -221,14 +223,14 @@ func (r *Repository) UpsertPendingVariant(ctx context.Context, v domainmedia.Var
 	const q = `
 INSERT INTO hrd_media_variants (
   id, asset_id, transform_profile, object_key, lifecycle_status, width_px, height_px,
-  byte_size, content_type, failure_reason, technical_metadata, created_at, updated_at
+  byte_size, content_type, failure_reason, technical_metadata, is_compressed, created_at, updated_at
 ) VALUES (
-  $1,$2,$3,NULL,'PENDING',NULL,NULL,NULL,NULL,NULL,$4::jsonb,$5,$5
+  $1,$2,$3,NULL,'PENDING',NULL,NULL,NULL,NULL,NULL,$4::jsonb,$5,$6,$6
 )
 ON CONFLICT (asset_id, transform_profile) DO NOTHING`
 
 	if _, err := r.db.Exec(ctx, q,
-		v.ID, v.AssetID, v.TransformProfile, metadataOrEmpty(v.TechnicalMetadata), v.CreatedAt,
+		v.ID, v.AssetID, v.TransformProfile, metadataOrEmpty(v.TechnicalMetadata), v.IsCompressed, v.CreatedAt,
 	); err != nil {
 		return domainmedia.Variant{}, apperr.Internal(fmt.Errorf("upsert media variant: %w", pg.SanitizeErr(err)))
 	}
@@ -273,6 +275,7 @@ func (r *Repository) MarkVariantReady(
 	contentType string,
 	byteSize int64,
 	width, height int,
+	isCompressed bool,
 	now time.Time,
 ) (domainmedia.Variant, error) {
 	const q = `
@@ -282,16 +285,17 @@ SET object_key = $3,
     byte_size = $5,
     width_px = $6,
     height_px = $7,
+    is_compressed = $8,
     lifecycle_status = 'READY',
     failure_reason = NULL,
-    updated_at = $8
+    updated_at = $9
 WHERE asset_id = $1
   AND transform_profile = $2
   AND lifecycle_status IN ('PENDING', 'PROCESSING', 'FAILED')
 RETURNING ` + variantColumns
 
 	return r.updateVariant(ctx, "mark media variant ready", q,
-		assetID, profile, objectKey, contentType, byteSize, width, height, now)
+		assetID, profile, objectKey, contentType, byteSize, width, height, isCompressed, now)
 }
 
 // MarkVariantFailed records a per-profile failure without touching the others.
@@ -313,6 +317,106 @@ WHERE asset_id = $1
 RETURNING ` + variantColumns
 
 	return r.updateVariant(ctx, "mark media variant failed", q, assetID, profile, reason, now)
+}
+
+// ListUncompressedAssets returns assets in MASTER_READY status that have is_compressed = false.
+func (r *Repository) ListUncompressedAssets(ctx context.Context, limit int) ([]domainmedia.Asset, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	const q = `SELECT ` + assetColumns + `
+FROM hrd_media_assets
+WHERE lifecycle_status = 'MASTER_READY' AND is_compressed = false
+ORDER BY created_at ASC
+LIMIT $1`
+
+	rows, err := r.db.Query(ctx, q, limit)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list uncompressed assets: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+
+	var out []domainmedia.Asset
+	for rows.Next() {
+		a, err := scanAsset(rows)
+		if err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan uncompressed asset: %w", pg.SanitizeErr(err)))
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("iterate uncompressed assets: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
+}
+
+// ListUncompressedVariants returns variants in READY status that have is_compressed = false.
+func (r *Repository) ListUncompressedVariants(ctx context.Context, limit int) ([]domainmedia.Variant, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	const q = `SELECT ` + variantColumns + `
+FROM hrd_media_variants
+WHERE lifecycle_status = 'READY' AND is_compressed = false
+ORDER BY created_at ASC
+LIMIT $1`
+
+	rows, err := r.db.Query(ctx, q, limit)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list uncompressed variants: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+
+	var out []domainmedia.Variant
+	for rows.Next() {
+		v, err := scanVariant(rows)
+		if err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan uncompressed variant: %w", pg.SanitizeErr(err)))
+		}
+		out = append(out, v)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("iterate uncompressed variants: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
+}
+
+// MarkAssetCompressed updates an asset's byte_size and sets is_compressed to true.
+func (r *Repository) MarkAssetCompressed(ctx context.Context, assetID uuid.UUID, byteSize int64, now time.Time) error {
+	const q = `
+UPDATE hrd_media_assets
+SET is_compressed = true,
+    byte_size = $2,
+    updated_at = $3
+WHERE id = $1`
+
+	tag, err := r.db.Exec(ctx, q, assetID, byteSize, now)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("mark asset compressed: %w", pg.SanitizeErr(err)))
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound(assetNotFoundMessage)
+	}
+	return nil
+}
+
+// MarkVariantCompressed updates a variant's byte_size and sets is_compressed to true.
+func (r *Repository) MarkVariantCompressed(ctx context.Context, variantID uuid.UUID, byteSize int64, now time.Time) error {
+	const q = `
+UPDATE hrd_media_variants
+SET is_compressed = true,
+    byte_size = $2,
+    updated_at = $3
+WHERE id = $1`
+
+	tag, err := r.db.Exec(ctx, q, variantID, byteSize, now)
+	if err != nil {
+		return apperr.Internal(fmt.Errorf("mark variant compressed: %w", pg.SanitizeErr(err)))
+	}
+	if tag.RowsAffected() == 0 {
+		return apperr.NotFound(variantNotFoundMessage)
+	}
+	return nil
 }
 
 // ListAdvertMediaByAdvert returns an advert's relations joined with the lifecycle
@@ -634,7 +738,7 @@ func scanAsset(row rowScanner) (domainmedia.Asset, error) {
 	if err := row.Scan(
 		&a.ID, &a.OwnerUserID, &a.Provider, &a.RawObjectKey, &a.MasterObjectKey, &a.ContentType,
 		&a.ByteSize, &a.ChecksumSHA256, &a.WidthPx, &a.HeightPx, &lifecycle, &metadata,
-		&a.FailureReason, &a.CreatedAt, &a.UpdatedAt,
+		&a.FailureReason, &a.IsCompressed, &a.CreatedAt, &a.UpdatedAt,
 	); err != nil {
 		return domainmedia.Asset{}, err
 	}
@@ -652,7 +756,7 @@ func scanVariant(row rowScanner) (domainmedia.Variant, error) {
 	if err := row.Scan(
 		&v.ID, &v.AssetID, &v.TransformProfile, &v.ObjectKey, &lifecycle, &v.WidthPx,
 		&v.HeightPx, &v.ByteSize, &v.ContentType, &v.FailureReason, &metadata,
-		&v.CreatedAt, &v.UpdatedAt,
+		&v.IsCompressed, &v.CreatedAt, &v.UpdatedAt,
 	); err != nil {
 		return domainmedia.Variant{}, err
 	}

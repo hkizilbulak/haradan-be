@@ -130,7 +130,7 @@ func TestRepositoryAssetLifecycleIntegration(t *testing.T) {
 	}
 
 	masterKey := domainmedia.MasterObjectKey(asset.ID)
-	master, err := repo.SetAssetMasterReady(ctx, asset.ID, masterKey, "image/png", 4096, 100, 100, now.Add(4*time.Minute))
+	master, err := repo.SetAssetMasterReady(ctx, asset.ID, masterKey, "image/png", 4096, 100, 100, true, now.Add(4*time.Minute))
 	if err != nil {
 		t.Fatalf("set master ready: %v", err)
 	}
@@ -235,7 +235,7 @@ func TestRepositoryVariantsIntegration(t *testing.T) {
 	ready, err := repo.MarkVariantReady(
 		ctx, asset.ID, domainmedia.ProfileDetail,
 		domainmedia.VariantObjectKey(asset.ID, domainmedia.ProfileDetail),
-		"image/png", 1024, 50, 50, now.Add(time.Minute),
+		"image/png", 1024, 50, 50, true, now.Add(time.Minute),
 	)
 	if err != nil {
 		t.Fatalf("mark variant ready: %v", err)

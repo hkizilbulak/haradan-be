@@ -112,7 +112,7 @@ func (w *Worker) ProcessValidateAndNormalize(ctx context.Context, assetID uuid.U
 	return withTx(ctx, w.repo, func(ctx context.Context, repo Repository) error {
 		if _, err := repo.SetAssetMasterReady(
 			ctx, assetID, masterKey, processed.ContentType,
-			int64(len(processed.Bytes)), processed.Width, processed.Height, now,
+			int64(len(processed.Bytes)), processed.Width, processed.Height, processed.IsCompressed, now,
 		); err != nil {
 			return err
 		}
@@ -210,7 +210,7 @@ func (w *Worker) ProcessGenerateVariant(ctx context.Context, assetID uuid.UUID, 
 	}
 	_, err = w.repo.MarkVariantReady(
 		ctx, assetID, profile, variantKey, processed.ContentType,
-		int64(len(processed.Bytes)), processed.Width, processed.Height, now,
+		int64(len(processed.Bytes)), processed.Width, processed.Height, processed.IsCompressed, now,
 	)
 	return err
 }
@@ -356,6 +356,102 @@ func (w *Worker) ProcessReconcile(ctx context.Context, payload []byte) error {
 		}
 		return err
 	}
+	return nil
+}
+
+// ProcessBatchCompress searches for uncompressed assets and variants (where is_compressed is false)
+// and attempts to compress them using the ImageProcessor (e.g. TinyPNG when quota becomes available).
+func (w *Worker) ProcessBatchCompress(ctx context.Context, payload []byte) error {
+	limit := 50
+	if len(payload) > 0 {
+		var in struct {
+			Limit int `json:"limit"`
+		}
+		if err := json.Unmarshal(payload, &in); err == nil && in.Limit > 0 {
+			limit = in.Limit
+		}
+	}
+
+	now := w.clock.Now().UTC()
+
+	// 1. Process uncompressed assets (canonical masters)
+	assets, err := w.repo.ListUncompressedAssets(ctx, limit)
+	if err != nil {
+		return err
+	}
+
+	for _, asset := range assets {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if asset.MasterObjectKey == nil {
+			continue
+		}
+		data, _, err := w.storage.GetObject(ctx, *asset.MasterObjectKey)
+		if err != nil {
+			continue
+		}
+
+		compressed, err := w.processor.Compress(ctx, data)
+		if err != nil {
+			// Service error / quota reached; stop batch gracefully for later retry
+			return nil
+		}
+		if !compressed.IsCompressed {
+			// Limit reached or uncompressed fallback returned; stop batch
+			return nil
+		}
+
+		if err := w.storage.PutObject(ctx, *asset.MasterObjectKey, compressed.ContentType, compressed.Bytes); err != nil {
+			return err
+		}
+
+		if err := w.repo.MarkAssetCompressed(ctx, asset.ID, int64(len(compressed.Bytes)), now); err != nil {
+			return err
+		}
+	}
+
+	// 2. Process uncompressed variants
+	variants, err := w.repo.ListUncompressedVariants(ctx, limit)
+	if err != nil {
+		return err
+	}
+
+	for _, v := range variants {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if v.ObjectKey == nil {
+			continue
+		}
+		data, _, err := w.storage.GetObject(ctx, *v.ObjectKey)
+		if err != nil {
+			continue
+		}
+
+		compressed, err := w.processor.Compress(ctx, data)
+		if err != nil {
+			return nil
+		}
+		if !compressed.IsCompressed {
+			return nil
+		}
+
+		if err := w.storage.PutObject(ctx, *v.ObjectKey, compressed.ContentType, compressed.Bytes); err != nil {
+			return err
+		}
+
+		if err := w.repo.MarkVariantCompressed(ctx, v.ID, int64(len(compressed.Bytes)), now); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

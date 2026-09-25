@@ -224,6 +224,7 @@ func run() error {
 		// keep UnconfiguredImageProcessor
 	case config.ImageProcessorProviderTinify:
 		proc, err := tinifyprocessor.New(tinifyprocessor.Config{
+			APIKeys:       cfg.TinifyAPIKeys,
 			APIKey:        cfg.TinifyAPIKey,
 			BaseURL:       cfg.TinifyBaseURL,
 			HTTPTimeout:   cfg.TinifyHTTPTimeout,

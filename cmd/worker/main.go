@@ -89,6 +89,7 @@ func run() error {
 			return fmt.Errorf("storage: %w", err)
 		}
 		proc, err = tinifyprocessor.New(tinifyprocessor.Config{
+			APIKeys:       cfg.TinifyAPIKeys,
 			APIKey:        cfg.TinifyAPIKey,
 			BaseURL:       cfg.TinifyBaseURL,
 			HTTPTimeout:   cfg.TinifyHTTPTimeout,
@@ -266,6 +267,7 @@ func supportedJobTypes(mediaEnabled, emailEnabled bool) []domainmedia.JobType {
 			domainmedia.JobGenerateVariant,
 			domainmedia.JobDeleteObjects,
 			domainmedia.JobReconcile,
+			domainmedia.JobBatchCompress,
 		)
 	}
 	if emailEnabled {

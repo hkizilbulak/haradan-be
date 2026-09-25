@@ -42,6 +42,7 @@ func (s stubHandler) ProcessReconcile(ctx context.Context, payload []byte) error
 	}
 	return nil
 }
+func (s stubHandler) ProcessBatchCompress(context.Context, []byte) error { return nil }
 
 func enqueueValidate(t *testing.T, store *appmedia.MemoryStore, assetID uuid.UUID, now time.Time) {
 	t.Helper()

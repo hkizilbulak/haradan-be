@@ -189,6 +189,7 @@ type Asset struct {
 	LifecycleStatus   AssetLifecycle
 	TechnicalMetadata json.RawMessage
 	FailureReason     *string
+	IsCompressed      bool
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
@@ -206,6 +207,7 @@ type Variant struct {
 	ContentType       *string
 	FailureReason     *string
 	TechnicalMetadata json.RawMessage
+	IsCompressed      bool
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
@@ -264,6 +266,7 @@ const (
 	JobGenerateVariant      JobType = "MEDIA_GENERATE_VARIANT"
 	JobDeleteObjects        JobType = "MEDIA_DELETE_OBJECTS"
 	JobReconcile            JobType = "MEDIA_RECONCILE"
+	JobBatchCompress        JobType = "MEDIA_BATCH_COMPRESS"
 
 	JobNotificationFanoutPackageAdvert   JobType = "NOTIFICATION_FANOUT_PACKAGE_ADVERT"
 	JobNotificationFanoutAdvancedAdvert  JobType = "NOTIFICATION_FANOUT_ADVANCED_ADVERT" // historical
@@ -277,7 +280,7 @@ const (
 // Valid reports whether t is a known background job type owned by the media package.
 func (t JobType) Valid() bool {
 	switch t {
-	case JobValidateAndNormalize, JobGenerateVariant, JobDeleteObjects, JobReconcile,
+	case JobValidateAndNormalize, JobGenerateVariant, JobDeleteObjects, JobReconcile, JobBatchCompress,
 		JobNotificationFanoutPackageAdvert, JobNotificationFanoutAdvancedAdvert,
 		JobNotificationFanoutUrgentAdvert, JobNotificationFanoutAdvertPriceDrop,
 		JobEmailSendAdvertNotificationChunk, JobPackageExpiryReminderScan,

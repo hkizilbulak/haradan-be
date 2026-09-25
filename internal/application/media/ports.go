@@ -88,10 +88,11 @@ type Storage interface {
 // ProcessedImage is the output of a processing step: the decoded, normalized
 // bytes plus the dimensions the caller must persist.
 type ProcessedImage struct {
-	ContentType string
-	Bytes       []byte
-	Width       int
-	Height      int
+	ContentType  string
+	Bytes        []byte
+	Width        int
+	Height       int
+	IsCompressed bool
 }
 
 // ImageProcessor abstracts decode, normalization and variant generation. The
@@ -103,6 +104,9 @@ type ImageProcessor interface {
 
 	// GenerateVariant derives one transform profile from the canonical master.
 	GenerateVariant(ctx context.Context, master []byte, profile string) (ProcessedImage, error)
+
+	// Compress directly compresses data (e.g. for batch compression jobs).
+	Compress(ctx context.Context, data []byte) (ProcessedImage, error)
 }
 
 // AdvertRef and RelationRow are aliases of the domain projections. They are
@@ -159,6 +163,7 @@ type Repository interface {
 		contentType string,
 		byteSize int64,
 		width, height int,
+		isCompressed bool,
 		now time.Time,
 	) (domainmedia.Asset, error)
 
@@ -180,8 +185,14 @@ type Repository interface {
 		contentType string,
 		byteSize int64,
 		width, height int,
+		isCompressed bool,
 		now time.Time,
 	) (domainmedia.Variant, error)
+
+	ListUncompressedAssets(ctx context.Context, limit int) ([]domainmedia.Asset, error)
+	ListUncompressedVariants(ctx context.Context, limit int) ([]domainmedia.Variant, error)
+	MarkAssetCompressed(ctx context.Context, assetID uuid.UUID, byteSize int64, now time.Time) error
+	MarkVariantCompressed(ctx context.Context, variantID uuid.UUID, byteSize int64, now time.Time) error
 
 	MarkVariantFailed(
 		ctx context.Context,
@@ -303,6 +314,13 @@ func (UnconfiguredImageProcessor) ValidateAndNormalize(
 // GenerateVariant reports the processing dependency as unavailable.
 func (UnconfiguredImageProcessor) GenerateVariant(
 	context.Context, []byte, string,
+) (ProcessedImage, error) {
+	return ProcessedImage{}, apperr.DependencyUnavailable(processorNotConfiguredMessage)
+}
+
+// Compress reports the processing dependency as unavailable.
+func (UnconfiguredImageProcessor) Compress(
+	context.Context, []byte,
 ) (ProcessedImage, error) {
 	return ProcessedImage{}, apperr.DependencyUnavailable(processorNotConfiguredMessage)
 }

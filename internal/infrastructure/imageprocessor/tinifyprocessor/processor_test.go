@@ -1,6 +1,7 @@
 package tinifyprocessor
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -467,3 +468,96 @@ func TestCompileTimeImageProcessor(t *testing.T) {
 	t.Parallel()
 	var _ appmedia.ImageProcessor = (*Processor)(nil)
 }
+
+func TestMultiKeyFailoverOn429(t *testing.T) {
+	t.Parallel()
+
+	var key1Called, key2Called atomic.Bool
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, _ := r.BasicAuth()
+		if user != "api" {
+			t.Errorf("expected user api, got %s", user)
+		}
+		if pass == "key-1" {
+			key1Called.Store(true)
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		if pass == "key-2" {
+			key2Called.Store(true)
+			if r.Method == http.MethodPost {
+				w.Header().Set("Location", "https://"+r.Host+"/out")
+				w.WriteHeader(http.StatusCreated)
+				return
+			}
+			w.Header().Set("Content-Type", "image/png")
+			w.Header().Set("Image-Width", "10")
+			w.Header().Set("Image-Height", "10")
+			_, _ = w.Write(mustEncodePNG(t, 10, 10))
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	cfg := Config{
+		APIKeys:       []string{"key-1", "key-2"},
+		BaseURL:       srv.URL,
+		HTTPTimeout:   5 * time.Second,
+		FallbackLocal: false,
+		Profiles:      testProfiles(),
+	}
+	p, err := newWithHTTPClient(cfg, srv.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	raw := mustEncodePNG(t, 10, 10)
+	out, err := p.ValidateAndNormalize(context.Background(), raw, "image/png")
+	if err != nil {
+		t.Fatalf("expected failover to key-2 to succeed, got: %v", err)
+	}
+	if !out.IsCompressed {
+		t.Errorf("expected out.IsCompressed to be true")
+	}
+	if !key1Called.Load() {
+		t.Errorf("expected key-1 to be tried first")
+	}
+	if !key2Called.Load() {
+		t.Errorf("expected key-2 to be tried after key-1 failed")
+	}
+}
+
+func TestMultiKeyBothFailFallbackLocal(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer srv.Close()
+
+	cfg := Config{
+		APIKeys:       []string{"key-1", "key-2"},
+		BaseURL:       srv.URL,
+		HTTPTimeout:   5 * time.Second,
+		FallbackLocal: true,
+		Profiles:      testProfiles(),
+	}
+	p, err := newWithHTTPClient(cfg, srv.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	raw := mustEncodePNG(t, 10, 10)
+	out, err := p.ValidateAndNormalize(context.Background(), raw, "image/png")
+	if err != nil {
+		t.Fatalf("expected fallbackLocal to succeed, got: %v", err)
+	}
+	if out.IsCompressed {
+		t.Errorf("expected out.IsCompressed to be false when both keys fail")
+	}
+	if !bytes.Equal(out.Bytes, raw) {
+		t.Errorf("expected raw bytes on fallback")
+	}
+}
+

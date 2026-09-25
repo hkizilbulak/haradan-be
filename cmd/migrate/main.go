@@ -24,10 +24,10 @@ func main() {
 }
 
 func run() error {
-	if len(os.Args) < 2 {
-		return fmt.Errorf("usage: migrate <up|status|version|down>")
+	command := "up"
+	if len(os.Args) >= 2 {
+		command = os.Args[1]
 	}
-	command := os.Args[1]
 
 	_ = godotenv.Load(".env")
 	_ = godotenv.Load(".env.local")

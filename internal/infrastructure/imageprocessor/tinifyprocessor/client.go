@@ -28,7 +28,7 @@ type httpDoer interface {
 }
 
 type tinifyClient struct {
-	apiKey  string
+	apiKeys []string
 	baseURL *url.URL
 	http    httpDoer
 }
@@ -41,13 +41,31 @@ func (c *tinifyClient) shrink(ctx context.Context, image []byte) (shrinkResult, 
 		return shrinkResult{}, validationImage(invalidImageMessage, "file")
 	}
 
+	var lastErr error
+	for _, apiKey := range c.apiKeys {
+		if ctx.Err() != nil {
+			return shrinkResult{}, ctx.Err()
+		}
+		res, err := c.shrinkWithKey(ctx, apiKey, image)
+		if err == nil {
+			return res, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return shrinkResult{}, lastErr
+	}
+	return shrinkResult{}, dependencyError()
+}
+
+func (c *tinifyClient) shrinkWithKey(ctx context.Context, apiKey string, image []byte) (shrinkResult, error) {
 	shrinkURL := c.baseURL.ResolveReference(&url.URL{Path: "/shrink"})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, shrinkURL.String(), bytes.NewReader(image))
 	if err != nil {
 		return shrinkResult{}, dependencyError()
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
-	req.SetBasicAuth("api", c.apiKey)
+	req.SetBasicAuth("api", apiKey)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -65,10 +83,10 @@ func (c *tinifyClient) shrink(ctx context.Context, image []byte) (shrinkResult, 
 		return shrinkResult{}, err
 	}
 
-	return c.downloadOutput(ctx, loc)
+	return c.downloadOutputWithKey(ctx, apiKey, loc)
 }
 
-func (c *tinifyClient) downloadOutput(ctx context.Context, loc *url.URL) (shrinkResult, error) {
+func (c *tinifyClient) downloadOutputWithKey(ctx context.Context, apiKey string, loc *url.URL) (shrinkResult, error) {
 	if err := ctx.Err(); err != nil {
 		return shrinkResult{}, err
 	}
@@ -77,7 +95,7 @@ func (c *tinifyClient) downloadOutput(ctx context.Context, loc *url.URL) (shrink
 	if err != nil {
 		return shrinkResult{}, dependencyError()
 	}
-	req.SetBasicAuth("api", c.apiKey)
+	req.SetBasicAuth("api", apiKey)
 
 	resp, err := c.http.Do(req)
 	if err != nil {

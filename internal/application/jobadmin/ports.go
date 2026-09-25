@@ -71,7 +71,7 @@ func (c ProviderCapabilities) Allows(jobType domainjobdef.JobType) bool {
 	switch jobType {
 	case domainjobdef.JobTypeTJKSync:
 		return c.TJKEnabled
-	case domainjobdef.JobTypeMediaReconcile:
+	case domainjobdef.JobTypeMediaReconcile, domainjobdef.JobTypeMediaBatchCompress:
 		return c.B2Enabled && c.TinifyEnabled
 	case domainjobdef.JobTypePackageExpiryScan:
 		return true

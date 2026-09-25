@@ -321,6 +321,7 @@ func (r MemoryRepository) SetAssetMasterReady(
 	contentType string,
 	byteSize int64,
 	width, height int,
+	isCompressed bool,
 	now time.Time,
 ) (domainmedia.Asset, error) {
 	r.store.mu.Lock()
@@ -342,6 +343,7 @@ func (r MemoryRepository) SetAssetMasterReady(
 	a.ByteSize = &size
 	a.WidthPx = &w
 	a.HeightPx = &h
+	a.IsCompressed = isCompressed
 	a.LifecycleStatus = domainmedia.AssetMasterReady
 	a.FailureReason = nil
 	a.UpdatedAt = now
@@ -398,6 +400,7 @@ func (r MemoryRepository) MarkVariantReady(
 	contentType string,
 	byteSize int64,
 	width, height int,
+	isCompressed bool,
 	now time.Time,
 ) (domainmedia.Variant, error) {
 	r.store.mu.Lock()
@@ -416,11 +419,88 @@ func (r MemoryRepository) MarkVariantReady(
 	v.ByteSize = &size
 	v.WidthPx = &w
 	v.HeightPx = &h
+	v.IsCompressed = isCompressed
 	v.LifecycleStatus = domainmedia.VariantReady
 	v.FailureReason = nil
 	v.UpdatedAt = now
 	r.store.putVariantLocked(v)
 	return v, nil
+}
+
+// ListUncompressedAssets returns assets in MASTER_READY status that have is_compressed = false.
+func (r MemoryRepository) ListUncompressedAssets(_ context.Context, limit int) ([]domainmedia.Asset, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	if limit <= 0 {
+		limit = 50
+	}
+	out := make([]domainmedia.Asset, 0)
+	for _, a := range r.store.assets {
+		if a.LifecycleStatus == domainmedia.AssetMasterReady && !a.IsCompressed {
+			out = append(out, a)
+			if len(out) >= limit {
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+// ListUncompressedVariants returns variants in READY status that have is_compressed = false.
+func (r MemoryRepository) ListUncompressedVariants(_ context.Context, limit int) ([]domainmedia.Variant, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	if limit <= 0 {
+		limit = 50
+	}
+	out := make([]domainmedia.Variant, 0)
+	for _, byProf := range r.store.variants {
+		for _, v := range byProf {
+			if v.LifecycleStatus == domainmedia.VariantReady && !v.IsCompressed {
+				out = append(out, v)
+				if len(out) >= limit {
+					break
+				}
+			}
+		}
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+// MarkAssetCompressed updates an asset's byte_size and sets is_compressed to true.
+func (r MemoryRepository) MarkAssetCompressed(_ context.Context, assetID uuid.UUID, byteSize int64, now time.Time) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	a, ok := r.store.assets[assetID]
+	if !ok {
+		return apperr.NotFound(assetNotFoundMessage)
+	}
+	a.IsCompressed = true
+	a.ByteSize = &byteSize
+	a.UpdatedAt = now
+	r.store.assets[assetID] = a
+	return nil
+}
+
+// MarkVariantCompressed updates a variant's byte_size and sets is_compressed to true.
+func (r MemoryRepository) MarkVariantCompressed(_ context.Context, variantID uuid.UUID, byteSize int64, now time.Time) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	for assetID, byProf := range r.store.variants {
+		for prof, v := range byProf {
+			if v.ID == variantID {
+				v.IsCompressed = true
+				v.ByteSize = &byteSize
+				v.UpdatedAt = now
+				r.store.variants[assetID][prof] = v
+				return nil
+			}
+		}
+	}
+	return apperr.NotFound("Görsel varyantı bulunamadı.")
 }
 
 // MarkVariantFailed records a per-profile failure without touching the others.
@@ -1079,6 +1159,23 @@ func (FakeProcessor) GenerateVariant(_ context.Context, master []byte, profile s
 		Bytes:       append(append([]byte(nil), pngMagic...), []byte("fake-variant-"+profile)...),
 		Width:       fakeVariantEdgePx,
 		Height:      fakeVariantEdgePx,
+	}, nil
+}
+
+// Compress accepts recognizable image bytes and returns fake compressed output.
+func (FakeProcessor) Compress(_ context.Context, data []byte) (ProcessedImage, error) {
+	if !looksLikeImage(data) {
+		return ProcessedImage{}, apperr.Validation(invalidRequest, apperr.FieldError{
+			Field:   "file",
+			Message: "Dosya geçerli bir görsel değil.",
+		})
+	}
+	return ProcessedImage{
+		ContentType:  fakeProcessedContentType,
+		Bytes:        append(append([]byte(nil), pngMagic...), []byte("fake-compressed")...),
+		Width:        fakeMasterEdgePx,
+		Height:       fakeMasterEdgePx,
+		IsCompressed: true,
 	}, nil
 }
 

@@ -52,7 +52,7 @@ func New(cfg Config) (*Processor, error) {
 
 	return &Processor{
 		client: &tinifyClient{
-			apiKey:  strings.TrimSpace(cfg.APIKey),
+			apiKeys: cfg.keys(),
 			baseURL: baseURL,
 			http:    httpClient,
 		},
@@ -82,7 +82,7 @@ func newWithHTTPClient(cfg Config, doer httpDoer) (*Processor, error) {
 	}
 	return &Processor{
 		client: &tinifyClient{
-			apiKey:  strings.TrimSpace(cfg.APIKey),
+			apiKeys: cfg.keys(),
 			baseURL: baseURL,
 			http:    doer,
 		},
@@ -109,10 +109,11 @@ func (p *Processor) ValidateAndNormalize(
 	if err != nil {
 		if p.fallbackLocal {
 			return appmedia.ProcessedImage{
-				ContentType: src.ContentType,
-				Bytes:       raw,
-				Width:       src.Width,
-				Height:      src.Height,
+				ContentType:  src.ContentType,
+				Bytes:        raw,
+				Width:        src.Width,
+				Height:       src.Height,
+				IsCompressed: false,
 			}, nil
 		}
 		return appmedia.ProcessedImage{}, sanitizeErr(err)
@@ -120,19 +121,21 @@ func (p *Processor) ValidateAndNormalize(
 	if out.ContentType != src.ContentType || out.Width <= 0 || out.Height <= 0 || len(out.Bytes) == 0 {
 		if p.fallbackLocal {
 			return appmedia.ProcessedImage{
-				ContentType: src.ContentType,
-				Bytes:       raw,
-				Width:       src.Width,
-				Height:      src.Height,
+				ContentType:  src.ContentType,
+				Bytes:        raw,
+				Width:        src.Width,
+				Height:       src.Height,
+				IsCompressed: false,
 			}, nil
 		}
 		return appmedia.ProcessedImage{}, dependencyError()
 	}
 	return appmedia.ProcessedImage{
-		ContentType: out.ContentType,
-		Bytes:       out.Bytes,
-		Width:       out.Width,
-		Height:      out.Height,
+		ContentType:  out.ContentType,
+		Bytes:        out.Bytes,
+		Width:        out.Width,
+		Height:       out.Height,
+		IsCompressed: true,
 	}, nil
 }
 
@@ -180,10 +183,11 @@ func (p *Processor) GenerateVariant(
 	if err != nil {
 		if p.fallbackLocal {
 			return appmedia.ProcessedImage{
-				ContentType: expectedType,
-				Bytes:       resized,
-				Width:       w,
-				Height:      h,
+				ContentType:  expectedType,
+				Bytes:        resized,
+				Width:        w,
+				Height:       h,
+				IsCompressed: false,
 			}, nil
 		}
 		return appmedia.ProcessedImage{}, sanitizeErr(err)
@@ -191,19 +195,21 @@ func (p *Processor) GenerateVariant(
 	if out.ContentType != expectedType || out.Width != w || out.Height != h || len(out.Bytes) == 0 {
 		if p.fallbackLocal {
 			return appmedia.ProcessedImage{
-				ContentType: expectedType,
-				Bytes:       resized,
-				Width:       w,
-				Height:      h,
+				ContentType:  expectedType,
+				Bytes:        resized,
+				Width:        w,
+				Height:       h,
+				IsCompressed: false,
 			}, nil
 		}
 		return appmedia.ProcessedImage{}, dependencyError()
 	}
 	return appmedia.ProcessedImage{
-		ContentType: out.ContentType,
-		Bytes:       out.Bytes,
-		Width:       out.Width,
-		Height:      out.Height,
+		ContentType:  out.ContentType,
+		Bytes:        out.Bytes,
+		Width:        out.Width,
+		Height:       out.Height,
+		IsCompressed: true,
 	}, nil
 }
 
@@ -216,10 +222,11 @@ func (p *Processor) compressOnly(ctx context.Context, master []byte) (appmedia.P
 	if err != nil {
 		if p.fallbackLocal {
 			return appmedia.ProcessedImage{
-				ContentType: src.ContentType,
-				Bytes:       master,
-				Width:       src.Width,
-				Height:      src.Height,
+				ContentType:  src.ContentType,
+				Bytes:        master,
+				Width:        src.Width,
+				Height:       src.Height,
+				IsCompressed: false,
 			}, nil
 		}
 		return appmedia.ProcessedImage{}, sanitizeErr(err)
@@ -227,19 +234,46 @@ func (p *Processor) compressOnly(ctx context.Context, master []byte) (appmedia.P
 	if out.ContentType != src.ContentType || out.Width <= 0 || out.Height <= 0 || len(out.Bytes) == 0 {
 		if p.fallbackLocal {
 			return appmedia.ProcessedImage{
-				ContentType: src.ContentType,
-				Bytes:       master,
-				Width:       src.Width,
-				Height:      src.Height,
+				ContentType:  src.ContentType,
+				Bytes:        master,
+				Width:        src.Width,
+				Height:       src.Height,
+				IsCompressed: false,
 			}, nil
 		}
 		return appmedia.ProcessedImage{}, dependencyError()
 	}
 	return appmedia.ProcessedImage{
-		ContentType: out.ContentType,
-		Bytes:       out.Bytes,
-		Width:       out.Width,
-		Height:      out.Height,
+		ContentType:  out.ContentType,
+		Bytes:        out.Bytes,
+		Width:        out.Width,
+		Height:       out.Height,
+		IsCompressed: true,
+	}, nil
+}
+
+// Compress directly compresses data via Tinify shrink (for batch compression jobs).
+func (p *Processor) Compress(ctx context.Context, data []byte) (appmedia.ProcessedImage, error) {
+	if err := ctx.Err(); err != nil {
+		return appmedia.ProcessedImage{}, err
+	}
+	src, err := validateRawImage(data, "")
+	if err != nil {
+		return appmedia.ProcessedImage{}, err
+	}
+	out, err := p.client.shrink(ctx, data)
+	if err != nil {
+		return appmedia.ProcessedImage{}, sanitizeErr(err)
+	}
+	if out.ContentType != src.ContentType || out.Width <= 0 || out.Height <= 0 || len(out.Bytes) == 0 {
+		return appmedia.ProcessedImage{}, dependencyError()
+	}
+	return appmedia.ProcessedImage{
+		ContentType:  out.ContentType,
+		Bytes:        out.Bytes,
+		Width:        out.Width,
+		Height:       out.Height,
+		IsCompressed: true,
 	}, nil
 }
 
