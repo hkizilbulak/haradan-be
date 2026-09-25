@@ -69,6 +69,7 @@ type Config struct {
 	TinifyAPIKey           string
 	TinifyBaseURL          string
 	TinifyHTTPTimeout      time.Duration
+	TinifyFallbackLocal    bool
 	MediaProfileDetailW    int
 	MediaProfileDetailH    int
 	MediaProfileHomepageW  int
@@ -333,6 +334,12 @@ func Load() (Config, error) {
 	}
 	if cfg.TinifyHTTPTimeout, err = durationEnv("TINIFY_HTTP_TIMEOUT", 30*time.Second); err != nil {
 		return Config{}, err
+	}
+	cfg.TinifyFallbackLocal = true
+	if rawFallback := os.Getenv("TINIFY_FALLBACK_LOCAL"); rawFallback != "" {
+		if cfg.TinifyFallbackLocal, err = strconv.ParseBool(strings.TrimSpace(rawFallback)); err != nil {
+			return Config{}, fmt.Errorf("TINIFY_FALLBACK_LOCAL must be a boolean: %w", err)
+		}
 	}
 	if cfg.MediaProfileDetailW, err = optionalPositiveIntEnv("MEDIA_PROFILE_DETAIL_WIDTH"); err != nil {
 		return Config{}, err

@@ -75,6 +75,7 @@ func main() {
 func run() error {
 	_ = godotenv.Load(".env")
 	_ = godotenv.Load(".env.local")
+	_ = godotenv.Load("haradan-be/.env")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -223,9 +224,10 @@ func run() error {
 		// keep UnconfiguredImageProcessor
 	case config.ImageProcessorProviderTinify:
 		proc, err := tinifyprocessor.New(tinifyprocessor.Config{
-			APIKey:      cfg.TinifyAPIKey,
-			BaseURL:     cfg.TinifyBaseURL,
-			HTTPTimeout: cfg.TinifyHTTPTimeout,
+			APIKey:        cfg.TinifyAPIKey,
+			BaseURL:       cfg.TinifyBaseURL,
+			HTTPTimeout:   cfg.TinifyHTTPTimeout,
+			FallbackLocal: cfg.TinifyFallbackLocal,
 			Profiles: map[string]tinifyprocessor.ProfileConfig{
 				domainmedia.ProfileDetail:   {Width: cfg.MediaProfileDetailW, Height: cfg.MediaProfileDetailH},
 				domainmedia.ProfileHomepage: {Width: cfg.MediaProfileHomepageW, Height: cfg.MediaProfileHomepageH},

@@ -20,8 +20,9 @@ import (
 
 // Processor implements appmedia.ImageProcessor using Tinify shrink plus local fit resize.
 type Processor struct {
-	client   *tinifyClient
-	profiles map[string]ProfileConfig
+	client        *tinifyClient
+	profiles      map[string]ProfileConfig
+	fallbackLocal bool
 }
 
 var _ appmedia.ImageProcessor = (*Processor)(nil)
@@ -55,7 +56,8 @@ func New(cfg Config) (*Processor, error) {
 			baseURL: baseURL,
 			http:    httpClient,
 		},
-		profiles: profiles,
+		profiles:      profiles,
+		fallbackLocal: cfg.FallbackLocal,
 	}, nil
 }
 
@@ -84,7 +86,8 @@ func newWithHTTPClient(cfg Config, doer httpDoer) (*Processor, error) {
 			baseURL: baseURL,
 			http:    doer,
 		},
-		profiles: profiles,
+		profiles:      profiles,
+		fallbackLocal: cfg.FallbackLocal,
 	}, nil
 }
 
@@ -104,12 +107,25 @@ func (p *Processor) ValidateAndNormalize(
 
 	out, err := p.client.shrink(ctx, raw)
 	if err != nil {
+		if p.fallbackLocal {
+			return appmedia.ProcessedImage{
+				ContentType: src.ContentType,
+				Bytes:       raw,
+				Width:       src.Width,
+				Height:      src.Height,
+			}, nil
+		}
 		return appmedia.ProcessedImage{}, sanitizeErr(err)
 	}
-	if out.ContentType != src.ContentType {
-		return appmedia.ProcessedImage{}, dependencyError()
-	}
-	if out.Width <= 0 || out.Height <= 0 || len(out.Bytes) == 0 {
+	if out.ContentType != src.ContentType || out.Width <= 0 || out.Height <= 0 || len(out.Bytes) == 0 {
+		if p.fallbackLocal {
+			return appmedia.ProcessedImage{
+				ContentType: src.ContentType,
+				Bytes:       raw,
+				Width:       src.Width,
+				Height:      src.Height,
+			}, nil
+		}
 		return appmedia.ProcessedImage{}, dependencyError()
 	}
 	return appmedia.ProcessedImage{
@@ -162,15 +178,25 @@ func (p *Processor) GenerateVariant(
 
 	out, err := p.client.shrink(ctx, resized)
 	if err != nil {
+		if p.fallbackLocal {
+			return appmedia.ProcessedImage{
+				ContentType: expectedType,
+				Bytes:       resized,
+				Width:       w,
+				Height:      h,
+			}, nil
+		}
 		return appmedia.ProcessedImage{}, sanitizeErr(err)
 	}
-	if out.ContentType != expectedType {
-		return appmedia.ProcessedImage{}, dependencyError()
-	}
-	if out.Width != w || out.Height != h {
-		return appmedia.ProcessedImage{}, dependencyError()
-	}
-	if len(out.Bytes) == 0 {
+	if out.ContentType != expectedType || out.Width != w || out.Height != h || len(out.Bytes) == 0 {
+		if p.fallbackLocal {
+			return appmedia.ProcessedImage{
+				ContentType: expectedType,
+				Bytes:       resized,
+				Width:       w,
+				Height:      h,
+			}, nil
+		}
 		return appmedia.ProcessedImage{}, dependencyError()
 	}
 	return appmedia.ProcessedImage{
@@ -188,12 +214,25 @@ func (p *Processor) compressOnly(ctx context.Context, master []byte) (appmedia.P
 	}
 	out, err := p.client.shrink(ctx, master)
 	if err != nil {
+		if p.fallbackLocal {
+			return appmedia.ProcessedImage{
+				ContentType: src.ContentType,
+				Bytes:       master,
+				Width:       src.Width,
+				Height:      src.Height,
+			}, nil
+		}
 		return appmedia.ProcessedImage{}, sanitizeErr(err)
 	}
-	if out.ContentType != src.ContentType {
-		return appmedia.ProcessedImage{}, dependencyError()
-	}
-	if out.Width <= 0 || out.Height <= 0 || len(out.Bytes) == 0 {
+	if out.ContentType != src.ContentType || out.Width <= 0 || out.Height <= 0 || len(out.Bytes) == 0 {
+		if p.fallbackLocal {
+			return appmedia.ProcessedImage{
+				ContentType: src.ContentType,
+				Bytes:       master,
+				Width:       src.Width,
+				Height:      src.Height,
+			}, nil
+		}
 		return appmedia.ProcessedImage{}, dependencyError()
 	}
 	return appmedia.ProcessedImage{

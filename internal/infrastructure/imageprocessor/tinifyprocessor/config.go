@@ -17,10 +17,11 @@ type ProfileConfig struct {
 
 // Config holds Tinify adapter settings. Values come from process configuration.
 type Config struct {
-	APIKey      string
-	BaseURL     string
-	HTTPTimeout time.Duration
-	Profiles    map[string]ProfileConfig
+	APIKey        string
+	BaseURL       string
+	HTTPTimeout   time.Duration
+	FallbackLocal bool
+	Profiles      map[string]ProfileConfig
 }
 
 func (c Config) validate() error {
