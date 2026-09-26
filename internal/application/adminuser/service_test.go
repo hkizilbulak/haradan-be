@@ -257,7 +257,6 @@ func (r *fakeRepo) DeleteUser(_ context.Context, userID uuid.UUID, _ uuid.UUID) 
 	return apperr.NotFound("user not found")
 }
 
-
 func TestListUsersPaginatesWithOpaqueCursor(t *testing.T) {
 	now := time.Now().UTC()
 	repo := &fakeRepo{users: []domainuser.User{

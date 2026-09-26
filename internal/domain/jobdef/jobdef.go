@@ -14,9 +14,9 @@ import (
 type JobType string
 
 const (
-	JobTypeTJKSync           JobType = "TJK_SYNC"
-	JobTypePackageExpiryScan JobType = "PACKAGE_EXPIRY_SCAN"
-	JobTypeMediaReconcile    JobType = "MEDIA_RECONCILE"
+	JobTypeTJKSync            JobType = "TJK_SYNC"
+	JobTypePackageExpiryScan  JobType = "PACKAGE_EXPIRY_SCAN"
+	JobTypeMediaReconcile     JobType = "MEDIA_RECONCILE"
 	JobTypeMediaBatchCompress JobType = "MEDIA_BATCH_COMPRESS"
 )
 

@@ -234,7 +234,7 @@ func (m memoryRuntimeRepo) DeleteNotification(_ context.Context, userID, notific
 func (m memoryRuntimeRepo) DeleteAllNotifications(_ context.Context, userID uuid.UUID) error {
 	m.store.mu.Lock()
 	defer m.store.mu.Unlock()
-	
+
 	prefix := userID.String() + ":"
 	for k := range m.store.states {
 		if len(k) > len(prefix) && k[:len(prefix)] == prefix {

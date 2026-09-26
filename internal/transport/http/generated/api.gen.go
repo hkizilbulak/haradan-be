@@ -809,6 +809,22 @@ type ActiveBannerListResponse struct {
 	Items []ActiveBannerItem `json:"items"`
 }
 
+// AdminAdvertPaymentListResponse defines model for AdminAdvertPaymentListResponse.
+type AdminAdvertPaymentListResponse struct {
+	Payments []AdminAdvertPaymentResponse `json:"payments"`
+}
+
+// AdminAdvertPaymentResponse defines model for AdminAdvertPaymentResponse.
+type AdminAdvertPaymentResponse struct {
+	AmountMinor   int64              `json:"amountMinor"`
+	CreatedAt     time.Time          `json:"createdAt"`
+	CurrencyCode  string             `json:"currencyCode"`
+	Id            openapi_types.UUID `json:"id"`
+	PackageCode   string             `json:"packageCode"`
+	PaymentMethod string             `json:"paymentMethod"`
+	Status        string             `json:"status"`
+}
+
 // AdminBannerDetailResponse defines model for AdminBannerDetailResponse.
 type AdminBannerDetailResponse struct {
 	AltText              *string             `json:"altText,omitempty"`
@@ -2927,6 +2943,9 @@ type ServerInterface interface {
 	// CancelAdminAdvertPackage CancelAdminAdvertPackage
 	// (POST /v1/admin/adverts/{advertId}/package/cancel)
 	CancelAdminAdvertPackage(c *gin.Context, advertId AdvertIdPath)
+	// ListAdminAdvertPayments ListAdminAdvertPayments
+	// (GET /v1/admin/adverts/{advertId}/payments)
+	ListAdminAdvertPayments(c *gin.Context, advertId AdvertIdPath)
 	// RejectAdvert RejectAdvert
 	// (POST /v1/admin/adverts/{advertId}/reject)
 	RejectAdvert(c *gin.Context, advertId AdvertIdPath)
@@ -3615,6 +3634,31 @@ func (siw *ServerInterfaceWrapper) CancelAdminAdvertPackage(c *gin.Context) {
 	}
 
 	siw.Handler.CancelAdminAdvertPackage(c, advertId)
+}
+
+// ListAdminAdvertPayments operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminAdvertPayments(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "advertId" -------------
+	var advertId AdvertIdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "advertId", c.Param("advertId"), &advertId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter advertId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdminAdvertPayments(c, advertId)
 }
 
 // RejectAdvert operation middleware
@@ -7395,6 +7439,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/v1/admin/adverts/:advertId/package", wrapper.AssignAdminAdvertPackage)
 	router.POST(options.BaseURL+"/v1/admin/adverts/:advertId/package/cancel", wrapper.CancelAdminAdvertPackage)
 	router.GET(options.BaseURL+"/v1/admin/adverts/:advertId/package-history", wrapper.ListAdminAdvertPackageHistory)
+	router.GET(options.BaseURL+"/v1/admin/adverts/:advertId/payments", wrapper.ListAdminAdvertPayments)
 	router.GET(options.BaseURL+"/v1/admin/campaigns", wrapper.ListAdminCampaigns)
 	router.POST(options.BaseURL+"/v1/admin/campaigns", wrapper.CreateAdminCampaign)
 	router.GET(options.BaseURL+"/v1/admin/campaigns/:campaignId", wrapper.GetAdminCampaign)

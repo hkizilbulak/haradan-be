@@ -60,7 +60,7 @@ func (h *Handler) DeleteAdvert(c *gin.Context, advertID generated.AdvertIdPath) 
 }
 
 type AdminUpdateAdvertJSONRequest struct {
-	ExpectedVersion *int `json:"expectedVersion,omitempty"`
+	ExpectedVersion *int    `json:"expectedVersion,omitempty"`
 	Title           *string `json:"title,omitempty"`
 	Description     *string `json:"description,omitempty"`
 	Price           *struct {

@@ -615,4 +615,3 @@ func syncCanonicalProperties(p map[string]interface{}) {
 		p["foalingBarn"] = *b
 	}
 }
-

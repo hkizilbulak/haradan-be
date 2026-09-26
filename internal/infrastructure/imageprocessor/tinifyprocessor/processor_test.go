@@ -506,4 +506,3 @@ func TestMultiKeyBothFailFallbackLocal(t *testing.T) {
 		t.Errorf("expected raw bytes on fallback")
 	}
 }
-

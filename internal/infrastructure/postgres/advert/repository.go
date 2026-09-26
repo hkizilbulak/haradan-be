@@ -713,4 +713,3 @@ INSERT INTO hrd_advert_media (
 
 	return nil
 }
-

@@ -262,10 +262,10 @@ func mapHistoryItem(jobID uuid.UUID, v domainjobdef.JobExecution) generated.JobH
 		execType = generated.JobHistoryItemExecutionType(*v.ExecutionType)
 	}
 	out := generated.JobHistoryItem{
-		Id:            v.ID,
-		JobId:         jobID,
-		Status:        generated.JobRunStatus(v.Status),
-		ExecutionType: execType,
+		Id:             v.ID,
+		JobId:          jobID,
+		Status:         generated.JobRunStatus(v.Status),
+		ExecutionType:  execType,
 		StartedAt:      v.StartedAt,
 		CompletedAt:    v.CompletedAt,
 		LastError:      v.LastError,

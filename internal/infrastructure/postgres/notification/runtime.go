@@ -175,7 +175,6 @@ func (r *Repository) DeleteAllNotifications(ctx context.Context, userID uuid.UUI
 	return nil
 }
 
-
 // MarkAllRead sets read_at for all unread rows of a user.
 func (r *Repository) MarkAllRead(ctx context.Context, userID uuid.UUID, readAt time.Time) (int64, error) {
 	const q = `

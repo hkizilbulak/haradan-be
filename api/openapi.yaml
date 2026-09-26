@@ -6254,6 +6254,50 @@ paths:
         - VALIDATION_ERROR
         '500':
         - INTERNAL_ERROR
+  "/v1/admin/adverts/{advertId}/payments":
+    get:
+      operationId: ListAdminAdvertPayments
+      summary: ListAdminAdvertPayments
+      description: 'Exposure BO_AUTH. Actor: admin+ADMIN_BO. Requires role=admin and session clientContext=ADMIN_BO.'
+      tags:
+      - AdminPackages
+      x-exposure: BO_AUTH
+      x-actor: admin+ADMIN_BO
+
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminAdvertPaymentListResponse"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '500':
+          "$ref": "#/components/responses/InternalError"
+      security:
+      - BearerAuth: []
+      parameters:
+      - "$ref": "#/components/parameters/AdvertIdPath"
+      x-error-codes:
+        '400':
+        - VALIDATION_ERROR
+        '401':
+        - UNAUTHENTICATED
+        - SESSION_REVOKED
+        '403':
+        - FORBIDDEN
+        - ACCOUNT_INACTIVE
+        '404':
+        - NOT_FOUND
+        '500':
+        - INTERNAL_ERROR
   "/v1/admin/campaigns":
     get:
       operationId: ListAdminCampaigns

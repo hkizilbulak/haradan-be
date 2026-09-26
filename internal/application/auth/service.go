@@ -1116,15 +1116,15 @@ const (
 
 // ProfileView is ACCOUNT-01/02 output without secrets.
 type ProfileView struct {
-	ID            uuid.UUID
-	Email         string
-	EmailVerified bool
-	FirstName     string
-	LastName      string
-	Phone         *string
-	Role          domainuser.Role
-	Status        domainuser.Status
-	Channel       domainuser.Channel
+	ID                 uuid.UUID
+	Email              string
+	EmailVerified      bool
+	FirstName          string
+	LastName           string
+	Phone              *string
+	Role               domainuser.Role
+	Status             domainuser.Status
+	Channel            domainuser.Channel
 	HasPendingConsents bool
 }
 
@@ -1151,7 +1151,7 @@ func (s *Service) GetMyProfile(ctx context.Context, userID uuid.UUID) (ProfileVi
 		return ProfileView{}, err
 	}
 	view := mapProfile(user)
-	
+
 	err = s.withTx(ctx, func(ctx context.Context, users UserRepository, _ SessionRepository) error {
 		hasPending, err := users.HasPendingConsents(ctx, userID)
 		if err != nil {
@@ -1204,9 +1204,9 @@ func (s *Service) UpdateConsent(ctx context.Context, userID uuid.UUID, termsAcce
 	if !termsAccepted || !kvkkAccepted {
 		return apperr.Validation("Sözleşme onayları eksik.", apperr.FieldError{Field: "termsAccepted", Message: "Üyelik Sözleşmesi ve KVKK onayı zorunludur."})
 	}
-	
+
 	now := s.clock.Now()
-	
+
 	setting := domainuser.UserSetting{
 		UserID:        userID,
 		AllowEmail:    marketing,
@@ -1272,7 +1272,6 @@ func (s *Service) UpdateConsent(ctx context.Context, userID uuid.UUID, termsAcce
 		return users.UpdateConsents(ctx, setting, logs)
 	})
 }
-
 
 // LogoutAllSessions implements AUTH-07 (idempotent).
 func (s *Service) LogoutAllSessions(ctx context.Context, principal domainauth.Principal) (LogoutResult, error) {
