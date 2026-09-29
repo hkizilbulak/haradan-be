@@ -1195,6 +1195,26 @@ type ChangeUserStatusRequest struct {
 // ClientContext defines model for ClientContext.
 type ClientContext string
 
+// CommunicationTemplate defines model for CommunicationTemplate.
+type CommunicationTemplate struct {
+	Channel   string             `json:"channel"`
+	Content   string             `json:"content"`
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+	IsDefault bool               `json:"is_default"`
+	Subject   *string            `json:"subject,omitempty"`
+	Title     string             `json:"title"`
+	UpdatedAt time.Time          `json:"updated_at"`
+}
+
+// CommunicationTemplateInput defines model for CommunicationTemplateInput.
+type CommunicationTemplateInput struct {
+	Channel string  `json:"channel"`
+	Content string  `json:"content"`
+	Subject *string `json:"subject,omitempty"`
+	Title   string  `json:"title"`
+}
+
 // CreateAdminUserRequest defines model for CreateAdminUserRequest.
 type CreateAdminUserRequest struct {
 	Email     openapi_types.Email `json:"email"`
@@ -2851,6 +2871,12 @@ type ResendRegistrationEmailVerificationJSONRequestBody = EmailRequest
 // VerifyRegistrationEmailJSONRequestBody defines body for VerifyRegistrationEmail for application/json ContentType.
 type VerifyRegistrationEmailJSONRequestBody = TokenRequest
 
+// CreateCommunicationTemplateJSONRequestBody defines body for CreateCommunicationTemplate for application/json ContentType.
+type CreateCommunicationTemplateJSONRequestBody = CommunicationTemplateInput
+
+// UpdateCommunicationTemplateJSONRequestBody defines body for UpdateCommunicationTemplate for application/json ContentType.
+type UpdateCommunicationTemplateJSONRequestBody = CommunicationTemplateInput
+
 // UpdateMyProfileJSONRequestBody defines body for UpdateMyProfile for application/json ContentType.
 type UpdateMyProfileJSONRequestBody = UpdateMyProfileRequest
 
@@ -3204,6 +3230,18 @@ type ServerInterface interface {
 	// GetCategoryFormDefinition GetCategoryFormDefinition
 	// (GET /v1/categories/{categoryId}/form)
 	GetCategoryFormDefinition(c *gin.Context, categoryId CategoryIdPath)
+	// ListCommunicationTemplates List templates
+	// (GET /v1/communication-templates)
+	ListCommunicationTemplates(c *gin.Context)
+	// CreateCommunicationTemplate Create template
+	// (POST /v1/communication-templates)
+	CreateCommunicationTemplate(c *gin.Context)
+	// DeleteCommunicationTemplate Delete template
+	// (DELETE /v1/communication-templates/{id})
+	DeleteCommunicationTemplate(c *gin.Context, id openapi_types.UUID)
+	// UpdateCommunicationTemplate Update template
+	// (PUT /v1/communication-templates/{id})
+	UpdateCommunicationTemplate(c *gin.Context, id openapi_types.UUID)
 	// SearchDistricts SearchDistricts
 	// (GET /v1/districts/search)
 	SearchDistricts(c *gin.Context, params SearchDistrictsParams)
@@ -5820,6 +5858,82 @@ func (siw *ServerInterfaceWrapper) GetCategoryFormDefinition(c *gin.Context) {
 	siw.Handler.GetCategoryFormDefinition(c, categoryId)
 }
 
+// ListCommunicationTemplates operation middleware
+func (siw *ServerInterfaceWrapper) ListCommunicationTemplates(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListCommunicationTemplates(c)
+}
+
+// CreateCommunicationTemplate operation middleware
+func (siw *ServerInterfaceWrapper) CreateCommunicationTemplate(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateCommunicationTemplate(c)
+}
+
+// DeleteCommunicationTemplate operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCommunicationTemplate(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteCommunicationTemplate(c, id)
+}
+
+// UpdateCommunicationTemplate operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCommunicationTemplate(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateCommunicationTemplate(c, id)
+}
+
 // SearchDistricts operation middleware
 func (siw *ServerInterfaceWrapper) SearchDistricts(c *gin.Context) {
 
@@ -7466,4 +7580,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/v1/stud-farms/:studFarmId/notes/:noteId", wrapper.UpdateStudFarmNote)
 	router.GET(options.BaseURL+"/v1/stud-farms", wrapper.ListStudFarms)
 	router.POST(options.BaseURL+"/v1/stud-farms", wrapper.CreateStudFarm)
+	router.GET(options.BaseURL+"/v1/communication-templates", wrapper.ListCommunicationTemplates)
+	router.POST(options.BaseURL+"/v1/communication-templates", wrapper.CreateCommunicationTemplate)
+	router.DELETE(options.BaseURL+"/v1/communication-templates/:id", wrapper.DeleteCommunicationTemplate)
+	router.PUT(options.BaseURL+"/v1/communication-templates/:id", wrapper.UpdateCommunicationTemplate)
 }

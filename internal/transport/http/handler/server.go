@@ -30,6 +30,7 @@ import (
 	apppaytr "github.com/hkizilbulak/haradan-be/internal/application/paytr"
 	apptjk "github.com/hkizilbulak/haradan-be/internal/application/tjk"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
+	domaincommunicationtemplate "github.com/hkizilbulak/haradan-be/internal/domain/communication_template"
 	domainstudfarm "github.com/hkizilbulak/haradan-be/internal/domain/studfarm"
 	"github.com/hkizilbulak/haradan-be/internal/transport/http/generated"
 	accounthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/account"
@@ -42,6 +43,7 @@ import (
 	campaignhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/campaign"
 	cataloghandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/catalog"
 	commenthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/comment"
+	communicationtemplatehandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/communicationtemplate"
 	couponhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/coupon"
 	emailtplhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/emailtpl"
 	favoritehandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/favorite"
@@ -65,31 +67,32 @@ type DependencyChecker interface {
 // Server is the HTTP transport adapter for OpenAPI operations.
 type Server struct {
 	NotImplementedServer
-	logger       *slog.Logger
-	deps         DependencyChecker
-	geo          *geohandler.Handler
-	catalog      *cataloghandler.Handler
-	horse        *horsehandler.Handler
-	advert       *adverthandler.Handler
-	media        *mediahandler.Handler
-	favorite     *favoritehandler.Handler
-	packaging    *packaginghandler.Handler
-	campaign     *campaignhandler.Handler
-	banner       *bannerhandler.Handler
-	notification *notificationtplhandler.Handler
-	emailtpl     *emailtplhandler.Handler
-	jobadmin     *jobadminhandler.Handler
-	inbox        *notificationinboxhandler.Handler
-	auth         *authhandler.Handler
-	account      *accounthandler.Handler
-	adminuser    *adminuserhandler.Handler
-	tjk          *tjkhandler.Handler
-	coupon       *couponhandler.Handler
-	comment      *commenthandler.Handler
-	paytr        *paytrhandler.Handler
-	studfarm     *studfarmhandler.Handler
-	admincomment *admincommenthandler.CommentHandler
-	ai           *aihandler.Handler
+	logger                *slog.Logger
+	deps                  DependencyChecker
+	geo                   *geohandler.Handler
+	catalog               *cataloghandler.Handler
+	horse                 *horsehandler.Handler
+	advert                *adverthandler.Handler
+	media                 *mediahandler.Handler
+	favorite              *favoritehandler.Handler
+	packaging             *packaginghandler.Handler
+	campaign              *campaignhandler.Handler
+	banner                *bannerhandler.Handler
+	notification          *notificationtplhandler.Handler
+	emailtpl              *emailtplhandler.Handler
+	jobadmin              *jobadminhandler.Handler
+	inbox                 *notificationinboxhandler.Handler
+	auth                  *authhandler.Handler
+	account               *accounthandler.Handler
+	adminuser             *adminuserhandler.Handler
+	tjk                   *tjkhandler.Handler
+	coupon                *couponhandler.Handler
+	comment               *commenthandler.Handler
+	paytr                 *paytrhandler.Handler
+	studfarm              *studfarmhandler.Handler
+	admincomment          *admincommenthandler.CommentHandler
+	ai                    *aihandler.Handler
+	communicationTemplate *communicationtemplatehandler.Handler
 }
 
 func (s *Server) WithCommentService(svc *appcomment.Service) *Server {
@@ -102,6 +105,13 @@ func (s *Server) WithCommentService(svc *appcomment.Service) *Server {
 func (s *Server) WithAdminCommentService(svc *appcomment.Service) *Server {
 	if svc != nil {
 		s.admincomment = admincommenthandler.NewCommentHandler(svc, s.logger, respondError)
+	}
+	return s
+}
+
+func (s *Server) WithCommunicationTemplateHandler(repo domaincommunicationtemplate.Repository) *Server {
+	if repo != nil {
+		s.communicationTemplate = communicationtemplatehandler.NewHandler(repo, s.logger, respondError)
 	}
 	return s
 }

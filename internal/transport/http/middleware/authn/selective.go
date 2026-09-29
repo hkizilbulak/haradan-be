@@ -225,6 +225,13 @@ var AdminCommentProtectedRoutes = []ProtectedRoute{
 	{Method: "DELETE", Path: "/api/v1/admin/comments/:id"},
 }
 
+var CommunicationTemplateProtectedRoutes = []ProtectedRoute{
+	{Method: "GET", Path: "/api/v1/communication-templates"},
+	{Method: "POST", Path: "/api/v1/communication-templates"},
+	{Method: "PUT", Path: "/api/v1/communication-templates/:id"},
+	{Method: "DELETE", Path: "/api/v1/communication-templates/:id"},
+}
+
 // Selective runs Bearer access-token auth only for the listed method+path pairs.
 // Unlisted routes (including public Health/Geo/Catalog/Auth and remaining 501 FE_AUTH
 // stubs) are left untouched.

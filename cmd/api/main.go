@@ -44,6 +44,7 @@ import (
 	pgadminuser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/adminuser"
 	pgadvert "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/advert"
 	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
+	pgcommunicationtemplate "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/communication_template"
 	pgcoupon "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/coupon"
 	pggeo "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/geo"
 	pghorse "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/horse"
@@ -391,7 +392,8 @@ func run() error {
 		WithAdminCommentService(commentSvc).
 		WithStudFarmService(studfarmSvc).
 		WithCouponService(couponSvc).
-		WithAIService(aiSvc)
+		WithAIService(aiSvc).
+		WithCommunicationTemplateHandler(pgcommunicationtemplate.NewRepository(db.Pool()))
 	engine := router.New(srvHandler, log, router.Options{
 		AuthService:        authSvc,
 		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
