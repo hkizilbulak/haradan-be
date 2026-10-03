@@ -91,6 +91,19 @@ func normalizeDescription(in *string) *string {
 	return &v
 }
 
+// normalizeVideoURL trims the video URL; blank normalizes to null.
+func normalizeVideoURL(in *string) *string {
+	if in == nil {
+		return nil
+	}
+	v := strings.TrimSpace(*in)
+	if v == "" {
+		return nil
+	}
+	return &v
+}
+
+
 // validateDynamicProperties checks a property map against the category form
 var propertyAliases = map[string][]string{
 	"studhorse":            {"studhorsename", "registeredname", "horsename"},

@@ -243,6 +243,7 @@ type publicDetailJSON struct {
 	generated.PublishedAdvertDetailResponse
 	SellerPhone *string    `json:"sellerPhone,omitempty"`
 	SellerID    *uuid.UUID `json:"sellerId,omitempty"`
+	VideoUrl    *string    `json:"videoUrl,omitempty"`
 }
 
 func mapPublicDetail(v domainadvert.PublicDetail) publicDetailJSON {
@@ -270,6 +271,7 @@ func mapPublicDetail(v domainadvert.PublicDetail) publicDetailJSON {
 		},
 		SellerPhone: v.SellerPhone,
 		SellerID:    v.SellerID,
+		VideoUrl:    v.VideoURL,
 	}
 }
 func mapPublicMedia(v *domainadvert.PublicMedia) *generated.PublicMediaItem {

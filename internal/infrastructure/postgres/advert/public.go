@@ -103,7 +103,7 @@ WHERE a.id = $1 AND a.status = 'PUBLISHED' AND a.deleted_at IS NULL`
 		return domainadvert.PublicDetail{}, apperr.Internal(fmt.Errorf("get published advert: %w", pg.SanitizeErr(err)))
 	}
 	const metadata = `
-SELECT a.description, a.address, c.name, c.slug, d.name, p.name, h.id, h.original_name, h.tjk_number, a.properties, u.phone, a.owner_user_id
+SELECT a.description, a.address, a.video_url, c.name, c.slug, d.name, p.name, h.id, h.original_name, h.tjk_number, a.properties, u.phone, a.owner_user_id
 FROM hrd_adverts a
 LEFT JOIN hrd_categories c ON c.id = a.category_id
 LEFT JOIN hrd_districts d ON d.id = a.district_id
@@ -116,6 +116,7 @@ WHERE a.id = $1`
 	var (
 		desc           *string
 		addr           *string
+		videoURL       *string
 		catName        *string
 		catSlug        *string
 		distName       *string
@@ -127,7 +128,7 @@ WHERE a.id = $1`
 		userPhone      *string
 		ownerUserID    *uuid.UUID
 	)
-	if err := r.db.QueryRow(ctx, metadata, advertID).Scan(&desc, &addr, &catName, &catSlug, &distName, &provName, &horseID, &horseName, &horseTJKNumber, &props, &userPhone, &ownerUserID); err != nil {
+	if err := r.db.QueryRow(ctx, metadata, advertID).Scan(&desc, &addr, &videoURL, &catName, &catSlug, &distName, &provName, &horseID, &horseName, &horseTJKNumber, &props, &userPhone, &ownerUserID); err != nil {
 		return domainadvert.PublicDetail{}, apperr.Internal(fmt.Errorf("get published advert metadata: %w", pg.SanitizeErr(err)))
 	}
 	if desc != nil {
@@ -136,6 +137,7 @@ WHERE a.id = $1`
 	if addr != nil {
 		out.Address = addr
 	}
+	out.VideoURL = videoURL
 	if catName != nil {
 		out.CategoryName = *catName
 	}

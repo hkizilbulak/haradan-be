@@ -98,6 +98,7 @@ type AdminUpdateAdvertInput struct {
 	Price           *MoneyInput
 	DistrictID      *uuid.UUID
 	HorseID         *uuid.UUID
+	VideoURL        *string
 	Properties      map[string]interface{}
 	Media           []AdminMediaInput
 }
@@ -162,6 +163,10 @@ func (s *Service) UpdateAdvertAdmin(
 		if in.HorseID != nil {
 			patch.HorseIDSet = true
 			patch.HorseID = in.HorseID
+		}
+		if in.VideoURL != nil {
+			patch.VideoURLSet = true
+			patch.VideoURL = normalizeVideoURL(in.VideoURL)
 		}
 		if in.Properties != nil {
 			// Merge existing properties with provided properties

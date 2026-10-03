@@ -95,6 +95,7 @@ type CreateDraftInput struct {
 	Title       *string
 	Description *string
 	Address     *string
+	VideoURL    *string
 	Price       *MoneyInput
 }
 
@@ -131,6 +132,9 @@ type UpdateDetailsInput struct {
 
 	AddressSet bool
 	Address    *string
+
+	VideoURLSet bool
+	VideoURL    *string
 
 	PriceSet bool
 	Price    *MoneyInput
@@ -243,6 +247,8 @@ func (s *Service) CreateAdvertDraft(ctx context.Context, ownerID uuid.UUID, in C
 						Description:    normalizeDescription(in.Description),
 						AddressSet:     true,
 						Address:        normalizeDescription(in.Address),
+						VideoURLSet:    true,
+						VideoURL:       normalizeVideoURL(in.VideoURL),
 						PriceSet:       true,
 						Price:          price,
 					}
@@ -264,6 +270,7 @@ func (s *Service) CreateAdvertDraft(ctx context.Context, ownerID uuid.UUID, in C
 		Title:        title,
 		Description:  normalizeDescription(in.Description),
 		Address:      normalizeDescription(in.Address),
+		VideoURL:     normalizeVideoURL(in.VideoURL),
 		Price:        price,
 		Status:       domainadvert.StatusDraft,
 		Properties:   properties,
@@ -846,6 +853,7 @@ func (s *Service) buildDetailsPatch(ctx context.Context, in UpdateDetailsInput) 
 		TitleSet:       in.TitleSet,
 		DescriptionSet: in.DescriptionSet,
 		AddressSet:     in.AddressSet,
+		VideoURLSet:    in.VideoURLSet,
 		PriceSet:       in.PriceSet,
 	}
 	if in.TitleSet {
@@ -860,6 +868,9 @@ func (s *Service) buildDetailsPatch(ctx context.Context, in UpdateDetailsInput) 
 	}
 	if in.AddressSet {
 		patch.Address = normalizeDescription(in.Address)
+	}
+	if in.VideoURLSet {
+		patch.VideoURL = normalizeVideoURL(in.VideoURL)
 	}
 	if in.PriceSet {
 		price, err := validateMoney("price", in.Price)

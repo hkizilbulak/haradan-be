@@ -63,6 +63,7 @@ type AdminUpdateAdvertJSONRequest struct {
 	ExpectedVersion *int    `json:"expectedVersion,omitempty"`
 	Title           *string `json:"title,omitempty"`
 	Description     *string `json:"description,omitempty"`
+	VideoURL        *string `json:"videoUrl,omitempty"`
 	Price           *struct {
 		AmountMinor *int64  `json:"amountMinor,omitempty"`
 		Currency    *string `json:"currency,omitempty"`
@@ -113,6 +114,7 @@ func (h *Handler) UpdateAdvertAdmin(c *gin.Context, advertID generated.AdvertIdP
 		ExpectedVersion: req.ExpectedVersion,
 		Title:           req.Title,
 		Description:     req.Description,
+		VideoURL:        req.VideoURL,
 		Price:           priceInput,
 		DistrictID:      req.DistrictID,
 		HorseID:         req.HorseID,
@@ -227,7 +229,12 @@ func (h *Handler) adminReasonInput(c *gin.Context) (uuid.UUID, appadvert.Moderat
 	}, true
 }
 
-func mapModerationDetail(v domainadvert.ModerationDetailView) generated.ModerationAdvertDetailResponse {
+type moderationAdvertDetailJSON struct {
+	generated.ModerationAdvertDetailResponse
+	VideoUrl *string `json:"videoUrl,omitempty"`
+}
+
+func mapModerationDetail(v domainadvert.ModerationDetailView) moderationAdvertDetailJSON {
 	owner := mapOwnerAdvertBase(v.OwnerView)
 	history := make([]generated.StatusHistoryItem, 0, len(v.StatusHistory))
 	for _, h := range v.StatusHistory {
@@ -247,24 +254,27 @@ func mapModerationDetail(v domainadvert.ModerationDetailView) generated.Moderati
 		}
 		history = append(history, item)
 	}
-	return generated.ModerationAdvertDetailResponse{
-		Id:                     owner.Id,
-		Status:                 owner.Status,
-		Version:                owner.Version,
-		MediaVersion:           owner.MediaVersion,
-		CategoryId:             owner.CategoryId,
-		DistrictId:             owner.DistrictId,
-		HorseId:                owner.HorseId,
-		Title:                  owner.Title,
-		Description:            owner.Description,
-		Price:                  owner.Price,
-		Properties:             owner.Properties,
-		Media:                  owner.Media,
-		PublishedAt:            owner.PublishedAt,
-		DeletedAt:              owner.DeletedAt,
-		CreatedAt:              owner.CreatedAt,
-		CategoryClearedWarning: owner.CategoryClearedWarning,
-		OwnerUserId:            v.OwnerUserID,
-		StatusHistory:          history,
+	return moderationAdvertDetailJSON{
+		ModerationAdvertDetailResponse: generated.ModerationAdvertDetailResponse{
+			Id:                     owner.Id,
+			Status:                 owner.Status,
+			Version:                owner.Version,
+			MediaVersion:           owner.MediaVersion,
+			CategoryId:             owner.CategoryId,
+			DistrictId:             owner.DistrictId,
+			HorseId:                owner.HorseId,
+			Title:                  owner.Title,
+			Description:            owner.Description,
+			Price:                  owner.Price,
+			Properties:             owner.Properties,
+			Media:                  owner.Media,
+			PublishedAt:            owner.PublishedAt,
+			DeletedAt:              owner.DeletedAt,
+			CreatedAt:              owner.CreatedAt,
+			CategoryClearedWarning: owner.CategoryClearedWarning,
+			OwnerUserId:            v.OwnerUserID,
+			StatusHistory:          history,
+		},
+		VideoUrl: v.OwnerView.VideoURL,
 	}
 }

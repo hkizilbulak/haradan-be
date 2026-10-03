@@ -54,6 +54,7 @@ type Advert struct {
 	Title        *string
 	Description  *string
 	Address      *string
+	VideoURL     *string
 	Price        *Money
 	Status       Status
 	Properties   json.RawMessage
@@ -101,6 +102,7 @@ type OwnerView struct {
 	Title                  *string
 	Description            *string
 	Address                *string
+	VideoURL               *string
 	Price                  *Money
 	Properties             json.RawMessage
 	Media                  []MediaRelation
@@ -134,13 +136,16 @@ type DetailsPatch struct {
 	AddressSet bool
 	Address    *string
 
+	VideoURLSet bool
+	VideoURL    *string
+
 	PriceSet bool
 	Price    *Money
 }
 
 // IsEmpty reports whether the patch would change nothing.
 func (p DetailsPatch) IsEmpty() bool {
-	return !p.DistrictIDSet && !p.HorseIDSet && !p.PropertiesSet && !p.TitleSet && !p.DescriptionSet && !p.AddressSet && !p.PriceSet
+	return !p.DistrictIDSet && !p.HorseIDSet && !p.PropertiesSet && !p.TitleSet && !p.DescriptionSet && !p.AddressSet && !p.VideoURLSet && !p.PriceSet
 }
 
 // EmptyProperties returns the canonical empty dynamic property object.
@@ -167,6 +172,7 @@ func (a Advert) ToOwnerView() OwnerView {
 		Title:        a.Title,
 		Description:  a.Description,
 		Address:      a.Address,
+		VideoURL:     a.VideoURL,
 		Price:        a.Price,
 		Properties:   props,
 		Media:        []MediaRelation{},

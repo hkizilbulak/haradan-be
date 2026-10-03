@@ -65,10 +65,16 @@ func (h *Handler) CreateAdvertDraft(c *gin.Context) {
 		Price:       moneyInput(req.Price),
 	}
 	var extra struct {
-		Address *string `json:"address"`
+		Address  *string `json:"address"`
+		VideoURL *string `json:"videoUrl"`
 	}
-	if err := json.Unmarshal(raw, &extra); err == nil && extra.Address != nil {
-		in.Address = extra.Address
+	if err := json.Unmarshal(raw, &extra); err == nil {
+		if extra.Address != nil {
+			in.Address = extra.Address
+		}
+		if extra.VideoURL != nil {
+			in.VideoURL = extra.VideoURL
+		}
 	}
 	out, err := h.svc.CreateAdvertDraft(c.Request.Context(), ownerID, in)
 	if err != nil {
@@ -314,6 +320,7 @@ type ownerAdvertJSON struct {
 	UpdatedAt       time.Time  `json:"updatedAt"`
 	SoldAt          *time.Time `json:"soldAt,omitempty"`
 	RejectionReason *string    `json:"rejectionReason,omitempty"`
+	VideoUrl        *string    `json:"videoUrl,omitempty"`
 }
 
 func mapOwnerAdvertBase(v domainadvert.OwnerView) generated.OwnerAdvertResponse {
@@ -371,6 +378,7 @@ func mapOwnerView(v domainadvert.OwnerView) ownerAdvertJSON {
 		UpdatedAt:           v.UpdatedAt,
 		SoldAt:              v.SoldAt,
 		RejectionReason:     v.RejectionReason,
+		VideoUrl:            v.VideoURL,
 	}
 }
 
@@ -451,6 +459,16 @@ func decodeUpdateDetailsInput(c *gin.Context) (appadvert.UpdateDetailsInput, err
 				return appadvert.UpdateDetailsInput{}, apperr.BadRequest(apperr.CodeValidation, malformedBodyMessage)
 			}
 			in.Address = &s
+		}
+	}
+	if v, ok := raw["videoUrl"]; ok {
+		in.VideoURLSet = true
+		if !isJSONNull(v) {
+			var s string
+			if err := json.Unmarshal(v, &s); err != nil {
+				return appadvert.UpdateDetailsInput{}, apperr.BadRequest(apperr.CodeValidation, malformedBodyMessage)
+			}
+			in.VideoURL = &s
 		}
 	}
 	if v, ok := raw["price"]; ok {

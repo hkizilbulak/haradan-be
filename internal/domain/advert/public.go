@@ -62,6 +62,7 @@ type PublicDetail struct {
 	Media        []PublicMedia
 	SellerPhone  *string
 	SellerID     *uuid.UUID
+	VideoURL     *string
 }
 type PublicCursor struct {
 	Priority    int

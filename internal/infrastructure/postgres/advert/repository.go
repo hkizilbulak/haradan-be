@@ -22,7 +22,7 @@ const (
 	staleVersionMessage   = "İlan başka bir yerden güncellendi; sayfayı yenileyin."
 )
 
-const advertColumns = `id, owner_user_id, category_id, district_id, horse_id, title, description, address,
+const advertColumns = `id, owner_user_id, category_id, district_id, horse_id, title, description, address, video_url,
 price_amount_minor, price_currency, status, properties, published_at, sold_at, version, media_version,
 deleted_at, created_at, updated_at`
 
@@ -65,15 +65,15 @@ func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 func (r *Repository) Create(ctx context.Context, a *domainadvert.Advert) error {
 	const q = `
 INSERT INTO hrd_adverts (
-  owner_user_id, category_id, district_id, horse_id, title, description, address,
+  owner_user_id, category_id, district_id, horse_id, title, description, address, video_url,
   price_amount_minor, price_currency, status, properties, published_at, sold_at, version, media_version,
   deleted_at, created_at, updated_at
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17,$18
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18,$19
 ) RETURNING id`
 	amount, currency := splitMoney(a.Price)
 	err := r.db.QueryRow(ctx, q,
-		a.OwnerUserID, a.CategoryID, a.DistrictID, a.HorseID, a.Title, a.Description, a.Address,
+		a.OwnerUserID, a.CategoryID, a.DistrictID, a.HorseID, a.Title, a.Description, a.Address, a.VideoURL,
 		amount, currency, string(a.Status), propertiesOrEmpty(a.Properties), a.PublishedAt, a.SoldAt,
 		a.Version, a.MediaVersion, a.DeletedAt, a.CreatedAt, a.UpdatedAt,
 	).Scan(&a.ID)
@@ -355,10 +355,11 @@ SET district_id = CASE WHEN $4 THEN $5::uuid ELSE district_id END,
     title = CASE WHEN $10 THEN $11::varchar ELSE title END,
     description = CASE WHEN $12 THEN $13::text ELSE description END,
     address = CASE WHEN $14 THEN $15::text ELSE address END,
-    price_amount_minor = CASE WHEN $16 THEN $17::bigint ELSE price_amount_minor END,
-    price_currency = CASE WHEN $16 THEN $18::varchar ELSE price_currency END,
+    video_url = CASE WHEN $16 THEN $17::text ELSE video_url END,
+    price_amount_minor = CASE WHEN $18 THEN $19::bigint ELSE price_amount_minor END,
+    price_currency = CASE WHEN $18 THEN $20::varchar ELSE price_currency END,
     version = version + 1,
-    updated_at = $19
+    updated_at = $21
 WHERE id = $1
   AND owner_user_id = $2
   AND version = $3
@@ -375,6 +376,7 @@ RETURNING ` + advertColumns
 		patch.TitleSet, patch.Title,
 		patch.DescriptionSet, patch.Description,
 		patch.AddressSet, patch.Address,
+		patch.VideoURLSet, patch.VideoURL,
 		patch.PriceSet, amount, currency,
 		now,
 	)
@@ -576,7 +578,7 @@ func scanAdvert(row rowScanner) (domainadvert.Advert, error) {
 		props    []byte
 	)
 	if err := row.Scan(
-		&a.ID, &a.OwnerUserID, &a.CategoryID, &a.DistrictID, &a.HorseID, &a.Title, &a.Description, &a.Address,
+		&a.ID, &a.OwnerUserID, &a.CategoryID, &a.DistrictID, &a.HorseID, &a.Title, &a.Description, &a.Address, &a.VideoURL,
 		&amount, &currency, &status, &props, &a.PublishedAt, &a.SoldAt, &a.Version, &a.MediaVersion,
 		&a.DeletedAt, &a.CreatedAt, &a.UpdatedAt,
 	); err != nil {
@@ -646,10 +648,11 @@ SET district_id = CASE WHEN $3 THEN $4::uuid ELSE district_id END,
     title = CASE WHEN $9 THEN $10::varchar ELSE title END,
     description = CASE WHEN $11 THEN $12::text ELSE description END,
     address = CASE WHEN $13 THEN $14::text ELSE address END,
-    price_amount_minor = CASE WHEN $15 THEN $16::bigint ELSE price_amount_minor END,
-    price_currency = CASE WHEN $15 THEN $17::varchar ELSE price_currency END,
+    video_url = CASE WHEN $15 THEN $16::text ELSE video_url END,
+    price_amount_minor = CASE WHEN $17 THEN $18::bigint ELSE price_amount_minor END,
+    price_currency = CASE WHEN $17 THEN $19::varchar ELSE price_currency END,
     version = version + 1,
-    updated_at = $18
+    updated_at = $20
 WHERE id = $1
   AND version = $2
   AND deleted_at IS NULL
@@ -664,6 +667,7 @@ RETURNING ` + advertColumns
 		patch.TitleSet, patch.Title,
 		patch.DescriptionSet, patch.Description,
 		patch.AddressSet, patch.Address,
+		patch.VideoURLSet, patch.VideoURL,
 		patch.PriceSet, amount, currency,
 		now,
 	)

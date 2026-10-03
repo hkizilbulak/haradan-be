@@ -383,6 +383,12 @@ func (r MemoryRepository) UpdateDetails(
 	if patch.DescriptionSet {
 		current.Description = patch.Description
 	}
+	if patch.AddressSet {
+		current.Address = patch.Address
+	}
+	if patch.VideoURLSet {
+		current.VideoURL = patch.VideoURL
+	}
 	if patch.PriceSet {
 		current.Price = patch.Price
 	}
@@ -594,6 +600,12 @@ func (r MemoryRepository) UpdateDetailsAdmin(
 	}
 	if patch.DescriptionSet {
 		current.Description = patch.Description
+	}
+	if patch.AddressSet {
+		current.Address = patch.Address
+	}
+	if patch.VideoURLSet {
+		current.VideoURL = patch.VideoURL
 	}
 	if patch.PriceSet {
 		current.Price = patch.Price
