@@ -3,6 +3,7 @@ package studfarm
 import (
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -49,6 +50,17 @@ func (h *Handler) ListStudFarms(c *gin.Context, params generated.ListStudFarmsPa
 		limit = *params.Limit
 	}
 
+	offset := 0
+	if oStr := strings.TrimSpace(c.Query("offset")); oStr != "" {
+		if o, err := strconv.Atoi(oStr); err == nil && o >= 0 {
+			offset = o
+		}
+	} else if pStr := strings.TrimSpace(c.Query("page")); pStr != "" {
+		if p, err := strconv.Atoi(pStr); err == nil && p >= 0 {
+			offset = p * limit
+		}
+	}
+
 	var search *string
 	if s := strings.TrimSpace(c.Query("q")); s != "" {
 		search = &s
@@ -56,7 +68,30 @@ func (h *Handler) ListStudFarms(c *gin.Context, params generated.ListStudFarmsPa
 		search = &s
 	}
 
-	result, err := h.svc.List(c.Request.Context(), cursor, limit, search)
+	sortBy := strings.TrimSpace(c.Query("sortBy"))
+	if sortBy == "" {
+		sortBy = strings.TrimSpace(c.Query("sort_by"))
+	}
+	if sortBy == "" {
+		sortBy = strings.TrimSpace(c.Query("sortField"))
+	}
+
+	sortDir := strings.TrimSpace(c.Query("sortDir"))
+	if sortDir == "" {
+		sortDir = strings.TrimSpace(c.Query("sort_dir"))
+	}
+	if sortDir == "" {
+		sortDir = strings.TrimSpace(c.Query("sortDirection"))
+	}
+
+	result, err := h.svc.List(c.Request.Context(), domainstudfarm.ListParams{
+		Cursor:  cursor,
+		Limit:   limit,
+		Offset:  offset,
+		Search:  search,
+		SortBy:  sortBy,
+		SortDir: sortDir,
+	})
 	if err != nil {
 		h.respondError(c, h.logger, err)
 		return

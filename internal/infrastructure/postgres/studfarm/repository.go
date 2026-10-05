@@ -33,17 +33,29 @@ func NewRepository(db Querier) *Repository {
 }
 
 // List returns a paginated list of stud farms with their latest notes.
-func (r *Repository) List(ctx context.Context, cursor *string, limit int, search *string) (domainstudfarm.ListResult, error) {
-	args := []any{limit + 1}
-	var conditions []string
-	var countArgs []any
-	var countConditions []string
+func (r *Repository) List(ctx context.Context, params domainstudfarm.ListParams) (domainstudfarm.ListResult, error) {
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	offset := params.Offset
+	if offset < 0 {
+		offset = 0
+	}
 
-	argIdx := 2
+	var conditions []string
+	var args []any
+	var countConditions []string
+	var countArgs []any
+
+	argIdx := 1
 	countArgIdx := 1
 
-	if cursor != nil && *cursor != "" {
-		cursorTime, err := time.Parse(time.RFC3339Nano, *cursor)
+	if params.Cursor != nil && *params.Cursor != "" {
+		cursorTime, err := time.Parse(time.RFC3339Nano, *params.Cursor)
 		if err != nil {
 			return domainstudfarm.ListResult{}, apperr.Validation("invalid cursor format")
 		}
@@ -52,8 +64,8 @@ func (r *Repository) List(ctx context.Context, cursor *string, limit int, search
 		argIdx++
 	}
 
-	if search != nil && strings.TrimSpace(*search) != "" {
-		words := strings.Fields(strings.TrimSpace(*search))
+	if params.Search != nil && strings.TrimSpace(*params.Search) != "" {
+		words := strings.Fields(strings.TrimSpace(*params.Search))
 		for _, word := range words {
 			searchPattern := "%" + word + "%"
 
@@ -79,6 +91,34 @@ func (r *Repository) List(ctx context.Context, cursor *string, limit int, search
 		countWhereClause = "WHERE " + strings.Join(countConditions, " AND ")
 	}
 
+	// Order by handling
+	sortDir := "DESC"
+	if strings.EqualFold(params.SortDir, "asc") {
+		sortDir = "ASC"
+	}
+
+	orderBy := "f.created_at " + sortDir + ", f.id DESC"
+	switch strings.ToLower(params.SortBy) {
+	case "firstname", "first_name":
+		orderBy = "f.first_name " + sortDir + ", f.id DESC"
+	case "lastname", "last_name":
+		orderBy = "f.last_name " + sortDir + " NULLS LAST, f.id DESC"
+	case "latestinterviewdate", "latest_interview_date", "interviewdate", "interview_date":
+		orderBy = "n.interview_date " + sortDir + " NULLS LAST, f.id DESC"
+	case "interviewcount", "interview_count":
+		orderBy = "c.cnt " + sortDir + ", f.id DESC"
+	case "createdat", "created_at":
+		orderBy = "f.created_at " + sortDir + ", f.id DESC"
+	}
+
+	limitArg := argIdx
+	args = append(args, limit+1)
+	argIdx++
+
+	offsetArg := argIdx
+	args = append(args, offset)
+	argIdx++
+
 	q := fmt.Sprintf(`
 		SELECT 
 			f.id, f.first_name, f.last_name, f.email, f.phone, f.location, f.created_at, f.updated_at,
@@ -98,9 +138,9 @@ func (r *Repository) List(ctx context.Context, cursor *string, limit int, search
 			WHERE stud_farm_id = f.id
 		) c ON true
 		%s
-		ORDER BY f.created_at DESC
-		LIMIT $1
-	`, whereClause)
+		ORDER BY %s
+		LIMIT $%d OFFSET $%d
+	`, whereClause, orderBy, limitArg, offsetArg)
 
 	var totalCount int
 	countQ := fmt.Sprintf("SELECT count(*) FROM hrd_stud_farms f %s", countWhereClause)

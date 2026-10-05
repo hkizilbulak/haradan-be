@@ -65,9 +65,19 @@ type CreateParam struct {
 	Location  *string
 }
 
+// ListParams defines criteria for listing stud farms.
+type ListParams struct {
+	Cursor  *string
+	Limit   int
+	Offset  int
+	Search  *string
+	SortBy  string
+	SortDir string
+}
+
 // Repository defines data access for stud farms.
 type Repository interface {
-	List(ctx context.Context, cursor *string, limit int, search *string) (ListResult, error)
+	List(ctx context.Context, params ListParams) (ListResult, error)
 	Create(ctx context.Context, param CreateParam) (StudFarm, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	AddNote(ctx context.Context, param NoteCreateParam) error
@@ -79,7 +89,7 @@ type Repository interface {
 
 // Service defines the business logic for stud farms.
 type Service interface {
-	List(ctx context.Context, cursor *string, limit int, search *string) (ListResult, error)
+	List(ctx context.Context, params ListParams) (ListResult, error)
 	Create(ctx context.Context, param CreateParam) (StudFarm, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	AddNote(ctx context.Context, param NoteCreateParam) error
