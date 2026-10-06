@@ -1077,6 +1077,42 @@ type AuthTokenResponse struct {
 // AuthTokenResponseTokenType defines model for AuthTokenResponse.TokenType.
 type AuthTokenResponseTokenType string
 
+// BankAccount defines model for BankAccount.
+type BankAccount struct {
+	AccountHolder string    `json:"account_holder"`
+	AccountNumber *string   `json:"account_number,omitempty"`
+	BankName      string    `json:"bank_name"`
+	BranchName    *string   `json:"branch_name,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	DisplayOrder  int       `json:"display_order"`
+	Iban          string    `json:"iban"`
+	Id            int       `json:"id"`
+	IsActive      bool      `json:"is_active"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// BankAccountCreateRequest defines model for BankAccountCreateRequest.
+type BankAccountCreateRequest struct {
+	AccountHolder string  `json:"account_holder"`
+	AccountNumber *string `json:"account_number,omitempty"`
+	BankName      string  `json:"bank_name"`
+	BranchName    *string `json:"branch_name,omitempty"`
+	DisplayOrder  *int    `json:"display_order,omitempty"`
+	Iban          string  `json:"iban"`
+	IsActive      *bool   `json:"is_active,omitempty"`
+}
+
+// BankAccountUpdateRequest defines model for BankAccountUpdateRequest.
+type BankAccountUpdateRequest struct {
+	AccountHolder string  `json:"account_holder"`
+	AccountNumber *string `json:"account_number,omitempty"`
+	BankName      string  `json:"bank_name"`
+	BranchName    *string `json:"branch_name,omitempty"`
+	DisplayOrder  *int    `json:"display_order,omitempty"`
+	Iban          string  `json:"iban"`
+	IsActive      *bool   `json:"is_active,omitempty"`
+}
+
 // BannerPlacement defines model for BannerPlacement.
 type BannerPlacement string
 
@@ -2751,6 +2787,12 @@ type RequestAdvertChangesJSONRequestBody = ModerationReasonRequest
 // SuspendAdvertJSONRequestBody defines body for SuspendAdvert for application/json ContentType.
 type SuspendAdvertJSONRequestBody = ModerationReasonRequest
 
+// AdminCreateBankAccountJSONRequestBody defines body for AdminCreateBankAccount for application/json ContentType.
+type AdminCreateBankAccountJSONRequestBody = BankAccountCreateRequest
+
+// AdminUpdateBankAccountJSONRequestBody defines body for AdminUpdateBankAccount for application/json ContentType.
+type AdminUpdateBankAccountJSONRequestBody = BankAccountUpdateRequest
+
 // CreateBannerJSONRequestBody defines body for CreateBanner for application/json ContentType.
 type CreateBannerJSONRequestBody = CreateBannerRequest
 
@@ -2981,6 +3023,18 @@ type ServerInterface interface {
 	// SuspendAdvert SuspendAdvert
 	// (POST /v1/admin/adverts/{advertId}/suspend)
 	SuspendAdvert(c *gin.Context, advertId AdvertIdPath)
+	// AdminGetBankAccounts Get all bank accounts (Admin)
+	// (GET /v1/admin/bank-accounts)
+	AdminGetBankAccounts(c *gin.Context)
+	// AdminCreateBankAccount Create bank account
+	// (POST /v1/admin/bank-accounts)
+	AdminCreateBankAccount(c *gin.Context)
+	// AdminDeleteBankAccount Delete bank account
+	// (DELETE /v1/admin/bank-accounts/{id})
+	AdminDeleteBankAccount(c *gin.Context, id int)
+	// AdminUpdateBankAccount Update bank account
+	// (PUT /v1/admin/bank-accounts/{id})
+	AdminUpdateBankAccount(c *gin.Context, id int)
 	// ListBannersAdmin ListBannersAdmin
 	// (GET /v1/admin/banners)
 	ListBannersAdmin(c *gin.Context, params ListBannersAdminParams)
@@ -3221,6 +3275,9 @@ type ServerInterface interface {
 	// VerifyRegistrationEmail VerifyRegistrationEmail
 	// (POST /v1/auth/verify-email)
 	VerifyRegistrationEmail(c *gin.Context)
+	// GetActiveBankAccounts Get active bank accounts
+	// (GET /v1/bank-accounts/active)
+	GetActiveBankAccounts(c *gin.Context)
 	// ListActiveBannersByPlacement ListActiveBannersByPlacement
 	// (GET /v1/banners)
 	ListActiveBannersByPlacement(c *gin.Context, params ListActiveBannersByPlacementParams)
@@ -3772,6 +3829,82 @@ func (siw *ServerInterfaceWrapper) SuspendAdvert(c *gin.Context) {
 	}
 
 	siw.Handler.SuspendAdvert(c, advertId)
+}
+
+// AdminGetBankAccounts operation middleware
+func (siw *ServerInterfaceWrapper) AdminGetBankAccounts(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminGetBankAccounts(c)
+}
+
+// AdminCreateBankAccount operation middleware
+func (siw *ServerInterfaceWrapper) AdminCreateBankAccount(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminCreateBankAccount(c)
+}
+
+// AdminDeleteBankAccount operation middleware
+func (siw *ServerInterfaceWrapper) AdminDeleteBankAccount(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminDeleteBankAccount(c, id)
+}
+
+// AdminUpdateBankAccount operation middleware
+func (siw *ServerInterfaceWrapper) AdminUpdateBankAccount(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AdminUpdateBankAccount(c, id)
 }
 
 // ListBannersAdmin operation middleware
@@ -5793,6 +5926,19 @@ func (siw *ServerInterfaceWrapper) VerifyRegistrationEmail(c *gin.Context) {
 	siw.Handler.VerifyRegistrationEmail(c)
 }
 
+// GetActiveBankAccounts operation middleware
+func (siw *ServerInterfaceWrapper) GetActiveBankAccounts(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetActiveBankAccounts(c)
+}
+
 // ListActiveBannersByPlacement operation middleware
 func (siw *ServerInterfaceWrapper) ListActiveBannersByPlacement(c *gin.Context) {
 
@@ -7584,4 +7730,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/v1/communication-templates", wrapper.CreateCommunicationTemplate)
 	router.DELETE(options.BaseURL+"/v1/communication-templates/:id", wrapper.DeleteCommunicationTemplate)
 	router.PUT(options.BaseURL+"/v1/communication-templates/:id", wrapper.UpdateCommunicationTemplate)
+	router.GET(options.BaseURL+"/v1/bank-accounts/active", wrapper.GetActiveBankAccounts)
+	router.GET(options.BaseURL+"/v1/admin/bank-accounts", wrapper.AdminGetBankAccounts)
+	router.POST(options.BaseURL+"/v1/admin/bank-accounts", wrapper.AdminCreateBankAccount)
+	router.DELETE(options.BaseURL+"/v1/admin/bank-accounts/:id", wrapper.AdminDeleteBankAccount)
+	router.PUT(options.BaseURL+"/v1/admin/bank-accounts/:id", wrapper.AdminUpdateBankAccount)
 }

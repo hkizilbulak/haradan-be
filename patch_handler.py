@@ -1,37 +1,63 @@
-import sys
-filepath = '/Users/admin/Desktop/projects/haradan-be/internal/transport/http/handler/studfarm/handler.go'
-with open(filepath, 'r') as f:
+import re
+
+with open('internal/transport/http/handler/bankaccount/bankaccount.go', 'r') as f:
     content = f.read()
 
-new_func = """
-// AddStudFarmNote implements generated.ServerInterface.
-func (h *Handler) AddStudFarmNote(c *gin.Context, studFarmId openapi_types.UUID) {
-	var req generated.StudFarmNoteCreateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.respondError(c, h.logger, err)
-		return
+# Fix parsing of optional values
+content = content.replace('IsActive:      req.IsActive,', 'IsActive:      req.IsActive != None && *req.IsActive,')
+content = content.replace('DisplayOrder:  req.DisplayOrder,', 'DisplayOrder:  *req.DisplayOrder,') # Let's handle safely below
+
+def safe_deref(req_prop, type_val, default):
+    return f"""	{req_prop}_val := {default}
+	if req.{req_prop} != nil {{
+		{req_prop}_val = *req.{req_prop}
+	}}"""
+
+content = re.sub(
+    r'(p := bank_account\.CreateParams{)',
+    r'''	isActive_val := true
+	if req.IsActive != nil {
+		isActive_val = *req.IsActive
 	}
-
-	param := domainstudfarm.NoteCreateParam{
-		StudFarmID:      uuid.UUID(studFarmId),
-		InterviewerName: req.InterviewerName,
-		InterviewDate:   req.InterviewDate,
-		Notes:           req.Notes,
+	displayOrder_val := 0
+	if req.DisplayOrder != nil {
+		displayOrder_val = *req.DisplayOrder
 	}
+	\1''', content, count=1)
+content = content.replace('IsActive:      req.IsActive,', 'IsActive:      isActive_val,', 1)
+content = content.replace('DisplayOrder:  req.DisplayOrder,', 'DisplayOrder:  displayOrder_val,', 1)
 
-	if err := h.svc.AddNote(c.Request.Context(), param); err != nil {
-		h.respondError(c, h.logger, err)
-		return
+content = re.sub(
+    r'(p := bank_account\.UpdateParams{)',
+    r'''	isActive_val := true
+	if req.IsActive != nil {
+		isActive_val = *req.IsActive
 	}
+	displayOrder_val := 0
+	if req.DisplayOrder != nil {
+		displayOrder_val = *req.DisplayOrder
+	}
+	\1''', content, count=1)
+content = content.replace('IsActive:      req.IsActive,', 'IsActive:      isActive_val,', 1)
+content = content.replace('DisplayOrder:  req.DisplayOrder,', 'DisplayOrder:  displayOrder_val,', 1)
 
-	c.Status(http.StatusCreated)
-}
-"""
 
-if 'func (h *Handler) AddStudFarmNote' not in content:
-    content += '\n' + new_func
-    with open(filepath, 'w') as f:
-        f.write(content)
-        print("Successfully patched handler.go")
-else:
-    print("Already patched handler")
+# Fix mapToAPI
+new_map = """func mapToAPI(a bank_account.BankAccount) generated.BankAccount {
+	return generated.BankAccount{
+		Id:            a.ID,
+		BankName:      a.BankName,
+		AccountHolder: a.AccountHolder,
+		Iban:          a.IBAN,
+		BranchName:    a.BranchName,
+		AccountNumber: a.AccountNumber,
+		IsActive:      a.IsActive,
+		DisplayOrder:  a.DisplayOrder,
+		CreatedAt:     a.CreatedAt,
+		UpdatedAt:     a.UpdatedAt,
+	}
+}"""
+content = re.sub(r'func mapToAPI.*?^}', new_map, content, flags=re.MULTILINE|re.DOTALL)
+
+with open('internal/transport/http/handler/bankaccount/bankaccount.go', 'w') as f:
+    f.write(content)

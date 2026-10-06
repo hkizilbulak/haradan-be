@@ -103,7 +103,6 @@ func normalizeVideoURL(in *string) *string {
 	return &v
 }
 
-
 // validateDynamicProperties checks a property map against the category form
 var propertyAliases = map[string][]string{
 	"studhorse":            {"studhorsename", "registeredname", "horsename"},

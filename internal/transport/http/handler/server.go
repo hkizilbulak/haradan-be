@@ -14,6 +14,7 @@ import (
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	appai "github.com/hkizilbulak/haradan-be/internal/application/ai"
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
+	appbankaccount "github.com/hkizilbulak/haradan-be/internal/application/bankaccount"
 	appbanner "github.com/hkizilbulak/haradan-be/internal/application/banner"
 	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
@@ -39,6 +40,7 @@ import (
 	adverthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/advert"
 	aihandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/ai"
 	authhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/auth"
+	bankaccounthandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/bankaccount"
 	bannerhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/banner"
 	campaignhandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/campaign"
 	cataloghandler "github.com/hkizilbulak/haradan-be/internal/transport/http/handler/catalog"
@@ -93,6 +95,7 @@ type Server struct {
 	admincomment          *admincommenthandler.CommentHandler
 	ai                    *aihandler.Handler
 	communicationTemplate *communicationtemplatehandler.Handler
+	bankaccount           *bankaccounthandler.Handler
 }
 
 func (s *Server) WithCommentService(svc *appcomment.Service) *Server {
@@ -394,4 +397,51 @@ func (s *Server) UpdateStudFarmNote(c *gin.Context, studFarmId openapi_types.UUI
 
 func (s *Server) UpdateStudFarm(c *gin.Context, id openapi_types.UUID) {
 	s.studfarm.UpdateStudFarm(c, id)
+}
+
+func (s *Server) WithBankAccountService(svc *appbankaccount.Service) *Server {
+	if svc != nil {
+		s.bankaccount = bankaccounthandler.NewHandler(svc, s.logger, respondError)
+	}
+	return s
+}
+
+func (s *Server) GetActiveBankAccounts(c *gin.Context) {
+	if s.bankaccount != nil {
+		s.bankaccount.GetActiveBankAccounts(c)
+	} else {
+		respondNotImplemented(c)
+	}
+}
+
+func (s *Server) AdminGetBankAccounts(c *gin.Context) {
+	if s.bankaccount != nil {
+		s.bankaccount.AdminGetBankAccounts(c)
+	} else {
+		respondNotImplemented(c)
+	}
+}
+
+func (s *Server) AdminCreateBankAccount(c *gin.Context) {
+	if s.bankaccount != nil {
+		s.bankaccount.AdminCreateBankAccount(c)
+	} else {
+		respondNotImplemented(c)
+	}
+}
+
+func (s *Server) AdminUpdateBankAccount(c *gin.Context, id int) {
+	if s.bankaccount != nil {
+		s.bankaccount.AdminUpdateBankAccount(c, id)
+	} else {
+		respondNotImplemented(c)
+	}
+}
+
+func (s *Server) AdminDeleteBankAccount(c *gin.Context, id int) {
+	if s.bankaccount != nil {
+		s.bankaccount.AdminDeleteBankAccount(c, id)
+	} else {
+		respondNotImplemented(c)
+	}
 }

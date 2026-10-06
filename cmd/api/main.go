@@ -20,6 +20,7 @@ import (
 	appadvert "github.com/hkizilbulak/haradan-be/internal/application/advert"
 	appai "github.com/hkizilbulak/haradan-be/internal/application/ai"
 	appauth "github.com/hkizilbulak/haradan-be/internal/application/auth"
+	appbankaccount "github.com/hkizilbulak/haradan-be/internal/application/bankaccount"
 	appbanner "github.com/hkizilbulak/haradan-be/internal/application/banner"
 	appcampaign "github.com/hkizilbulak/haradan-be/internal/application/campaign"
 	appcatalog "github.com/hkizilbulak/haradan-be/internal/application/catalog"
@@ -43,6 +44,7 @@ import (
 	paytrclient "github.com/hkizilbulak/haradan-be/internal/infrastructure/paytr"
 	pgadminuser "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/adminuser"
 	pgadvert "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/advert"
+	pbankaccount "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/bank_account"
 	pgcatalog "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/catalog"
 	pgcommunicationtemplate "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/communication_template"
 	pgcoupon "github.com/hkizilbulak/haradan-be/internal/infrastructure/postgres/coupon"
@@ -368,6 +370,9 @@ func run() error {
 
 	studfarmSvc := appstudfarm.NewService(pgstudfarm.NewRepository(db.Pool()))
 
+	bankAccountRepo := pbankaccount.NewRepository(db.Pool())
+	bankAccountSvc := appbankaccount.NewService(bankAccountRepo)
+
 	aiSvc, err := appai.NewService(appai.Config{
 		ApiURL:      cfg.AIApiURL,
 		ApiKey:      cfg.AIApiKey,
@@ -391,6 +396,7 @@ func run() error {
 		WithCommentService(commentSvc).
 		WithAdminCommentService(commentSvc).
 		WithStudFarmService(studfarmSvc).
+		WithBankAccountService(bankAccountSvc).
 		WithCouponService(couponSvc).
 		WithAIService(aiSvc).
 		WithCommunicationTemplateHandler(pgcommunicationtemplate.NewRepository(db.Pool()))
