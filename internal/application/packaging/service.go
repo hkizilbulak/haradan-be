@@ -125,6 +125,8 @@ type CreatePackageInput struct {
 	SearchPriority          int  // 0–100; default 0
 	SearchPrioritySet       bool // false → default 0
 	BroadcastOnPublish      bool
+	PackageType             string // "INDIVIDUAL" or "EKURI"
+	HorseLimit              *int   // horse limit for EKURI packages (e.g. 3, 5, 10)
 	IsActive                bool
 	SortOrder               *int // nil → append to end
 }
@@ -155,6 +157,9 @@ type UpdatePackageInput struct {
 	ShowcaseEligible        *bool
 	SearchPriority          *int
 	BroadcastOnPublish      *bool
+	PackageType             *string
+	HorseLimit              *int
+	HorseLimitSet           bool
 	IsActive                *bool
 	SortOrder               *int
 }
@@ -275,6 +280,17 @@ func (s *Service) CreatePackage(ctx context.Context, in CreatePackageInput) (dom
 		sortOrder = maxOrder + 1
 	}
 
+	pkgType := strings.TrimSpace(in.PackageType)
+	if pkgType == "" {
+		pkgType = string(domainpackaging.PackageTypeIndividual)
+	}
+	if !domainpackaging.PackageType(pkgType).Valid() {
+		return domainpackaging.Package{}, apperr.Validation("Geçersiz paket tipi.")
+	}
+	if in.HorseLimit != nil && *in.HorseLimit <= 0 {
+		return domainpackaging.Package{}, apperr.Validation("At kapasitesi pozitif olmalıdır.")
+	}
+
 	now := s.clock.Now().UTC()
 	created := domainpackaging.Package{
 		ID:                      uuid.New(),
@@ -290,6 +306,8 @@ func (s *Service) CreatePackage(ctx context.Context, in CreatePackageInput) (dom
 		ShowcaseEligible:        in.ShowcaseEligible,
 		SearchPriority:          priority,
 		BroadcastOnPublish:      in.BroadcastOnPublish,
+		PackageType:             pkgType,
+		HorseLimit:              in.HorseLimit,
 		IsActive:                in.IsActive,
 		SortOrder:               sortOrder,
 		Version:                 1,
@@ -1057,6 +1075,19 @@ func applyPackagePatch(current domainpackaging.Package, in UpdatePackageInput) (
 	}
 	if in.BroadcastOnPublish != nil {
 		out.BroadcastOnPublish = *in.BroadcastOnPublish
+	}
+	if in.PackageType != nil {
+		pt := strings.TrimSpace(*in.PackageType)
+		if !domainpackaging.PackageType(pt).Valid() {
+			return domainpackaging.Package{}, apperr.Validation("Geçersiz paket tipi.")
+		}
+		out.PackageType = pt
+	}
+	if in.HorseLimitSet {
+		if in.HorseLimit != nil && *in.HorseLimit <= 0 {
+			return domainpackaging.Package{}, apperr.Validation("At kapasitesi pozitif olmalıdır.")
+		}
+		out.HorseLimit = in.HorseLimit
 	}
 	if in.IsActive != nil {
 		out.IsActive = *in.IsActive

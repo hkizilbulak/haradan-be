@@ -62,9 +62,10 @@ type Advert struct {
 	SoldAt       *time.Time
 	Version      int
 	MediaVersion int
-	DeletedAt    *time.Time
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	DeletedAt     *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	EkuriBundleID *uuid.UUID
 }
 
 // StatusHistory is an immutable advert status transition record.
@@ -113,6 +114,7 @@ type OwnerView struct {
 	UpdatedAt              time.Time
 	CategoryClearedWarning *bool
 	RejectionReason        *string
+	EkuriBundleID          *uuid.UUID
 }
 
 // DetailsPatch carries owner-editable core fields. The *Set flags separate an
@@ -179,8 +181,9 @@ func (a Advert) ToOwnerView() OwnerView {
 		PublishedAt:  a.PublishedAt,
 		SoldAt:       a.SoldAt,
 		DeletedAt:    a.DeletedAt,
-		CreatedAt:    a.CreatedAt,
-		UpdatedAt:    a.UpdatedAt,
+		CreatedAt:     a.CreatedAt,
+		UpdatedAt:     a.UpdatedAt,
+		EkuriBundleID: a.EkuriBundleID,
 	}
 }
 

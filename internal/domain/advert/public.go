@@ -60,9 +60,10 @@ type PublicDetail struct {
 	Horse        *PublicHorse
 	Properties   []PublicProperty
 	Media        []PublicMedia
-	SellerPhone  *string
-	SellerID     *uuid.UUID
-	VideoURL     *string
+	SellerPhone   *string
+	SellerID      *uuid.UUID
+	VideoURL      *string
+	EkuriBundleID *uuid.UUID
 }
 type PublicCursor struct {
 	Priority    int

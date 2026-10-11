@@ -255,6 +255,27 @@ func (r MemoryRepository) ListForModeration(
 	return out, totalCount, nil
 }
 
+// ListByBundleID returns non-deleted adverts belonging to an eküri bundle.
+func (r MemoryRepository) ListByBundleID(_ context.Context, bundleID uuid.UUID) ([]domainadvert.Advert, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+
+	var out []domainadvert.Advert
+	for _, a := range r.store.adverts {
+		if a.IsDeleted() || a.EkuriBundleID == nil || *a.EkuriBundleID != bundleID {
+			continue
+		}
+		out = append(out, a)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].CreatedAt.Before(out[j].CreatedAt)
+		}
+		return out[i].ID < out[j].ID
+	})
+	return out, nil
+}
+
 // ListStatusHistory returns history for one advert, oldest first.
 func (r MemoryRepository) ListStatusHistory(_ context.Context, advertID int64) ([]domainadvert.StatusHistory, error) {
 	r.store.mu.Lock()

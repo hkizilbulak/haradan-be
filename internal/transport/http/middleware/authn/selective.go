@@ -81,6 +81,7 @@ var NotificationInboxProtectedRoutes = []ProtectedRoute{
 // Admin media/banner/user management routes are intentionally excluded.
 var AdvertModerationProtectedRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/admin/adverts/moderation"},
+	{Method: "GET", Path: "/api/v1/admin/adverts/bundle/:bundleId"},
 	{Method: "GET", Path: "/api/v1/admin/adverts/:advertId"},
 	{Method: "DELETE", Path: "/api/v1/admin/adverts/:advertId"},
 	{Method: "PATCH", Path: "/api/v1/admin/adverts/:advertId"},
@@ -256,6 +257,7 @@ func Selective(svc *appauth.Service, logger *slog.Logger, routes []ProtectedRout
 var PublicFavoriteEnrichmentRoutes = []ProtectedRoute{
 	{Method: "GET", Path: "/api/v1/adverts"},
 	{Method: "GET", Path: "/api/v1/adverts/:advertId"},
+	{Method: "GET", Path: "/api/v1/adverts/bundle/:bundleId"},
 	{Method: "GET", Path: "/api/v1/homepage"},
 	{Method: "GET", Path: "/api/v1/homepage/new-adverts"},
 	{Method: "GET", Path: "/api/v1/homepage/showcase"},

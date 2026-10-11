@@ -24,7 +24,7 @@ const (
 
 const advertColumns = `id, owner_user_id, category_id, district_id, horse_id, title, description, address, video_url,
 price_amount_minor, price_currency, status, properties, published_at, sold_at, version, media_version,
-deleted_at, created_at, updated_at`
+deleted_at, created_at, updated_at, ekuri_bundle_id`
 
 // Querier is implemented by *pgxpool.Pool and pgx.Tx.
 type Querier interface {
@@ -67,15 +67,15 @@ func (r *Repository) Create(ctx context.Context, a *domainadvert.Advert) error {
 INSERT INTO hrd_adverts (
   owner_user_id, category_id, district_id, horse_id, title, description, address, video_url,
   price_amount_minor, price_currency, status, properties, published_at, sold_at, version, media_version,
-  deleted_at, created_at, updated_at
+  deleted_at, created_at, updated_at, ekuri_bundle_id
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18,$19
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18,$19,$20
 ) RETURNING id`
 	amount, currency := splitMoney(a.Price)
 	err := r.db.QueryRow(ctx, q,
 		a.OwnerUserID, a.CategoryID, a.DistrictID, a.HorseID, a.Title, a.Description, a.Address, a.VideoURL,
 		amount, currency, string(a.Status), propertiesOrEmpty(a.Properties), a.PublishedAt, a.SoldAt,
-		a.Version, a.MediaVersion, a.DeletedAt, a.CreatedAt, a.UpdatedAt,
+		a.Version, a.MediaVersion, a.DeletedAt, a.CreatedAt, a.UpdatedAt, a.EkuriBundleID,
 	).Scan(&a.ID)
 	if err != nil {
 		return apperr.Internal(fmt.Errorf("create advert: %w", pg.SanitizeErr(err)))
@@ -191,6 +191,35 @@ func (r *Repository) ListForModeration(
 		return nil, 0, apperr.Internal(fmt.Errorf("iterate moderation adverts: %w", pg.SanitizeErr(err)))
 	}
 	return out, totalCount, nil
+}
+
+// ListByBundleID returns non-deleted adverts belonging to an eküri bundle.
+func (r *Repository) ListByBundleID(ctx context.Context, bundleID uuid.UUID) ([]domainadvert.Advert, error) {
+	const q = `
+SELECT ` + advertColumns + `
+FROM hrd_adverts
+WHERE ekuri_bundle_id = $1
+  AND deleted_at IS NULL
+ORDER BY created_at ASC, id ASC`
+
+	rows, err := r.db.Query(ctx, q, bundleID)
+	if err != nil {
+		return nil, apperr.Internal(fmt.Errorf("list bundle adverts: %w", pg.SanitizeErr(err)))
+	}
+	defer rows.Close()
+
+	var out []domainadvert.Advert
+	for rows.Next() {
+		a, err := scanAdvert(rows)
+		if err != nil {
+			return nil, apperr.Internal(fmt.Errorf("scan bundle advert: %w", pg.SanitizeErr(err)))
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperr.Internal(fmt.Errorf("iterate bundle adverts: %w", pg.SanitizeErr(err)))
+	}
+	return out, nil
 }
 
 // ListStatusHistory returns status history for one advert, oldest first.
@@ -580,7 +609,7 @@ func scanAdvert(row rowScanner) (domainadvert.Advert, error) {
 	if err := row.Scan(
 		&a.ID, &a.OwnerUserID, &a.CategoryID, &a.DistrictID, &a.HorseID, &a.Title, &a.Description, &a.Address, &a.VideoURL,
 		&amount, &currency, &status, &props, &a.PublishedAt, &a.SoldAt, &a.Version, &a.MediaVersion,
-		&a.DeletedAt, &a.CreatedAt, &a.UpdatedAt,
+		&a.DeletedAt, &a.CreatedAt, &a.UpdatedAt, &a.EkuriBundleID,
 	); err != nil {
 		return domainadvert.Advert{}, err
 	}

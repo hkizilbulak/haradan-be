@@ -9180,6 +9180,11 @@ components:
           type: string
           format: date-time
           nullable: true
+        ekuriBundleId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Eküri bundle ID if this advert belongs to an eküri group
     OwnerAdvertResponse:
       type: object
       additionalProperties: false
@@ -9258,6 +9263,10 @@ components:
         categoryClearedWarning:
           type: boolean
           nullable: true
+        ekuriBundleId:
+          type: string
+          format: uuid
+          nullable: true
     OwnerMediaRelationItem:
       type: object
       additionalProperties: false
@@ -9317,6 +9326,10 @@ components:
           nullable: true
           allOf:
           - $ref: '#/components/schemas/Money'
+        ekuriBundleId:
+          type: string
+          format: uuid
+          nullable: true
       additionalProperties: false
     UpdateAdvertDraftDetailsRequest:
       type: object
@@ -10685,6 +10698,16 @@ components:
           maximum: 100
         broadcastOnPublish:
           type: boolean
+        packageType:
+          type: string
+          enum:
+          - INDIVIDUAL
+          - EKURI
+          default: INDIVIDUAL
+        horseLimit:
+          type: integer
+          nullable: true
+          minimum: 1
         isActive:
           type: boolean
         sortOrder:
@@ -10756,6 +10779,16 @@ components:
           maximum: 100
         broadcastOnPublish:
           type: boolean
+        packageType:
+          type: string
+          enum:
+          - INDIVIDUAL
+          - EKURI
+          default: INDIVIDUAL
+        horseLimit:
+          type: integer
+          nullable: true
+          minimum: 1
         isActive:
           type: boolean
         sortOrder:
@@ -10804,6 +10837,15 @@ components:
           maximum: 100
         broadcastOnPublish:
           type: boolean
+        packageType:
+          type: string
+          enum:
+          - INDIVIDUAL
+          - EKURI
+        horseLimit:
+          type: integer
+          nullable: true
+          minimum: 1
         isActive:
           type: boolean
         sortOrder:
@@ -11443,6 +11485,16 @@ components:
           type: integer
           minimum: 0
           maximum: 100
+        packageType:
+          type: string
+          enum:
+          - INDIVIDUAL
+          - EKURI
+          default: INDIVIDUAL
+        horseLimit:
+          type: integer
+          nullable: true
+          minimum: 1
         sortOrder:
           type: integer
           minimum: 0

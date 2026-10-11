@@ -103,6 +103,19 @@ func (s FeatureActivationStatus) Valid() bool {
 	return false
 }
 
+// PackageType distinguishes INDIVIDUAL listing packages from EKURI bundle packages.
+type PackageType string
+
+const (
+	PackageTypeIndividual PackageType = "INDIVIDUAL"
+	PackageTypeEkuri      PackageType = "EKURI"
+)
+
+// Valid reports whether t is a known package type.
+func (t PackageType) Valid() bool {
+	return t == PackageTypeIndividual || t == PackageTypeEkuri
+}
+
 // Package is the catalog row from hrd_packages.
 type Package struct {
 	ID                      uuid.UUID
@@ -119,11 +132,18 @@ type Package struct {
 	FeaturedDays            *int
 	SearchPriority          int
 	BroadcastOnPublish      bool
+	PackageType             string
+	HorseLimit              *int
 	IsActive                bool
 	SortOrder               int
 	Version                 int
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
+}
+
+// IsEkuri reports whether this package is an Eküri bundle package.
+func (p Package) IsEkuri() bool {
+	return p.PackageType == string(PackageTypeEkuri)
 }
 
 // AllowsUrgentFeature reports whether this package may host URGENT.

@@ -82,6 +82,10 @@ func (h *Handler) CreateAdminPackage(c *gin.Context) {
 		priority = *req.SearchPriority
 		prioritySet = true
 	}
+	var packageType string
+	if req.PackageType != nil {
+		packageType = string(*req.PackageType)
+	}
 	out, err := h.svc.CreatePackage(c.Request.Context(), apppackaging.CreatePackageInput{
 		ActorUserID:             actorID,
 		Code:                    code,
@@ -97,6 +101,8 @@ func (h *Handler) CreateAdminPackage(c *gin.Context) {
 		SearchPriority:          priority,
 		SearchPrioritySet:       prioritySet,
 		BroadcastOnPublish:      req.BroadcastOnPublish,
+		PackageType:             packageType,
+		HorseLimit:              req.HorseLimit,
 		IsActive:                req.IsActive,
 		SortOrder:               req.SortOrder,
 	})

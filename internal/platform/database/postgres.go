@@ -45,15 +45,32 @@ func Open(ctx context.Context, cfg Config) (*Postgres, error) {
 		return nil, fmt.Errorf("open database pool: %w", sanitizeErr(err))
 	}
 
-	pingCtx := ctx
-	var cancel context.CancelFunc
-	if cfg.HealthTimeout > 0 {
-		pingCtx, cancel = context.WithTimeout(ctx, cfg.HealthTimeout)
-		defer cancel()
+	var lastErr error
+	timeout := cfg.HealthTimeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
 	}
-	if err := pool.Ping(pingCtx); err != nil {
+	for attempt := 1; attempt <= 3; attempt++ {
+		pingCtx, cancel := context.WithTimeout(ctx, timeout)
+		err = pool.Ping(pingCtx)
+		cancel()
+		if err == nil {
+			lastErr = nil
+			break
+		}
+		lastErr = err
+		if attempt < 3 {
+			select {
+			case <-ctx.Done():
+				lastErr = ctx.Err()
+				break
+			case <-time.After(time.Second):
+			}
+		}
+	}
+	if lastErr != nil {
 		pool.Close()
-		return nil, fmt.Errorf("ping database: %w", sanitizeErr(err))
+		return nil, fmt.Errorf("ping database: %w", sanitizeErr(lastErr))
 	}
 
 	return &Postgres{pool: pool}, nil

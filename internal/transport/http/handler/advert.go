@@ -69,6 +69,15 @@ func (s *Server) GetAdvertModerationDetail(c *gin.Context, advertId generated.Ad
 	s.advert.GetAdvertModerationDetail(c, advertId)
 }
 
+// GetBundleAdvertsAdmin implements GET /v1/admin/adverts/bundle/{bundleId}.
+func (s *Server) GetBundleAdvertsAdmin(c *gin.Context) {
+	if s.advert == nil {
+		respondNotImplemented(c)
+		return
+	}
+	s.advert.GetBundleAdvertsAdmin(c)
+}
+
 // ApproveAdvert implements ADVERT-ADMIN-03.
 func (s *Server) ApproveAdvert(c *gin.Context, advertId generated.AdvertIdPath) {
 	if s.advert == nil {

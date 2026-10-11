@@ -50,6 +50,29 @@ func (s *Server) GetPublishedAdvertDetail(c *gin.Context, advertID generated.Adv
 	c.JSON(http.StatusOK, mapPublicDetail(out))
 }
 
+func (s *Server) ListBundleAdverts(c *gin.Context) {
+	if s.advert == nil || !s.publicService().PublicEnabled() {
+		respondNotImplemented(c)
+		return
+	}
+	bundleIDStr := c.Param("bundleId")
+	bundleID, err := uuid.Parse(bundleIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz eküri grup kimliği."})
+		return
+	}
+	items, err := s.publicService().ListBundleAdverts(c.Request.Context(), bundleID)
+	if err != nil {
+		respondError(c, s.logger, err)
+		return
+	}
+	out := make([]publicCardJSON, 0, len(items))
+	for _, item := range items {
+		out = append(out, mapPublicCardJSON(item))
+	}
+	c.JSON(http.StatusOK, gin.H{"items": out})
+}
+
 func (s *Server) ListHomepageNewAdverts(c *gin.Context, params generated.ListHomepageNewAdvertsParams) {
 	if s.advert == nil || !s.publicService().PublicEnabled() {
 		respondNotImplemented(c)
@@ -268,6 +291,7 @@ func mapPublicDetail(v domainadvert.PublicDetail) publicDetailJSON {
 			Horse:    horse, Media: media, Properties: props, PackageCode: mapPackageCode(v.PackageCode), PackageDisplayName: v.PackageDisplayName,
 			PackageBadgeText: v.PackageBadgeText, IsUrgent: v.IsUrgent, UrgentActivatedAt: v.UrgentActivatedAt,
 			IsFeatured: v.IsFeatured, FeaturedUntil: v.FeaturedUntil, IsFavorite: v.IsFavorite, ViewCount: v.ViewCount,
+			EkuriBundleId: v.EkuriBundleID,
 		},
 		SellerPhone: v.SellerPhone,
 		SellerID:    v.SellerID,

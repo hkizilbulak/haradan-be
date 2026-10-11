@@ -55,6 +55,9 @@ type Repository interface {
 		limit int,
 	) ([]domainadvert.Advert, int, error)
 
+	// ListByBundleID returns non-deleted adverts belonging to an eküri bundle.
+	ListByBundleID(ctx context.Context, bundleID uuid.UUID) ([]domainadvert.Advert, error)
+
 	// ListStatusHistory returns history for one advert, oldest first.
 	ListStatusHistory(ctx context.Context, advertID int64) ([]domainadvert.StatusHistory, error)
 
@@ -150,6 +153,7 @@ type PublicRepository interface {
 	ListHomepageUrgent(ctx context.Context, limit int, actorUserID *uuid.UUID) ([]domainadvert.PublicCard, error)
 	ListHomepageFeatured(ctx context.Context, limit int, actorUserID *uuid.UUID) ([]domainadvert.PublicCard, error)
 	GetPublishedDetail(ctx context.Context, advertID int64, actorUserID *uuid.UUID) (domainadvert.PublicDetail, error)
+	ListBundleAdverts(ctx context.Context, bundleID uuid.UUID) ([]domainadvert.PublicCard, error)
 	RecordView(ctx context.Context, advertID int64, clientIP string) error
 }
 

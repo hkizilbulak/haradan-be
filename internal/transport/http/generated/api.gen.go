@@ -187,6 +187,24 @@ func (e ClientContext) Valid() bool {
 	}
 }
 
+// Defines values for CreatePackageRequestPackageType.
+const (
+	CreatePackageRequestPackageTypeEKURI      CreatePackageRequestPackageType = "EKURI"
+	CreatePackageRequestPackageTypeINDIVIDUAL CreatePackageRequestPackageType = "INDIVIDUAL"
+)
+
+// Valid indicates whether the value is a known member of the CreatePackageRequestPackageType enum.
+func (e CreatePackageRequestPackageType) Valid() bool {
+	switch e {
+	case CreatePackageRequestPackageTypeEKURI:
+		return true
+	case CreatePackageRequestPackageTypeINDIVIDUAL:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DomainErrorCode.
 const (
 	DomainErrorCodeACCOUNTINACTIVE       DomainErrorCode = "ACCOUNT_INACTIVE"
@@ -463,6 +481,24 @@ func (e NotificationEventType) Valid() bool {
 	}
 }
 
+// Defines values for PackageAdminViewPackageType.
+const (
+	PackageAdminViewPackageTypeEKURI      PackageAdminViewPackageType = "EKURI"
+	PackageAdminViewPackageTypeINDIVIDUAL PackageAdminViewPackageType = "INDIVIDUAL"
+)
+
+// Valid indicates whether the value is a known member of the PackageAdminViewPackageType enum.
+func (e PackageAdminViewPackageType) Valid() bool {
+	switch e {
+	case PackageAdminViewPackageTypeEKURI:
+		return true
+	case PackageAdminViewPackageTypeINDIVIDUAL:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PackageAssignmentSource.
 const (
 	ADMIN  PackageAssignmentSource = "ADMIN"
@@ -532,6 +568,24 @@ func (e PropertyDataType) Valid() bool {
 	case TEXT:
 		return true
 	case YEAR:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PublicPackagePackageType.
+const (
+	PublicPackagePackageTypeEKURI      PublicPackagePackageType = "EKURI"
+	PublicPackagePackageTypeINDIVIDUAL PublicPackagePackageType = "INDIVIDUAL"
+)
+
+// Valid indicates whether the value is a known member of the PublicPackagePackageType enum.
+func (e PublicPackagePackageType) Valid() bool {
+	switch e {
+	case PublicPackagePackageTypeEKURI:
+		return true
+	case PublicPackagePackageTypeINDIVIDUAL:
 		return true
 	default:
 		return false
@@ -715,6 +769,24 @@ func (e TJKTriggerKind) Valid() bool {
 	case TJKTriggerKindMANUAL:
 		return true
 	case TJKTriggerKindSCHEDULED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdatePackageRequestPackageType.
+const (
+	UpdatePackageRequestPackageTypeEKURI      UpdatePackageRequestPackageType = "EKURI"
+	UpdatePackageRequestPackageTypeINDIVIDUAL UpdatePackageRequestPackageType = "INDIVIDUAL"
+)
+
+// Valid indicates whether the value is a known member of the UpdatePackageRequestPackageType enum.
+func (e UpdatePackageRequestPackageType) Valid() bool {
+	switch e {
+	case UpdatePackageRequestPackageTypeEKURI:
+		return true
+	case UpdatePackageRequestPackageTypeINDIVIDUAL:
 		return true
 	default:
 		return false
@@ -1268,12 +1340,13 @@ type CreateAdvertCommentRequest struct {
 
 // CreateAdvertDraftRequest defines model for CreateAdvertDraftRequest.
 type CreateAdvertDraftRequest struct {
-	CategoryId  *openapi_types.UUID `json:"categoryId,omitempty"`
-	Description *string             `json:"description,omitempty"`
-	DistrictId  *openapi_types.UUID `json:"districtId,omitempty"`
-	HorseId     *openapi_types.UUID `json:"horseId,omitempty"`
-	Price       *Money              `json:"price,omitempty"`
-	Title       *string             `json:"title,omitempty"`
+	CategoryId    *openapi_types.UUID `json:"categoryId,omitempty"`
+	Description   *string             `json:"description,omitempty"`
+	DistrictId    *openapi_types.UUID `json:"districtId,omitempty"`
+	EkuriBundleId *openapi_types.UUID `json:"ekuriBundleId,omitempty"`
+	HorseId       *openapi_types.UUID `json:"horseId,omitempty"`
+	Price         *Money              `json:"price,omitempty"`
+	Title         *string             `json:"title,omitempty"`
 }
 
 // CreateBannerRequest status not accepted; always created INACTIVE
@@ -1359,21 +1432,26 @@ type CreateJobDefinitionRequest struct {
 
 // CreatePackageRequest defines model for CreatePackageRequest.
 type CreatePackageRequest struct {
-	AllowsUrgent        bool         `json:"allowsUrgent"`
-	BadgeText           *string      `json:"badgeText,omitempty"`
-	Benefits            []string     `json:"benefits"`
-	BroadcastOnPublish  bool         `json:"broadcastOnPublish"`
-	Code                *PackageCode `json:"code,omitempty"`
-	CurrencyCode        *string      `json:"currencyCode,omitempty"`
-	DefaultDurationDays *int         `json:"defaultDurationDays,omitempty"`
-	Description         *string      `json:"description,omitempty"`
-	DisplayName         string       `json:"displayName"`
-	DisplayPrice        *Money       `json:"displayPrice,omitempty"`
-	IsActive            bool         `json:"isActive"`
-	SearchPriority      *int         `json:"searchPriority,omitempty"`
-	ShowcaseEligible    bool         `json:"showcaseEligible"`
-	SortOrder           *int         `json:"sortOrder,omitempty"`
+	AllowsUrgent        bool                             `json:"allowsUrgent"`
+	BadgeText           *string                          `json:"badgeText,omitempty"`
+	Benefits            []string                         `json:"benefits"`
+	BroadcastOnPublish  bool                             `json:"broadcastOnPublish"`
+	Code                *PackageCode                     `json:"code,omitempty"`
+	CurrencyCode        *string                          `json:"currencyCode,omitempty"`
+	DefaultDurationDays *int                             `json:"defaultDurationDays,omitempty"`
+	Description         *string                          `json:"description,omitempty"`
+	DisplayName         string                           `json:"displayName"`
+	DisplayPrice        *Money                           `json:"displayPrice,omitempty"`
+	HorseLimit          *int                             `json:"horseLimit,omitempty"`
+	IsActive            bool                             `json:"isActive"`
+	PackageType         *CreatePackageRequestPackageType `json:"packageType,omitempty"`
+	SearchPriority      *int                             `json:"searchPriority,omitempty"`
+	ShowcaseEligible    bool                             `json:"showcaseEligible"`
+	SortOrder           *int                             `json:"sortOrder,omitempty"`
 }
+
+// CreatePackageRequestPackageType defines model for CreatePackageRequest.PackageType.
+type CreatePackageRequestPackageType string
 
 // District defines model for District.
 type District struct {
@@ -1653,6 +1731,7 @@ type ModerationAdvertDetailResponse struct {
 	DeletedAt              *time.Time               `json:"deletedAt"`
 	Description            *string                  `json:"description"`
 	DistrictId             *openapi_types.UUID      `json:"districtId"`
+	EkuriBundleId          *openapi_types.UUID      `json:"ekuriBundleId,omitempty"`
 	HorseId                *openapi_types.UUID      `json:"horseId"`
 	Id                     int64                    `json:"id"`
 	Media                  []OwnerMediaRelationItem `json:"media"`
@@ -1765,6 +1844,7 @@ type OwnerAdvertResponse struct {
 	DeletedAt              *time.Time               `json:"deletedAt"`
 	Description            *string                  `json:"description"`
 	DistrictId             *openapi_types.UUID      `json:"districtId"`
+	EkuriBundleId          *openapi_types.UUID      `json:"ekuriBundleId,omitempty"`
 	HorseId                *openapi_types.UUID      `json:"horseId"`
 	Id                     int64                    `json:"id"`
 	Media                  []OwnerMediaRelationItem `json:"media"`
@@ -1793,26 +1873,31 @@ type PackageAdminListResponse struct {
 
 // PackageAdminView defines model for PackageAdminView.
 type PackageAdminView struct {
-	AllowsUrgent        bool               `json:"allowsUrgent"`
-	BadgeText           *string            `json:"badgeText,omitempty"`
-	Benefits            []string           `json:"benefits"`
-	BroadcastOnPublish  bool               `json:"broadcastOnPublish"`
-	Code                PackageCode        `json:"code"`
-	CreatedAt           time.Time          `json:"createdAt"`
-	CurrencyCode        string             `json:"currencyCode"`
-	DefaultDurationDays *int               `json:"defaultDurationDays,omitempty"`
-	Description         *string            `json:"description,omitempty"`
-	DisplayName         string             `json:"displayName"`
-	DisplayPrice        *Money             `json:"displayPrice,omitempty"`
-	FeaturedDays        *int               `json:"featuredDays,omitempty"`
-	Id                  openapi_types.UUID `json:"id"`
-	IsActive            bool               `json:"isActive"`
-	SearchPriority      int                `json:"searchPriority"`
-	ShowcaseEligible    bool               `json:"showcaseEligible"`
-	SortOrder           int                `json:"sortOrder"`
-	UpdatedAt           time.Time          `json:"updatedAt"`
-	Version             int                `json:"version"`
+	AllowsUrgent        bool                         `json:"allowsUrgent"`
+	BadgeText           *string                      `json:"badgeText,omitempty"`
+	Benefits            []string                     `json:"benefits"`
+	BroadcastOnPublish  bool                         `json:"broadcastOnPublish"`
+	Code                PackageCode                  `json:"code"`
+	CreatedAt           time.Time                    `json:"createdAt"`
+	CurrencyCode        string                       `json:"currencyCode"`
+	DefaultDurationDays *int                         `json:"defaultDurationDays,omitempty"`
+	Description         *string                      `json:"description,omitempty"`
+	DisplayName         string                       `json:"displayName"`
+	DisplayPrice        *Money                       `json:"displayPrice,omitempty"`
+	FeaturedDays        *int                         `json:"featuredDays,omitempty"`
+	HorseLimit          *int                         `json:"horseLimit,omitempty"`
+	Id                  openapi_types.UUID           `json:"id"`
+	IsActive            bool                         `json:"isActive"`
+	PackageType         *PackageAdminViewPackageType `json:"packageType,omitempty"`
+	SearchPriority      int                          `json:"searchPriority"`
+	ShowcaseEligible    bool                         `json:"showcaseEligible"`
+	SortOrder           int                          `json:"sortOrder"`
+	UpdatedAt           time.Time                    `json:"updatedAt"`
+	Version             int                          `json:"version"`
 }
+
+// PackageAdminViewPackageType defines model for PackageAdminView.PackageType.
+type PackageAdminViewPackageType string
 
 // PackageAssignmentSource defines model for PackageAssignmentSource.
 type PackageAssignmentSource string
@@ -1892,11 +1977,16 @@ type PublicPackage struct {
 	DisplayPrice        *Money      `json:"displayPrice,omitempty"`
 
 	// FeaturedDays Timed FEATURED window in days; null when package has no öne çıkan entitlement
-	FeaturedDays     *int `json:"featuredDays,omitempty"`
-	SearchPriority   int  `json:"searchPriority"`
-	ShowcaseEligible bool `json:"showcaseEligible"`
-	SortOrder        int  `json:"sortOrder"`
+	FeaturedDays     *int                      `json:"featuredDays,omitempty"`
+	HorseLimit       *int                      `json:"horseLimit,omitempty"`
+	PackageType      *PublicPackagePackageType `json:"packageType,omitempty"`
+	SearchPriority   int                       `json:"searchPriority"`
+	ShowcaseEligible bool                      `json:"showcaseEligible"`
+	SortOrder        int                       `json:"sortOrder"`
 }
+
+// PublicPackagePackageType defines model for PublicPackage.PackageType.
+type PublicPackagePackageType string
 
 // PublicPackageListResponse defines model for PublicPackageListResponse.
 type PublicPackageListResponse struct {
@@ -1951,12 +2041,15 @@ type PublishedAdvertCard struct {
 
 // PublishedAdvertDetailResponse defines model for PublishedAdvertDetailResponse.
 type PublishedAdvertDetailResponse struct {
-	Category      PublicCategorySummary `json:"category"`
-	Description   string                `json:"description"`
-	FeaturedUntil *time.Time            `json:"featuredUntil,omitempty"`
-	Horse         *HorseSelectionItem   `json:"horse"`
-	Id            int64                 `json:"id"`
-	IsFavorite    *bool                 `json:"isFavorite"`
+	Category    PublicCategorySummary `json:"category"`
+	Description string                `json:"description"`
+
+	// EkuriBundleId Eküri bundle ID if this advert belongs to an eküri group
+	EkuriBundleId *openapi_types.UUID `json:"ekuriBundleId,omitempty"`
+	FeaturedUntil *time.Time          `json:"featuredUntil,omitempty"`
+	Horse         *HorseSelectionItem `json:"horse"`
+	Id            int64               `json:"id"`
+	IsFavorite    *bool               `json:"isFavorite"`
 
 	// IsFeatured True while an ACTIVE FEATURED activation is within its ends_at window
 	IsFeatured bool `json:"isFeatured"`
@@ -2411,21 +2504,26 @@ type UpdateNotificationTemplateRequest struct {
 
 // UpdatePackageRequest defines model for UpdatePackageRequest.
 type UpdatePackageRequest struct {
-	AllowsUrgent        *bool     `json:"allowsUrgent,omitempty"`
-	BadgeText           *string   `json:"badgeText,omitempty"`
-	Benefits            *[]string `json:"benefits,omitempty"`
-	BroadcastOnPublish  *bool     `json:"broadcastOnPublish,omitempty"`
-	CurrencyCode        *string   `json:"currencyCode,omitempty"`
-	DefaultDurationDays *int      `json:"defaultDurationDays,omitempty"`
-	Description         *string   `json:"description,omitempty"`
-	DisplayName         *string   `json:"displayName,omitempty"`
-	DisplayPrice        *Money    `json:"displayPrice,omitempty"`
-	ExpectedVersion     int       `json:"expectedVersion"`
-	IsActive            *bool     `json:"isActive,omitempty"`
-	SearchPriority      *int      `json:"searchPriority,omitempty"`
-	ShowcaseEligible    *bool     `json:"showcaseEligible,omitempty"`
-	SortOrder           *int      `json:"sortOrder,omitempty"`
+	AllowsUrgent        *bool                            `json:"allowsUrgent,omitempty"`
+	BadgeText           *string                          `json:"badgeText,omitempty"`
+	Benefits            *[]string                        `json:"benefits,omitempty"`
+	BroadcastOnPublish  *bool                            `json:"broadcastOnPublish,omitempty"`
+	CurrencyCode        *string                          `json:"currencyCode,omitempty"`
+	DefaultDurationDays *int                             `json:"defaultDurationDays,omitempty"`
+	Description         *string                          `json:"description,omitempty"`
+	DisplayName         *string                          `json:"displayName,omitempty"`
+	DisplayPrice        *Money                           `json:"displayPrice,omitempty"`
+	ExpectedVersion     int                              `json:"expectedVersion"`
+	HorseLimit          *int                             `json:"horseLimit,omitempty"`
+	IsActive            *bool                            `json:"isActive,omitempty"`
+	PackageType         *UpdatePackageRequestPackageType `json:"packageType,omitempty"`
+	SearchPriority      *int                             `json:"searchPriority,omitempty"`
+	ShowcaseEligible    *bool                            `json:"showcaseEligible,omitempty"`
+	SortOrder           *int                             `json:"sortOrder,omitempty"`
 }
+
+// UpdatePackageRequestPackageType defines model for UpdatePackageRequest.PackageType.
+type UpdatePackageRequestPackageType string
 
 // UploadAuthorization Provider-neutral short-lived upload authorization; no permanent credentials/object keys
 type UploadAuthorization struct {

@@ -60,9 +60,10 @@ func (h *Handler) CreateAdvertDraft(c *gin.Context) {
 		CategoryID:  req.CategoryId,
 		DistrictID:  req.DistrictId,
 		HorseID:     req.HorseId,
-		Title:       req.Title,
-		Description: req.Description,
-		Price:       moneyInput(req.Price),
+		Title:         req.Title,
+		Description:   req.Description,
+		Price:         moneyInput(req.Price),
+		EkuriBundleID: req.EkuriBundleId,
 	}
 	var extra struct {
 		Address  *string `json:"address"`
@@ -366,6 +367,7 @@ func mapOwnerAdvertBase(v domainadvert.OwnerView) generated.OwnerAdvertResponse 
 		DeletedAt:              v.DeletedAt,
 		CreatedAt:              createdAt,
 		CategoryClearedWarning: v.CategoryClearedWarning,
+		EkuriBundleId:          v.EkuriBundleID,
 	}
 }
 

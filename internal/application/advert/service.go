@@ -89,14 +89,15 @@ func newService(cfg Config) (*Service, error) {
 
 // CreateDraftInput is ADVERT-OWNER-01 input; every field is optional.
 type CreateDraftInput struct {
-	CategoryID  *uuid.UUID
-	DistrictID  *uuid.UUID
-	HorseID     *uuid.UUID
-	Title       *string
-	Description *string
-	Address     *string
-	VideoURL    *string
-	Price       *MoneyInput
+	CategoryID    *uuid.UUID
+	DistrictID    *uuid.UUID
+	HorseID       *uuid.UUID
+	Title         *string
+	Description   *string
+	Address       *string
+	VideoURL      *string
+	Price         *MoneyInput
+	EkuriBundleID *uuid.UUID
 }
 
 // ListInput is ADVERT-OWNER-02 input.
@@ -263,21 +264,22 @@ func (s *Service) CreateAdvertDraft(ctx context.Context, ownerID uuid.UUID, in C
 	}
 
 	draft := domainadvert.Advert{
-		OwnerUserID:  ownerID,
-		CategoryID:   in.CategoryID,
-		DistrictID:   in.DistrictID,
-		HorseID:      in.HorseID,
-		Title:        title,
-		Description:  normalizeDescription(in.Description),
-		Address:      normalizeDescription(in.Address),
-		VideoURL:     normalizeVideoURL(in.VideoURL),
-		Price:        price,
-		Status:       domainadvert.StatusDraft,
-		Properties:   properties,
-		Version:      1,
-		MediaVersion: 1,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		OwnerUserID:   ownerID,
+		CategoryID:    in.CategoryID,
+		DistrictID:    in.DistrictID,
+		HorseID:       in.HorseID,
+		Title:         title,
+		Description:   normalizeDescription(in.Description),
+		Address:       normalizeDescription(in.Address),
+		VideoURL:      normalizeVideoURL(in.VideoURL),
+		Price:         price,
+		Status:        domainadvert.StatusDraft,
+		Properties:    properties,
+		Version:       1,
+		MediaVersion:  1,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		EkuriBundleID: in.EkuriBundleID,
 	}
 
 	// DRAFT insert and the initial NULL->DRAFT history row share one transaction.
@@ -811,6 +813,9 @@ func (s *Service) validateForSubmission(ctx context.Context, a domainadvert.Adve
 			hasUsableMedia = true
 			break
 		}
+	}
+	if !hasUsableMedia && a.EkuriBundleID != nil {
+		hasUsableMedia = true
 	}
 	if !hasUsableMedia {
 		fields = append(fields, apperr.FieldError{

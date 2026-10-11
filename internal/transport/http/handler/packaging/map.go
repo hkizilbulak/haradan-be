@@ -9,6 +9,11 @@ import (
 )
 
 func mapPackageAdminView(p domainpackaging.Package) generated.PackageAdminView {
+	var pt *generated.PackageAdminViewPackageType
+	if p.PackageType != "" {
+		val := generated.PackageAdminViewPackageType(p.PackageType)
+		pt = &val
+	}
 	return generated.PackageAdminView{
 		Id:                  p.ID,
 		Code:                generated.PackageCode(p.Code),
@@ -24,6 +29,8 @@ func mapPackageAdminView(p domainpackaging.Package) generated.PackageAdminView {
 		FeaturedDays:        p.FeaturedDays,
 		SearchPriority:      p.SearchPriority,
 		BroadcastOnPublish:  p.BroadcastOnPublish,
+		PackageType:         pt,
+		HorseLimit:          p.HorseLimit,
 		IsActive:            p.IsActive,
 		SortOrder:           p.SortOrder,
 		Version:             p.Version,
@@ -33,6 +40,11 @@ func mapPackageAdminView(p domainpackaging.Package) generated.PackageAdminView {
 }
 
 func mapPublicPackage(p domainpackaging.Package) generated.PublicPackage {
+	var pt *generated.PublicPackagePackageType
+	if p.PackageType != "" {
+		val := generated.PublicPackagePackageType(p.PackageType)
+		pt = &val
+	}
 	return generated.PublicPackage{
 		Code:                generated.PackageCode(p.Code),
 		DisplayName:         p.DisplayName,
@@ -45,6 +57,8 @@ func mapPublicPackage(p domainpackaging.Package) generated.PublicPackage {
 		ShowcaseEligible:    p.ShowcaseEligible,
 		FeaturedDays:        p.FeaturedDays,
 		SearchPriority:      p.SearchPriority,
+		PackageType:         pt,
+		HorseLimit:          p.HorseLimit,
 		SortOrder:           p.SortOrder,
 	}
 }

@@ -141,6 +141,31 @@ func (h *Handler) GetAdvertModerationDetail(c *gin.Context, advertID generated.A
 	c.JSON(http.StatusOK, mapModerationDetail(out))
 }
 
+// GetBundleAdvertsAdmin handles GET /v1/admin/adverts/bundle/:bundleId.
+func (h *Handler) GetBundleAdvertsAdmin(c *gin.Context) {
+	if _, ok := h.requireAdminBO(c); !ok {
+		return
+	}
+	bundleIDStr := c.Param("bundleId")
+	bundleID, err := uuid.Parse(bundleIDStr)
+	if err != nil {
+		h.respond(c, h.logger, apperr.BadRequest(apperr.CodeValidation, "Geçersiz eküri grup kimliği."))
+		return
+	}
+	out, err := h.svc.ListBundleAdvertsAdmin(c.Request.Context(), bundleID)
+	if err != nil {
+		h.respond(c, h.logger, err)
+		return
+	}
+	items := make([]ownerAdvertJSON, 0, len(out))
+	for _, item := range out {
+		items = append(items, mapOwnerView(item))
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"items": items,
+	})
+}
+
 // ApproveAdvert handles POST /v1/admin/adverts/{advertId}/approve.
 func (h *Handler) ApproveAdvert(c *gin.Context, advertID generated.AdvertIdPath) {
 	actorID, ok := h.requireAdminBO(c)
@@ -272,6 +297,7 @@ func mapModerationDetail(v domainadvert.ModerationDetailView) moderationAdvertDe
 			DeletedAt:              owner.DeletedAt,
 			CreatedAt:              owner.CreatedAt,
 			CategoryClearedWarning: owner.CategoryClearedWarning,
+			EkuriBundleId:          owner.EkuriBundleId,
 			OwnerUserId:            v.OwnerUserID,
 			StatusHistory:          history,
 		},

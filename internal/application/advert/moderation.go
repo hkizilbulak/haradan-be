@@ -91,6 +91,15 @@ func (s *Service) GetAdvertModerationDetail(ctx context.Context, advertID int64)
 	return s.moderationDetail(ctx, found)
 }
 
+// ListBundleAdvertsAdmin returns all owner views for adverts in an eküri bundle.
+func (s *Service) ListBundleAdvertsAdmin(ctx context.Context, bundleID uuid.UUID) ([]domainadvert.OwnerView, error) {
+	rows, err := s.repo.ListByBundleID(ctx, bundleID)
+	if err != nil {
+		return nil, err
+	}
+	return s.projectOwnerViews(ctx, rows)
+}
+
 type AdminUpdateAdvertInput struct {
 	ExpectedVersion *int
 	Title           *string

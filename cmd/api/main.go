@@ -475,10 +475,22 @@ func applyMigrations(databaseURL string, pingTimeout time.Duration, log *slog.Lo
 	}
 	defer db.Close()
 
-	pingCtx, cancel := context.WithTimeout(context.Background(), pingTimeout)
-	defer cancel()
-	if err := db.PingContext(pingCtx); err != nil {
-		return fmt.Errorf("ping database failed: %w", err)
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		pingCtx, cancel := context.WithTimeout(context.Background(), pingTimeout)
+		err = db.PingContext(pingCtx)
+		cancel()
+		if err == nil {
+			lastErr = nil
+			break
+		}
+		lastErr = err
+		if attempt < 3 {
+			time.Sleep(time.Second)
+		}
+	}
+	if lastErr != nil {
+		return fmt.Errorf("ping database failed: %w", lastErr)
 	}
 
 	runner := &migration.Runner{

@@ -92,6 +92,14 @@ LIMIT $1`
 	return scanPublicCards(rows, err, "list homepage featured")
 }
 
+func (r *Repository) ListBundleAdverts(ctx context.Context, bundleID uuid.UUID) ([]domainadvert.PublicCard, error) {
+	sql := publicCardSelect("NULL") + `
+WHERE a.ekuri_bundle_id = $1 AND a.status = 'PUBLISHED' AND a.deleted_at IS NULL
+ORDER BY a.published_at DESC, a.id DESC LIMIT 20`
+	rows, err := r.db.Query(ctx, sql, bundleID)
+	return scanPublicCards(rows, err, "list bundle adverts")
+}
+
 func (r *Repository) GetPublishedDetail(ctx context.Context, advertID int64, actorUserID *uuid.UUID) (domainadvert.PublicDetail, error) {
 	sql := publicCardSelect("$2") + `
 WHERE a.id = $1 AND a.status = 'PUBLISHED' AND a.deleted_at IS NULL`
@@ -103,7 +111,7 @@ WHERE a.id = $1 AND a.status = 'PUBLISHED' AND a.deleted_at IS NULL`
 		return domainadvert.PublicDetail{}, apperr.Internal(fmt.Errorf("get published advert: %w", pg.SanitizeErr(err)))
 	}
 	const metadata = `
-SELECT a.description, a.address, a.video_url, c.name, c.slug, d.name, p.name, h.id, h.original_name, h.tjk_number, a.properties, u.phone, a.owner_user_id
+SELECT a.description, a.address, a.video_url, c.name, c.slug, d.name, p.name, h.id, h.original_name, h.tjk_number, a.properties, u.phone, a.owner_user_id, a.ekuri_bundle_id
 FROM hrd_adverts a
 LEFT JOIN hrd_categories c ON c.id = a.category_id
 LEFT JOIN hrd_districts d ON d.id = a.district_id
@@ -127,10 +135,12 @@ WHERE a.id = $1`
 		props          []byte
 		userPhone      *string
 		ownerUserID    *uuid.UUID
+		ekuriBundleID  *uuid.UUID
 	)
-	if err := r.db.QueryRow(ctx, metadata, advertID).Scan(&desc, &addr, &videoURL, &catName, &catSlug, &distName, &provName, &horseID, &horseName, &horseTJKNumber, &props, &userPhone, &ownerUserID); err != nil {
+	if err := r.db.QueryRow(ctx, metadata, advertID).Scan(&desc, &addr, &videoURL, &catName, &catSlug, &distName, &provName, &horseID, &horseName, &horseTJKNumber, &props, &userPhone, &ownerUserID, &ekuriBundleID); err != nil {
 		return domainadvert.PublicDetail{}, apperr.Internal(fmt.Errorf("get published advert metadata: %w", pg.SanitizeErr(err)))
 	}
+	out.EkuriBundleID = ekuriBundleID
 	if desc != nil {
 		out.Description = *desc
 	}

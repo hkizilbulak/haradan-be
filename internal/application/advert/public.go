@@ -238,6 +238,13 @@ func (s *Service) GetPublishedAdvertDetail(ctx context.Context, advertID int64, 
 	return s.public.GetPublishedDetail(ctx, advertID, actorUserID)
 }
 
+func (s *Service) ListBundleAdverts(ctx context.Context, bundleID uuid.UUID) ([]PublicCard, error) {
+	if s.public == nil {
+		return nil, apperr.Internal(fmt.Errorf("public advert repository is not configured"))
+	}
+	return s.public.ListBundleAdverts(ctx, bundleID)
+}
+
 func resolvePublicLimit(limit *int, fallback, maximum int) (int, error) {
 	if limit == nil {
 		return fallback, nil
