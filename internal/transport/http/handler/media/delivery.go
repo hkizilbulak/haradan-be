@@ -35,6 +35,11 @@ func (h *Handler) deliverPublicMedia(c *gin.Context, assetID uuid.UUID, profile 
 	c.Header("Access-Control-Allow-Headers", "*")
 	c.Header("Cross-Origin-Resource-Policy", "cross-origin")
 
+	profile = strings.ToUpper(strings.TrimSpace(profile))
+	if profile == "THUMBNAIL" {
+		profile = domainmedia.ProfileHomepage
+	}
+
 	if !domainmedia.IsKnownDeliveryProfile(profile) {
 		h.respond(c, h.logger, apperr.NotFound(assetNotFoundPublic))
 		return

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ import (
 	domainadvert "github.com/hkizilbulak/haradan-be/internal/domain/advert"
 	"github.com/hkizilbulak/haradan-be/internal/domain/apperr"
 	domaincatalog "github.com/hkizilbulak/haradan-be/internal/domain/catalog"
+	domaingeo "github.com/hkizilbulak/haradan-be/internal/domain/geo"
 	domainmedia "github.com/hkizilbulak/haradan-be/internal/domain/media"
 )
 
@@ -989,20 +991,99 @@ func (s *Service) withTx(ctx context.Context, fn func(context.Context, Repositor
 // projectOwnerViews attaches media relations and province ids for owner reads.
 func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Advert) ([]domainadvert.OwnerView, error) {
 	ids := make([]int64, 0, len(rows))
+	distinctDistrictIDs := make(map[uuid.UUID]struct{})
+	distinctOwnerUserIDs := make(map[uuid.UUID]struct{})
 	for _, row := range rows {
 		ids = append(ids, row.ID)
+		if row.DistrictID != nil {
+			distinctDistrictIDs[*row.DistrictID] = struct{}{}
+		}
+		if row.OwnerUserID != uuid.Nil {
+			distinctOwnerUserIDs[row.OwnerUserID] = struct{}{}
+		}
 	}
 	mediaByAdvert, err := s.repo.ListMediaRelations(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
 	reasonsByAdvert, _ := s.repo.ListLatestStatusHistoryReasons(ctx, ids)
+
+	// Pre-load provinces once to avoid N+1 queries.
+	provinceNames := make(map[uuid.UUID]string)
+	if s.geo != nil {
+		if provinces, pErr := s.geo.ListActiveProvinces(ctx); pErr == nil {
+			for _, p := range provinces {
+				provinceNames[p.ID] = p.Name
+			}
+		}
+	}
+
+	// Concurrently resolve distinct districts
+	districtCache := make(map[uuid.UUID]*domaingeo.District)
+	if s.geo != nil && len(distinctDistrictIDs) > 0 {
+		var mu sync.Mutex
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, 10)
+		for dID := range distinctDistrictIDs {
+			wg.Add(1)
+			go func(id uuid.UUID) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				d, geoErr := s.geo.GetActiveDistrict(ctx, id)
+				mu.Lock()
+				if geoErr == nil {
+					districtCache[id] = &d
+				} else {
+					districtCache[id] = nil
+				}
+				mu.Unlock()
+			}(dID)
+		}
+		wg.Wait()
+	}
+
+	// Concurrently resolve distinct owners
 	type cachedOwnerInfo struct {
 		name  string
 		phone string
 	}
-	items := make([]domainadvert.OwnerView, 0, len(rows))
 	ownerCache := make(map[uuid.UUID]*cachedOwnerInfo)
+	if s.users != nil && len(distinctOwnerUserIDs) > 0 {
+		var mu sync.Mutex
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, 10)
+		for uID := range distinctOwnerUserIDs {
+			wg.Add(1)
+			go func(id uuid.UUID) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				u, uErr := s.users.FindByID(ctx, id)
+				mu.Lock()
+				if uErr == nil {
+					fullName := strings.TrimSpace(u.FirstName + " " + u.LastName)
+					if fullName == "" {
+						fullName = u.Email
+					}
+					phoneVal := ""
+					if u.Phone != nil {
+						phoneVal = strings.TrimSpace(*u.Phone)
+					}
+					ownerCache[id] = &cachedOwnerInfo{
+						name:  fullName,
+						phone: phoneVal,
+					}
+				} else {
+					ownerCache[id] = nil
+				}
+				mu.Unlock()
+			}(uID)
+		}
+		wg.Wait()
+	}
+
+	items := make([]domainadvert.OwnerView, 0, len(rows))
 	for _, row := range rows {
 		view := row.ToOwnerView()
 		if media := mediaByAdvert[row.ID]; len(media) > 0 {
@@ -1029,27 +1110,7 @@ func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Adv
 		}
 
 		if s.users != nil && row.OwnerUserID != uuid.Nil {
-			info, cached := ownerCache[row.OwnerUserID]
-			if !cached {
-				if u, uErr := s.users.FindByID(ctx, row.OwnerUserID); uErr == nil {
-					fullName := strings.TrimSpace(u.FirstName + " " + u.LastName)
-					if fullName == "" {
-						fullName = u.Email
-					}
-					phoneVal := ""
-					if u.Phone != nil {
-						phoneVal = strings.TrimSpace(*u.Phone)
-					}
-					info = &cachedOwnerInfo{
-						name:  fullName,
-						phone: phoneVal,
-					}
-					ownerCache[row.OwnerUserID] = info
-				} else {
-					ownerCache[row.OwnerUserID] = nil
-				}
-			}
-			if info != nil {
+			if info := ownerCache[row.OwnerUserID]; info != nil {
 				if info.name != "" {
 					if _, ok := props["ownerName"]; !ok {
 						props["ownerName"] = info.name
@@ -1070,8 +1131,7 @@ func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Adv
 		}
 
 		if row.DistrictID != nil {
-			district, geoErr := s.geo.GetActiveDistrict(ctx, *row.DistrictID)
-			if geoErr == nil {
+			if district := districtCache[*row.DistrictID]; district != nil {
 				pid := district.ProvinceID
 				view.ProvinceID = &pid
 
@@ -1084,20 +1144,14 @@ func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Adv
 					propsModified = true
 				}
 
-				provinces, pErr := s.geo.ListActiveProvinces(ctx)
-				if pErr == nil {
-					for _, p := range provinces {
-						if p.ID == district.ProvinceID {
-							if _, ok := props["sehir"]; !ok {
-								props["sehir"] = p.Name
-								propsModified = true
-							}
-							if _, ok := props["provinceName"]; !ok {
-								props["provinceName"] = p.Name
-								propsModified = true
-							}
-							break
-						}
+				if pName, ok := provinceNames[district.ProvinceID]; ok {
+					if _, exists := props["sehir"]; !exists {
+						props["sehir"] = pName
+						propsModified = true
+					}
+					if _, exists := props["provinceName"]; !exists {
+						props["provinceName"] = pName
+						propsModified = true
 					}
 				}
 			}

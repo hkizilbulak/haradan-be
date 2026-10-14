@@ -110,6 +110,9 @@ func (r *fakePublicRepository) ListHomepageFeatured(context.Context, int, *uuid.
 func (r *fakePublicRepository) GetPublishedDetail(context.Context, int64, *uuid.UUID) (domainadvert.PublicDetail, error) {
 	return r.detail, nil
 }
+func (r *fakePublicRepository) ListBundleAdverts(context.Context, uuid.UUID) ([]domainadvert.PublicCard, error) {
+	return nil, nil
+}
 func (r *fakePublicRepository) RecordView(context.Context, int64, string) error {
 	return nil
 }

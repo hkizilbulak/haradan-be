@@ -198,7 +198,10 @@ func (r *Repository) ListByBundleID(ctx context.Context, bundleID uuid.UUID) ([]
 	const q = `
 SELECT ` + advertColumns + `
 FROM hrd_adverts
-WHERE ekuri_bundle_id = $1
+WHERE (ekuri_bundle_id = $1
+   OR (properties->>'ekuriCode' IS NOT NULL AND properties->>'ekuriCode' = (
+        SELECT properties->>'ekuriCode' FROM hrd_adverts WHERE ekuri_bundle_id = $1 AND properties->>'ekuriCode' IS NOT NULL LIMIT 1
+   )))
   AND deleted_at IS NULL
 ORDER BY created_at ASC, id ASC`
 
