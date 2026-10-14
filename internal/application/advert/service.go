@@ -997,7 +997,12 @@ func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Adv
 		return nil, err
 	}
 	reasonsByAdvert, _ := s.repo.ListLatestStatusHistoryReasons(ctx, ids)
+	type cachedOwnerInfo struct {
+		name  string
+		phone string
+	}
 	items := make([]domainadvert.OwnerView, 0, len(rows))
+	ownerCache := make(map[uuid.UUID]*cachedOwnerInfo)
 	for _, row := range rows {
 		view := row.ToOwnerView()
 		if media := mediaByAdvert[row.ID]; len(media) > 0 {
@@ -1024,25 +1029,40 @@ func (s *Service) projectOwnerViews(ctx context.Context, rows []domainadvert.Adv
 		}
 
 		if s.users != nil && row.OwnerUserID != uuid.Nil {
-			if u, uErr := s.users.FindByID(ctx, row.OwnerUserID); uErr == nil {
-				fullName := strings.TrimSpace(u.FirstName + " " + u.LastName)
-				if fullName == "" {
-					fullName = u.Email
+			info, cached := ownerCache[row.OwnerUserID]
+			if !cached {
+				if u, uErr := s.users.FindByID(ctx, row.OwnerUserID); uErr == nil {
+					fullName := strings.TrimSpace(u.FirstName + " " + u.LastName)
+					if fullName == "" {
+						fullName = u.Email
+					}
+					phoneVal := ""
+					if u.Phone != nil {
+						phoneVal = strings.TrimSpace(*u.Phone)
+					}
+					info = &cachedOwnerInfo{
+						name:  fullName,
+						phone: phoneVal,
+					}
+					ownerCache[row.OwnerUserID] = info
+				} else {
+					ownerCache[row.OwnerUserID] = nil
 				}
-				if fullName != "" {
+			}
+			if info != nil {
+				if info.name != "" {
 					if _, ok := props["ownerName"]; !ok {
-						props["ownerName"] = fullName
+						props["ownerName"] = info.name
 						propsModified = true
 					}
 				}
-				if u.Phone != nil && strings.TrimSpace(*u.Phone) != "" {
-					phoneVal := strings.TrimSpace(*u.Phone)
+				if info.phone != "" {
 					if _, ok := props["sellerPhone"]; !ok {
-						props["sellerPhone"] = phoneVal
+						props["sellerPhone"] = info.phone
 						propsModified = true
 					}
 					if _, ok := props["phone"]; !ok {
-						props["phone"] = phoneVal
+						props["phone"] = info.phone
 						propsModified = true
 					}
 				}
